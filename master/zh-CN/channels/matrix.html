@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-4feec8b6.js";
+            window.path_to_searchindex_js = "../searchindex-e62cbde8.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-92e0b634.js"></script>
+        <script src="../toc-812bb341.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -228,11 +228,13 @@
 <li>对于 E2EE 房间，机器人设备已收到该房间的加密密钥。</li>
 </ol>
 <h2 id="2-配置"><a class="header" href="#2-配置">2. 配置</a></h2>
-<p>所有配置管理都通过 <code>zeroclaw config</code> 或 <code>zeroclaw onboard</code> 进行。请勿手动编辑 <code>~/.zeroclaw/config.toml</code>。</p>
-<p>最简单的方法：运行向导，让它提示每个 Matrix 字段：</p>
-<pre><code class="language-bash">zeroclaw onboard channels
+<p>All config management goes through <code>zeroclaw config</code>. Do not hand-edit <code>~/.zeroclaw/config.toml</code>.</p>
+<p>Easiest: set each Matrix field with <code>zeroclaw config set</code> (see below). For the fastest one-shot bring-up, the most ergonomic path is to set the required fields back-to-back:</p>
+<pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
+zeroclaw config set channels.matrix.access-token   # 提示词，输入已掩码
+zeroclaw config set channels.matrix.allowed-users '["*"]'
 </code></pre>
-<p>或者在入职后设置各个字段：</p>
+<p>Or set individual fields directly:</p>
 <pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
 zeroclaw config set channels.matrix.access-token           # 提示词，输入已掩码
 zeroclaw config set channels.matrix.user-id @bot:matrix.example.com
@@ -269,7 +271,7 @@ zeroclaw config set channels.matrix.device-id NEWDEVICE
 zeroclaw config set channels.matrix.user-id @bot:example.com
 </code></pre>
 <p>重启以使新值生效：<code>zeroclaw service restart</code>。</p>
-<p>如果你更愿意通过交互方式完成配置，向导（<code>zeroclaw onboard channels</code>）会提示你输入这些相同的字段。</p>
+<p>Each of the three <code>zeroclaw config set</code> calls above can be re-run any time to update an individual field.</p>
 <h3 id="备注"><a class="header" href="#备注">备注</a></h3>
 <ul>
 <li>首次粘贴时<strong>请保留令牌副本</strong>。密钥会在静态存储时加密，<code>zeroclaw config get</code> 会将令牌字段显示为 <code>[masked]</code>，之后将无法再次获取。如果你需要在 §5C 的 curl 验证代码片段中用到它，请将其暂存到临时笔记中。</li>
@@ -278,7 +280,7 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <li><strong>Token 显示为已过期或无效</strong>：启动时，使用相同的 curl 生成一个新的，重复步骤 2。</li>
 </ul>
 <h2 id="4-快速验证"><a class="header" href="#4-快速验证">4. 快速验证</a></h2>
-<p>如果尚未运行，请先执行 <code>zeroclaw onboard channels</code>，然后通过 <code>zeroclaw service restart</code>（后台）或 <code>zeroclaw daemon</code>（前台）重新启动。在已配置的 Matrix 房间中发送一条纯文本消息。确认：</p>
+<p>Apply the field set in §2 if you haven’t yet, then restart with <code>zeroclaw service restart</code> (background) or <code>zeroclaw daemon</code> (foreground). Send a plain-text message in the configured Matrix room. Confirm:</p>
 <ul>
 <li>ZeroClaw 日志显示，Matrix 监听器启动时没有重复的同步/认证错误。</li>
 <li>在加密房间中，机器人可以读取并回复来自允许用户的加密消息。</li>
@@ -301,7 +303,7 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <p><strong>关于以下代码片段中的 <code>$MATRIX_TOKEN</code>。</strong> ZeroClaw 中的机密数据在静态存储时已加密，并且故意<strong>不</strong>支持通过 <code>zeroclaw config get</code> 进行检索——对于任何机密字段，它会输出 <code>[masked]</code>。你有两个选项：</p>
 <ol>
 <li><strong>获取新令牌</strong>：重新运行 §3 步骤 1 中的密码登录 curl 命令，导出其返回的 <code>access_token</code>。适用于验证和恢复流程——不会影响配置中的内容。</li>
-<li>在首次将令牌粘贴到 <code>zeroclaw onboard</code> 或 <code>zeroclaw config set channels.matrix.access-token</code> 时，请<strong>保留一份副本</strong>。这是一个一次性副作用——如果需要稍后运行这些 curl 检查，请将其写入临时笔记中。</li>
+<li><strong>Keep a copy</strong> of the token when you first paste it into <code>zeroclaw config set channels.matrix.access-token</code>. A one-time side-effect — write it to a scratch note if you want to run these curl checks later.</li>
 </ol>
 <p>非秘密字段<strong>确实</strong>是可检索的：</p>
 <pre><code class="language-bash">MATRIX_HOMESERVER=$(zeroclaw config get channels.matrix.homeserver)
@@ -315,7 +317,7 @@ MATRIX_USER=$(zeroclaw config get channels.matrix.user-id)
 <ul>
 <li>返回的 <code>user_id</code> 必须与机器人账号匹配。</li>
 <li>如果响应中缺少 <code>device_id</code>，请手动设置（参见 §5H）。</li>
-<li>在不重新运行 onboard 的情况下轮换访问令牌：<code>zeroclaw config set channels.matrix.access-token</code>（会提示输入，并进行掩码处理），然后执行 <code>zeroclaw service restart</code>。</li>
+<li>Rotate the access token: <code>zeroclaw config set channels.matrix.access-token</code> (prompts, masked), then <code>zeroclaw service restart</code>.</li>
 </ul>
 <h3 id="d-e2ee-特定检查"><a class="header" href="#d-e2ee-特定检查">D. E2EE 特定检查</a></h3>
 <ul>
@@ -413,15 +415,7 @@ zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
 <li>退出 Element。</li>
 </ol>
 <h4 id="步骤-2--将恢复密钥添加到-zeroclaw"><a class="header" href="#步骤-2--将恢复密钥添加到-zeroclaw">步骤 2 — 将恢复密钥添加到 ZeroClaw</a></h4>
-<p>两种方法均可。对于全新安装，使用引导向导更为简便；而对于现有安装，则推荐使用 <code>zeroclaw config set</code>。</p>
-<p><strong>选项 A — 在入职期间：</strong></p>
-<pre><code class="language-bash">zeroclaw onboard channels
-</code></pre>
-<p>当被提示时：</p>
-<pre><code>E2EE recovery key (or Enter to skip): EsTj 3yST y93F SLpB jJsz ...
-</code></pre>
-<p>输入被屏蔽。密钥在静态时已加密。</p>
-<p><strong>选项 B — 现有安装：</strong></p>
+<p>Apply the recovery key to ZeroClaw:</p>
 <pre><code class="language-bash">zeroclaw config set channels.matrix.recovery-key    # 输入被屏蔽
 </code></pre>
 <p>然后运行 <code>zeroclaw service restart</code>。恢复密钥会立即在静态状态下加密。</p>

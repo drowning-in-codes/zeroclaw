@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-ef33477f.js";
+            window.path_to_searchindex_js = "../searchindex-696d0559.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4cf32d98.js"></script>
+        <script src="../toc-eebe6d87.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -232,11 +232,13 @@
 <li>Pour les salles avec chiffrement de bout en bout (E2EE), le dispositif du bot a reçu les clés de chiffrement pour la salle.</li>
 </ol>
 <h2 id="2-configuration"><a class="header" href="#2-configuration">2. Configuration</a></h2>
-<p>Toute la gestion de la configuration passe par <code>zeroclaw config</code> ou <code>zeroclaw onboard</code>. Ne modifiez pas manuellement <code>~/.zeroclaw/config.toml</code>.</p>
-<p>Le plus simple : exécutez l’assistant et laissez-le vous demander chaque champ de la matrice :</p>
-<pre><code class="language-bash">zeroclaw onboard channels
+<p>All config management goes through <code>zeroclaw config</code>. Do not hand-edit <code>~/.zeroclaw/config.toml</code>.</p>
+<p>Easiest: set each Matrix field with <code>zeroclaw config set</code> (see below). For the fastest one-shot bring-up, the most ergonomic path is to set the required fields back-to-back:</p>
+<pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
+zeroclaw config set channels.matrix.access-token   # invites, entrée masquée
+zeroclaw config set channels.matrix.allowed-users '["*"]'
 </code></pre>
-<p>Ou définissez des champs individuels après l’intégration :</p>
+<p>Or set individual fields directly:</p>
 <pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
 zeroclaw config set channels.matrix.access-token           # invites, entrée masquée
 zeroclaw config set channels.matrix.user-id @bot:matrix.example.com
@@ -273,7 +275,7 @@ zeroclaw config set channels.matrix.device-id NEWDEVICE
 zeroclaw config set channels.matrix.user-id @bot:example.com
 </code></pre>
 <p>Redémarrez pour appliquer les nouvelles valeurs : <code>zeroclaw service restart</code>.</p>
-<p>L’assistant (<code>zeroclaw onboard channels</code>) demande ces mêmes champs si vous préférez procéder de manière interactive.</p>
+<p>Each of the three <code>zeroclaw config set</code> calls above can be re-run any time to update an individual field.</p>
 <h3 id="notes"><a class="header" href="#notes">Notes</a></h3>
 <ul>
 <li><strong>Conservez une copie du token</strong> lors de votre premier collage. Les secrets sont chiffrés au repos et <code>zeroclaw config get</code> affichera <code>[masked]</code> pour le champ du token ; vous ne pourrez pas le récupérer ultérieurement. Notez-le dans un mémo temporaire si vous en avez besoin pour les extraits de validation curl du §5C.</li>
@@ -282,7 +284,7 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <li><strong>Le jeton apparaît comme expiré ou invalide</strong> au démarrage : générez-en un nouveau avec le même curl, répétez l’étape 2.</li>
 </ul>
 <h2 id="4-validation-rapide"><a class="header" href="#4-validation-rapide">4. Validation rapide</a></h2>
-<p>Exécutez <code>zeroclaw onboard channels</code> si ce n’est pas déjà fait, puis redémarrez avec <code>zeroclaw service restart</code> (en arrière-plan) ou <code>zeroclaw daemon</code> (au premier plan). Envoyez un message en texte brut dans le salon Matrix configuré. Confirmez :</p>
+<p>Apply the field set in §2 if you haven’t yet, then restart with <code>zeroclaw service restart</code> (background) or <code>zeroclaw daemon</code> (foreground). Send a plain-text message in the configured Matrix room. Confirm:</p>
 <ul>
 <li>Les journaux de ZeroClaw indiquent que l’écouteur Matrix a démarré sans erreurs répétées de synchronisation ou d’authentification.</li>
 <li>Dans une salle chiffrée, le bot peut lire et répondre aux messages chiffrés des utilisateurs autorisés.</li>
@@ -305,7 +307,7 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <p><strong>À propos de <code>$MATRIX_TOKEN</code> dans les extraits ci-dessous.</strong> Les secrets dans ZeroClaw sont chiffrés au repos et ne sont <strong>pas</strong> récupérables via <code>zeroclaw config get</code> — il affiche <code>[masked]</code> pour tout champ de secret. Vous avez deux options :</p>
 <ol>
 <li><strong>Obtenez un nouveau token</strong> en réexécutant la commande curl de connexion par mot de passe du §3, étape 1. Exportez l’<code>access_token</code> qu’elle retourne. Utile pour les chemins de validation et de récupération — n’affecte pas ce qui se trouve dans votre config.</li>
-<li><strong>Conservez une copie</strong> du jeton lorsque vous le collez pour la première fois dans <code>zeroclaw onboard</code> ou <code>zeroclaw config set channels.matrix.access-token</code>. Un effet secondaire unique — notez-le dans un fichier temporaire si vous souhaitez exécuter ces vérifications curl plus tard.</li>
+<li><strong>Keep a copy</strong> of the token when you first paste it into <code>zeroclaw config set channels.matrix.access-token</code>. A one-time side-effect — write it to a scratch note if you want to run these curl checks later.</li>
 </ol>
 <p>Les champs non secrets <strong>sont</strong> récupérables :</p>
 <pre><code class="language-bash">MATRIX_HOMESERVER=$(zeroclaw config get channels.matrix.homeserver)
@@ -319,7 +321,7 @@ MATRIX_USER=$(zeroclaw config get channels.matrix.user-id)
 <ul>
 <li>Le <code>user_id</code> retourné doit correspondre au compte du bot.</li>
 <li>Si <code>device_id</code> est absent de la réponse, définissez-le manuellement (voir §5H).</li>
-<li>Faites pivoter le jeton d’accès sans relancer onboard : <code>zeroclaw config set channels.matrix.access-token</code> (demande une saisie, masquée), puis <code>zeroclaw service restart</code>.</li>
+<li>Rotate the access token: <code>zeroclaw config set channels.matrix.access-token</code> (prompts, masked), then <code>zeroclaw service restart</code>.</li>
 </ul>
 <h3 id="d-vérifications-spécifiques-à-le2ee"><a class="header" href="#d-vérifications-spécifiques-à-le2ee">D. Vérifications spécifiques à l’E2EE</a></h3>
 <ul>
@@ -417,15 +419,7 @@ zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
 <li>Déconnectez-vous d’Element.</li>
 </ol>
 <h4 id="étape-2--ajoutez-la-clé-de-récupération-à-zeroclaw"><a class="header" href="#étape-2--ajoutez-la-clé-de-récupération-à-zeroclaw">Étape 2 — Ajoutez la clé de récupération à ZeroClaw</a></h4>
-<p>Les deux chemins fonctionnent. L’assistant de configuration initiale est plus adapté aux nouvelles installations ; <code>zeroclaw config set</code> est préféré pour les installations existantes.</p>
-<p><strong>Option A — pendant l’intégration :</strong></p>
-<pre><code class="language-bash">zeroclaw onboard channels
-</code></pre>
-<p>Lorsque vous êtes invité à :</p>
-<pre><code>E2EE recovery key (or Enter to skip): EsTj 3yST y93F SLpB jJsz ...
-</code></pre>
-<p>L’entrée est masquée. La clé est chiffrée au repos.</p>
-<p><strong>Option B — installations existantes :</strong></p>
+<p>Apply the recovery key to ZeroClaw:</p>
 <pre><code class="language-bash">zeroclaw config set channels.matrix.recovery-key    # entrée masquée
 </code></pre>
 <p>Ensuite, <code>zeroclaw service restart</code>. La clé de récupération est immédiatement chiffrée au repos.</p>

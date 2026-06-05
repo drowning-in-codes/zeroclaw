@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-38b2b21f.js";
+            window.path_to_searchindex_js = "../searchindex-3d52d98a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-961cbe6b.js"></script>
+        <script src="../toc-560e5bce.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -228,11 +228,13 @@
 <li>E2EEルームの場合、ボットデバイスがそのルームの暗号化キーを受け取っている。</li>
 </ol>
 <h2 id="2-設定"><a class="header" href="#2-設定">2. 設定</a></h2>
-<p>すべての設定管理は <code>zeroclaw config</code> または <code>zeroclaw onboard</code> を介して行います。<code>~/.zeroclaw/config.toml</code> を手動で編集しないでください。</p>
-<p>最も簡単なのは、ウィザードを実行して、すべてのMatrixフィールドのプロンプトに従うことです。</p>
-<pre><code class="language-bash">zeroclaw onboard channels
+<p>All config management goes through <code>zeroclaw config</code>. Do not hand-edit <code>~/.zeroclaw/config.toml</code>.</p>
+<p>Easiest: set each Matrix field with <code>zeroclaw config set</code> (see below). For the fastest one-shot bring-up, the most ergonomic path is to set the required fields back-to-back:</p>
+<pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
+zeroclaw config set channels.matrix.access-token   # プロンプト、入力はマスク済み
+zeroclaw config set channels.matrix.allowed-users '["*"]'
 </code></pre>
-<p>または、オンボーディング後に個々のフィールドを設定します：</p>
+<p>Or set individual fields directly:</p>
 <pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
 zeroclaw config set channels.matrix.access-token           # プロンプト、入力はマスク済み
 zeroclaw config set channels.matrix.user-id @bot:matrix.example.com
@@ -269,7 +271,7 @@ zeroclaw config set channels.matrix.device-id NEWDEVICE
 zeroclaw config set channels.matrix.user-id @bot:example.com
 </code></pre>
 <p>新しい値を反映するには再起動してください: <code>zeroclaw service restart</code>。</p>
-<p>ウィザード（<code>zeroclaw onboard channels</code>）でも、対話形式で進めたい場合は同じフィールドの入力を求められます。</p>
+<p>Each of the three <code>zeroclaw config set</code> calls above can be re-run any time to update an individual field.</p>
 <h3 id="注釈"><a class="header" href="#注釈">注釈</a></h3>
 <ul>
 <li>最初にトークンを貼り付けたときは、<strong>コピーを保管しておいてください</strong>。シークレットは保存時に暗号化され、<code>zeroclaw config get</code> ではトークンフィールドに <code>[masked]</code> と表示されるため、後から取得することはできません。§5C の curl 検証スニペットで必要になる場合は、一時的なメモに控えておいてください。</li>
@@ -278,7 +280,7 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <li><strong>起動時にトークンが期限切れまたは無効と表示される</strong>: 同じ curl で新しいトークンを生成し、Step 2 を繰り返してください。</li>
 </ul>
 <h2 id="4-クイック検証"><a class="header" href="#4-クイック検証">4. クイック検証</a></h2>
-<p>まだ実行していない場合は <code>zeroclaw onboard channels</code> を実行し、その後 <code>zeroclaw service restart</code>（バックグラウンド）または <code>zeroclaw daemon</code>（フォアグラウンド）で再起動してください。設定された Matrix ルームでプレーンテキストメッセージを送信してください。以下を確認してください:</p>
+<p>Apply the field set in §2 if you haven’t yet, then restart with <code>zeroclaw service restart</code> (background) or <code>zeroclaw daemon</code> (foreground). Send a plain-text message in the configured Matrix room. Confirm:</p>
 <ul>
 <li>ZeroClawのログでは、Matrixリスナーが重複した同期/認証エラーなしで開始されていることが示されています。</li>
 <li>暗号化されたルームでは、ボットは許可されたユーザーからの暗号化されたメッセージを読み取り、返信することができます。</li>
@@ -301,7 +303,7 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <p><strong>以下のスニペットにおける <code>$MATRIX_TOKEN</code> について。</strong> ZeroClaw のシークレットは保存時に暗号化され、<code>zeroclaw config get</code> 経由で取得できないよう意図的に制限されています。シークレットフィールドには <code>[masked]</code> と表示されます。以下の2つのオプションがあります：</p>
 <ol>
 <li><strong>新しいトークンを取得</strong>するには、§3 ステップ 1 のパスワードログイン curl を再実行してください。返される <code>access_token</code> をエクスポートします。検証やリカバリのパスに役立ちます — 設定の内容には影響しません。</li>
-<li><strong>トークンをコピーして保管</strong>してください。これは <code>zeroclaw onboard</code> または <code>zeroclaw config set channels.matrix.access-token</code> に貼り付けた際に一度だけ発生する副作用です。後でこれらの curl チェックを実行したい場合は、メモ帳などに書き留めておいてください。</li>
+<li><strong>Keep a copy</strong> of the token when you first paste it into <code>zeroclaw config set channels.matrix.access-token</code>. A one-time side-effect — write it to a scratch note if you want to run these curl checks later.</li>
 </ol>
 <p>非秘密フィールドは<strong>取得可能</strong>です：</p>
 <pre><code class="language-bash">MATRIX_HOMESERVER=`$(zeroclaw config get channels.matrix.homeserver)`
@@ -315,7 +317,7 @@ MATRIX_USER=`$(zeroclaw config get channels.matrix.user-id)`
 <ul>
 <li>返された <code>user_id</code> はボットアカウントと一致している必要があります。</li>
 <li>レスポンスに <code>device_id</code> が含まれていない場合は、手動で設定してください（§5H を参照）。</li>
-<li>onboard を再実行せずにアクセストークンをローテーションします: <code>zeroclaw config set channels.matrix.access-token</code>（プロンプト表示、マスク済み）を実行し、続いて <code>zeroclaw service restart</code> を実行します。</li>
+<li>Rotate the access token: <code>zeroclaw config set channels.matrix.access-token</code> (prompts, masked), then <code>zeroclaw service restart</code>.</li>
 </ul>
 <h3 id="d-e2ee固有のチェック"><a class="header" href="#d-e2ee固有のチェック">D. E2EE固有のチェック</a></h3>
 <ul>
@@ -413,15 +415,7 @@ zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
 <li>Element からログアウトします。</li>
 </ol>
 <h4 id="ステップ-2--zeroclaw-にリカバリーキーを追加する"><a class="header" href="#ステップ-2--zeroclaw-にリカバリーキーを追加する">ステップ 2 — ZeroClaw にリカバリーキーを追加する</a></h4>
-<p>どちらの方法でも問題ありません。新規インストールの場合はオンボーディングウィザードが簡単です。既存のインストールには <code>zeroclaw config set</code> が推奨されます。</p>
-<p><strong>オプションA — オンボーディング中:</strong></p>
-<pre><code class="language-bash">zeroclaw onboard channels
-</code></pre>
-<p>プロンプトが表示されたとき:</p>
-<pre><code>E2EE recovery key (or Enter to skip): EsTj 3yST y93F SLpB jJsz ...
-</code></pre>
-<p>入力はマスクされています。キーは保存時に暗号化されます。</p>
-<p><strong>オプション B — 既存のインストール:</strong></p>
+<p>Apply the recovery key to ZeroClaw:</p>
 <pre><code class="language-bash">zeroclaw config set channels.matrix.recovery-key    # 入力マスク
 </code></pre>
 <p>その後、<code>zeroclaw service restart</code>を実行します。リカバリーキーは保存時に即座に暗号化されます。</p>
