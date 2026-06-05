@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-341576cc.js";
+            window.path_to_searchindex_js = "../searchindex-38b2b21f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-961cbe6b.js"></script>
@@ -209,7 +209,8 @@
 <h3 id="品質ゲート-ciyml"><a class="header" href="#品質ゲート-ciyml">品質ゲート (<code>ci.yml</code>)</a></h3>
 <p><code>master</code> をターゲットとするすべての PR で発火する。複数のマトリックスレグを持つ複合ジョブ：</p>
 <ul>
-<li><strong>lint</strong> — <code>cargo fmt --check</code>、<code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
+<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
 <li><strong>ビルド</strong> — マトリックス: <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
 <li><strong>check</strong> — 全機能 + デフォルト機能なし</li>
 <li><strong>check-32bit</strong> — デフォルトの機能なしの <code>i686-unknown-linux-gnu</code></li>
@@ -217,7 +218,7 @@
 <li><strong>test</strong> — Linuxでの <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
 <li><strong>セキュリティ</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>CI Required Gate</code> は、複合ジョブのブランチ保護ピンです。この状態が緑になるまで、PR はマージできません。</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
 <h3 id="日次アドバイザリスキャンdaily-audityml"><a class="header" href="#日次アドバイザリスキャンdaily-audityml">日次アドバイザリスキャン（<code>daily-audit.yml</code>）</a></h3>
 <p>依存関係ツリーに対して <code>cargo audit</code> を毎晩実行します。脆弱性が検出された場合は、関連するイシューをオープンします。脆弱性が報告されない限り、何もしません。</p>
 <h3 id="pr-パスラベラー-pr-path-labeleryml"><a class="header" href="#pr-パスラベラー-pr-path-labeleryml">PR パスラベラー (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -265,7 +266,7 @@
 </table>
 </div>
 <h2 id="ビルドキャッシュの動作"><a class="header" href="#ビルドキャッシュの動作">ビルドキャッシュの動作</a></h2>
-<p><code>ci.yml</code> のすべてのジョブは <code>Swatinem/rust-cache@v2</code> を使用しています。キャッシュに関連するフラッキを調査する際に知っておくべき3つの動作があります：</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>キャッシュへの書き込みはマスターのみ可能です。</strong> <code>save-if</code> は <code>github.ref == 'refs/heads/master'</code> に条件付けされているため、PR の実行はマスターでシードされたキャッシュを読み取りますが、それ自体を更新することはありません。PR ブランチは、ブランチ固有のアーティファクトを共有キャッシュに混入させることができません。</li>
 <li><strong>失敗時にキャッシュが保存されます。</strong> 各ジョブには <code>cache-on-failure: true</code> が設定されているため、部分的な実行でも次の試行のキャッシュを有効にします。</li>
@@ -280,7 +281,7 @@
 <tr><th>症状</th><th>最初に確認すべきこと</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CI Required Gate</code> 赤</td><td><code>lint</code> (fmt/clippy が最も一般的な原因)、次に <code>test</code>、そして <code>build</code> を実行します。</td></tr>
+<tr><td><code>CI Required Gate</code> 赤</td><td>Start with <code>fmt</code>, then <code>lint</code>, then <code>test</code>, then <code>build</code></td></tr>
 <tr><td><code>validate</code> のリリースに失敗しました</td><td><code>Cargo.toml</code> のバージョンがワークフローの入力と一致しない、またはタグが既に存在します</td></tr>
 <tr><td>リリースビルドのステップが失敗しました</td><td>特定のターゲットのジョブログ。Android は <code>experimental</code> であり、<code>continue-on-error</code> で実行されます。</td></tr>
 <tr><td>環境ゲートがタイムアウトしました</td><td>ワークフロー実行ページからタイムアウトしたジョブのみを再実行する</td></tr>

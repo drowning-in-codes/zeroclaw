@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-746d3711.js";
+            window.path_to_searchindex_js = "../searchindex-057918ca.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-836a5a90.js"></script>
@@ -209,7 +209,8 @@
 <h3 id="quality-gate-ciyml"><a class="header" href="#quality-gate-ciyml">Quality Gate (<code>ci.yml</code>)</a></h3>
 <p>Fires on every PR targeting <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
-<li><strong>lint</strong> — <code>cargo fmt --check</code>, <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
+<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
 <li><strong>build</strong> — matrix: <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
 <li><strong>check</strong> — all features + no-default-features</li>
 <li><strong>check-32bit</strong> — <code>i686-unknown-linux-gnu</code> with no default features</li>
@@ -217,7 +218,7 @@
 <li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> on Linux</li>
 <li><strong>security</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>CI Required Gate</code> is the composite job branch protection pins. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
 <h3 id="daily-advisory-scan-daily-audityml"><a class="header" href="#daily-advisory-scan-daily-audityml">Daily Advisory Scan (<code>daily-audit.yml</code>)</a></h3>
 <p>Runs <code>cargo audit</code> nightly against the dependency tree. Opens an issue on findings. No action unless a vulnerability is reported.</p>
 <h3 id="pr-path-labeler-pr-path-labeleryml"><a class="header" href="#pr-path-labeler-pr-path-labeleryml">PR Path Labeler (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -265,7 +266,7 @@
 </table>
 </div>
 <h2 id="build-cache-behavior"><a class="header" href="#build-cache-behavior">Build cache behavior</a></h2>
-<p>Every job in <code>ci.yml</code> uses <code>Swatinem/rust-cache@v2</code>. Three behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts.</li>
 <li><strong>Cache saves on failure.</strong> <code>cache-on-failure: true</code> is set on every job, so a partial run still seeds the next attempt warm.</li>
@@ -280,7 +281,7 @@
 <tr><th>Symptom</th><th>First thing to check</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CI Required Gate</code> red</td><td>Start with <code>lint</code> (fmt/clippy is the most common cause), then <code>test</code>, then <code>build</code></td></tr>
+<tr><td><code>CI Required Gate</code> red</td><td>Start with <code>fmt</code>, then <code>lint</code>, then <code>test</code>, then <code>build</code></td></tr>
 <tr><td>Release <code>validate</code> failed</td><td><code>Cargo.toml</code> version doesn’t match the workflow input, or the tag already exists</td></tr>
 <tr><td>Release build leg failed</td><td>The specific target’s job log. Android is <code>experimental</code> and runs with <code>continue-on-error</code></td></tr>
 <tr><td>Environment gate timed out</td><td>Re-run only the timed-out job from the workflow run page</td></tr>

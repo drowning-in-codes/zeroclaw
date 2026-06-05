@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-d1307f46.js";
+            window.path_to_searchindex_js = "../searchindex-4feec8b6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-92e0b634.js"></script>
@@ -209,7 +209,8 @@
 <h3 id="质量门禁ciyml"><a class="header" href="#质量门禁ciyml">质量门禁（<code>ci.yml</code>）</a></h3>
 <p>在每次针对 <code>master</code> 分支的 PR 上触发。包含多个矩阵分支的复合作业：</p>
 <ul>
-<li><strong>lint</strong> — <code>cargo fmt --check</code>、<code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
+<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
 <li><strong>构建</strong> — 矩阵：<code>x86_64-unknown-linux-gnu</code>、<code>aarch64-apple-darwin</code>、<code>x86_64-pc-windows-msvc</code></li>
 <li><strong>check</strong> — 所有功能 + 无默认功能</li>
 <li><strong>check-32bit</strong> — <code>i686-unknown-linux-gnu</code>，无默认特性</li>
@@ -217,7 +218,7 @@
 <li><strong>test</strong> — 在 Linux 上运行 <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
 <li><strong>安全性</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>CI Required Gate</code> 是复合作业分支保护规则。只有当该规则状态为绿色时，PR 才能合并。</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
 <h3 id="每日顾问扫描-daily-audityml"><a class="header" href="#每日顾问扫描-daily-audityml">每日顾问扫描 (<code>daily-audit.yml</code>)</a></h3>
 <p>每晚对依赖树运行 <code>cargo audit</code>。在发现漏洞时创建问题。除非报告了漏洞，否则不采取任何操作。</p>
 <h3 id="pr-路径标签器-pr-path-labeleryml"><a class="header" href="#pr-路径标签器-pr-path-labeleryml">PR 路径标签器 (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -265,7 +266,7 @@
 </table>
 </div>
 <h2 id="构建缓存行为"><a class="header" href="#构建缓存行为">构建缓存行为</a></h2>
-<p><code>ci.yml</code> 中的每个作业都使用了 <code>Swatinem/rust-cache@v2</code>。在处理与缓存相关的间歇性故障时，有三点行为值得了解：</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>缓存写入仅在主分支上执行。</strong> <code>save-if</code> 的条件是 <code>github.ref == 'refs/heads/master'</code>，因此 PR 运行会读取由主分支预填充的缓存，但不会更新它。PR 分支不会将分支特定的工件污染到共享缓存中。</li>
 <li><strong>失败时保存缓存。</strong> 每个作业都设置了 <code>cache-on-failure: true</code>，因此部分运行仍可为下一次尝试预热缓存。</li>
@@ -280,7 +281,7 @@
 <tr><th>症状</th><th>首先要检查的事项</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CI Required Gate</code> 红色</td><td>从 <code>lint</code>（fmt/clippy 是最常见的原因）开始，然后是 <code>test</code>，最后是 <code>build</code></td></tr>
+<tr><td><code>CI Required Gate</code> 红色</td><td>Start with <code>fmt</code>, then <code>lint</code>, then <code>test</code>, then <code>build</code></td></tr>
 <tr><td>发布 <code>validate</code> 失败</td><td><code>Cargo.toml</code> 版本与工作流输入不匹配，或者标签已存在</td></tr>
 <tr><td>发布构建阶段失败</td><td>特定目标的作业日志。Android 为 <code>experimental</code>，并启用 <code>continue-on-error</code></td></tr>
 <tr><td>环境门限超时</td><td>从工作流运行页面重新运行超时的作业</td></tr>

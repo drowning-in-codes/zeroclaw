@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-81124761.js";
+            window.path_to_searchindex_js = "../searchindex-2956bf2d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0643ac63.js"></script>
@@ -209,7 +209,8 @@
 <h3 id="puerta-de-calidad-ciyml"><a class="header" href="#puerta-de-calidad-ciyml">Puerta de calidad (<code>ci.yml</code>)</a></h3>
 <p>Se ejecuta en cada PR dirigido a <code>master</code>. Trabajo compuesto con múltiples matrices de ejecución:</p>
 <ul>
-<li><strong>lint</strong> — <code>cargo fmt --check</code>, <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
+<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
 <li><strong>build</strong> — matriz: <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
 <li><strong>check</strong> — todas las características + sin características predeterminadas</li>
 <li><strong>check-32bit</strong> — <code>i686-unknown-linux-gnu</code> sin características predeterminadas</li>
@@ -217,7 +218,7 @@
 <li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> en Linux</li>
 <li><strong>seguridad</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>CI Required Gate</code> es el pin de protección de rama del trabajo compuesto. Una PR no se puede fusionar hasta que este esté en verde.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
 <h3 id="escaneo-diario-de-avisos-daily-audityml"><a class="header" href="#escaneo-diario-de-avisos-daily-audityml">Escaneo diario de avisos (<code>daily-audit.yml</code>)</a></h3>
 <p>Ejecuta <code>cargo audit</code> todas las noches contra el árbol de dependencias. Abre un problema en caso de hallazgos. No realiza ninguna acción a menos que se informe de una vulnerabilidad.</p>
 <h3 id="etiquetador-de-rutas-de-pr-pr-path-labeleryml"><a class="header" href="#etiquetador-de-rutas-de-pr-pr-path-labeleryml">Etiquetador de rutas de PR (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -265,7 +266,7 @@
 </table>
 </div>
 <h2 id="comportamiento-de-la-caché-de-compilación"><a class="header" href="#comportamiento-de-la-caché-de-compilación">Comportamiento de la caché de compilación</a></h2>
-<p>Cada trabajo en <code>ci.yml</code> utiliza <code>Swatinem/rust-cache@v2</code>. Hay tres comportamientos que vale la pena conocer al depurar problemas intermitentes relacionados con la caché:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>Las escrituras en caché son exclusivas de master.</strong> <code>save-if</code> está condicionado a <code>github.ref == 'refs/heads/master'</code>, por lo que las ejecuciones de PR leen la caché sembrada con master pero nunca la actualizan. Las ramas de PR no pueden contaminar la caché compartida con artefactos específicos de la rama.</li>
 <li><strong>El caché se guarda en caso de fallo.</strong> Se establece <code>cache-on-failure: true</code> en cada trabajo, por lo que una ejecución parcial aún prepara el caché para el siguiente intento.</li>
@@ -280,7 +281,7 @@
 <tr><th>Síntoma</th><th>Lo primero que debes verificar</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Puerta de CI requerida</code> rojo</td><td>Comienza con <code>lint</code> (fmt/clippy es la causa más común), luego <code>test</code>, y finalmente <code>build</code>.</td></tr>
+<tr><td><code>Puerta de CI requerida</code> rojo</td><td>Start with <code>fmt</code>, then <code>lint</code>, then <code>test</code>, then <code>build</code></td></tr>
 <tr><td>La validación de la versión falló</td><td>La versión de <code>Cargo.toml</code> no coincide con la entrada del flujo de trabajo, o la etiqueta ya existe</td></tr>
 <tr><td>La etapa de compilación de lanzamiento falló</td><td>El registro de trabajo del objetivo específico. Android es <code>experimental</code> y se ejecuta con <code>continue-on-error</code>.</td></tr>
 <tr><td>El tiempo de espera de la puerta de entorno se agotó</td><td>Volver a ejecutar solo el trabajo que ha caducado desde la página de ejecución del flujo de trabajo</td></tr>

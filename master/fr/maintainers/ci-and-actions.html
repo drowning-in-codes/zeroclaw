@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-bdd03de1.js";
+            window.path_to_searchindex_js = "../searchindex-ef33477f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-4cf32d98.js"></script>
@@ -209,7 +209,8 @@
 <h3 id="portail-de-qualité-ciyml"><a class="header" href="#portail-de-qualité-ciyml">Portail de qualité (<code>ci.yml</code>)</a></h3>
 <p>Se déclenche sur chaque PR ciblant <code>master</code>. Job composite avec plusieurs branches de matrice :</p>
 <ul>
-<li><strong>lint</strong> — <code>cargo fmt --check</code>, <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
+<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
 <li><strong>build</strong> — matrice : <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
 <li><strong>check</strong> — toutes les fonctionnalités + sans les fonctionnalités par défaut</li>
 <li><strong>check-32bit</strong> — <code>i686-unknown-linux-gnu</code> sans fonctionnalités par défaut</li>
@@ -217,7 +218,7 @@
 <li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> sur Linux</li>
 <li><strong>sécurité</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>CI Required Gate</code> est le pin de protection de branche composite. Une PR ne peut pas être fusionnée tant que cet élément n’est pas vert.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
 <h3 id="analyse-quotidienne-daily-audityml"><a class="header" href="#analyse-quotidienne-daily-audityml">Analyse quotidienne (<code>daily-audit.yml</code>)</a></h3>
 <p>Exécute <code>cargo audit</code> quotidiennement sur l’arbre des dépendances. Ouvre un ticket en cas de résultats. Aucune action n’est entreprise sauf si une vulnérabilité est signalée.</p>
 <h3 id="étiqueteur-de-chemin-de-pr-pr-path-labeleryml"><a class="header" href="#étiqueteur-de-chemin-de-pr-pr-path-labeleryml">Étiqueteur de chemin de PR (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -265,7 +266,7 @@
 </table>
 </div>
 <h2 id="comportement-du-cache-de-construction"><a class="header" href="#comportement-du-cache-de-construction">Comportement du cache de construction</a></h2>
-<p>Chaque tâche dans <code>ci.yml</code> utilise <code>Swatinem/rust-cache@v2</code>. Trois comportements sont à connaître lors du diagnostic des problèmes liés au cache :</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>Les écritures dans le cache sont exclusives au maître.</strong> <code>save-if</code> est conditionné par <code>github.ref == 'refs/heads/master'</code>, donc les exécutions des PR lisent le cache initialisé par le maître mais ne le mettent jamais à jour. Les branches de PR ne peuvent pas polluer le cache partagé avec des artefacts spécifiques à la branche.</li>
 <li><strong>Le cache est conservé en cas d’échec.</strong> L’option <code>cache-on-failure: true</code> est définie pour chaque job, de sorte qu’une exécution partielle permet de réutiliser le cache pour la tentative suivante.</li>
@@ -280,7 +281,7 @@
 <tr><th>Symptôme</th><th>Première chose à vérifier</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CI Required Gate</code> rouge</td><td>Commencez par <code>lint</code> (fmt/clippy est la cause la plus fréquente), puis <code>test</code>, puis <code>build</code>.</td></tr>
+<tr><td><code>CI Required Gate</code> rouge</td><td>Start with <code>fmt</code>, then <code>lint</code>, then <code>test</code>, then <code>build</code></td></tr>
 <tr><td>La validation de la version a échoué</td><td>La version de <code>Cargo.toml</code> ne correspond pas à l’entrée du workflow, ou la balise existe déjà.</td></tr>
 <tr><td>La phase de build de la version de production a échoué.</td><td>Le journal d’exécution de la cible spécifique. Android est <code>expérimental</code> et s’exécute avec <code>continue-on-error</code>.</td></tr>
 <tr><td>Le délai d’attente de la porte d’environnement est dépassé</td><td>Relancer uniquement la tâche ayant expiré depuis la page d’exécution du workflow</td></tr>
