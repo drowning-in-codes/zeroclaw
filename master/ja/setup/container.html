@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-3d52d98a.js";
+            window.path_to_searchindex_js = "../searchindex-8128975e.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-560e5bce.js"></script>
@@ -243,6 +243,73 @@
 <pre><code class="language-bash">docker compose exec zeroclaw zeroclaw quickstart
 </code></pre>
 <p>ローカルアクセスのみが必要な場合は、<code>ZEROCLAW_ALLOW_PUBLIC_BIND</code> を削除してください。</p>
+<h2 id="macos--orbstack-vs-colima"><a class="header" href="#macos--orbstack-vs-colima">macOS — OrbStack vs Colima</a></h2>
+<p>macOS has no native Linux kernel, so every option (Docker Desktop, Podman, OrbStack, Colima) runs the container inside a lightweight Linux VM. For a Mac dev box, the two mac-native VMs worth comparing are OrbStack and Colima — both run the container with the same <code>docker run</code>/Compose commands above.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th></th><th>OrbStack</th><th>Colima</th></tr>
+</thead>
+<tbody>
+<tr><td>Engine</td><td>custom, tuned Linux VM (Apple Silicon optimized)</td><td>Lima VM + containerd/Docker</td></tr>
+<tr><td>License</td><td>commercial, freemium (free personal use)</td><td>MIT (Lima underneath is Apache 2.0)</td></tr>
+<tr><td>Interface</td><td>GUI app + CLI</td><td>CLI-first (<code>colima start/stop</code>), scriptable</td></tr>
+<tr><td>Best when</td><td>minimal fuss, polished UX</td><td>everything OSS, config in code</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-bash"># OrbStack — provides the docker CLI:
+brew install --cask orbstack
+
+# Colima — docker CLI talks to colima's VM:
+brew install colima docker docker-compose   # docker-compose = the Compose v2 plugin; install if you need `docker compose`
+colima start --cpu 4 --memory 8   # add --network-address to expose the VM IP to macOS
+</code></pre>
+<p>Performance is comparable for typical dev workloads; the real differentiators are licensing (commercial vs OSS) and UX preference, not raw speed — benchmark both on your own machine if idle RAM or build throughput matters. Either way you drive the engine inside the VM with <code>docker</code>; systemd quadlets (below) are a Linux-host feature and don’t apply on macOS.</p>
+<h2 id="podman--systemd-quadlets"><a class="header" href="#podman--systemd-quadlets">Podman &amp; systemd quadlets</a></h2>
+<p>On a Linux server, the cleanest way to run the container long-term is a Podman <strong>quadlet</strong> — a declarative unit file that systemd turns into a real service. You get <code>systemctl</code> lifecycle, journald logs, auto-restart, and boot ordering with no daemon and no <code>--restart</code> hack, and the unit file is config you commit to git. This is the recommended server pattern; <code>docker run</code>/Compose are fine for a laptop.</p>
+<p>A quadlet is a <code>*.container</code> file (siblings: <code>.pod</code>, <code>.volume</code>, <code>.network</code>, <code>.kube</code>, <code>.build</code>, <code>.image</code>). Podman’s systemd generator reads it on every <code>daemon-reload</code> and writes a transient <code>.service</code> — you never author the <code>.service</code> yourself.</p>
+<p>Rootful units live in <code>/etc/containers/systemd/</code>; rootless in <code>~/.config/containers/systemd/</code>.</p>
+<p><code>/etc/containers/systemd/zeroclaw.container</code>:</p>
+<pre><code class="language-ini">[Unit]
+Description=ZeroClaw agent runtime
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Pin a release in production; :latest is distroless (no shell — use :debian to exec a shell).
+Image=ghcr.io/zeroclaw-labs/zeroclaw:latest
+ContainerName=zeroclaw
+PublishPort=42617:42617
+Volume=zeroclaw-data:/zeroclaw-data
+# Only if the gateway must be reachable off-localhost (LAN):
+Environment=ZEROCLAW_ALLOW_PUBLIC_BIND=1
+# Optional rolling-upgrade path — re-pull a newer image on (re)start and opt into `podman auto-update`:
+Pull=newer
+AutoUpdate=registry
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target default.target
+</code></pre>
+<p>Deploy (idempotent — safe to re-run; re-applying converges the running container, never duplicates it):</p>
+<pre><code class="language-bash">sudo cp zeroclaw.container /etc/containers/systemd/
+sudo systemctl daemon-reload      # generator turns .container into zeroclaw.service
+sudo systemctl restart zeroclaw
+</code></pre>
+<p>Then onboard once, and manage it like any service:</p>
+<pre><code class="language-bash">sudo podman exec -it zeroclaw zeroclaw onboard
+systemctl status zeroclaw
+journalctl -u zeroclaw -f
+</code></pre>
+<p>There is no <code>systemctl enable</code> step for generated units — the <code>[Install] WantedBy=</code> line is what brings it up on boot.</p>
+<ul>
+<li><strong>Version pinning vs <code>:latest</code>.</strong> Pin a tag or digest (<code>Image=ghcr.io/zeroclaw-labs/zeroclaw:v0.7.5</code> or <code>...@sha256:...</code>) for reproducible, auditable deploys — upgrading is then a reviewable tag bump in the committed <code>.container</code> file. <code>Pull=newer</code> + <code>AutoUpdate=registry</code> instead give rolling upgrades, driven by <code>podman-auto-update.timer</code> (<code>sudo systemctl enable --now podman-auto-update.timer</code>). Pick reproducibility or currency; the deploy loop is the same either way.</li>
+<li><strong>Rootless variant.</strong> Drop the file in <code>~/.config/containers/systemd/</code>, use <code>systemctl --user daemon-reload &amp;&amp; systemctl --user restart zeroclaw</code>, and run <code>loginctl enable-linger $USER</code> so it survives logout (same lingering note as <a href="../ops/service.html">Service &amp; daemon</a>).</li>
+<li><strong>WSL2.</strong> Modern WSL2 runs systemd (<code>[boot] systemd=true</code> in <code>/etc/wsl.conf</code>, then <code>wsl --shutdown</code>), so this exact quadlet pattern works inside a WSL distro — no Windows-specific dialect.</li>
+</ul>
 <h2 id="コンテナ内の設定"><a class="header" href="#コンテナ内の設定">コンテナ内の設定</a></h2>
 <p>画像は <code>/zeroclaw-data/.zeroclaw/config.toml</code> に設定ファイルが存在することを前提としています。ローカルの設定ファイルを以下にマウントしてください：</p>
 <pre><code class="language-bash">docker run -d --name zeroclaw \
