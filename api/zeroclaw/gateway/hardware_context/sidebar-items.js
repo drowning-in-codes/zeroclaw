@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["handle_hardware_context_get","handle_hardware_context_post","handle_hardware_pin","handle_hardware_reload"],"struct":["ContextAppendBody","PinRegistrationBody"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_board_info_tools","create_peripheral_tools","list_configured_boards"],"mod":["traits"]};

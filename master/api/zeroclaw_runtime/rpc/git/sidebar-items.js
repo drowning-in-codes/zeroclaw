@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["branch_for"]};
+window.SIDEBAR_ITEMS = {"fn":["branch_for","head_info"],"struct":["HeadInfo"]};

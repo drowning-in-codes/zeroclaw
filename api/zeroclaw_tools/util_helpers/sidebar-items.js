@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["MaybeSet"],"fn":["truncate_with_ellipsis"]};

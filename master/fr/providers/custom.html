@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-3462a0ea.js";
+            window.path_to_searchindex_js = "../searchindex-41030cb5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-eebe6d87.js"></script>
@@ -272,6 +272,15 @@ model = "meta-llama/Llama-3.1-8B-Instruct"
 </code></pre>
 <h3 id="lm-studio-osaurus-litellm"><a class="header" href="#lm-studio-osaurus-litellm">LM Studio, Osaurus, LiteLLM</a></h3>
 <p>Les emplacements <code>lmstudio</code>, <code>osaurus</code>, <code>litellm</code> suivent le même modèle — voir le <a href="./catalog.html">catalogue</a>.</p>
+<h2 id="wire-protocol--wire_api--responses"><a class="header" href="#wire-protocol--wire_api--responses">Wire protocol — <code>wire_api = "responses"</code></a></h2>
+<p>Bring-your-own-endpoint slots default to the OpenAI chat-completions wire. An endpoint that only speaks the OpenAI <strong>responses</strong> wire (some self-hosted vLLM / TGI deployments) needs an explicit opt-in:</p>
+<pre><code class="language-toml">[providers.models.custom.vllm]
+uri      = "http://10.0.0.15:8000/v1"
+model    = "Qwen/Qwen3-30B-A3B"
+wire_api = "responses"                  # default is "chat_completions"
+</code></pre>
+<p>When set to <code>"responses"</code>, the provider is built as an <code>OpenAiResponsesModelProvider</code> (full streaming tool calls over the responses protocol) instead of a chat-completions provider. Omit the field, or set <code>"chat_completions"</code>, for the default wire.</p>
+<p><code>wire_api</code> is only honored by the bring-your-own-endpoint families where the wire is operator-configurable: <code>openai</code>, <code>llamacpp</code>, and <code>custom</code> (plus the generic openai-compatible path). Branded vendor slots (<code>groq</code>, <code>mistral</code>, <code>deepseek</code>, …) have a fixed wire protocol and ignore the field. The setting governs both the primary agent path and delegate targets, so a delegate whose target alias declares <code>wire_api = "responses"</code> reaches the endpoint over the responses wire.</p>
 <h2 id="validation"><a class="header" href="#validation">Validation</a></h2>
 <p>Quelle que soit l’approche :</p>
 <pre><code class="language-bash">zeroclaw config list                          # charge la configuration ; tout échec de validation est affiché sur stderr

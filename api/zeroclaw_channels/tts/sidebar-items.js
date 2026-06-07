@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["EdgeTtsProvider","ElevenLabsTtsProvider","GoogleTtsProvider","OpenAiTtsProvider","PiperTtsProvider","TtsManager"],"trait":["TtsProvider"]};

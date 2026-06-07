@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["print_results","test_all_skills","test_skill"],"struct":["SkillTestResult","TestFailure"]};

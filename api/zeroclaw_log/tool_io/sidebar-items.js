@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["capture_tool_input","capture_tool_output"],"struct":["ToolIoCapture"]};

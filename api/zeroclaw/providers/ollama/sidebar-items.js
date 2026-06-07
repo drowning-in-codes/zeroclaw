@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["OLLAMA_DEFAULT_NUM_CTX","OLLAMA_DEFAULT_NUM_PREDICT"],"struct":["OllamaModelProvider","OllamaTuning"]};

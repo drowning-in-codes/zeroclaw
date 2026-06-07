@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["PluginCapability","PluginPermission"],"mod":["error","host","runtime","signature","wasm_channel","wasm_tool"],"struct":["PluginInfo","PluginManifest"]};

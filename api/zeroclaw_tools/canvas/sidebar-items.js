@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["ALLOWED_CONTENT_TYPES","MAX_CONTENT_SIZE"],"struct":["CanvasFrame","CanvasStore","CanvasTool"]};

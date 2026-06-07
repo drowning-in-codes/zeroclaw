@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["check_and_resolve_conflicts","find_text_conflicts","jaccard_similarity","mark_superseded"]};

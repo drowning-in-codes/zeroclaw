@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AuthProfileKind"],"fn":["profile_id"],"struct":["AuthProfile","AuthProfilesData","AuthProfilesStore","TokenSet"]};

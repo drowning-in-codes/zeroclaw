@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["extract_tool_calls_from_history"],"struct":["SkillCreator","ToolCallRecord"]};

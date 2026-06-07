@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["render","render_preset_default"],"struct":["TemplateContext"]};

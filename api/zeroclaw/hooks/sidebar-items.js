@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["HookResult"],"mod":["builtin"],"struct":["HookRunner"],"trait":["HookHandler"]};

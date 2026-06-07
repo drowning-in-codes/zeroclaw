@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SopExecutionMode","SopPriority","SopRunAction","SopRunStatus","SopStepKind","SopStepStatus","SopTrigger","SopTriggerSource"],"struct":["DeterministicRunState","DeterministicSavings","Sop","SopEvent","SopManifest","SopMeta","SopRun","SopStep","SopStepResult","StepSchema"]};

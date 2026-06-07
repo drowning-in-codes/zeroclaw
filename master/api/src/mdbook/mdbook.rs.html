@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `xtask/src/bin/mdbook.rs`."><title>mdbook.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-17e0aaed.css"><script id="default-settings" 
 data-use_system_theme="false"
-data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="mdbook" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.0 (ac68faa20 2026-05-25)" data-channel="1.96.0" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">mdbook/</div>mdbook.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>clap::{Parser, Subcommand};
+data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="mdbook" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.0 (ac68faa20 2026-05-25)" data-channel="1.96.0" data-search-js="search-b5634cc7.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">mdbook/</div>mdbook.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>clap::{Parser, Subcommand};
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>xtask::cmd;
 <a href=#3 id=3 data-nosnippet>3</a>
 <a href=#4 id=4 data-nosnippet>4</a><span class="attr">#[derive(Parser)]
@@ -56,46 +56,52 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#54 id=54 data-nosnippet>54</a>    },
 <a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Generate versions.json list of deployed documentation versions
 <a href=#56 id=56 data-nosnippet>56</a>    </span>GenVersions,
-<a href=#57 id=57 data-nosnippet>57</a>    <span class="doccomment">/// Regenerate pc-themes.css + switcher list from the dashboard theme registry
-<a href=#58 id=58 data-nosnippet>58</a>    </span>Themes,
-<a href=#59 id=59 data-nosnippet>59</a>}
-<a href=#60 id=60 data-nosnippet>60</a>
-<a href=#61 id=61 data-nosnippet>61</a><span class="kw">fn </span>main() -&gt; anyhow::Result&lt;()&gt; {
-<a href=#62 id=62 data-nosnippet>62</a>    <span class="kw">let </span>cli = Cli::parse();
-<a href=#63 id=63 data-nosnippet>63</a>    <span class="kw">let </span>tag_owned = cli.tag.or_else(|| std::env::var(<span class="string">"TAG"</span>).ok());
-<a href=#64 id=64 data-nosnippet>64</a>    <span class="kw">let </span>tag = tag_owned.as_deref();
-<a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">match </span>cli.command {
-<a href=#66 id=66 data-nosnippet>66</a>        Cmd::Serve { locale } =&gt; cmd::mdbook::serve::run(locale.as_deref(), tag),
-<a href=#67 id=67 data-nosnippet>67</a>        Cmd::Build =&gt; cmd::mdbook::build::run(tag),
-<a href=#68 id=68 data-nosnippet>68</a>        Cmd::Refs =&gt; cmd::mdbook::refs::run(tag),
-<a href=#69 id=69 data-nosnippet>69</a>        Cmd::Sync {
-<a href=#70 id=70 data-nosnippet>70</a>            locale,
-<a href=#71 id=71 data-nosnippet>71</a>            force,
-<a href=#72 id=72 data-nosnippet>72</a>            model_provider,
-<a href=#73 id=73 data-nosnippet>73</a>            config_dir,
-<a href=#74 id=74 data-nosnippet>74</a>            batch,
-<a href=#75 id=75 data-nosnippet>75</a>        } =&gt; cmd::mdbook::sync::run(
-<a href=#76 id=76 data-nosnippet>76</a>            locale.as_deref(),
-<a href=#77 id=77 data-nosnippet>77</a>            force,
-<a href=#78 id=78 data-nosnippet>78</a>            model_provider.as_deref(),
-<a href=#79 id=79 data-nosnippet>79</a>            config_dir.as_deref(),
-<a href=#80 id=80 data-nosnippet>80</a>            batch,
-<a href=#81 id=81 data-nosnippet>81</a>        ),
-<a href=#82 id=82 data-nosnippet>82</a>        Cmd::Stats =&gt; cmd::mdbook::stats::run(),
-<a href=#83 id=83 data-nosnippet>83</a>        Cmd::Check =&gt; cmd::mdbook::check::run(),
-<a href=#84 id=84 data-nosnippet>84</a>        Cmd::Locales =&gt; {
-<a href=#85 id=85 data-nosnippet>85</a>            cmd::mdbook::build::print_locales();
-<a href=#86 id=86 data-nosnippet>86</a>            <span class="prelude-val">Ok</span>(())
-<a href=#87 id=87 data-nosnippet>87</a>        }
-<a href=#88 id=88 data-nosnippet>88</a>        Cmd::ExtractChrome {
-<a href=#89 id=89 data-nosnippet>89</a>            version_dir,
-<a href=#90 id=90 data-nosnippet>90</a>            shared_dir,
-<a href=#91 id=91 data-nosnippet>91</a>        } =&gt; cmd::mdbook::build::extract_shared_chrome(
-<a href=#92 id=92 data-nosnippet>92</a>            std::path::Path::new(<span class="kw-2">&amp;</span>version_dir),
-<a href=#93 id=93 data-nosnippet>93</a>            std::path::Path::new(<span class="kw-2">&amp;</span>shared_dir),
-<a href=#94 id=94 data-nosnippet>94</a>        ),
-<a href=#95 id=95 data-nosnippet>95</a>        Cmd::GenVersions =&gt; cmd::mdbook::versions::run(),
-<a href=#96 id=96 data-nosnippet>96</a>        Cmd::Themes =&gt; cmd::mdbook::themes::run(<span class="kw-2">&amp;</span>xtask::util::repo_root()),
-<a href=#97 id=97 data-nosnippet>97</a>    }
-<a href=#98 id=98 data-nosnippet>98</a>}
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="doccomment">/// Remove orphaned root entries from the gh-pages clone (run in its root)
+<a href=#58 id=58 data-nosnippet>58</a>    </span>PruneRoot,
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="doccomment">/// Inject the version-selector script into deployed pages that lack it
+<a href=#60 id=60 data-nosnippet>60</a>    </span>RetrofitSelector,
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="doccomment">/// Regenerate pc-themes.css + switcher list from the dashboard theme registry
+<a href=#62 id=62 data-nosnippet>62</a>    </span>Themes,
+<a href=#63 id=63 data-nosnippet>63</a>}
+<a href=#64 id=64 data-nosnippet>64</a>
+<a href=#65 id=65 data-nosnippet>65</a><span class="kw">fn </span>main() -&gt; anyhow::Result&lt;()&gt; {
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">let </span>cli = Cli::parse();
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">let </span>tag_owned = cli.tag.or_else(|| std::env::var(<span class="string">"TAG"</span>).ok());
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">let </span>tag = tag_owned.as_deref();
+<a href=#69 id=69 data-nosnippet>69</a>    <span class="kw">match </span>cli.command {
+<a href=#70 id=70 data-nosnippet>70</a>        Cmd::Serve { locale } =&gt; cmd::mdbook::serve::run(locale.as_deref(), tag),
+<a href=#71 id=71 data-nosnippet>71</a>        Cmd::Build =&gt; cmd::mdbook::build::run(tag),
+<a href=#72 id=72 data-nosnippet>72</a>        Cmd::Refs =&gt; cmd::mdbook::refs::run(tag),
+<a href=#73 id=73 data-nosnippet>73</a>        Cmd::Sync {
+<a href=#74 id=74 data-nosnippet>74</a>            locale,
+<a href=#75 id=75 data-nosnippet>75</a>            force,
+<a href=#76 id=76 data-nosnippet>76</a>            model_provider,
+<a href=#77 id=77 data-nosnippet>77</a>            config_dir,
+<a href=#78 id=78 data-nosnippet>78</a>            batch,
+<a href=#79 id=79 data-nosnippet>79</a>        } =&gt; cmd::mdbook::sync::run(
+<a href=#80 id=80 data-nosnippet>80</a>            locale.as_deref(),
+<a href=#81 id=81 data-nosnippet>81</a>            force,
+<a href=#82 id=82 data-nosnippet>82</a>            model_provider.as_deref(),
+<a href=#83 id=83 data-nosnippet>83</a>            config_dir.as_deref(),
+<a href=#84 id=84 data-nosnippet>84</a>            batch,
+<a href=#85 id=85 data-nosnippet>85</a>        ),
+<a href=#86 id=86 data-nosnippet>86</a>        Cmd::Stats =&gt; cmd::mdbook::stats::run(),
+<a href=#87 id=87 data-nosnippet>87</a>        Cmd::Check =&gt; cmd::mdbook::check::run(),
+<a href=#88 id=88 data-nosnippet>88</a>        Cmd::Locales =&gt; {
+<a href=#89 id=89 data-nosnippet>89</a>            cmd::mdbook::build::print_locales();
+<a href=#90 id=90 data-nosnippet>90</a>            <span class="prelude-val">Ok</span>(())
+<a href=#91 id=91 data-nosnippet>91</a>        }
+<a href=#92 id=92 data-nosnippet>92</a>        Cmd::ExtractChrome {
+<a href=#93 id=93 data-nosnippet>93</a>            version_dir,
+<a href=#94 id=94 data-nosnippet>94</a>            shared_dir,
+<a href=#95 id=95 data-nosnippet>95</a>        } =&gt; cmd::mdbook::build::extract_shared_chrome(
+<a href=#96 id=96 data-nosnippet>96</a>            std::path::Path::new(<span class="kw-2">&amp;</span>version_dir),
+<a href=#97 id=97 data-nosnippet>97</a>            std::path::Path::new(<span class="kw-2">&amp;</span>shared_dir),
+<a href=#98 id=98 data-nosnippet>98</a>        ),
+<a href=#99 id=99 data-nosnippet>99</a>        Cmd::GenVersions =&gt; cmd::mdbook::versions::run(),
+<a href=#100 id=100 data-nosnippet>100</a>        Cmd::PruneRoot =&gt; cmd::mdbook::versions::prune_root(),
+<a href=#101 id=101 data-nosnippet>101</a>        Cmd::RetrofitSelector =&gt; cmd::mdbook::versions::retrofit_selector(),
+<a href=#102 id=102 data-nosnippet>102</a>        Cmd::Themes =&gt; cmd::mdbook::themes::run(<span class="kw-2">&amp;</span>xtask::util::repo_root()),
+<a href=#103 id=103 data-nosnippet>103</a>    }
+<a href=#104 id=104 data-nosnippet>104</a>}
 </code></pre></div></section></main></body></html>

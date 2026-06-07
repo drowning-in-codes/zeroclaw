@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ComplexityTier"],"fn":["estimate_complexity","evaluate_response"],"struct":["AutoClassifyConfig","EvalCheck","EvalConfig","EvalResult"],"trait":["AutoClassifyExt"]};

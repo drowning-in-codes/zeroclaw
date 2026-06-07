@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["DefaultMemoryLoader"],"trait":["MemoryLoader"]};

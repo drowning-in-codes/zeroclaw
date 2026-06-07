@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["handle_ws_chat"],"struct":["WsQuery"]};

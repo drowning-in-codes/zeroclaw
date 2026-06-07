@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["current_log_path","find_event_by_id","load_page"],"struct":["LogFilter","LogPage"]};

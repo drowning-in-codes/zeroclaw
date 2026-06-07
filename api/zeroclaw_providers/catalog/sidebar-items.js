@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["catalog_source_for","list_models_for_family"]};

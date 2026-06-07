@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["ExecConfig","ParameterDef","ToolManifest","ToolMeta","TransportConfig"]};

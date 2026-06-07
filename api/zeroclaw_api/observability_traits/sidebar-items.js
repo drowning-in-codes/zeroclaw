@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ObserverEvent","ObserverMetric"],"trait":["Observer"]};

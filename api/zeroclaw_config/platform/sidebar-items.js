@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_runtime"],"mod":["docker","native"],"trait":["RuntimeAdapter"]};

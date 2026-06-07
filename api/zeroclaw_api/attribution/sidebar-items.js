@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ChannelKind","CronKind","MemoryKind","ModelProviderKind","ProviderKind","Role","ToolKind","TranscriptionProviderKind","TtsProviderKind","TunnelProviderKind"],"trait":["Attributable"]};

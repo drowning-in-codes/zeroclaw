@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["enrich_message","extract_body_text","extract_title","extract_urls","is_ssrf_target"],"struct":["LinkEnricherConfig"]};

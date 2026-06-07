@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["gpio_tools"],"struct":["GpioReadTool","GpioWriteTool"]};

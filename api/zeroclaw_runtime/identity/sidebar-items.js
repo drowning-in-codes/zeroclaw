@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["aieos_to_system_prompt","is_aieos_configured","load_aieos_identity"],"struct":["AieosIdentity","CapabilitiesSection","HistorySection","IdentitySection","InterestsSection","LinguisticsSection","MotivationsSection","Names","OceanTraits","PhysicalitySection","PsychologySection"]};

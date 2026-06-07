@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["CliCategory"],"fn":["discover_cli_tools"],"struct":["DiscoveredCli"]};

@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-941a71ed.js";
+            window.path_to_searchindex_js = "../searchindex-d3382b77.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-812bb341.js"></script>
@@ -515,6 +515,7 @@
 <ul>
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — 监听的端口（使用 0 表示随机可用端口）；默认为配置项 <code>gateway.port</code></li>
 <li><code>--host &lt;HOST&gt;</code> — 要绑定的主机；默认为配置中的 <code>gateway.host</code>。注意：绑定到 <code>0.0.0.0</code> 需要在配置中设置 <code>gateway.allow_public_bind = true</code></li>
+<li><code>--allow-degraded-security</code> — Boot even when security-critical config sections were dropped to their defaults during load (weakened posture). Off by default</li>
 </ul>
 <h2 id="zeroclaw-gateway-restart"><a class="header" href="#zeroclaw-gateway-restart"><code>zeroclaw gateway restart</code></a></h2>
 <p>重启网关服务器。</p>
@@ -525,16 +526,21 @@
 <ul>
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — 监听的端口（使用 0 表示随机可用端口）；默认为配置项 <code>gateway.port</code></li>
 <li><code>--host &lt;HOST&gt;</code> — 要绑定的主机；默认为配置中的 <code>gateway.host</code>。注意：绑定到 <code>0.0.0.0</code> 需要在配置中设置 <code>gateway.allow_public_bind = true</code></li>
+<li><code>--allow-degraded-security</code> — Boot even when security-critical config sections were dropped to their defaults during load (weakened posture). Off by default</li>
 </ul>
 <h2 id="zeroclaw-gateway-get-paircode"><a class="header" href="#zeroclaw-gateway-get-paircode"><code>zeroclaw gateway get-paircode</code></a></h2>
 <p>显示或生成网关配对码。</p>
 <p>显示用于连接新客户端的配对码，而无需重启网关。需要网关正在运行。</p>
-<p>使用 <code>--new</code> 参数时，即使网关之前已配对，也会生成一个新的配对码（适用于添加额外客户端）。</p>
-<p>示例：zeroclaw gateway get-paircode       # 显示当前配对码 zeroclaw gateway get-paircode –new # 生成新的配对码 zeroclaw gateway get-paircode –new –port 3001 # 指向备用端口的网关</p>
+<p>With –new, generates a fresh pairing code even if the gateway was previously paired (useful for adding additional clients). This does NOT revoke existing tokens.</p>
+<p>With –rotate, revokes ALL paired bearer tokens, clears the device registry, and issues a fresh code. Use this after a suspected token leak when you do not know which token was compromised; every client must re-pair.</p>
+<p>With –rotate-device <id>, revokes just that device’s bearer token and issues a fresh code for re-pairing that one device.</id></p>
+<p>Examples: zeroclaw gateway get-paircode               # show current pairing code zeroclaw gateway get-paircode –new         # add another client (no revocation) zeroclaw gateway get-paircode –rotate      # revoke ALL tokens, then issue a code zeroclaw gateway get-paircode –rotate-device dash-1  # revoke one device’s token zeroclaw gateway get-paircode –new –port 3001 # target alternate-port gateway</p>
 <p><strong>用法：</strong> <code>zeroclaw gateway get-paircode [OPTIONS]</code></p>
 <p><strong>选项：</strong></p>
 <ul>
-<li><code>--new</code> — 生成新的配对码（即使已配对）</li>
+<li><code>--new</code> — Generate a new pairing code for adding a client (does not revoke existing tokens)</li>
+<li><code>--rotate</code> — Revoke ALL paired tokens and clear the device registry, then issue a new code</li>
+<li><code>--rotate-device &lt;DEVICE_ID&gt;</code> — Revoke a single device’s bearer token by id, then issue a new code</li>
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — 要查询的运行中网关的端口；默认为配置中的 gateway.port</li>
 <li><code>--host &lt;HOST&gt;</code> — 要查询的运行中网关的主机；默认为配置中的 gateway.host</li>
 </ul>
@@ -560,6 +566,7 @@
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — 监听的端口（使用 0 表示随机可用端口）；默认为配置项 <code>gateway.port</code></li>
 <li><code>--host &lt;HOST&gt;</code> — 要绑定的主机；默认为配置中的 <code>gateway.host</code></li>
 <li><code>--ephemeral</code> — Self-terminate after all socket clients disconnect (with grace period)</li>
+<li><code>--allow-degraded-security</code> — Boot even when security-critical config sections were dropped to their defaults during load. Without this, the daemon refuses to start with a weakened posture; with it, the daemon boots so the operator can reach repair surfaces, emitting a repeating warning</li>
 </ul>
 <h2 id="zeroclaw-service"><a class="header" href="#zeroclaw-service"><code>zeroclaw service</code></a></h2>
 <p>管理操作系统服务生命周期（launchd/systemd 用户服务）</p>

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["resolve_peer_set","should_drop_self_loop"],"struct":["ResolvedPeers"]};

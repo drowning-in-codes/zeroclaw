@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["StepStatus"],"fn":["builtin_playbooks","can_auto_approve","evaluate_step","load_playbooks","severity_level"],"struct":["Playbook","PlaybookStep","StepExecutionResult"]};

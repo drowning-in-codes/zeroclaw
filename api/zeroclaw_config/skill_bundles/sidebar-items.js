@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BundleDirectoryError"],"fn":["default_directory","resolve_directory","validate_directory","validate_uniqueness"]};

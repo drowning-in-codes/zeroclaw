@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["AudioConfig","CameraConfig","DriveConfig","RobotConfig","SafetyConfig","SensorConfig"]};

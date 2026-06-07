@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ScaffoldError"],"fn":["scaffold_skill","validate_name"],"struct":["ScaffoldOptions"]};

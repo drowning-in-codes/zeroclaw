@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["DocumentParseError"],"fn":["split_frontmatter"],"struct":["SkillDocument"]};

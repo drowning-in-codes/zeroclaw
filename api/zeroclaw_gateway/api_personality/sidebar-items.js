@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["handle_get","handle_index","handle_put","handle_templates"],"struct":["AgentQuery","PersonalityConflict","PersonalityPutBody","TemplateQuery"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["handle_canvas_clear","handle_canvas_get","handle_canvas_history","handle_canvas_list","handle_canvas_post","handle_ws_canvas"],"struct":["CanvasPostBody"]};

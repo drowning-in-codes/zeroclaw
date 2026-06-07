@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_transport"],"struct":["HttpTransport","SseTransport","StdioTransport"],"trait":["McpTransportConn"]};

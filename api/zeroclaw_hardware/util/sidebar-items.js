@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["is_serial_path_allowed"]};

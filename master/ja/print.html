@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-a8e2fb7f.js";
+            window.path_to_searchindex_js = "searchindex-2814a997.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-560e5bce.js"></script>
@@ -2898,6 +2898,7 @@ zeroclaw daemon
 <ul>
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — リッスンするポート（ランダムに利用可能なポートの場合は0）。デフォルトはconfig gateway.port</li>
 <li><code>--host &lt;HOST&gt;</code> — バインドするホスト。デフォルトはconfig gateway.host 注：0.0.0.0へのバインドにはconfig内の<code>gateway.allow_public_bind = true</code>が必要です</li>
+<li><code>--allow-degraded-security</code> — Boot even when security-critical config sections were dropped to their defaults during load (weakened posture). Off by default</li>
 </ul>
 <h2 id="zeroclaw-gateway-restart"><a class="header" href="#zeroclaw-gateway-restart">zeroclaw gateway restart</a></h2>
 <p>ゲートウェイサーバーを再起動します。</p>
@@ -2908,16 +2909,21 @@ zeroclaw daemon
 <ul>
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — リッスンするポート（ランダムに利用可能なポートの場合は0）。デフォルトはconfig gateway.port</li>
 <li><code>--host &lt;HOST&gt;</code> — バインドするホスト。デフォルトはconfig gateway.host 注：0.0.0.0へのバインドにはconfig内の<code>gateway.allow_public_bind = true</code>が必要です</li>
+<li><code>--allow-degraded-security</code> — Boot even when security-critical config sections were dropped to their defaults during load (weakened posture). Off by default</li>
 </ul>
 <h2 id="zeroclaw-gateway-get-paircode"><a class="header" href="#zeroclaw-gateway-get-paircode">zeroclaw gateway get-paircode</a></h2>
 <p>ゲートウェイペアリングコードを表示または生成します。</p>
 <p>ゲートウェイを再起動せずに新しいクライアントを接続するためのペアリングコードを表示します。ゲートウェイが実行中である必要があります。</p>
-<p>--new を使用すると、ゲートウェイが以前ペアリングされていた場合でも、新しいペアリングコードを生成します（追加のクライアントを追加するのに便利です）。</p>
-<p>zeroclaw gateway get-paircode       # 現在のペアリングコードを表示 zeroclaw gateway get-paircode –new # 新しいペアリングコードを生成 zeroclaw gateway get-paircode –new –port 3001 # 代替ポートのゲートウェイを対象に指定</p>
+<p>With –new, generates a fresh pairing code even if the gateway was previously paired (useful for adding additional clients). This does NOT revoke existing tokens.</p>
+<p>With –rotate, revokes ALL paired bearer tokens, clears the device registry, and issues a fresh code. Use this after a suspected token leak when you do not know which token was compromised; every client must re-pair.</p>
+<p>With –rotate-device <id>, revokes just that device’s bearer token and issues a fresh code for re-pairing that one device.</id></p>
+<p>Examples: zeroclaw gateway get-paircode               # show current pairing code zeroclaw gateway get-paircode –new         # add another client (no revocation) zeroclaw gateway get-paircode –rotate      # revoke ALL tokens, then issue a code zeroclaw gateway get-paircode –rotate-device dash-1  # revoke one device’s token zeroclaw gateway get-paircode –new –port 3001 # target alternate-port gateway</p>
 <p><strong>使用方法:</strong> <code>zeroclaw gateway get-paircode [OPTIONS]</code></p>
 <p><strong>オプション:</strong></p>
 <ul>
-<li><code>--new</code> — 新しいペアリングコードを生成（すでにペアリングされている場合でも）</li>
+<li><code>--new</code> — Generate a new pairing code for adding a client (does not revoke existing tokens)</li>
+<li><code>--rotate</code> — Revoke ALL paired tokens and clear the device registry, then issue a new code</li>
+<li><code>--rotate-device &lt;DEVICE_ID&gt;</code> — Revoke a single device’s bearer token by id, then issue a new code</li>
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — クエリ対象の実行中ゲートウェイのポート。デフォルトは config の gateway.port</li>
 <li><code>--host &lt;HOST&gt;</code> — クエリ対象として実行中のゲートウェイのホスト。デフォルトは config gateway.host</li>
 </ul>
@@ -2943,6 +2949,7 @@ zeroclaw daemon
 <li><code>-p</code>, <code>--port &lt;PORT&gt;</code> — リッスンするポート（ランダムに利用可能なポートの場合は0）。デフォルトはconfig gateway.port</li>
 <li><code>--host &lt;HOST&gt;</code> — バインドするホスト; デフォルトは config gateway.host</li>
 <li><code>--ephemeral</code> — Self-terminate after all socket clients disconnect (with grace period)</li>
+<li><code>--allow-degraded-security</code> — Boot even when security-critical config sections were dropped to their defaults during load. Without this, the daemon refuses to start with a weakened posture; with it, the daemon boots so the operator can reach repair surfaces, emitting a repeating warning</li>
 </ul>
 <h2 id="zeroclaw-service"><a class="header" href="#zeroclaw-service"><code>zeroclaw service</code></a></h2>
 <p>OS サービスのライフサイクルを管理 (launchd/systemd ユーザーサービス)</p>
@@ -6962,6 +6969,15 @@ model = "meta-llama/Llama-3.1-8B-Instruct"
 </code></pre>
 <h3 id="lm-studio-osaurus-litellm"><a class="header" href="#lm-studio-osaurus-litellm">LM Studio, Osaurus, LiteLLM</a></h3>
 <p>スロット <code>lmstudio</code>、<code>osaurus</code>、<code>litellm</code> も同じパターンに従います — <a href="#プロバイダーカタログ">catalog</a> を参照してください。</p>
+<h2 id="wire-protocol--wire_api--responses"><a class="header" href="#wire-protocol--wire_api--responses">Wire protocol — <code>wire_api = "responses"</code></a></h2>
+<p>Bring-your-own-endpoint slots default to the OpenAI chat-completions wire. An endpoint that only speaks the OpenAI <strong>responses</strong> wire (some self-hosted vLLM / TGI deployments) needs an explicit opt-in:</p>
+<pre><code class="language-toml">[providers.models.custom.vllm]
+uri      = "http://10.0.0.15:8000/v1"
+model    = "Qwen/Qwen3-30B-A3B"
+wire_api = "responses"                  # default is "chat_completions"
+</code></pre>
+<p>When set to <code>"responses"</code>, the provider is built as an <code>OpenAiResponsesModelProvider</code> (full streaming tool calls over the responses protocol) instead of a chat-completions provider. Omit the field, or set <code>"chat_completions"</code>, for the default wire.</p>
+<p><code>wire_api</code> is only honored by the bring-your-own-endpoint families where the wire is operator-configurable: <code>openai</code>, <code>llamacpp</code>, and <code>custom</code> (plus the generic openai-compatible path). Branded vendor slots (<code>groq</code>, <code>mistral</code>, <code>deepseek</code>, …) have a fixed wire protocol and ignore the field. The setting governs both the primary agent path and delegate targets, so a delegate whose target alias declares <code>wire_api = "responses"</code> reaches the endpoint over the responses wire.</p>
 <h2 id="検証"><a class="header" href="#検証">検証</a></h2>
 <p>アプローチに関わらず：</p>
 <pre><code class="language-bash">zeroclaw config list                          # 設定を読み込む。検証に失敗した場合は stderr に出力される
@@ -7926,6 +7942,18 @@ ignore = []
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="他のチャットプラットフォーム"><a class="header" href="#他のチャットプラットフォーム">他のチャットプラットフォーム</a></h1>
 <p>統合が動作しているが、まだ個別のガイドに分離されていないチャンネル。各チャンネルは機能ゲートで制御されており、ビルド時に <code>channel-&lt;name&gt;</code> 機能を有効にしてください。</p>
+<h2 id="pacing-outbound-replies-reply_min_interval_secs"><a class="header" href="#pacing-outbound-replies-reply_min_interval_secs">Pacing outbound replies (<code>reply_min_interval_secs</code>)</a></h2>
+<p>Every outbound channel accepts an optional <code>reply_min_interval_secs = N</code> field (range <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>, default <code>0</code>). When set, the orchestrator wraps the channel in a per-(channel, recipient) pacing layer so consecutive outbound replies to the same peer wait at least <code>N</code> seconds apart. <code>0</code> (the default) is a passthrough — no wrapper allocated, no overhead.</p>
+<pre><code class="language-toml">[channels.whatsapp]
+reply_min_interval_secs = 120    # 0 = no pacing (default)
+reply_queue_depth_max   = 16     # bounded queue when pacing &gt; 0 (0 = use default)
+</code></pre>
+<p>When the floor is active, sends that arrive before the floor elapses enter a bounded FIFO queue. A background worker drains the queue at the floor rate so replies still land in order at the configured cadence. The queue depth defaults to <strong>16</strong> (good for the “agent went briefly bursty” case) and is capped at <code>REPLY_QUEUE_DEPTH_CEILING</code> (<code>1024</code>). When the queue is full the <strong>newest</strong> send is dropped and a <code>WARN</code> is emitted with <code>channel_alias</code>, redacted <code>recipient</code>, <code>queue_depth</code>, <code>queue_max</code>, and <code>dropped_chars</code> — body content stays out of logs.</p>
+<p>Streaming draft updates within a single reply are <strong>not</strong> paced (they would freeze the live preview); only the final <code>send</code> (and the terminal <code>finalize_draft</code> write) enter the queue. Different recipients are independent — pacing for one peer does not block messages to another. The wrapper retains state for up to <code>PACING_RECIPIENT_CAP</code> (1024) distinct peers via idle-state LRU eviction: only rows with no queued work and no in-flight send are reclaimed, so the cap is a target for idle state rather than an unconditional hard bound under an all-active burst.</p>
+<p>Use case: paired-identity channels where sub-second replies are an AI-tell. Wire-level coverage exists end-to-end across nine channels (Telegram, Discord, Slack, Mattermost, Webhook, iMessage, Matrix, Signal, WhatsApp); integration tests pin the floor + overflow contract on Telegram and WhatsApp Web.</p>
+<blockquote>
+<p><strong>Webhook caveat:</strong> on a synchronous webhook channel the outbound reply is the HTTP response to the caller’s request. A non-zero <code>reply_min_interval_secs</code> floor can hold that response open for the floor duration, which may exceed the caller’s own request timeout. Set the floor only when the webhook caller tolerates a delayed response, or leave it at <code>0</code> and pace upstream.</p>
+</blockquote>
 <h2 id="discord"><a class="header" href="#discord">Discord</a></h2>
 <pre><code class="language-toml">[channels.discord]
 enabled = true

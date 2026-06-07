@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["handle_create_skill","handle_delete_skill","handle_list_bundles","handle_list_skills","handle_read_skill","handle_write_skill"],"struct":["DeleteQuery","SkillCreateBody","SkillWriteBody"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["BOOTSTRAP_MAX_CHARS"],"fn":["build_system_prompt","build_system_prompt_with_mode","build_system_prompt_with_mode_and_autonomy"]};

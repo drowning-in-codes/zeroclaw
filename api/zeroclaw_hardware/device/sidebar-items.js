@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["NO_HW_DEVICES_SUMMARY"],"enum":["DeviceKind","DeviceRuntime"],"struct":["Device","DeviceCapabilities","DeviceContext","DeviceRegistry"]};

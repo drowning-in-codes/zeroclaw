@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["EDITABLE_PERSONALITY_FILES","MAX_FILE_CHARS","PERSONALITY_FILES"],"fn":["load_personality","load_personality_files"],"struct":["PersonalityFile","PersonalityProfile"]};

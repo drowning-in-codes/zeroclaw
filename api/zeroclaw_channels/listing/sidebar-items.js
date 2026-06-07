@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["compiled_channels","is_channel_type_compiled"]};

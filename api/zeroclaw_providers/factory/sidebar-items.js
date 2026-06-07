@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["apply_compat_options","dispatch_family_factory"],"trait":["CompatFamilySpec","FamilyProviderFactory"]};

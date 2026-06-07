@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["infer_board_from_path","parse_pin_aliases"],"struct":["DatasheetChunk","HardwareRag"],"type":["PinAliases"]};

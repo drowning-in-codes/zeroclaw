@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SafetyEvent","SensorReading"],"fn":["preflight_check"],"struct":["SafeDrive","SafetyMonitor","SafetyState"]};

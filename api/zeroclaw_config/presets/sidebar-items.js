@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["RISK_PRESETS","RUNTIME_PRESETS"],"enum":["SelectorChoice"],"fn":["risk_preset","runtime_preset"],"struct":["AgentIdentity","BuilderSubmission","ChannelQuickStart","ModelProviderChoice","QuickstartPeerGroup","QuickstartPersonalityFile","RiskPreset","RuntimePreset"]};

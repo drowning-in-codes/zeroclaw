@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TransportError","TransportKind"],"trait":["Transport"]};

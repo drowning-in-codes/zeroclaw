@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["engine","event_matcher"]};

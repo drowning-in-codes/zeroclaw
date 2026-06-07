@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"attr":["async_trait"],"enum":["ObserverEvent","ObserverMetric"],"trait":["Observer"]};

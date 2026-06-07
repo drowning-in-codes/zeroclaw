@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["NativeToolDispatcher","ParsedToolCall","ToolExecutionResult","XmlToolDispatcher"],"trait":["ToolDispatcher"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["AssemblyAiProvider","DeepgramProvider","GoogleSttProvider","GroqProvider","LocalWhisperProvider","OpenAiWhisperProvider","TranscriptionManager"],"trait":["TranscriptionProvider"]};

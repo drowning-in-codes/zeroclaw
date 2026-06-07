@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["clear_broadcast_hook","current_broadcast_hook","set_broadcast_hook","subscribe"],"type":["LogBroadcastSender"]};

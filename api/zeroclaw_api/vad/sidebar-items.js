@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["VadEvent"],"struct":["NoopVad"],"trait":["Vad"]};

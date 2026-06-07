@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ChannelApprovalResponse"],"struct":["ChannelApprovalRequest","ChannelMessage","SendMessage"],"trait":["Channel"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["secret_file_path"],"struct":["OtpValidator"]};

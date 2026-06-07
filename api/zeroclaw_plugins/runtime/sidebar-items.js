@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["call_execute","call_tool_metadata","create_plugin"],"struct":["ToolMetadata"]};

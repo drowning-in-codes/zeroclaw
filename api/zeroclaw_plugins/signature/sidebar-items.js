@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["SignatureMode","VerificationResult"],"fn":["canonical_manifest_bytes","enforce_signature_policy","generate_signing_key","public_key_hex","sign_manifest","verify_manifest"]};

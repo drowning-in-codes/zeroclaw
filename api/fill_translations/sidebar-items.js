@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["LeakCheck"],"fn":["check_for_leak","chrono_now","commit_entry","decode_po_string","encode_po_string","fail","main","parse_po","translate_batch","write_po"],"struct":["Args","BatchFailure","Entry","FailureLog"],"type":["BatchResult"]};

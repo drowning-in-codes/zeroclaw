@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["run_local_listener","socket_path"],"struct":["LocalTransport"]};

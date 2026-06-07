@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-a8e2fb7f.js";
+            window.path_to_searchindex_js = "../searchindex-2814a997.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-560e5bce.js"></script>
@@ -205,6 +205,18 @@
                     <main>
                         <h1 id="他のチャットプラットフォーム"><a class="header" href="#他のチャットプラットフォーム">他のチャットプラットフォーム</a></h1>
 <p>統合が動作しているが、まだ個別のガイドに分離されていないチャンネル。各チャンネルは機能ゲートで制御されており、ビルド時に <code>channel-&lt;name&gt;</code> 機能を有効にしてください。</p>
+<h2 id="pacing-outbound-replies-reply_min_interval_secs"><a class="header" href="#pacing-outbound-replies-reply_min_interval_secs">Pacing outbound replies (<code>reply_min_interval_secs</code>)</a></h2>
+<p>Every outbound channel accepts an optional <code>reply_min_interval_secs = N</code> field (range <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>, default <code>0</code>). When set, the orchestrator wraps the channel in a per-(channel, recipient) pacing layer so consecutive outbound replies to the same peer wait at least <code>N</code> seconds apart. <code>0</code> (the default) is a passthrough — no wrapper allocated, no overhead.</p>
+<pre><code class="language-toml">[channels.whatsapp]
+reply_min_interval_secs = 120    # 0 = no pacing (default)
+reply_queue_depth_max   = 16     # bounded queue when pacing &gt; 0 (0 = use default)
+</code></pre>
+<p>When the floor is active, sends that arrive before the floor elapses enter a bounded FIFO queue. A background worker drains the queue at the floor rate so replies still land in order at the configured cadence. The queue depth defaults to <strong>16</strong> (good for the “agent went briefly bursty” case) and is capped at <code>REPLY_QUEUE_DEPTH_CEILING</code> (<code>1024</code>). When the queue is full the <strong>newest</strong> send is dropped and a <code>WARN</code> is emitted with <code>channel_alias</code>, redacted <code>recipient</code>, <code>queue_depth</code>, <code>queue_max</code>, and <code>dropped_chars</code> — body content stays out of logs.</p>
+<p>Streaming draft updates within a single reply are <strong>not</strong> paced (they would freeze the live preview); only the final <code>send</code> (and the terminal <code>finalize_draft</code> write) enter the queue. Different recipients are independent — pacing for one peer does not block messages to another. The wrapper retains state for up to <code>PACING_RECIPIENT_CAP</code> (1024) distinct peers via idle-state LRU eviction: only rows with no queued work and no in-flight send are reclaimed, so the cap is a target for idle state rather than an unconditional hard bound under an all-active burst.</p>
+<p>Use case: paired-identity channels where sub-second replies are an AI-tell. Wire-level coverage exists end-to-end across nine channels (Telegram, Discord, Slack, Mattermost, Webhook, iMessage, Matrix, Signal, WhatsApp); integration tests pin the floor + overflow contract on Telegram and WhatsApp Web.</p>
+<blockquote>
+<p><strong>Webhook caveat:</strong> on a synchronous webhook channel the outbound reply is the HTTP response to the caller’s request. A non-zero <code>reply_min_interval_secs</code> floor can hold that response open for the floor duration, which may exceed the caller’s own request timeout. Set the floor only when the webhook caller tolerates a delayed response, or leave it at <code>0</code> and pace upstream.</p>
+</blockquote>
 <h2 id="discord"><a class="header" href="#discord">Discord</a></h2>
 <pre><code class="language-toml">[channels.discord]
 enabled = true

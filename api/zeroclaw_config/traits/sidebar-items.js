@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["MASKED_SECRET","UNSET_DISPLAY"],"enum":["ConfigTab","MapKeyKind","PropKind"],"fn":["is_masked_secret"],"struct":["ChannelInfo","ConfigFieldEntry","IntegrationDescriptor","MapKeySection","NestedOptionEntry","PropFieldInfo","SecretFieldInfo"],"trait":["ChannelConfig","HasPropKind","MaskSecrets","SecretField"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["consolidate_turn"],"struct":["ConsolidationResult"]};

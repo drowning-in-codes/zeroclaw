@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["GuardAction","GuardResult"],"struct":["PromptGuard"]};

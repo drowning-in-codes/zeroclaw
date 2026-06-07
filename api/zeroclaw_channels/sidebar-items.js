@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["acp_channel","allowlist","cli","email_channel","gmail_push","link_enricher","listing","orchestrator","telegram","transcription","tts","util","webhook"]};

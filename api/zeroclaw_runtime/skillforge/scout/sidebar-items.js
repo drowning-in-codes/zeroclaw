@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ScoutSource"],"fn":["dedup"],"struct":["GitHubScout","ScoutResult"],"trait":["Scout"]};

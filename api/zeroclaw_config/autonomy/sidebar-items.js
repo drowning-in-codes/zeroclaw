@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AutonomyLevel","DelegationMode"],"struct":["DelegationPolicy"]};

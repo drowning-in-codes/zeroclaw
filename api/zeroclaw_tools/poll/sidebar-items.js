@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["format_text_poll"],"struct":["PollTool"],"type":["ChannelMapHandle"]};

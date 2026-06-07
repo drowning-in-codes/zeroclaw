@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["format_errors","message_ids","message_ids_from_file"],"struct":["FtlError"]};

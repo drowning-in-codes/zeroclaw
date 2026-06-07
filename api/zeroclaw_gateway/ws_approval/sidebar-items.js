@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["new_pending_approvals"],"struct":["WsApprovalChannel"],"type":["PendingApprovals"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TaskPriority","TaskStatus"],"fn":["compute_adaptive_interval"],"struct":["HeartbeatEngine","HeartbeatMetrics","HeartbeatTask"]};

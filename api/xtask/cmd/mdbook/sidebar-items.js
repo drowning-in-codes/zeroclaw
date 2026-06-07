@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["build","check","refs","serve","stats","sync","themes"]};

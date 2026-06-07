@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["DaemonExit"],"fn":["run","state_file_path"],"struct":["DaemonSubsystems"]};
