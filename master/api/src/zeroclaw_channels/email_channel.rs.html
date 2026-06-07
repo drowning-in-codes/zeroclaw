@@ -85,15 +85,15 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// Pure, testable predicate that applies the email-allowlist match
 <a href=#85 id=85 data-nosnippet>85</a>    /// semantics against an already-resolved peer list.
-<a href=#86 id=86 data-nosnippet>86</a>    </span><span class="kw">fn </span>is_email_sender_allowed(peers: <span class="kw-2">&amp;</span>[String], email: <span class="kw-2">&amp;</span>str) -&gt; bool {
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">if </span>peers.is_empty() {
-<a href=#88 id=88 data-nosnippet>88</a>            <span class="kw">return </span><span class="bool-val">false</span>; <span class="comment">// Empty = deny all
-<a href=#89 id=89 data-nosnippet>89</a>        </span>}
-<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">if </span>peers.iter().any(|a| a == <span class="string">"*"</span>) {
-<a href=#91 id=91 data-nosnippet>91</a>            <span class="kw">return </span><span class="bool-val">true</span>; <span class="comment">// Wildcard = allow all
-<a href=#92 id=92 data-nosnippet>92</a>        </span>}
-<a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">let </span>email_lower = email.to_lowercase();
-<a href=#94 id=94 data-nosnippet>94</a>        peers.iter().any(|allowed| {
+<a href=#86 id=86 data-nosnippet>86</a>    ///
+<a href=#87 id=87 data-nosnippet>87</a>    /// Domain-class email matching (`@host` / bare `host` admit a whole
+<a href=#88 id=88 data-nosnippet>88</a>    /// domain; `user@host` is a full case-insensitive address) can't be
+<a href=#89 id=89 data-nosnippet>89</a>    /// expressed by the `crate::allowlist::Match` modes, so the per-entry
+<a href=#90 id=90 data-nosnippet>90</a>    /// comparison runs through `crate::allowlist::is_user_allowed_by`. `peers`
+<a href=#91 id=91 data-nosnippet>91</a>    /// is the caller's freshly-resolved list; no allowlist state is cached.
+<a href=#92 id=92 data-nosnippet>92</a>    </span><span class="kw">fn </span>is_email_sender_allowed(peers: <span class="kw-2">&amp;</span>[String], email: <span class="kw-2">&amp;</span>str) -&gt; bool {
+<a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">crate</span>::allowlist::is_user_allowed_by(peers, email, |allowed, email| {
+<a href=#94 id=94 data-nosnippet>94</a>            <span class="kw">let </span>email_lower = email.to_lowercase();
 <a href=#95 id=95 data-nosnippet>95</a>            <span class="kw">if </span>allowed.starts_with(<span class="string">'@'</span>) {
 <a href=#96 id=96 data-nosnippet>96</a>                <span class="comment">// Domain match with @ prefix: "@example.com"
 <a href=#97 id=97 data-nosnippet>97</a>                </span>email_lower.ends_with(<span class="kw-2">&amp;</span>allowed.to_lowercase())

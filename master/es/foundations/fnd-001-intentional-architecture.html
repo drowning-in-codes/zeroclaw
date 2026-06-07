@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b8ce51c5.js";
+            window.path_to_searchindex_js = "../searchindex-be54bafa.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-377ab6ef.js"></script>
@@ -241,6 +241,7 @@
 <tr><td>1</td><td>2026-04-09</td><td>Borrador inicial</td></tr>
 <tr><td>2</td><td>2026-04-09</td><td>Se ha añadido la §4.4.1 Política de versionado (herencia unificada del espacio de trabajo, niveles de estabilidad, definición de cambios incompatibles a nivel de producto); se ha añadido la §4.4.2 Artefactos de lanzamiento (destino de las banderas de función, perfil canónico del binario de lanzamiento, matriz de artefactos de lanzamiento); se han añadido Preguntas de discusión sobre la estrategia de versionado y los valores predeterminados de observabilidad</td></tr>
 <tr><td>3</td><td>2026-04-10</td><td>Corrección de terminología según la retroalimentación de implementación del PR #5559: “kernel” → “runtime” para la capa de orquestación del agente en todo el documento; “kernel” ahora se refiere específicamente a la base irreducible (compilación con <code>--no-default-features</code>); §4.1 actualizado para describir la arquitectura explícita de dos capas (base + runtime); §4.2–§4.3 diagrama de dependencias y mapa de componentes actualizados para mostrar <code>zeroclaw-runtime</code>; Fase 2 renombrada de “The Kernel” a “The Runtime”; objetivos de tamaño binario reformulados como estrellas norte aspiracionales con seguimiento de progreso medido en lugar de umbrales estrictos; §7 actualizado con la medición real de la Fase 1 (compilación de base de 6.6 MB) y nota explícita de que la descomposición arquitectónica permite la optimización, pero la optimización es una segunda pasada dedicada</td></tr>
+<tr><td>4</td><td>2026-06-02</td><td>Updated §5.2 to target <code>wasm32-wasip2</code> to enable WIT files. Updated Phase 2 §D2 to replace Extism with wasmtime to enable ARM32 targets and WIT files</td></tr>
 </tbody>
 </table>
 </div>
@@ -383,28 +384,28 @@
 │   │  Plugin Host · Local IPC API                                 │  │
 │   │  Core Tools: shell, file, git, memory recall/store           │  │
 │   │                                                              │  │
-│   │  ┌──────────────────────────────────────────────────────┐   │  │
-│   │  │   Foundation  (--no-default-features)                │   │  │
-│   │  │                                                      │   │  │
-│   │  │  zeroclaw-api · zeroclaw-config · zeroclaw-infra     │   │  │
-│   │  │  zeroclaw-providers · zeroclaw-memory                │   │  │
-│   │  │  zeroclaw-tool-call-parser                           │   │  │
-│   │  │                                                      │   │  │
-│   │  │  Vision target: &lt;5 MB RAM at runtime                 │   │  │
-│   │  └──────────────────────────────────────────────────────┘   │  │
+│   │  ┌──────────────────────────────────────────────────────┐    │  │
+│   │  │   Foundation  (--no-default-features)                │    │  │
+│   │  │                                                      │    │  │
+│   │  │  zeroclaw-api · zeroclaw-config · zeroclaw-infra     │    │  │
+│   │  │  zeroclaw-providers · zeroclaw-memory                │    │  │
+│   │  │  zeroclaw-tool-call-parser                           │    │  │
+│   │  │                                                      │    │  │
+│   │  │  Vision target: &lt;5 MB RAM at runtime                 │    │  │
+│   │  └──────────────────────────────────────────────────────┘    │  │
 │   └──────────────────────────────────────────────────────────────┘  │
 │                              ▲                                      │
 │                   zeroclaw-api (traits only)                        │
 │                              ▲                                      │
-│   ┌──────────────┐  ┌────────┴────────┐  ┌─────────────────────┐   │
-│   │  zeroclaw-gw │  │  Channel plugins│  │   Tool plugins      │   │
-│   │  (opt-in     │  │                 │  │                     │   │
-│   │   binary)    │  │  channel-discord│  │  tools-web          │   │
-│   │              │  │  channel-slack  │  │  tools-integrations │   │
-│   │  HTTP/WS/SSE │  │  channel-tg     │  │  tools-hardware     │   │
-│   │  Web UI      │  │  channel-email  │  │  tools-mcp          │   │
-│   │  REST API    │  │  ...            │  │  ...                │   │
-│   └──────┬───────┘  └─────────────────┘  └─────────────────────┘   │
+│   ┌──────────────┐  ┌────────┴────────┐  ┌─────────────────────┐    │
+│   │  zeroclaw-gw │  │  Channel plugins│  │   Tool plugins      │    │
+│   │  (opt-in     │  │                 │  │                     │    │
+│   │   binary)    │  │  channel-discord│  │  tools-web          │    │
+│   │              │  │  channel-slack  │  │  tools-integrations │    │
+│   │  HTTP/WS/SSE │  │  channel-tg     │  │  tools-hardware     │    │
+│   │  Web UI      │  │  channel-email  │  │  tools-mcp          │    │
+│   │  REST API    │  │  ...            │  │  ...                │    │
+│   └──────┬───────┘  └─────────────────┘  └─────────────────────┘    │
 │          │                                                          │
 │          ▼                                                          │
 │   ┌─────────────────┐                                               │
@@ -564,12 +565,12 @@ version.workspace = true
 <tr><td><code>zeroclaw</code> binario del núcleo</td><td><code>x86_64-unknown-linux-musl</code>, <code>aarch64-unknown-linux-gnu</code>, <code>armv7-unknown-linux-gnueabihf</code>, <code>x86_64-apple-darwin</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></td><td>Compilación estática de musl para Linux x86_64; GNU para objetivos ARM</td></tr>
 <tr><td><code>zeroclaw</code> binario del kernel (hardware)</td><td><code>aarch64-unknown-linux-gnu</code>, <code>armv7-unknown-linux-gnueabihf</code></td><td>Mismos objetivos, compilados con las banderas <code>peripheral-rpi</code> y <code>hardware</code> para implementaciones en Raspberry Pi</td></tr>
 <tr><td><code>zeroclaw-gw</code> binario de puerta de enlace</td><td>Misma matriz de plataforma que el kernel</td><td>Publicado junto con el kernel; los usuarios lo instalan por separado</td></tr>
-<tr><td>Archivos de complementos WASM</td><td><code>wasm32-wasip1</code></td><td>Publicado en el registro de complementos (no en GitHub Releases); instalable mediante <code>zeroclaw plugin install</code></td></tr>
+<tr><td>Archivos de complementos WASM</td><td><code>wasm32-wasip2</code></td><td>Publicado en el registro de complementos (no en GitHub Releases); instalable mediante <code>zeroclaw plugin install</code></td></tr>
 <tr><td><code>zeroclaw-desktop</code> instalador</td><td><code>x86_64</code> y <code>aarch64</code> para macOS, Windows, Linux (AppImage/deb)</td><td>Incluye el núcleo, la puerta de enlace y el conjunto completo de complementos; construido mediante el flujo de trabajo de Tauri</td></tr>
 </tbody>
 </table>
 </div>
-<p>El plugin <code>wasm32-wasip1</code> se compila y ejecuta en un trabajo de CI separado y se publica en el registro de plugins con su propia periodicidad. Una versión de un plugin no requiere una versión del kernel.</p>
+<p>The <code>wasm32-wasip2</code> plugin builds run in a separate CI job and are published to the plugin registry on their own cadence. A plugin release does not require a kernel release.</p>
 <hr>
 <h3 id="45-la-separación-de-la-puerta-de-enlace"><a class="header" href="#45-la-separación-de-la-puerta-de-enlace">4.5 La separación de la puerta de enlace</a></h3>
 <p>El gateway actual confunde dos cosas que deben separarse:</p>
@@ -621,7 +622,7 @@ Target (correct):
 <li>Defina archivos de interfaz WIT para los tipos de plugin <code>Tool</code>, <code>Channel</code> y <code>Memory</code> (un directorio <code>wit/</code> en la raíz del espacio de trabajo)</li>
 <li>Utiliza <code>wit-bindgen</code> para generar los enlaces del lado del host en Rust a partir de esos archivos WIT.</li>
 <li>Documentar las interfaces WIT como el SDK oficial de plugins</li>
-<li>Un autor de complementos escribe Rust (o Go, o C, o Python) contra la interfaz WIT y ejecuta <code>cargo build --target wasm32-wasi</code> — el resultado se guarda en <code>~/.zeroclaw/plugins/</code></li>
+<li>A plugin author writes Rust (or Go, or C, or Python) against the WIT interface and <code>cargo build --target wasm32-wasip2</code> — the result drops into <code>~/.zeroclaw/plugins/</code></li>
 </ul>
 <p><strong>Estándares:</strong> WASI 0.2 · Modelo de Componentes de W3C WebAssembly · WIT IDL</p>
 <h3 id="53-api-local-openapi-31"><a class="header" href="#53-api-local-openapi-31">5.3 API local: OpenAPI 3.1</a></h3>
@@ -761,8 +762,9 @@ pub async fn run(runtime: Runtime, registry: Registry) -&gt; anyhow::Result&lt;(
 <span class="boring">}</span></code></pre>
 <p>El crate binario se convierte en una capa de conexión delgada que lee la configuración y llama a <code>run</code>.</p>
 <p><strong>D2: Completa el puente de ejecución WASM</strong></p>
-<p>Integra Extism en <code>WasmTool::execute</code> y <code>WasmChannel</code>. El <code>PluginHost</code> ya se encarga del descubrimiento y la instalación. El puente de ejecución es la pieza que falta. Con las interfaces WIT definidas en la versión 0.7.0, utiliza <code>wit-bindgen</code> para generar los enlaces del lado del host.</p>
-<p>Una implementación completa de <code>WasmTool::execute</code> utilizando Extism tiene aproximadamente 30–50 líneas. La mayor parte del trabajo consiste en definir las funciones host que los plugins WASM pueden llamar (solicitudes HTTP, acceso a memoria, registro) dentro del modelo de permisos ya definido en <code>PluginPermission</code>.</p>
+<p>The <code>extism</code> dependency is incompatible with WASM Component Model (<code>.wit</code> files) and requires the <code>cranelift</code> feature of <code>wasmtime</code>, which blocks ARM32 targets from compiling. Remove Extism and replace it with direct usage of <code>wasmtime</code>. During the transition, Extism should be left as an option until the final deprecation PR.</p>
+<p>Wire <code>wasmtime</code> into <code>zeroclaw-plugins</code> with optional dependencies on <code>cranelift</code> (for most build targets) or <code>pulley</code> (for ARM32). With WIT interfaces defined in v0.7.0, use <code>wit-bindgen</code> to generate the host-side bindings.</p>
+<p>A complete WASM execution bridge implementation defines the WASI host functions that WASM plugins can call (HTTP requests, memory access, logging) within the permission model already defined in <code>PluginPermission</code>. Where possible, the WASI Preview 2 APIs should be used (<code>wasi:io</code>, <code>wasi:http</code>, <code>wasi:filesystem</code>, etc) to provide a consistent standards-based API for plugins.</p>
 <p><strong>D3: Cliente del registro de componentes</strong></p>
 <p>Agrega un subcomando <code>zeroclaw plugin</code> respaldado por un cliente de registro simple:</p>
 <pre><code>zeroclaw plugin list              # list installed plugins
@@ -823,7 +825,7 @@ zeroclaw plugin update            # update all installed plugins
 <ol>
 <li>Agrega <code>zeroclaw-plugin-sdk</code> como dependencia</li>
 <li>Implementa el rasgo generado por WIT</li>
-<li><code>cargo build --target wasm32-wasi</code></li>
+<li><code>cargo build --target wasm32-wasip2</code></li>
 <li><code>zeroclaw plugin install ./my-plugin/</code></li>
 </ol>
 <p>El SDK gestiona las vinculaciones de funciones del host, el formato del manifiesto y el modelo de permisos.</p>

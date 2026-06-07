@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["AcpSessionData","AcpSessionStore","AcpSessionSummary"]};
+window.SIDEBAR_ITEMS = {"enum":["AcpSessionRestore"],"struct":["AcpSessionData","AcpSessionStore","AcpSessionSummary"]};

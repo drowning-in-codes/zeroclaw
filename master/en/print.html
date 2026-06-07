@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-1786de22.js";
+            window.path_to_searchindex_js = "searchindex-2cf96b1f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-475fae1a.js"></script>
@@ -13667,6 +13667,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <tr><td>1</td><td>2026-04-09</td><td>Initial draft</td></tr>
 <tr><td>2</td><td>2026-04-09</td><td>Added §4.4.1 Versioning Policy (unified workspace inheritance, stability tiers, product-level breaking change definition); added §4.4.2 Release Artifacts (feature flag fate, canonical release binary profile, release artifact matrix); added Discussion Questions for versioning strategy and observability defaults</td></tr>
 <tr><td>3</td><td>2026-04-10</td><td>Terminology correction per implementation feedback from PR #5559: “kernel” → “runtime” for the agent orchestration layer throughout; “kernel” now refers specifically to the irreducible foundation (<code>--no-default-features</code> build); §4.1 updated to describe the explicit two-layer architecture (foundation + runtime); §4.2–§4.3 dependency diagram and component map updated to show <code>zeroclaw-runtime</code>; Phase 2 renamed from “The Kernel” to “The Runtime”; binary size targets reframed as aspirational north stars with measured progress tracking rather than hard gates; §7 updated with actual Phase 1 measurement (6.6 MB foundation build) and explicit note that architectural decomposition enables optimization but optimization is a dedicated second pass</td></tr>
+<tr><td>4</td><td>2026-06-02</td><td>Updated §5.2 to target <code>wasm32-wasip2</code> to enable WIT files. Updated Phase 2 §D2 to replace Extism with wasmtime to enable ARM32 targets and WIT files</td></tr>
 </tbody>
 </table>
 </div>
@@ -13809,28 +13810,28 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 │   │  Plugin Host · Local IPC API                                 │  │
 │   │  Core Tools: shell, file, git, memory recall/store           │  │
 │   │                                                              │  │
-│   │  ┌──────────────────────────────────────────────────────┐   │  │
-│   │  │   Foundation  (--no-default-features)                │   │  │
-│   │  │                                                      │   │  │
-│   │  │  zeroclaw-api · zeroclaw-config · zeroclaw-infra     │   │  │
-│   │  │  zeroclaw-providers · zeroclaw-memory                │   │  │
-│   │  │  zeroclaw-tool-call-parser                           │   │  │
-│   │  │                                                      │   │  │
-│   │  │  Vision target: &lt;5 MB RAM at runtime                 │   │  │
-│   │  └──────────────────────────────────────────────────────┘   │  │
+│   │  ┌──────────────────────────────────────────────────────┐    │  │
+│   │  │   Foundation  (--no-default-features)                │    │  │
+│   │  │                                                      │    │  │
+│   │  │  zeroclaw-api · zeroclaw-config · zeroclaw-infra     │    │  │
+│   │  │  zeroclaw-providers · zeroclaw-memory                │    │  │
+│   │  │  zeroclaw-tool-call-parser                           │    │  │
+│   │  │                                                      │    │  │
+│   │  │  Vision target: &lt;5 MB RAM at runtime                 │    │  │
+│   │  └──────────────────────────────────────────────────────┘    │  │
 │   └──────────────────────────────────────────────────────────────┘  │
 │                              ▲                                      │
 │                   zeroclaw-api (traits only)                        │
 │                              ▲                                      │
-│   ┌──────────────┐  ┌────────┴────────┐  ┌─────────────────────┐   │
-│   │  zeroclaw-gw │  │  Channel plugins│  │   Tool plugins      │   │
-│   │  (opt-in     │  │                 │  │                     │   │
-│   │   binary)    │  │  channel-discord│  │  tools-web          │   │
-│   │              │  │  channel-slack  │  │  tools-integrations │   │
-│   │  HTTP/WS/SSE │  │  channel-tg     │  │  tools-hardware     │   │
-│   │  Web UI      │  │  channel-email  │  │  tools-mcp          │   │
-│   │  REST API    │  │  ...            │  │  ...                │   │
-│   └──────┬───────┘  └─────────────────┘  └─────────────────────┘   │
+│   ┌──────────────┐  ┌────────┴────────┐  ┌─────────────────────┐    │
+│   │  zeroclaw-gw │  │  Channel plugins│  │   Tool plugins      │    │
+│   │  (opt-in     │  │                 │  │                     │    │
+│   │   binary)    │  │  channel-discord│  │  tools-web          │    │
+│   │              │  │  channel-slack  │  │  tools-integrations │    │
+│   │  HTTP/WS/SSE │  │  channel-tg     │  │  tools-hardware     │    │
+│   │  Web UI      │  │  channel-email  │  │  tools-mcp          │    │
+│   │  REST API    │  │  ...            │  │  ...                │    │
+│   └──────┬───────┘  └─────────────────┘  └─────────────────────┘    │
 │          │                                                          │
 │          ▼                                                          │
 │   ┌─────────────────┐                                               │
@@ -13990,12 +13991,12 @@ version.workspace = true
 <tr><td><code>zeroclaw</code> kernel binary</td><td><code>x86_64-unknown-linux-musl</code>, <code>aarch64-unknown-linux-gnu</code>, <code>armv7-unknown-linux-gnueabihf</code>, <code>x86_64-apple-darwin</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></td><td>Static musl build for Linux x86_64; GNU for ARM targets</td></tr>
 <tr><td><code>zeroclaw</code> kernel binary (hardware)</td><td><code>aarch64-unknown-linux-gnu</code>, <code>armv7-unknown-linux-gnueabihf</code></td><td>Same targets, compiled with <code>peripheral-rpi</code> and <code>hardware</code> flags for Raspberry Pi deployments</td></tr>
 <tr><td><code>zeroclaw-gw</code> gateway binary</td><td>Same platform matrix as kernel</td><td>Published alongside the kernel; users install separately</td></tr>
-<tr><td>WASM plugin files</td><td><code>wasm32-wasip1</code></td><td>Published to the plugin registry (not GitHub Releases); installable via <code>zeroclaw plugin install</code></td></tr>
+<tr><td>WASM plugin files</td><td><code>wasm32-wasip2</code></td><td>Published to the plugin registry (not GitHub Releases); installable via <code>zeroclaw plugin install</code></td></tr>
 <tr><td><code>zeroclaw-desktop</code> installer</td><td><code>x86_64</code> and <code>aarch64</code> for macOS, Windows, Linux (AppImage/deb)</td><td>Bundles kernel + gateway + full plugin set; built by the Tauri workflow</td></tr>
 </tbody>
 </table>
 </div>
-<p>The <code>wasm32-wasip1</code> plugin builds run in a separate CI job and are published to the plugin registry on their own cadence. A plugin release does not require a kernel release.</p>
+<p>The <code>wasm32-wasip2</code> plugin builds run in a separate CI job and are published to the plugin registry on their own cadence. A plugin release does not require a kernel release.</p>
 <hr>
 <h3 id="45-the-gateway-separation"><a class="header" href="#45-the-gateway-separation">4.5 The Gateway Separation</a></h3>
 <p>The current gateway conflates two things that must be separated:</p>
@@ -14047,7 +14048,7 @@ Target (correct):
 <li>Define WIT interface files for <code>Tool</code>, <code>Channel</code>, and <code>Memory</code> plugin types (a <code>wit/</code> directory at the root of the workspace)</li>
 <li>Use <code>wit-bindgen</code> to generate the Rust host-side bindings from those WIT files</li>
 <li>Document the WIT interfaces as the official plugin SDK</li>
-<li>A plugin author writes Rust (or Go, or C, or Python) against the WIT interface and <code>cargo build --target wasm32-wasi</code> — the result drops into <code>~/.zeroclaw/plugins/</code></li>
+<li>A plugin author writes Rust (or Go, or C, or Python) against the WIT interface and <code>cargo build --target wasm32-wasip2</code> — the result drops into <code>~/.zeroclaw/plugins/</code></li>
 </ul>
 <p><strong>Standards:</strong> WASI 0.2 · W3C WebAssembly Component Model · WIT IDL</p>
 <h3 id="53-local-api-openapi-31"><a class="header" href="#53-local-api-openapi-31">5.3 Local API: OpenAPI 3.1</a></h3>
@@ -14187,8 +14188,9 @@ pub async fn run(runtime: Runtime, registry: Registry) -&gt; anyhow::Result&lt;(
 <span class="boring">}</span></code></pre>
 <p>The binary crate becomes a thin wiring layer that reads config and calls <code>run</code>.</p>
 <p><strong>D2: Complete the WASM execution bridge</strong></p>
-<p>Wire Extism into <code>WasmTool::execute</code> and <code>WasmChannel</code>. The <code>PluginHost</code> already handles discovery and installation. The execution bridge is the missing piece. With WIT interfaces defined in v0.7.0, use <code>wit-bindgen</code> to generate the host-side bindings.</p>
-<p>A complete <code>WasmTool::execute</code> implementation using Extism is approximately 30–50 lines. The bulk of the work is defining the host functions that WASM plugins can call (HTTP requests, memory access, logging) within the permission model already defined in <code>PluginPermission</code>.</p>
+<p>The <code>extism</code> dependency is incompatible with WASM Component Model (<code>.wit</code> files) and requires the <code>cranelift</code> feature of <code>wasmtime</code>, which blocks ARM32 targets from compiling. Remove Extism and replace it with direct usage of <code>wasmtime</code>. During the transition, Extism should be left as an option until the final deprecation PR.</p>
+<p>Wire <code>wasmtime</code> into <code>zeroclaw-plugins</code> with optional dependencies on <code>cranelift</code> (for most build targets) or <code>pulley</code> (for ARM32). With WIT interfaces defined in v0.7.0, use <code>wit-bindgen</code> to generate the host-side bindings.</p>
+<p>A complete WASM execution bridge implementation defines the WASI host functions that WASM plugins can call (HTTP requests, memory access, logging) within the permission model already defined in <code>PluginPermission</code>. Where possible, the WASI Preview 2 APIs should be used (<code>wasi:io</code>, <code>wasi:http</code>, <code>wasi:filesystem</code>, etc) to provide a consistent standards-based API for plugins.</p>
 <p><strong>D3: Component registry client</strong></p>
 <p>Add a <code>zeroclaw plugin</code> subcommand backed by a simple registry client:</p>
 <pre><code>zeroclaw plugin list              # list installed plugins
@@ -14249,7 +14251,7 @@ zeroclaw plugin update            # update all installed plugins
 <ol>
 <li>Add <code>zeroclaw-plugin-sdk</code> as a dependency</li>
 <li>Implement the WIT-generated trait</li>
-<li><code>cargo build --target wasm32-wasi</code></li>
+<li><code>cargo build --target wasm32-wasip2</code></li>
 <li><code>zeroclaw plugin install ./my-plugin/</code></li>
 </ol>
 <p>The SDK handles the host function bindings, the manifest format, and the permissions model.</p>
