@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["TurnEvent"],"fn":["run"],"struct":["Agent","AgentBuilder","AgentChannelHandles","StreamedTurnError","StreamedTurnSuccess"]};
+window.SIDEBAR_ITEMS = {"enum":["TurnEvent"],"fn":["build_session_model_provider","run"],"struct":["Agent","AgentBuilder","AgentChannelHandles","StreamedTurnError","StreamedTurnSuccess"]};
