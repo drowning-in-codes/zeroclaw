@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-5db45966.js";
+            window.path_to_searchindex_js = "../searchindex-229b6d25.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-a643e72b.js"></script>
@@ -297,10 +297,19 @@ max_actions_per_hour = 200
 <p>Un mécanisme plus restreint : <code>[[model_routes]]</code> permet à un agent de remplacer le <code>model_provider</code> configuré pour les prompts marqués d’une chaîne d’indication. Utile lorsqu’un agent doit occasionnellement recourir à un modèle différent sans avoir à démarrer un second agent.</p>
 <pre><code class="language-toml">[[model_routes]]
 hint           = "reasoning"
-model_provider = "deepseek"
+model_provider = "deepseek.reasoner"
 model          = "deepseek-reasoner"
 </code></pre>
 <p>Les routes ne se déclenchent que lorsqu’un prompt comporte explicitement l’indice correspondant. Le chemin de requête par défaut utilise le <code>model_provider</code> principal de l’agent.</p>
+<p><code>model_provider</code> is always a provider profile reference in dotted <code>&lt;type&gt;.&lt;alias&gt;</code> form, such as <code>anthropic.sonnet</code> or <code>openai.default</code>. The profile carries the endpoint, credential reference, compatibility flavor, fallback chain, and configured default model. The <code>model</code> field is provider-local state under that profile.</p>
+<h2 id="runtime-model-switching"><a class="header" href="#runtime-model-switching">Runtime model switching</a></h2>
+<p>Runtime switches use the same provider-profile contract as config-backed routing:</p>
+<ul>
+<li><code>/models &lt;type&gt;.&lt;alias&gt;</code> selects the active provider profile for the sender session. Channel runtimes can also accept a bare <code>&lt;type&gt;</code> shorthand when exactly one configured alias exists for that provider family.</li>
+<li><code>/model &lt;model-id&gt;</code> selects a model within the active provider profile. If the value matches a <code>[[model_routes]]</code> hint or model, that route can switch both provider profile and model together.</li>
+<li>The <code>model_switch</code> tool uses <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code> plus <code>model = "&lt;provider-local-model-id&gt;"</code>.</li>
+</ul>
+<p>Runtime switches are session/runtime state. They do not edit <code>config.toml</code>; persisted defaults require an explicit config write. For tool-driven switches, bare provider family names such as <code>openai</code> are not switch targets because they do not identify which configured profile, credential, endpoint, or compatibility mode should be used.</p>
 <h2 id="observabilité"><a class="header" href="#observabilité">Observabilité</a></h2>
 <p>Les décisions de répartition par agent sont visibles dans les journaux de traçage :</p>
 <pre><code>INFO channel=telegram.home routed to agent=fast

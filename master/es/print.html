@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-bf402ed0.js";
+            window.path_to_searchindex_js = "searchindex-7b5e949d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2e5901bf.js"></script>
@@ -6893,10 +6893,19 @@ max_actions_per_hour = 200
 <p>Un mecanismo más específico: <code>[[model_routes]]</code> permite que un agente anule el <code>model_provider</code> configurado para los prompts marcados con una cadena de sugerencia. Resulta útil cuando un agente debería ocasionalmente recurrir a un modelo diferente sin necesidad de crear un segundo agente.</p>
 <pre><code class="language-toml">[[model_routes]]
 hint           = "reasoning"
-model_provider = "deepseek"
+model_provider = "deepseek.reasoner"
 model          = "deepseek-reasoner"
 </code></pre>
 <p>Las rutas solo se activan cuando un prompt incluye explícitamente la pista coincidente. La ruta de solicitud predeterminada usa el <code>model_provider</code> principal del agente.</p>
+<p><code>model_provider</code> is always a provider profile reference in dotted <code>&lt;type&gt;.&lt;alias&gt;</code> form, such as <code>anthropic.sonnet</code> or <code>openai.default</code>. The profile carries the endpoint, credential reference, compatibility flavor, fallback chain, and configured default model. The <code>model</code> field is provider-local state under that profile.</p>
+<h2 id="runtime-model-switching"><a class="header" href="#runtime-model-switching">Runtime model switching</a></h2>
+<p>Runtime switches use the same provider-profile contract as config-backed routing:</p>
+<ul>
+<li><code>/models &lt;type&gt;.&lt;alias&gt;</code> selects the active provider profile for the sender session. Channel runtimes can also accept a bare <code>&lt;type&gt;</code> shorthand when exactly one configured alias exists for that provider family.</li>
+<li><code>/model &lt;model-id&gt;</code> selects a model within the active provider profile. If the value matches a <code>[[model_routes]]</code> hint or model, that route can switch both provider profile and model together.</li>
+<li>The <code>model_switch</code> tool uses <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code> plus <code>model = "&lt;provider-local-model-id&gt;"</code>.</li>
+</ul>
+<p>Runtime switches are session/runtime state. They do not edit <code>config.toml</code>; persisted defaults require an explicit config write. For tool-driven switches, bare provider family names such as <code>openai</code> are not switch targets because they do not identify which configured profile, credential, endpoint, or compatibility mode should be used.</p>
 <h2 id="observabilidad-1"><a class="header" href="#observabilidad-1">Observabilidad</a></h2>
 <p>Las decisiones de despacho por agente son visibles en los registros de rastreo:</p>
 <pre><code>INFO channel=telegram.home routed to agent=fast
@@ -18034,7 +18043,8 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <li>a public Project active-owner or area-steward field;</li>
 <li>a linked public tracker entry that names the steward or owner source.</li>
 </ul>
-<p>If none of those exists, the issue can still stay open while triage continues, but it should not rely on <code>status:no-stale</code> as a permanent shield. Until the stale-exemption audit lands, missing reason or owner evidence is an audit finding and proposed correction, not an automatic stale-closure trigger.</p>
+<p>Active release trackers and active RFC or design trackers are durable coordination surfaces. When the issue title, body, labels, or milestone clearly identify an active tracker or RFC, the tracker itself supplies the stale-exemption reason and contributor-visible steward surface; it does not need repetitive per-issue owner comments. Revisit the exemption when the milestone closes, the tracker drifts from live release state, the RFC reaches a decision, is superseded, or closes, or the issue no longer represents an active project decision surface.</p>
+<p>If none of those exists and the issue is not an active tracker or RFC, the issue can still stay open while triage continues, but it should not rely on <code>status:no-stale</code> as a permanent shield. Until the stale-exemption audit lands, missing reason or owner evidence is an audit finding and proposed correction, not an automatic stale-closure trigger.</p>
 <h2 id="carriles-de-pr"><a class="header" href="#carriles-de-pr">Carriles de PR</a></h2>
 <p>Los lanes de PR son expectativas de enrutamiento, no otra familia de etiquetas obligatorias. Úsalos para decidir cuánta profundidad de revisión, secuenciación y atención del maintainer necesita un PR. CODEOWNERS, el estado nativo de revisión de GitHub, CI, las etiquetas, los issues vinculados y las palabras clave de relación explícitas siguen siendo los que portan los datos reales de enrutamiento.</p>
 <div class="table-wrapper">
@@ -18122,7 +18132,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <ul>
 <li>Primer objetivo de triaje del mantenedor: <strong>dentro de 48 horas</strong>.</li>
 <li>Los PR bloqueados reciben un único comentario con una lista de tareas accionable, no una serie de revisiones parciales.</li>
-<li><code>status:no-stale</code> is reserved for accepted or otherwise long-lived work with a recorded stale-exemption reason and contributor-visible active owner or steward path when the issue is not already protected by another stale exclusion. Existing exemptions missing those facts are audit findings until the stale-exemption repair packet lands.</li>
+<li><code>status:no-stale</code> is reserved for accepted or otherwise long-lived work with a recorded stale-exemption reason and contributor-visible active owner or steward path when the issue is not already protected by another stale exclusion. Active release trackers and active RFC or design trackers may use the tracker itself as that visible reason and steward surface while they remain active. Existing exemptions missing those facts are audit findings until the stale-exemption repair packet lands.</li>
 </ul>
 <p>Para el trabajo apilado, se requiere <code>Depende de #...</code> explícito para que el orden de revisión sea determinista.</p>
 <p>Para las sustituciones, se requiere <code>Supersedes #...</code>. Consulta <a href="#reemplazando-prs">PRs que superseden</a> para las reglas de atribución y plantillas.</p>
@@ -18248,7 +18258,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <tr><td><code>status:accepted</code></td><td>El equipo ha aceptado el RFC o elemento de trabajo. Agrega <code>status:no-stale</code> solo cuando el problema también necesite protección contra obsolescencia.</td></tr>
 <tr><td><code>status:blocked</code></td><td>El trabajo válido está a la espera de una dependencia externa, una decisión del responsable o un prerrequisito vinculado. Registra el bloqueo; esto solo es protección contra obsolescencia mientras dicho bloqueo permanezca sin resolver.</td></tr>
 <tr><td><code>status:en-progreso</code></td><td>Un PR abierto está abordando activamente el issue. Vuelve a comprobar el estado en vivo del PR antes de basarte en él durante los pases de obsolescencia.</td></tr>
-<tr><td><code>status:no-stale</code></td><td>Accepted or otherwise long-lived work should stay open and is not already protected by another stale exclusion. Record the reason and active owner or steward path using the contributor-visible owner sources in the <a href="#issue-ownership-path">Project board contract</a>.</td></tr>
+<tr><td><code>status:no-stale</code></td><td>Accepted or otherwise long-lived work should stay open and is not already protected by another stale exclusion. Record the reason and active owner or steward path using the contributor-visible owner sources in the <a href="#issue-ownership-path">Project board contract</a>. Active release trackers and active RFC or design trackers may use the tracker itself as the visible reason and steward surface while they remain active.</td></tr>
 <tr><td><code>good first issue</code></td><td>XS/S, trabajo autónomo y documentado con criterios de aceptación claros, enlaces a código o documentación relevantes, un mentor o contacto designado, y bajo riesgo de incorporación.</td></tr>
 <tr><td><code>help wanted</code></td><td>Trabajo accionable y desbloqueado para el que los mantenedores quieren ayuda externa y que pueden revisar. No lo uses como marcador genérico de tareas válidas o sin asignar.</td></tr>
 </tbody>
@@ -18288,7 +18298,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <p>Esto mantiene baja la pérdida de contexto y evita que el siguiente revisor vuelva a realizar las mismas consultas que ya hiciste.</p>
 <h2 id="limpieza-semanal-de-la-cola"><a class="header" href="#limpieza-semanal-de-la-cola">Limpieza semanal de la cola</a></h2>
 <ul>
-<li>Walk the stale queue. Apply <code>status:no-stale</code> only when accepted or otherwise long-lived work has a recorded reason to stay open, a visible active owner or steward path, and no other stale exclusion already applies. Until the stale-exemption audit lands, treat existing <code>status:no-stale</code> issues missing those facts as audit findings rather than automatic stale candidates.</li>
+<li>Walk the stale queue. Apply <code>status:no-stale</code> only when accepted or otherwise long-lived work has a recorded reason to stay open, a visible active owner or steward path, and no other stale exclusion already applies. Active release trackers and active RFC or design trackers may keep stale protection by default when the issue itself clearly identifies the active coordination or decision surface; revisit them when the milestone closes, the tracker drifts from live state, the RFC reaches a decision, is superseded, or closes, or the issue stops representing an active project decision surface. Until the stale-exemption audit lands, treat existing <code>status:no-stale</code> issues missing those facts as audit findings rather than automatic stale candidates.</li>
 <li>Prioriza primero los PRs de errores y seguridad con <code>tamaño: XS/S</code>.</li>
 <li>Convierte las preguntas recurrentes de soporte en mejoras de documentación y directrices para respuestas automáticas.</li>
 </ul>
@@ -18338,7 +18348,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <tr><td><code>type: ci</code></td><td>Trabajo de CI, flujos de trabajo o automatización de repositorios</td></tr>
 <tr><td><code>type: dependencies</code></td><td>Mantenimiento de dependencias o del archivo lock</td></tr>
 <tr><td><code>type: docs</code></td><td>Trabajo exclusivo o principalmente de documentación</td></tr>
-<tr><td><code>type:rfc</code></td><td>Problema o propuesta de RFC; protegido del cierre por inactividad</td></tr>
+<tr><td><code>type:rfc</code></td><td>RFC issue or proposal; protected from stale closure while active</td></tr>
 </tbody>
 </table>
 </div>
@@ -18528,7 +18538,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <tr><td><code>status:blocked</code></td><td>El trabajo es válido pero está a la espera de una dependencia externa, una decisión del responsable o un prerrequisito vinculado. Exento de marcarse como inactivo mientras el bloqueante esté registrado y sin resolver. No combinar con <code>status:no-stale</code> para el mismo bloqueante.</td></tr>
 <tr><td><code>status:en-progreso</code></td><td>Un PR abierto está abordando activamente este issue. Reconcilia con el estado actual del PR durante las pasadas de obsolescencia; la etiqueta no es una exención permanente después de que el PR se cierre.</td></tr>
 <tr><td><code>status:stale</code></td><td>Sin actividad del autor durante el periodo de inactividad; puede cerrarse si no se actualiza</td></tr>
-<tr><td><code>status:no-stale</code></td><td>Explicit stale exemption for accepted or otherwise long-lived work that is not already protected by another stale exclusion. Target policy: use only when the <a href="#issue-ownership-path">Project board contract</a> has a contributor-visible stale-exemption reason and owner path. Existing exemptions missing those facts should be audited and repaired before stale sweeps stop honoring them.</td></tr>
+<tr><td><code>status:no-stale</code></td><td>Explicit stale exemption for accepted or otherwise long-lived work that is not already protected by another stale exclusion. Target policy: use only when the <a href="#issue-ownership-path">Project board contract</a> has a contributor-visible stale-exemption reason and owner path. Active release trackers and active RFC or design trackers may use the tracker itself as the visible reason and steward surface while they remain active; revisit them when the milestone closes, the tracker drifts from live state, the RFC reaches a decision, is superseded, or closes, or the issue stops representing an active project decision surface. Existing exemptions missing those facts should be audited and repaired before stale sweeps stop honoring them.</td></tr>
 </tbody>
 </table>
 </div>

@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-c0a2a708.js";
+            window.path_to_searchindex_js = "../searchindex-24e5bc2d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0fc3b529.js"></script>
@@ -297,10 +297,19 @@ max_actions_per_hour = 200
 <p>一种更精细的机制：<code>[[model_routes]]</code> 允许智能体针对带有提示字符串标记的提示词，覆盖已配置的 <code>model_provider</code>。当某个智能体偶尔需要使用不同的模型，又不想为此启动第二个智能体时，这一机制非常有用。</p>
 <pre><code class="language-toml">[[model_routes]]
 hint           = "reasoning"
-model_provider = "deepseek"
+model_provider = "deepseek.reasoner"
 model          = "deepseek-reasoner"
 </code></pre>
 <p>路由仅在提示明确携带匹配提示时才会触发。默认请求路径使用代理的主 <code>model_provider</code>。</p>
+<p><code>model_provider</code> is always a provider profile reference in dotted <code>&lt;type&gt;.&lt;alias&gt;</code> form, such as <code>anthropic.sonnet</code> or <code>openai.default</code>. The profile carries the endpoint, credential reference, compatibility flavor, fallback chain, and configured default model. The <code>model</code> field is provider-local state under that profile.</p>
+<h2 id="runtime-model-switching"><a class="header" href="#runtime-model-switching">Runtime model switching</a></h2>
+<p>Runtime switches use the same provider-profile contract as config-backed routing:</p>
+<ul>
+<li><code>/models &lt;type&gt;.&lt;alias&gt;</code> selects the active provider profile for the sender session. Channel runtimes can also accept a bare <code>&lt;type&gt;</code> shorthand when exactly one configured alias exists for that provider family.</li>
+<li><code>/model &lt;model-id&gt;</code> selects a model within the active provider profile. If the value matches a <code>[[model_routes]]</code> hint or model, that route can switch both provider profile and model together.</li>
+<li>The <code>model_switch</code> tool uses <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code> plus <code>model = "&lt;provider-local-model-id&gt;"</code>.</li>
+</ul>
+<p>Runtime switches are session/runtime state. They do not edit <code>config.toml</code>; persisted defaults require an explicit config write. For tool-driven switches, bare provider family names such as <code>openai</code> are not switch targets because they do not identify which configured profile, credential, endpoint, or compatibility mode should be used.</p>
 <h2 id="可观测性"><a class="header" href="#可观测性">可观测性</a></h2>
 <p>每个智能体的调度决策都可在追踪日志中查看：</p>
 <pre><code>INFO channel=telegram.home routed to agent=fast
