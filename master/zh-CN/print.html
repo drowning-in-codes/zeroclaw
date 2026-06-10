@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-5020270b.js";
+            window.path_to_searchindex_js = "searchindex-cdda1b91.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0fc3b529.js"></script>
@@ -15723,7 +15723,7 @@ Not affected:
     cache-on-failure: true
     save-if: ${{ github.ref == 'refs/heads/master' }}
 </code></pre>
-<p><code>save-if</code> 条件表示缓存仅在推送到 <code>master</code> 分支时写入，而不是在每次 PR 时都写入。PR 会从缓存中读取数据，但不会写入竞争版本。这避免了在同时打开多个 PR 时缓存频繁更新的问题。</p>
+<p>Because cache saves are limited to <code>refs/heads/master</code>, the workflow must run on trusted <code>master</code> pushes. PRs read the master-seeded cache but do not write competing branch artifacts. This avoids cache thrashing when multiple PRs are open simultaneously, while still letting post-merge runs warm Linux, macOS, and Windows build caches for the next review loop.</p>
 <hr>
 <h2 id="4-将安全扫描作为生命周期的一部分"><a class="header" href="#4-将安全扫描作为生命周期的一部分">4. 将安全扫描作为生命周期的一部分</a></h2>
 <h3 id="41-二进制门的问题"><a class="header" href="#41-二进制门的问题">4.1 二进制门的问题</a></h3>
@@ -17698,7 +17698,7 @@ label = "语言名称"
 <p>每个工作流都位于 <code>.github/workflows/</code> 目录下。以下部分按触发方式对工作流进行分组——由 Git 事件自动触发，或通过 <code>workflow_dispatch</code> 手动触发。</p>
 <h2 id="自动工作流"><a class="header" href="#自动工作流">自动工作流</a></h2>
 <h3 id="质量门禁ciyml"><a class="header" href="#质量门禁ciyml">质量门禁（<code>ci.yml</code>）</a></h3>
-<p>在每次针对 <code>master</code> 分支的 PR 上触发。包含多个矩阵分支的复合作业：</p>
+<p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
 <li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
 <li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
@@ -17709,7 +17709,7 @@ label = "语言名称"
 <li><strong>test</strong> — 在 Linux 上运行 <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
 <li><strong>安全性</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="每日顾问扫描-daily-audityml"><a class="header" href="#每日顾问扫描-daily-audityml">每日顾问扫描 (<code>daily-audit.yml</code>)</a></h3>
 <p>每晚对依赖树运行 <code>cargo audit</code>。在发现漏洞时创建问题。除非报告了漏洞，否则不采取任何操作。</p>
 <h3 id="pr-路径标签器-pr-path-labeleryml"><a class="header" href="#pr-路径标签器-pr-path-labeleryml">PR 路径标签器 (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -17757,11 +17757,11 @@ label = "语言名称"
 </table>
 </div>
 <h2 id="构建缓存行为"><a class="header" href="#构建缓存行为">构建缓存行为</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
-<li><strong>缓存写入仅在主分支上执行。</strong> <code>save-if</code> 的条件是 <code>github.ref == 'refs/heads/master'</code>，因此 PR 运行会读取由主分支预填充的缓存，但不会更新它。PR 分支不会将分支特定的工件污染到共享缓存中。</li>
+<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>失败时保存缓存。</strong> 每个作业都设置了 <code>cache-on-failure: true</code>，因此部分运行仍可为下一次尝试预热缓存。</li>
-<li><strong>Windows 没有 Rust 缓存。</strong> <code>if: runner.os != 'Windows'</code> 在 Windows 分支中跳过缓存步骤——<code>rust-cache</code> 的路径处理在 Windows 上会出错。Windows 始终冷启动。</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>增量编译已禁用。</strong> 工作流级别设置了 <code>CARGO_INCREMENTAL: 0</code>。增量构建会增大缓存体积，并在部分陈旧条件下产生不可复现的构建产物。</li>
 <li><strong><code>cargo-deny</code> 未被缓存。</strong> <code>security</code> 作业每次运行都会从源代码全新安装它。未来的改进方案是使用 <code>taiki-e/install-action</code>，该工具已经缓存了 <code>cargo-nextest</code>。</li>
 </ul>
@@ -18392,15 +18392,15 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <tr><td><code>工具：浏览器</code></td><td><code>browser.rs</code>, <code>browser_delegate.rs</code>, <code>browser_open.rs</code>, <code>text_browser.rs</code>, <code>screenshot.rs</code></td></tr>
 <tr><td><code>工具：云</code></td><td><code>cloud_ops.rs</code>, <code>cloud_patterns.rs</code></td></tr>
 <tr><td><code>工具：composio</code></td><td><code>composio.rs</code></td></tr>
-<tr><td><code>工具:cron</code></td><td><code>cron_add.rs</code>, <code>cron_list.rs</code>, <code>cron_remove.rs</code>, <code>cron_run.rs</code>, <code>cron_runs.rs</code>, <code>cron_update.rs</code></td></tr>
-<tr><td><code>工具：文件</code></td><td><code>file_edit.rs</code>, <code>file_read.rs</code>, <code>file_write.rs</code>, <code>glob_search.rs</code>, <code>content_search.rs</code></td></tr>
+<tr><td><code>工具:cron</code></td><td><code>src/tools/cron_add.rs</code>, <code>src/tools/cron_list.rs</code>, <code>src/tools/cron_remove.rs</code>, <code>src/tools/cron_run.rs</code>, <code>src/tools/cron_runs.rs</code>, <code>src/tools/cron_update.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_add.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_common.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_list.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_remove.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_run.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_runs.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_update.rs</code></td></tr>
+<tr><td><code>工具：文件</code></td><td><code>src/tools/file_edit.rs</code>, <code>src/tools/file_read.rs</code>, <code>src/tools/file_write.rs</code>, <code>src/tools/glob_search.rs</code>, <code>src/tools/content_search.rs</code>, <code>crates/zeroclaw-tools/src/file_edit.rs</code>, <code>crates/zeroclaw-runtime/src/tools/file_read.rs</code>, <code>crates/zeroclaw-tools/src/file_write.rs</code>, <code>crates/zeroclaw-tools/src/glob_search.rs</code>, <code>crates/zeroclaw-tools/src/content_search.rs</code></td></tr>
 <tr><td><code>工具：google-workspace</code></td><td><code>google_workspace.rs</code></td></tr>
 <tr><td><code>工具:mcp</code></td><td><code>mcp_client.rs</code>, <code>mcp_deferred.rs</code>, <code>mcp_protocol.rs</code>, <code>mcp_tool.rs</code>, <code>mcp_transport.rs</code></td></tr>
 <tr><td><code>工具：内存</code></td><td><code>memory_forget.rs</code>, <code>memory_recall.rs</code>, <code>memory_store.rs</code></td></tr>
 <tr><td><code>工具：microsoft365</code></td><td><code>microsoft365/**</code></td></tr>
-<tr><td><code>工具：安全</code></td><td><code>security_ops.rs</code>, <code>verifiable_intent.rs</code></td></tr>
-<tr><td><code>工具：shell</code></td><td><code>shell.rs</code>、<code>node_tool.rs</code>、<code>cli_discovery.rs</code></td></tr>
-<tr><td><code>工具：标准操作程序</code></td><td><code>sop_advance.rs</code>, <code>sop_approve.rs</code>, <code>sop_execute.rs</code>, <code>sop_list.rs</code>, <code>sop_status.rs</code></td></tr>
+<tr><td><code>工具：安全</code></td><td><code>src/tools/security_ops.rs</code>, <code>src/tools/verifiable_intent.rs</code>, <code>crates/zeroclaw-runtime/src/tools/security_ops.rs</code>, <code>crates/zeroclaw-runtime/src/tools/verifiable_intent.rs</code></td></tr>
+<tr><td><code>工具：shell</code></td><td><code>src/tools/shell.rs</code>, <code>src/tools/node_tool.rs</code>, <code>src/tools/cli_discovery.rs</code>, <code>crates/zeroclaw-runtime/src/tools/shell.rs</code>, <code>crates/zeroclaw-gateway/src/node_tool.rs</code>, <code>crates/zeroclaw-tools/src/cli_discovery.rs</code></td></tr>
+<tr><td><code>工具：标准操作程序</code></td><td><code>src/tools/sop_advance.rs</code>, <code>src/tools/sop_approve.rs</code>, <code>src/tools/sop_execute.rs</code>, <code>src/tools/sop_list.rs</code>, <code>src/tools/sop_status.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_advance.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_approve.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_execute.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_list.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_status.rs</code></td></tr>
 <tr><td><code>工具：web</code></td><td><code>web_fetch.rs</code>, <code>web_search_tool.rs</code>, <code>web_search_provider_routing.rs</code>, <code>http_request.rs</code></td></tr>
 </tbody>
 </table>

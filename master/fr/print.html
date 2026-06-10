@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-3750fdf5.js";
+            window.path_to_searchindex_js = "searchindex-b01be178.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-a643e72b.js"></script>
@@ -15799,7 +15799,7 @@ Not affected:
     cache-on-failure: true
     save-if: ${{ github.ref == 'refs/heads/master' }}
 </code></pre>
-<p>La condition <code>save-if</code> signifie que le cache n’est écrit que lors des poussées vers <code>master</code>, et non à chaque PR. Les PR lisent depuis le cache mais n’écrivent pas de versions concurrentes. Cela évite les problèmes de thrashing du cache lorsque plusieurs PR sont ouvertes simultanément.</p>
+<p>Because cache saves are limited to <code>refs/heads/master</code>, the workflow must run on trusted <code>master</code> pushes. PRs read the master-seeded cache but do not write competing branch artifacts. This avoids cache thrashing when multiple PRs are open simultaneously, while still letting post-merge runs warm Linux, macOS, and Windows build caches for the next review loop.</p>
 <hr>
 <h2 id="4-analyse-de-sécurité-tout-au-long-du-cycle-de-vie"><a class="header" href="#4-analyse-de-sécurité-tout-au-long-du-cycle-de-vie">4. Analyse de sécurité tout au long du cycle de vie</a></h2>
 <h3 id="41-le-problème-avec-une-porte-binaire"><a class="header" href="#41-le-problème-avec-une-porte-binaire">4.1 Le problème avec une porte binaire</a></h3>
@@ -17774,7 +17774,7 @@ label = "Nom de la langue"
 <p>Chaque workflow est situé dans <code>.github/workflows/</code>. Les sections ci-dessous les regroupent par déclencheur — automatique lors d’événements git, ou manuel via <code>workflow_dispatch</code>.</p>
 <h2 id="flux-de-travail-automatiques"><a class="header" href="#flux-de-travail-automatiques">Flux de travail automatiques</a></h2>
 <h3 id="portail-de-qualité-ciyml"><a class="header" href="#portail-de-qualité-ciyml">Portail de qualité (<code>ci.yml</code>)</a></h3>
-<p>Se déclenche sur chaque PR ciblant <code>master</code>. Job composite avec plusieurs branches de matrice :</p>
+<p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
 <li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
 <li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
@@ -17785,7 +17785,7 @@ label = "Nom de la langue"
 <li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> sur Linux</li>
 <li><strong>sécurité</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="analyse-quotidienne-daily-audityml"><a class="header" href="#analyse-quotidienne-daily-audityml">Analyse quotidienne (<code>daily-audit.yml</code>)</a></h3>
 <p>Exécute <code>cargo audit</code> quotidiennement sur l’arbre des dépendances. Ouvre un ticket en cas de résultats. Aucune action n’est entreprise sauf si une vulnérabilité est signalée.</p>
 <h3 id="étiqueteur-de-chemin-de-pr-pr-path-labeleryml"><a class="header" href="#étiqueteur-de-chemin-de-pr-pr-path-labeleryml">Étiqueteur de chemin de PR (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -17833,11 +17833,11 @@ label = "Nom de la langue"
 </table>
 </div>
 <h2 id="comportement-du-cache-de-construction"><a class="header" href="#comportement-du-cache-de-construction">Comportement du cache de construction</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
-<li><strong>Les écritures dans le cache sont exclusives au maître.</strong> <code>save-if</code> est conditionné par <code>github.ref == 'refs/heads/master'</code>, donc les exécutions des PR lisent le cache initialisé par le maître mais ne le mettent jamais à jour. Les branches de PR ne peuvent pas polluer le cache partagé avec des artefacts spécifiques à la branche.</li>
+<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>Le cache est conservé en cas d’échec.</strong> L’option <code>cache-on-failure: true</code> est définie pour chaque job, de sorte qu’une exécution partielle permet de réutiliser le cache pour la tentative suivante.</li>
-<li><strong>Windows ne dispose pas de cache Rust.</strong> <code>if: runner.os != 'Windows'</code> saute l’étape de cache sur la branche Windows — la gestion des chemins par <code>rust-cache</code> pose problème sous Windows. Windows s’exécute toujours sans cache.</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>La compilation incrémentale est désactivée.</strong> <code>CARGO_INCREMENTAL: 0</code> au niveau du workflow. Les builds incrémentaux augmentent la taille du cache et produisent des artefacts non reproductibles dans des conditions de partielle périmée.</li>
 <li><strong><code>cargo-deny</code> n’est pas mis en cache.</strong> Le job <code>security</code> l’installe à partir des sources à chaque exécution. Une amélioration future consisterait à utiliser <code>taiki-e/install-action</code>, qui met déjà en cache <code>cargo-nextest</code>.</li>
 </ul>
@@ -18468,15 +18468,15 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <tr><td><code>tool:browser</code></td><td><code>browser.rs</code>, <code>browser_delegate.rs</code>, <code>browser_open.rs</code>, <code>text_browser.rs</code>, <code>screenshot.rs</code></td></tr>
 <tr><td><code>tool:cloud</code></td><td><code>cloud_ops.rs</code>, <code>cloud_patterns.rs</code></td></tr>
 <tr><td><code>tool:composio</code></td><td><code>composio.rs</code></td></tr>
-<tr><td><code>tool:cron</code></td><td><code>cron_add.rs</code>, <code>cron_list.rs</code>, <code>cron_remove.rs</code>, <code>cron_run.rs</code>, <code>cron_runs.rs</code>, <code>cron_update.rs</code></td></tr>
-<tr><td><code>tool:file</code></td><td><code>file_edit.rs</code>, <code>file_read.rs</code>, <code>file_write.rs</code>, <code>glob_search.rs</code>, <code>content_search.rs</code></td></tr>
+<tr><td><code>tool:cron</code></td><td><code>src/tools/cron_add.rs</code>, <code>src/tools/cron_list.rs</code>, <code>src/tools/cron_remove.rs</code>, <code>src/tools/cron_run.rs</code>, <code>src/tools/cron_runs.rs</code>, <code>src/tools/cron_update.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_add.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_common.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_list.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_remove.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_run.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_runs.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_update.rs</code></td></tr>
+<tr><td><code>tool:file</code></td><td><code>src/tools/file_edit.rs</code>, <code>src/tools/file_read.rs</code>, <code>src/tools/file_write.rs</code>, <code>src/tools/glob_search.rs</code>, <code>src/tools/content_search.rs</code>, <code>crates/zeroclaw-tools/src/file_edit.rs</code>, <code>crates/zeroclaw-runtime/src/tools/file_read.rs</code>, <code>crates/zeroclaw-tools/src/file_write.rs</code>, <code>crates/zeroclaw-tools/src/glob_search.rs</code>, <code>crates/zeroclaw-tools/src/content_search.rs</code></td></tr>
 <tr><td><code>tool:google-workspace</code></td><td><code>google_workspace.rs</code></td></tr>
 <tr><td><code>tool:mcp</code></td><td><code>mcp_client.rs</code>, <code>mcp_deferred.rs</code>, <code>mcp_protocol.rs</code>, <code>mcp_tool.rs</code>, <code>mcp_transport.rs</code></td></tr>
 <tr><td><code>tool:memory</code></td><td><code>memory_forget.rs</code>, <code>memory_recall.rs</code>, <code>memory_store.rs</code></td></tr>
 <tr><td><code>tool:microsoft365</code></td><td><code>microsoft365/**</code></td></tr>
-<tr><td><code>tool:security</code></td><td><code>security_ops.rs</code>, <code>verifiable_intent.rs</code></td></tr>
-<tr><td><code>tool:shell</code></td><td><code>shell.rs</code>, <code>node_tool.rs</code>, <code>cli_discovery.rs</code></td></tr>
-<tr><td><code>tool:sop</code></td><td><code>sop_advance.rs</code>, <code>sop_approve.rs</code>, <code>sop_execute.rs</code>, <code>sop_list.rs</code>, <code>sop_status.rs</code></td></tr>
+<tr><td><code>tool:security</code></td><td><code>src/tools/security_ops.rs</code>, <code>src/tools/verifiable_intent.rs</code>, <code>crates/zeroclaw-runtime/src/tools/security_ops.rs</code>, <code>crates/zeroclaw-runtime/src/tools/verifiable_intent.rs</code></td></tr>
+<tr><td><code>tool:shell</code></td><td><code>src/tools/shell.rs</code>, <code>src/tools/node_tool.rs</code>, <code>src/tools/cli_discovery.rs</code>, <code>crates/zeroclaw-runtime/src/tools/shell.rs</code>, <code>crates/zeroclaw-gateway/src/node_tool.rs</code>, <code>crates/zeroclaw-tools/src/cli_discovery.rs</code></td></tr>
+<tr><td><code>tool:sop</code></td><td><code>src/tools/sop_advance.rs</code>, <code>src/tools/sop_approve.rs</code>, <code>src/tools/sop_execute.rs</code>, <code>src/tools/sop_list.rs</code>, <code>src/tools/sop_status.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_advance.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_approve.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_execute.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_list.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_status.rs</code></td></tr>
 <tr><td><code>tool:web</code></td><td><code>web_fetch.rs</code>, <code>web_search_tool.rs</code>, <code>web_search_provider_routing.rs</code>, <code>http_request.rs</code></td></tr>
 </tbody>
 </table>

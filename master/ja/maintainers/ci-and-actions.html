@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-ad81d5da.js";
+            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-c98164c8.js"></script>
@@ -220,7 +220,7 @@
 <p>すべてのワークフローは <code>.github/workflows/</code> に配置されます。以下のセクションでは、トリガーごとにワークフローをグループ化しています。git イベントによる自動実行か、<code>workflow_dispatch</code> による手動実行かによって分類されます。</p>
 <h2 id="自動ワークフロー"><a class="header" href="#自動ワークフロー">自動ワークフロー</a></h2>
 <h3 id="品質ゲート-ciyml"><a class="header" href="#品質ゲート-ciyml">品質ゲート (<code>ci.yml</code>)</a></h3>
-<p><code>master</code> をターゲットとするすべての PR で発火する。複数のマトリックスレグを持つ複合ジョブ：</p>
+<p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
 <li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
 <li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
@@ -231,7 +231,7 @@
 <li><strong>test</strong> — Linuxでの <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
 <li><strong>セキュリティ</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="日次アドバイザリスキャンdaily-audityml"><a class="header" href="#日次アドバイザリスキャンdaily-audityml">日次アドバイザリスキャン（<code>daily-audit.yml</code>）</a></h3>
 <p>依存関係ツリーに対して <code>cargo audit</code> を毎晩実行します。脆弱性が検出された場合は、関連するイシューをオープンします。脆弱性が報告されない限り、何もしません。</p>
 <h3 id="pr-パスラベラー-pr-path-labeleryml"><a class="header" href="#pr-パスラベラー-pr-path-labeleryml">PR パスラベラー (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -279,11 +279,11 @@
 </table>
 </div>
 <h2 id="ビルドキャッシュの動作"><a class="header" href="#ビルドキャッシュの動作">ビルドキャッシュの動作</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
-<li><strong>キャッシュへの書き込みはマスターのみ可能です。</strong> <code>save-if</code> は <code>github.ref == 'refs/heads/master'</code> に条件付けされているため、PR の実行はマスターでシードされたキャッシュを読み取りますが、それ自体を更新することはありません。PR ブランチは、ブランチ固有のアーティファクトを共有キャッシュに混入させることができません。</li>
+<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>失敗時にキャッシュが保存されます。</strong> 各ジョブには <code>cache-on-failure: true</code> が設定されているため、部分的な実行でも次の試行のキャッシュを有効にします。</li>
-<li><strong>Windows には Rust のキャッシュがありません。</strong> <code>if: runner.os != 'Windows'</code> は Windows 環境でキャッシュステップをスキップします — <code>rust-cache</code> のパス処理は Windows で問題を引き起こします。Windows では常にキャッシュなしで実行されます。</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>増分コンパイルは無効化されています。</strong> ワークフローレベルで <code>CARGO_INCREMENTAL: 0</code> が設定されています。増分ビルドはキャッシュサイズを増大させ、部分的に古くなった条件の下で再現性のないアーティファクトを生成します。</li>
 <li><strong><code>cargo-deny</code> はキャッシュされません。</strong> <code>security</code> ジョブは、毎回ソースから <code>cargo-deny</code> を新規にインストールします。今後の改善策として、すでに <code>cargo-nextest</code> をキャッシュしている <code>taiki-e/install-action</code> の導入が考えられます。</li>
 </ul>

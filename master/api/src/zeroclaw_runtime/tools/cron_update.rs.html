@@ -166,7 +166,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../../" d
 <a href=#164 id=164 data-nosnippet>164</a>                                </span>},
 <a href=#165 id=165 data-nosnippet>165</a>                                <span class="string">"channel"</span>: {
 <a href=#166 id=166 data-nosnippet>166</a>                                    <span class="string">"type"</span>: <span class="string">"string"</span>,
-<a href=#167 id=167 data-nosnippet>167</a>                                    <span class="string">"enum"</span>: [<span class="string">"telegram"</span>, <span class="string">"discord"</span>, <span class="string">"slack"</span>, <span class="string">"mattermost"</span>, <span class="string">"matrix"</span>, <span class="string">"qq"</span>, <span class="string">"webhook"</span>, <span class="string">"lark"</span>, <span class="string">"feishu"</span>],
+<a href=#167 id=167 data-nosnippet>167</a>                                    <span class="string">"enum"</span>: cron::CRON_DELIVERY_SCHEMA_CHANNELS,
 <a href=#168 id=168 data-nosnippet>168</a>                                    <span class="string">"description"</span>: <span class="string">"Channel type to deliver output to"
 <a href=#169 id=169 data-nosnippet>169</a>                                </span>},
 <a href=#170 id=170 data-nosnippet>170</a>                                <span class="string">"to"</span>: {
@@ -638,144 +638,177 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../../" d
 <a href=#636 id=636 data-nosnippet>636</a>            .as_array()
 <a href=#637 id=637 data-nosnippet>637</a>            .expect(<span class="string">"patch.delivery.channel must have an enum"</span>);
 <a href=#638 id=638 data-nosnippet>638</a>        <span class="kw">let </span>channel_strs: Vec&lt;<span class="kw-2">&amp;</span>str&gt; = channel_enum.iter().filter_map(|v| v.as_str()).collect();
-<a href=#639 id=639 data-nosnippet>639</a>        <span class="kw">for </span>ch <span class="kw">in </span><span class="kw-2">&amp;</span>[
-<a href=#640 id=640 data-nosnippet>640</a>            <span class="string">"telegram"</span>,
-<a href=#641 id=641 data-nosnippet>641</a>            <span class="string">"discord"</span>,
-<a href=#642 id=642 data-nosnippet>642</a>            <span class="string">"slack"</span>,
-<a href=#643 id=643 data-nosnippet>643</a>            <span class="string">"mattermost"</span>,
-<a href=#644 id=644 data-nosnippet>644</a>            <span class="string">"matrix"</span>,
-<a href=#645 id=645 data-nosnippet>645</a>            <span class="string">"qq"</span>,
-<a href=#646 id=646 data-nosnippet>646</a>            <span class="string">"webhook"</span>,
-<a href=#647 id=647 data-nosnippet>647</a>        ] {
-<a href=#648 id=648 data-nosnippet>648</a>            <span class="macro">assert!</span>(channel_strs.contains(ch), <span class="string">"delivery.channel missing: {ch}"</span>);
-<a href=#649 id=649 data-nosnippet>649</a>        }
-<a href=#650 id=650 data-nosnippet>650</a>
-<a href=#651 id=651 data-nosnippet>651</a>        <span class="comment">// patch.delivery exposes thread_id so the webhook channel can route callbacks
-<a href=#652 id=652 data-nosnippet>652</a>        // back to the originating conversation.
-<a href=#653 id=653 data-nosnippet>653</a>        </span><span class="kw">let </span>delivery_props = schema[<span class="string">"properties"</span>][<span class="string">"patch"</span>][<span class="string">"properties"</span>][<span class="string">"delivery"</span>][<span class="string">"properties"</span>]
-<a href=#654 id=654 data-nosnippet>654</a>            .as_object()
-<a href=#655 id=655 data-nosnippet>655</a>            .expect(<span class="string">"patch.delivery must have properties"</span>);
-<a href=#656 id=656 data-nosnippet>656</a>        <span class="macro">assert!</span>(
-<a href=#657 id=657 data-nosnippet>657</a>            delivery_props.contains_key(<span class="string">"thread_id"</span>),
-<a href=#658 id=658 data-nosnippet>658</a>            <span class="string">"patch.delivery missing thread_id"
-<a href=#659 id=659 data-nosnippet>659</a>        </span>);
-<a href=#660 id=660 data-nosnippet>660</a>    }
-<a href=#661 id=661 data-nosnippet>661</a>
-<a href=#662 id=662 data-nosnippet>662</a>    <span class="attr">#[tokio::test]
-<a href=#663 id=663 data-nosnippet>663</a>    </span><span class="kw">async fn </span>blocks_update_when_rate_limited() {
-<a href=#664 id=664 data-nosnippet>664</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
-<a href=#665 id=665 data-nosnippet>665</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = Config {
-<a href=#666 id=666 data-nosnippet>666</a>            data_dir: tmp.path().join(<span class="string">"data"</span>),
-<a href=#667 id=667 data-nosnippet>667</a>            config_path: tmp.path().join(<span class="string">"config.toml"</span>),
-<a href=#668 id=668 data-nosnippet>668</a>            ..Config::default()
-<a href=#669 id=669 data-nosnippet>669</a>        };
-<a href=#670 id=670 data-nosnippet>670</a>        seed_test_agent(<span class="kw-2">&amp;mut </span>config);
-<a href=#671 id=671 data-nosnippet>671</a>        config
-<a href=#672 id=672 data-nosnippet>672</a>            .risk_profiles
-<a href=#673 id=673 data-nosnippet>673</a>            .entry(TEST_AGENT.into())
-<a href=#674 id=674 data-nosnippet>674</a>            .or_default()
-<a href=#675 id=675 data-nosnippet>675</a>            .level = AutonomyLevel::Full;
-<a href=#676 id=676 data-nosnippet>676</a>        config
-<a href=#677 id=677 data-nosnippet>677</a>            .runtime_profiles
-<a href=#678 id=678 data-nosnippet>678</a>            .entry(TEST_AGENT.into())
-<a href=#679 id=679 data-nosnippet>679</a>            .or_default()
-<a href=#680 id=680 data-nosnippet>680</a>            .max_actions_per_hour = <span class="number">0</span>;
-<a href=#681 id=681 data-nosnippet>681</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>config.data_dir).unwrap();
-<a href=#682 id=682 data-nosnippet>682</a>        seed_test_agent(<span class="kw-2">&amp;mut </span>config);
-<a href=#683 id=683 data-nosnippet>683</a>        <span class="kw">let </span>cfg = Arc::new(config);
-<a href=#684 id=684 data-nosnippet>684</a>        <span class="kw">let </span>job = cron::add_job(<span class="kw-2">&amp;</span>cfg, TEST_AGENT, <span class="string">"*/5 * * * *"</span>, <span class="string">"echo ok"</span>).unwrap();
-<a href=#685 id=685 data-nosnippet>685</a>        <span class="kw">let </span>tool = CronUpdateTool::new(cfg.clone(), test_security(<span class="kw-2">&amp;</span>cfg), TEST_AGENT);
-<a href=#686 id=686 data-nosnippet>686</a>
-<a href=#687 id=687 data-nosnippet>687</a>        <span class="kw">let </span>result = tool
-<a href=#688 id=688 data-nosnippet>688</a>            .execute(<span class="macro">json!</span>({
-<a href=#689 id=689 data-nosnippet>689</a>                <span class="string">"job_id"</span>: job.id,
-<a href=#690 id=690 data-nosnippet>690</a>                <span class="string">"patch"</span>: { <span class="string">"enabled"</span>: <span class="bool-val">false </span>}
-<a href=#691 id=691 data-nosnippet>691</a>            }))
-<a href=#692 id=692 data-nosnippet>692</a>            .<span class="kw">await
-<a href=#693 id=693 data-nosnippet>693</a>            </span>.unwrap();
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="macro">assert!</span>(!result.success);
-<a href=#695 id=695 data-nosnippet>695</a>        <span class="macro">assert!</span>(
-<a href=#696 id=696 data-nosnippet>696</a>            result
-<a href=#697 id=697 data-nosnippet>697</a>                .error
-<a href=#698 id=698 data-nosnippet>698</a>                .unwrap_or_default()
-<a href=#699 id=699 data-nosnippet>699</a>                .contains(<span class="string">"Rate limit exceeded"</span>)
-<a href=#700 id=700 data-nosnippet>700</a>        );
-<a href=#701 id=701 data-nosnippet>701</a>        <span class="macro">assert!</span>(cron::get_job(<span class="kw-2">&amp;</span>cfg, <span class="kw-2">&amp;</span>job.id).unwrap().enabled);
-<a href=#702 id=702 data-nosnippet>702</a>    }
-<a href=#703 id=703 data-nosnippet>703</a>
-<a href=#704 id=704 data-nosnippet>704</a>    <span class="attr">#[tokio::test]
-<a href=#705 id=705 data-nosnippet>705</a>    </span><span class="kw">async fn </span>empty_allowed_tools_patch_stored_as_none() {
-<a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
-<a href=#707 id=707 data-nosnippet>707</a>        <span class="kw">let </span>cfg = test_config(<span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#708 id=708 data-nosnippet>708</a>        <span class="kw">let </span>job = cron::add_agent_job(
-<a href=#709 id=709 data-nosnippet>709</a>            <span class="kw-2">&amp;</span>cfg,
-<a href=#710 id=710 data-nosnippet>710</a>            TEST_AGENT,
-<a href=#711 id=711 data-nosnippet>711</a>            <span class="prelude-val">None</span>,
-<a href=#712 id=712 data-nosnippet>712</a>            <span class="kw">crate</span>::cron::Schedule::Cron {
-<a href=#713 id=713 data-nosnippet>713</a>                expr: <span class="string">"*/5 * * * *"</span>.into(),
-<a href=#714 id=714 data-nosnippet>714</a>                tz: <span class="prelude-val">None</span>,
-<a href=#715 id=715 data-nosnippet>715</a>            },
-<a href=#716 id=716 data-nosnippet>716</a>            <span class="string">"check status"</span>,
-<a href=#717 id=717 data-nosnippet>717</a>            <span class="kw">crate</span>::cron::SessionTarget::Isolated,
-<a href=#718 id=718 data-nosnippet>718</a>            <span class="prelude-val">None</span>,
-<a href=#719 id=719 data-nosnippet>719</a>            <span class="prelude-val">None</span>,
-<a href=#720 id=720 data-nosnippet>720</a>            <span class="bool-val">false</span>,
-<a href=#721 id=721 data-nosnippet>721</a>            <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"file_read"</span>.into()]),
-<a href=#722 id=722 data-nosnippet>722</a>        )
-<a href=#723 id=723 data-nosnippet>723</a>        .unwrap();
-<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">let </span>tool = CronUpdateTool::new(cfg.clone(), test_security(<span class="kw-2">&amp;</span>cfg), TEST_AGENT);
-<a href=#725 id=725 data-nosnippet>725</a>
-<a href=#726 id=726 data-nosnippet>726</a>        <span class="kw">let </span>result = tool
-<a href=#727 id=727 data-nosnippet>727</a>            .execute(<span class="macro">json!</span>({
-<a href=#728 id=728 data-nosnippet>728</a>                <span class="string">"job_id"</span>: job.id,
-<a href=#729 id=729 data-nosnippet>729</a>                <span class="string">"patch"</span>: { <span class="string">"allowed_tools"</span>: [] }
-<a href=#730 id=730 data-nosnippet>730</a>            }))
-<a href=#731 id=731 data-nosnippet>731</a>            .<span class="kw">await
-<a href=#732 id=732 data-nosnippet>732</a>            </span>.unwrap();
-<a href=#733 id=733 data-nosnippet>733</a>
-<a href=#734 id=734 data-nosnippet>734</a>        <span class="macro">assert!</span>(result.success, <span class="string">"{:?}"</span>, result.error);
-<a href=#735 id=735 data-nosnippet>735</a>        <span class="macro">assert_eq!</span>(
-<a href=#736 id=736 data-nosnippet>736</a>            cron::get_job(<span class="kw-2">&amp;</span>cfg, <span class="kw-2">&amp;</span>job.id).unwrap().allowed_tools,
-<a href=#737 id=737 data-nosnippet>737</a>            <span class="prelude-val">None</span>,
-<a href=#738 id=738 data-nosnippet>738</a>            <span class="string">"empty allowed_tools patch should clear to None"
-<a href=#739 id=739 data-nosnippet>739</a>        </span>);
-<a href=#740 id=740 data-nosnippet>740</a>    }
-<a href=#741 id=741 data-nosnippet>741</a>
-<a href=#742 id=742 data-nosnippet>742</a>    <span class="attr">#[tokio::test]
-<a href=#743 id=743 data-nosnippet>743</a>    </span><span class="kw">async fn </span>updates_agent_allowed_tools() {
-<a href=#744 id=744 data-nosnippet>744</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
-<a href=#745 id=745 data-nosnippet>745</a>        <span class="kw">let </span>cfg = test_config(<span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#746 id=746 data-nosnippet>746</a>        <span class="kw">let </span>job = cron::add_agent_job(
-<a href=#747 id=747 data-nosnippet>747</a>            <span class="kw-2">&amp;</span>cfg,
-<a href=#748 id=748 data-nosnippet>748</a>            TEST_AGENT,
-<a href=#749 id=749 data-nosnippet>749</a>            <span class="prelude-val">None</span>,
-<a href=#750 id=750 data-nosnippet>750</a>            <span class="kw">crate</span>::cron::Schedule::Cron {
-<a href=#751 id=751 data-nosnippet>751</a>                expr: <span class="string">"*/5 * * * *"</span>.into(),
-<a href=#752 id=752 data-nosnippet>752</a>                tz: <span class="prelude-val">None</span>,
-<a href=#753 id=753 data-nosnippet>753</a>            },
-<a href=#754 id=754 data-nosnippet>754</a>            <span class="string">"check status"</span>,
-<a href=#755 id=755 data-nosnippet>755</a>            <span class="kw">crate</span>::cron::SessionTarget::Isolated,
-<a href=#756 id=756 data-nosnippet>756</a>            <span class="prelude-val">None</span>,
-<a href=#757 id=757 data-nosnippet>757</a>            <span class="prelude-val">None</span>,
-<a href=#758 id=758 data-nosnippet>758</a>            <span class="bool-val">false</span>,
-<a href=#759 id=759 data-nosnippet>759</a>            <span class="prelude-val">None</span>,
-<a href=#760 id=760 data-nosnippet>760</a>        )
-<a href=#761 id=761 data-nosnippet>761</a>        .unwrap();
-<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>tool = CronUpdateTool::new(cfg.clone(), test_security(<span class="kw-2">&amp;</span>cfg), TEST_AGENT);
-<a href=#763 id=763 data-nosnippet>763</a>
-<a href=#764 id=764 data-nosnippet>764</a>        <span class="kw">let </span>result = tool
-<a href=#765 id=765 data-nosnippet>765</a>            .execute(<span class="macro">json!</span>({
-<a href=#766 id=766 data-nosnippet>766</a>                <span class="string">"job_id"</span>: job.id,
-<a href=#767 id=767 data-nosnippet>767</a>                <span class="string">"patch"</span>: { <span class="string">"allowed_tools"</span>: [<span class="string">"file_read"</span>, <span class="string">"web_search"</span>] }
-<a href=#768 id=768 data-nosnippet>768</a>            }))
-<a href=#769 id=769 data-nosnippet>769</a>            .<span class="kw">await
-<a href=#770 id=770 data-nosnippet>770</a>            </span>.unwrap();
-<a href=#771 id=771 data-nosnippet>771</a>
-<a href=#772 id=772 data-nosnippet>772</a>        <span class="macro">assert!</span>(result.success, <span class="string">"{:?}"</span>, result.error);
-<a href=#773 id=773 data-nosnippet>773</a>        <span class="macro">assert_eq!</span>(
-<a href=#774 id=774 data-nosnippet>774</a>            cron::get_job(<span class="kw-2">&amp;</span>cfg, <span class="kw-2">&amp;</span>job.id).unwrap().allowed_tools,
-<a href=#775 id=775 data-nosnippet>775</a>            <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"file_read"</span>.into(), <span class="string">"web_search"</span>.into()])
-<a href=#776 id=776 data-nosnippet>776</a>        );
-<a href=#777 id=777 data-nosnippet>777</a>    }
-<a href=#778 id=778 data-nosnippet>778</a>}
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="macro">assert_eq!</span>(channel_strs.as_slice(), cron::CRON_DELIVERY_SCHEMA_CHANNELS);
+<a href=#640 id=640 data-nosnippet>640</a>        <span class="macro">assert!</span>(channel_strs.contains(<span class="kw-2">&amp;</span><span class="string">"dingtalk"</span>));
+<a href=#641 id=641 data-nosnippet>641</a>
+<a href=#642 id=642 data-nosnippet>642</a>        <span class="comment">// patch.delivery exposes thread_id so the webhook channel can route callbacks
+<a href=#643 id=643 data-nosnippet>643</a>        // back to the originating conversation.
+<a href=#644 id=644 data-nosnippet>644</a>        </span><span class="kw">let </span>delivery_props = schema[<span class="string">"properties"</span>][<span class="string">"patch"</span>][<span class="string">"properties"</span>][<span class="string">"delivery"</span>][<span class="string">"properties"</span>]
+<a href=#645 id=645 data-nosnippet>645</a>            .as_object()
+<a href=#646 id=646 data-nosnippet>646</a>            .expect(<span class="string">"patch.delivery must have properties"</span>);
+<a href=#647 id=647 data-nosnippet>647</a>        <span class="macro">assert!</span>(
+<a href=#648 id=648 data-nosnippet>648</a>            delivery_props.contains_key(<span class="string">"thread_id"</span>),
+<a href=#649 id=649 data-nosnippet>649</a>            <span class="string">"patch.delivery missing thread_id"
+<a href=#650 id=650 data-nosnippet>650</a>        </span>);
+<a href=#651 id=651 data-nosnippet>651</a>    }
+<a href=#652 id=652 data-nosnippet>652</a>
+<a href=#653 id=653 data-nosnippet>653</a>    <span class="attr">#[test]
+<a href=#654 id=654 data-nosnippet>654</a>    </span><span class="kw">fn </span>add_and_update_delivery_channel_schemas_match() {
+<a href=#655 id=655 data-nosnippet>655</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
+<a href=#656 id=656 data-nosnippet>656</a>        <span class="kw">let </span>cfg = Arc::new(Config {
+<a href=#657 id=657 data-nosnippet>657</a>            data_dir: tmp.path().join(<span class="string">"data"</span>),
+<a href=#658 id=658 data-nosnippet>658</a>            config_path: tmp.path().join(<span class="string">"config.toml"</span>),
+<a href=#659 id=659 data-nosnippet>659</a>            ..Config::default()
+<a href=#660 id=660 data-nosnippet>660</a>        });
+<a href=#661 id=661 data-nosnippet>661</a>        <span class="kw">let </span>security = Arc::new(SecurityPolicy::from_risk_profile(
+<a href=#662 id=662 data-nosnippet>662</a>            <span class="kw-2">&amp;</span>zeroclaw_config::schema::RiskProfileConfig::default(),
+<a href=#663 id=663 data-nosnippet>663</a>            <span class="kw-2">&amp;</span>cfg.data_dir,
+<a href=#664 id=664 data-nosnippet>664</a>        ));
+<a href=#665 id=665 data-nosnippet>665</a>        <span class="kw">let </span>add_tool = <span class="kw">crate</span>::tools::cron_add::CronAddTool::new(
+<a href=#666 id=666 data-nosnippet>666</a>            Arc::clone(<span class="kw-2">&amp;</span>cfg),
+<a href=#667 id=667 data-nosnippet>667</a>            Arc::clone(<span class="kw-2">&amp;</span>security),
+<a href=#668 id=668 data-nosnippet>668</a>            TEST_AGENT,
+<a href=#669 id=669 data-nosnippet>669</a>        );
+<a href=#670 id=670 data-nosnippet>670</a>        <span class="kw">let </span>update_tool = CronUpdateTool::new(cfg, security, TEST_AGENT);
+<a href=#671 id=671 data-nosnippet>671</a>        <span class="kw">let </span>add_schema = add_tool.parameters_schema();
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="kw">let </span>update_schema = update_tool.parameters_schema();
+<a href=#673 id=673 data-nosnippet>673</a>
+<a href=#674 id=674 data-nosnippet>674</a>        <span class="kw">let </span>add_channels: Vec&lt;<span class="kw-2">&amp;</span>str&gt; = add_schema[<span class="string">"properties"</span>][<span class="string">"delivery"</span>][<span class="string">"properties"</span>][<span class="string">"channel"</span>]
+<a href=#675 id=675 data-nosnippet>675</a>            [<span class="string">"enum"</span>]
+<a href=#676 id=676 data-nosnippet>676</a>            .as_array()
+<a href=#677 id=677 data-nosnippet>677</a>            .expect(<span class="string">"cron_add delivery.channel must have an enum"</span>)
+<a href=#678 id=678 data-nosnippet>678</a>            .iter()
+<a href=#679 id=679 data-nosnippet>679</a>            .filter_map(|value| value.as_str())
+<a href=#680 id=680 data-nosnippet>680</a>            .collect();
+<a href=#681 id=681 data-nosnippet>681</a>        <span class="kw">let </span>update_channels: Vec&lt;<span class="kw-2">&amp;</span>str&gt; =
+<a href=#682 id=682 data-nosnippet>682</a>            update_schema[<span class="string">"properties"</span>][<span class="string">"patch"</span>][<span class="string">"properties"</span>][<span class="string">"delivery"</span>][<span class="string">"properties"</span>][<span class="string">"channel"</span>]
+<a href=#683 id=683 data-nosnippet>683</a>                [<span class="string">"enum"</span>]
+<a href=#684 id=684 data-nosnippet>684</a>                .as_array()
+<a href=#685 id=685 data-nosnippet>685</a>                .expect(<span class="string">"cron_update patch.delivery.channel must have an enum"</span>)
+<a href=#686 id=686 data-nosnippet>686</a>                .iter()
+<a href=#687 id=687 data-nosnippet>687</a>                .filter_map(|value| value.as_str())
+<a href=#688 id=688 data-nosnippet>688</a>                .collect();
+<a href=#689 id=689 data-nosnippet>689</a>
+<a href=#690 id=690 data-nosnippet>690</a>        <span class="macro">assert_eq!</span>(add_channels, update_channels);
+<a href=#691 id=691 data-nosnippet>691</a>        <span class="macro">assert_eq!</span>(add_channels.as_slice(), cron::CRON_DELIVERY_SCHEMA_CHANNELS);
+<a href=#692 id=692 data-nosnippet>692</a>        <span class="macro">assert!</span>(add_channels.contains(<span class="kw-2">&amp;</span><span class="string">"dingtalk"</span>));
+<a href=#693 id=693 data-nosnippet>693</a>    }
+<a href=#694 id=694 data-nosnippet>694</a>
+<a href=#695 id=695 data-nosnippet>695</a>    <span class="attr">#[tokio::test]
+<a href=#696 id=696 data-nosnippet>696</a>    </span><span class="kw">async fn </span>blocks_update_when_rate_limited() {
+<a href=#697 id=697 data-nosnippet>697</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
+<a href=#698 id=698 data-nosnippet>698</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = Config {
+<a href=#699 id=699 data-nosnippet>699</a>            data_dir: tmp.path().join(<span class="string">"data"</span>),
+<a href=#700 id=700 data-nosnippet>700</a>            config_path: tmp.path().join(<span class="string">"config.toml"</span>),
+<a href=#701 id=701 data-nosnippet>701</a>            ..Config::default()
+<a href=#702 id=702 data-nosnippet>702</a>        };
+<a href=#703 id=703 data-nosnippet>703</a>        seed_test_agent(<span class="kw-2">&amp;mut </span>config);
+<a href=#704 id=704 data-nosnippet>704</a>        config
+<a href=#705 id=705 data-nosnippet>705</a>            .risk_profiles
+<a href=#706 id=706 data-nosnippet>706</a>            .entry(TEST_AGENT.into())
+<a href=#707 id=707 data-nosnippet>707</a>            .or_default()
+<a href=#708 id=708 data-nosnippet>708</a>            .level = AutonomyLevel::Full;
+<a href=#709 id=709 data-nosnippet>709</a>        config
+<a href=#710 id=710 data-nosnippet>710</a>            .runtime_profiles
+<a href=#711 id=711 data-nosnippet>711</a>            .entry(TEST_AGENT.into())
+<a href=#712 id=712 data-nosnippet>712</a>            .or_default()
+<a href=#713 id=713 data-nosnippet>713</a>            .max_actions_per_hour = <span class="number">0</span>;
+<a href=#714 id=714 data-nosnippet>714</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>config.data_dir).unwrap();
+<a href=#715 id=715 data-nosnippet>715</a>        seed_test_agent(<span class="kw-2">&amp;mut </span>config);
+<a href=#716 id=716 data-nosnippet>716</a>        <span class="kw">let </span>cfg = Arc::new(config);
+<a href=#717 id=717 data-nosnippet>717</a>        <span class="kw">let </span>job = cron::add_job(<span class="kw-2">&amp;</span>cfg, TEST_AGENT, <span class="string">"*/5 * * * *"</span>, <span class="string">"echo ok"</span>).unwrap();
+<a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">let </span>tool = CronUpdateTool::new(cfg.clone(), test_security(<span class="kw-2">&amp;</span>cfg), TEST_AGENT);
+<a href=#719 id=719 data-nosnippet>719</a>
+<a href=#720 id=720 data-nosnippet>720</a>        <span class="kw">let </span>result = tool
+<a href=#721 id=721 data-nosnippet>721</a>            .execute(<span class="macro">json!</span>({
+<a href=#722 id=722 data-nosnippet>722</a>                <span class="string">"job_id"</span>: job.id,
+<a href=#723 id=723 data-nosnippet>723</a>                <span class="string">"patch"</span>: { <span class="string">"enabled"</span>: <span class="bool-val">false </span>}
+<a href=#724 id=724 data-nosnippet>724</a>            }))
+<a href=#725 id=725 data-nosnippet>725</a>            .<span class="kw">await
+<a href=#726 id=726 data-nosnippet>726</a>            </span>.unwrap();
+<a href=#727 id=727 data-nosnippet>727</a>        <span class="macro">assert!</span>(!result.success);
+<a href=#728 id=728 data-nosnippet>728</a>        <span class="macro">assert!</span>(
+<a href=#729 id=729 data-nosnippet>729</a>            result
+<a href=#730 id=730 data-nosnippet>730</a>                .error
+<a href=#731 id=731 data-nosnippet>731</a>                .unwrap_or_default()
+<a href=#732 id=732 data-nosnippet>732</a>                .contains(<span class="string">"Rate limit exceeded"</span>)
+<a href=#733 id=733 data-nosnippet>733</a>        );
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="macro">assert!</span>(cron::get_job(<span class="kw-2">&amp;</span>cfg, <span class="kw-2">&amp;</span>job.id).unwrap().enabled);
+<a href=#735 id=735 data-nosnippet>735</a>    }
+<a href=#736 id=736 data-nosnippet>736</a>
+<a href=#737 id=737 data-nosnippet>737</a>    <span class="attr">#[tokio::test]
+<a href=#738 id=738 data-nosnippet>738</a>    </span><span class="kw">async fn </span>empty_allowed_tools_patch_stored_as_none() {
+<a href=#739 id=739 data-nosnippet>739</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
+<a href=#740 id=740 data-nosnippet>740</a>        <span class="kw">let </span>cfg = test_config(<span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#741 id=741 data-nosnippet>741</a>        <span class="kw">let </span>job = cron::add_agent_job(
+<a href=#742 id=742 data-nosnippet>742</a>            <span class="kw-2">&amp;</span>cfg,
+<a href=#743 id=743 data-nosnippet>743</a>            TEST_AGENT,
+<a href=#744 id=744 data-nosnippet>744</a>            <span class="prelude-val">None</span>,
+<a href=#745 id=745 data-nosnippet>745</a>            <span class="kw">crate</span>::cron::Schedule::Cron {
+<a href=#746 id=746 data-nosnippet>746</a>                expr: <span class="string">"*/5 * * * *"</span>.into(),
+<a href=#747 id=747 data-nosnippet>747</a>                tz: <span class="prelude-val">None</span>,
+<a href=#748 id=748 data-nosnippet>748</a>            },
+<a href=#749 id=749 data-nosnippet>749</a>            <span class="string">"check status"</span>,
+<a href=#750 id=750 data-nosnippet>750</a>            <span class="kw">crate</span>::cron::SessionTarget::Isolated,
+<a href=#751 id=751 data-nosnippet>751</a>            <span class="prelude-val">None</span>,
+<a href=#752 id=752 data-nosnippet>752</a>            <span class="prelude-val">None</span>,
+<a href=#753 id=753 data-nosnippet>753</a>            <span class="bool-val">false</span>,
+<a href=#754 id=754 data-nosnippet>754</a>            <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"file_read"</span>.into()]),
+<a href=#755 id=755 data-nosnippet>755</a>        )
+<a href=#756 id=756 data-nosnippet>756</a>        .unwrap();
+<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">let </span>tool = CronUpdateTool::new(cfg.clone(), test_security(<span class="kw-2">&amp;</span>cfg), TEST_AGENT);
+<a href=#758 id=758 data-nosnippet>758</a>
+<a href=#759 id=759 data-nosnippet>759</a>        <span class="kw">let </span>result = tool
+<a href=#760 id=760 data-nosnippet>760</a>            .execute(<span class="macro">json!</span>({
+<a href=#761 id=761 data-nosnippet>761</a>                <span class="string">"job_id"</span>: job.id,
+<a href=#762 id=762 data-nosnippet>762</a>                <span class="string">"patch"</span>: { <span class="string">"allowed_tools"</span>: [] }
+<a href=#763 id=763 data-nosnippet>763</a>            }))
+<a href=#764 id=764 data-nosnippet>764</a>            .<span class="kw">await
+<a href=#765 id=765 data-nosnippet>765</a>            </span>.unwrap();
+<a href=#766 id=766 data-nosnippet>766</a>
+<a href=#767 id=767 data-nosnippet>767</a>        <span class="macro">assert!</span>(result.success, <span class="string">"{:?}"</span>, result.error);
+<a href=#768 id=768 data-nosnippet>768</a>        <span class="macro">assert_eq!</span>(
+<a href=#769 id=769 data-nosnippet>769</a>            cron::get_job(<span class="kw-2">&amp;</span>cfg, <span class="kw-2">&amp;</span>job.id).unwrap().allowed_tools,
+<a href=#770 id=770 data-nosnippet>770</a>            <span class="prelude-val">None</span>,
+<a href=#771 id=771 data-nosnippet>771</a>            <span class="string">"empty allowed_tools patch should clear to None"
+<a href=#772 id=772 data-nosnippet>772</a>        </span>);
+<a href=#773 id=773 data-nosnippet>773</a>    }
+<a href=#774 id=774 data-nosnippet>774</a>
+<a href=#775 id=775 data-nosnippet>775</a>    <span class="attr">#[tokio::test]
+<a href=#776 id=776 data-nosnippet>776</a>    </span><span class="kw">async fn </span>updates_agent_allowed_tools() {
+<a href=#777 id=777 data-nosnippet>777</a>        <span class="kw">let </span>tmp = TempDir::new().unwrap();
+<a href=#778 id=778 data-nosnippet>778</a>        <span class="kw">let </span>cfg = test_config(<span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#779 id=779 data-nosnippet>779</a>        <span class="kw">let </span>job = cron::add_agent_job(
+<a href=#780 id=780 data-nosnippet>780</a>            <span class="kw-2">&amp;</span>cfg,
+<a href=#781 id=781 data-nosnippet>781</a>            TEST_AGENT,
+<a href=#782 id=782 data-nosnippet>782</a>            <span class="prelude-val">None</span>,
+<a href=#783 id=783 data-nosnippet>783</a>            <span class="kw">crate</span>::cron::Schedule::Cron {
+<a href=#784 id=784 data-nosnippet>784</a>                expr: <span class="string">"*/5 * * * *"</span>.into(),
+<a href=#785 id=785 data-nosnippet>785</a>                tz: <span class="prelude-val">None</span>,
+<a href=#786 id=786 data-nosnippet>786</a>            },
+<a href=#787 id=787 data-nosnippet>787</a>            <span class="string">"check status"</span>,
+<a href=#788 id=788 data-nosnippet>788</a>            <span class="kw">crate</span>::cron::SessionTarget::Isolated,
+<a href=#789 id=789 data-nosnippet>789</a>            <span class="prelude-val">None</span>,
+<a href=#790 id=790 data-nosnippet>790</a>            <span class="prelude-val">None</span>,
+<a href=#791 id=791 data-nosnippet>791</a>            <span class="bool-val">false</span>,
+<a href=#792 id=792 data-nosnippet>792</a>            <span class="prelude-val">None</span>,
+<a href=#793 id=793 data-nosnippet>793</a>        )
+<a href=#794 id=794 data-nosnippet>794</a>        .unwrap();
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">let </span>tool = CronUpdateTool::new(cfg.clone(), test_security(<span class="kw-2">&amp;</span>cfg), TEST_AGENT);
+<a href=#796 id=796 data-nosnippet>796</a>
+<a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span>result = tool
+<a href=#798 id=798 data-nosnippet>798</a>            .execute(<span class="macro">json!</span>({
+<a href=#799 id=799 data-nosnippet>799</a>                <span class="string">"job_id"</span>: job.id,
+<a href=#800 id=800 data-nosnippet>800</a>                <span class="string">"patch"</span>: { <span class="string">"allowed_tools"</span>: [<span class="string">"file_read"</span>, <span class="string">"web_search"</span>] }
+<a href=#801 id=801 data-nosnippet>801</a>            }))
+<a href=#802 id=802 data-nosnippet>802</a>            .<span class="kw">await
+<a href=#803 id=803 data-nosnippet>803</a>            </span>.unwrap();
+<a href=#804 id=804 data-nosnippet>804</a>
+<a href=#805 id=805 data-nosnippet>805</a>        <span class="macro">assert!</span>(result.success, <span class="string">"{:?}"</span>, result.error);
+<a href=#806 id=806 data-nosnippet>806</a>        <span class="macro">assert_eq!</span>(
+<a href=#807 id=807 data-nosnippet>807</a>            cron::get_job(<span class="kw-2">&amp;</span>cfg, <span class="kw-2">&amp;</span>job.id).unwrap().allowed_tools,
+<a href=#808 id=808 data-nosnippet>808</a>            <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[<span class="string">"file_read"</span>.into(), <span class="string">"web_search"</span>.into()])
+<a href=#809 id=809 data-nosnippet>809</a>        );
+<a href=#810 id=810 data-nosnippet>810</a>    }
+<a href=#811 id=811 data-nosnippet>811</a>}
 </code></pre></div></section></main></body></html>

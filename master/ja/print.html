@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-ad81d5da.js";
+            window.path_to_searchindex_js = "searchindex-331be6eb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-c98164c8.js"></script>
@@ -15801,7 +15801,7 @@ Not affected:
     cache-on-failure: true
     save-if: ${{ github.ref == 'refs/heads/master' }}
 </code></pre>
-<p><code>save-if</code> 条件は、キャッシュがすべての PR に対してではなく、<code>master</code> へのプッシュ時のみ書き込まれることを意味します。PR はキャッシュから読み込みますが、競合するバージョンは書き込みません。これにより、複数の PR が同時に開かれている場合でも、キャッシュの競合を回避できます。</p>
+<p>Because cache saves are limited to <code>refs/heads/master</code>, the workflow must run on trusted <code>master</code> pushes. PRs read the master-seeded cache but do not write competing branch artifacts. This avoids cache thrashing when multiple PRs are open simultaneously, while still letting post-merge runs warm Linux, macOS, and Windows build caches for the next review loop.</p>
 <hr>
 <h2 id="4-ライフサイクルとしてのセキュリティスキャン"><a class="header" href="#4-ライフサイクルとしてのセキュリティスキャン">4. ライフサイクルとしてのセキュリティスキャン</a></h2>
 <h3 id="41-二値ゲートの問題"><a class="header" href="#41-二値ゲートの問題">4.1 二値ゲートの問題</a></h3>
@@ -17790,7 +17790,7 @@ label = "言語名"
 <p>すべてのワークフローは <code>.github/workflows/</code> に配置されます。以下のセクションでは、トリガーごとにワークフローをグループ化しています。git イベントによる自動実行か、<code>workflow_dispatch</code> による手動実行かによって分類されます。</p>
 <h2 id="自動ワークフロー"><a class="header" href="#自動ワークフロー">自動ワークフロー</a></h2>
 <h3 id="品質ゲート-ciyml"><a class="header" href="#品質ゲート-ciyml">品質ゲート (<code>ci.yml</code>)</a></h3>
-<p><code>master</code> をターゲットとするすべての PR で発火する。複数のマトリックスレグを持つ複合ジョブ：</p>
+<p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
 <li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
 <li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
@@ -17801,7 +17801,7 @@ label = "言語名"
 <li><strong>test</strong> — Linuxでの <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
 <li><strong>セキュリティ</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="日次アドバイザリスキャンdaily-audityml"><a class="header" href="#日次アドバイザリスキャンdaily-audityml">日次アドバイザリスキャン（<code>daily-audit.yml</code>）</a></h3>
 <p>依存関係ツリーに対して <code>cargo audit</code> を毎晩実行します。脆弱性が検出された場合は、関連するイシューをオープンします。脆弱性が報告されない限り、何もしません。</p>
 <h3 id="pr-パスラベラー-pr-path-labeleryml"><a class="header" href="#pr-パスラベラー-pr-path-labeleryml">PR パスラベラー (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -17849,11 +17849,11 @@ label = "言語名"
 </table>
 </div>
 <h2 id="ビルドキャッシュの動作"><a class="header" href="#ビルドキャッシュの動作">ビルドキャッシュの動作</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
-<li><strong>キャッシュへの書き込みはマスターのみ可能です。</strong> <code>save-if</code> は <code>github.ref == 'refs/heads/master'</code> に条件付けされているため、PR の実行はマスターでシードされたキャッシュを読み取りますが、それ自体を更新することはありません。PR ブランチは、ブランチ固有のアーティファクトを共有キャッシュに混入させることができません。</li>
+<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>失敗時にキャッシュが保存されます。</strong> 各ジョブには <code>cache-on-failure: true</code> が設定されているため、部分的な実行でも次の試行のキャッシュを有効にします。</li>
-<li><strong>Windows には Rust のキャッシュがありません。</strong> <code>if: runner.os != 'Windows'</code> は Windows 環境でキャッシュステップをスキップします — <code>rust-cache</code> のパス処理は Windows で問題を引き起こします。Windows では常にキャッシュなしで実行されます。</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>増分コンパイルは無効化されています。</strong> ワークフローレベルで <code>CARGO_INCREMENTAL: 0</code> が設定されています。増分ビルドはキャッシュサイズを増大させ、部分的に古くなった条件の下で再現性のないアーティファクトを生成します。</li>
 <li><strong><code>cargo-deny</code> はキャッシュされません。</strong> <code>security</code> ジョブは、毎回ソースから <code>cargo-deny</code> を新規にインストールします。今後の改善策として、すでに <code>cargo-nextest</code> をキャッシュしている <code>taiki-e/install-action</code> の導入が考えられます。</li>
 </ul>
@@ -18484,15 +18484,15 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <tr><td><code>ツール:ブラウザ</code></td><td><code>browser.rs</code>, <code>browser_delegate.rs</code>, <code>browser_open.rs</code>, <code>text_browser.rs</code>, <code>screenshot.rs</code></td></tr>
 <tr><td><code>ツール:クラウド</code></td><td><code>cloud_ops.rs</code>, <code>cloud_patterns.rs</code></td></tr>
 <tr><td><code>ツール:composio</code></td><td><code>composio.rs</code></td></tr>
-<tr><td><code>ツール:cron</code></td><td><code>cron_add.rs</code>, <code>cron_list.rs</code>, <code>cron_remove.rs</code>, <code>cron_run.rs</code>, <code>cron_runs.rs</code>, <code>cron_update.rs</code></td></tr>
-<tr><td><code>ツール:ファイル</code></td><td><code>file_edit.rs</code>, <code>file_read.rs</code>, <code>file_write.rs</code>, <code>glob_search.rs</code>, <code>content_search.rs</code></td></tr>
+<tr><td><code>ツール:cron</code></td><td><code>src/tools/cron_add.rs</code>, <code>src/tools/cron_list.rs</code>, <code>src/tools/cron_remove.rs</code>, <code>src/tools/cron_run.rs</code>, <code>src/tools/cron_runs.rs</code>, <code>src/tools/cron_update.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_add.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_common.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_list.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_remove.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_run.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_runs.rs</code>, <code>crates/zeroclaw-runtime/src/tools/cron_update.rs</code></td></tr>
+<tr><td><code>ツール:ファイル</code></td><td><code>src/tools/file_edit.rs</code>, <code>src/tools/file_read.rs</code>, <code>src/tools/file_write.rs</code>, <code>src/tools/glob_search.rs</code>, <code>src/tools/content_search.rs</code>, <code>crates/zeroclaw-tools/src/file_edit.rs</code>, <code>crates/zeroclaw-runtime/src/tools/file_read.rs</code>, <code>crates/zeroclaw-tools/src/file_write.rs</code>, <code>crates/zeroclaw-tools/src/glob_search.rs</code>, <code>crates/zeroclaw-tools/src/content_search.rs</code></td></tr>
 <tr><td><code>ツール:google-workspace</code></td><td><code>google_workspace.rs</code></td></tr>
 <tr><td><code>tool:mcp</code></td><td><code>mcp_client.rs</code>, <code>mcp_deferred.rs</code>, <code>mcp_protocol.rs</code>, <code>mcp_tool.rs</code>, <code>mcp_transport.rs</code></td></tr>
 <tr><td><code>ツール:メモリ</code></td><td><code>memory_forget.rs</code>, <code>memory_recall.rs</code>, <code>memory_store.rs</code></td></tr>
 <tr><td><code>tool:microsoft365</code></td><td><code>microsoft365/**</code></td></tr>
-<tr><td><code>ツール:セキュリティ</code></td><td><code>security_ops.rs</code>, <code>verifiable_intent.rs</code></td></tr>
-<tr><td><code>ツール:シェル</code></td><td><code>shell.rs</code>, <code>node_tool.rs</code>, <code>cli_discovery.rs</code></td></tr>
-<tr><td><code>tool:sop</code></td><td><code>sop_advance.rs</code>, <code>sop_approve.rs</code>, <code>sop_execute.rs</code>, <code>sop_list.rs</code>, <code>sop_status.rs</code></td></tr>
+<tr><td><code>ツール:セキュリティ</code></td><td><code>src/tools/security_ops.rs</code>, <code>src/tools/verifiable_intent.rs</code>, <code>crates/zeroclaw-runtime/src/tools/security_ops.rs</code>, <code>crates/zeroclaw-runtime/src/tools/verifiable_intent.rs</code></td></tr>
+<tr><td><code>ツール:シェル</code></td><td><code>src/tools/shell.rs</code>, <code>src/tools/node_tool.rs</code>, <code>src/tools/cli_discovery.rs</code>, <code>crates/zeroclaw-runtime/src/tools/shell.rs</code>, <code>crates/zeroclaw-gateway/src/node_tool.rs</code>, <code>crates/zeroclaw-tools/src/cli_discovery.rs</code></td></tr>
+<tr><td><code>tool:sop</code></td><td><code>src/tools/sop_advance.rs</code>, <code>src/tools/sop_approve.rs</code>, <code>src/tools/sop_execute.rs</code>, <code>src/tools/sop_list.rs</code>, <code>src/tools/sop_status.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_advance.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_approve.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_execute.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_list.rs</code>, <code>crates/zeroclaw-runtime/src/tools/sop_status.rs</code></td></tr>
 <tr><td><code>ツール:web</code></td><td><code>web_fetch.rs</code>, <code>web_search_tool.rs</code>, <code>web_search_provider_routing.rs</code>, <code>http_request.rs</code></td></tr>
 </tbody>
 </table>

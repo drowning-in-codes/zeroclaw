@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ToolResult","ToolSpec"],"trait":["Tool"]};
+window.SIDEBAR_ITEMS = {"constant":["EPHEMERAL_WORKSPACE_WARNING"],"fn":["with_ephemeral_workspace_warning"],"struct":["ToolResult","ToolSpec"],"trait":["Tool"]};

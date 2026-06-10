@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cb261f84.js";
+            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-acb59c9f.js"></script>
@@ -220,7 +220,8 @@
 <p>Every workflow lives in <code>.github/workflows/</code>. The sections below group them by trigger — automatic on git events, or manual via <code>workflow_dispatch</code>.</p>
 <h2 id="automatic-workflows"><a class="header" href="#automatic-workflows">Automatic workflows</a></h2>
 <h3 id="quality-gate-ciyml"><a class="header" href="#quality-gate-ciyml">Quality Gate (<code>ci.yml</code>)</a></h3>
-<p>Fires on every PR targeting <code>master</code>. Composite job with multiple matrix legs:</p>
+<p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>.
+Composite job with multiple matrix legs:</p>
 <ul>
 <li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
 <li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
@@ -231,7 +232,7 @@
 <li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> on Linux</li>
 <li><strong>security</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="daily-advisory-scan-daily-audityml"><a class="header" href="#daily-advisory-scan-daily-audityml">Daily Advisory Scan (<code>daily-audit.yml</code>)</a></h3>
 <p>Runs <code>cargo audit</code> nightly against the dependency tree. Opens an issue on findings. No action unless a vulnerability is reported.</p>
 <h3 id="pr-path-labeler-pr-path-labeleryml"><a class="header" href="#pr-path-labeler-pr-path-labeleryml">PR Path Labeler (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -279,11 +280,11 @@
 </table>
 </div>
 <h2 id="build-cache-behavior"><a class="header" href="#build-cache-behavior">Build cache behavior</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
-<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts.</li>
+<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>Cache saves on failure.</strong> <code>cache-on-failure: true</code> is set on every job, so a partial run still seeds the next attempt warm.</li>
-<li><strong>Windows has no Rust cache.</strong> <code>if: runner.os != 'Windows'</code> skips the cache step on the Windows leg — <code>rust-cache</code>’s path handling poisons on Windows. Windows always runs cold.</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>Incremental compilation is disabled.</strong> <code>CARGO_INCREMENTAL: 0</code> at the workflow level. Incremental builds inflate cache size and produce non-reproducible artifacts under partial-stale conditions.</li>
 <li><strong><code>cargo-deny</code> is not cached.</strong> The <code>security</code> job installs it fresh from source on every run. A future improvement is <code>taiki-e/install-action</code>, which already caches <code>cargo-nextest</code>.</li>
 </ul>

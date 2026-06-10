@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-3750fdf5.js";
+            window.path_to_searchindex_js = "../searchindex-b01be178.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-a643e72b.js"></script>
@@ -220,7 +220,7 @@
 <p>Chaque workflow est situé dans <code>.github/workflows/</code>. Les sections ci-dessous les regroupent par déclencheur — automatique lors d’événements git, ou manuel via <code>workflow_dispatch</code>.</p>
 <h2 id="flux-de-travail-automatiques"><a class="header" href="#flux-de-travail-automatiques">Flux de travail automatiques</a></h2>
 <h3 id="portail-de-qualité-ciyml"><a class="header" href="#portail-de-qualité-ciyml">Portail de qualité (<code>ci.yml</code>)</a></h3>
-<p>Se déclenche sur chaque PR ciblant <code>master</code>. Job composite avec plusieurs branches de matrice :</p>
+<p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
 <li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
 <li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
@@ -231,7 +231,7 @@
 <li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> sur Linux</li>
 <li><strong>sécurité</strong> — <code>cargo deny check</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="analyse-quotidienne-daily-audityml"><a class="header" href="#analyse-quotidienne-daily-audityml">Analyse quotidienne (<code>daily-audit.yml</code>)</a></h3>
 <p>Exécute <code>cargo audit</code> quotidiennement sur l’arbre des dépendances. Ouvre un ticket en cas de résultats. Aucune action n’est entreprise sauf si une vulnérabilité est signalée.</p>
 <h3 id="étiqueteur-de-chemin-de-pr-pr-path-labeleryml"><a class="header" href="#étiqueteur-de-chemin-de-pr-pr-path-labeleryml">Étiqueteur de chemin de PR (<code>pr-path-labeler.yml</code>)</a></h3>
@@ -279,11 +279,11 @@
 </table>
 </div>
 <h2 id="comportement-du-cache-de-construction"><a class="header" href="#comportement-du-cache-de-construction">Comportement du cache de construction</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job and the Windows build leg do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
-<li><strong>Les écritures dans le cache sont exclusives au maître.</strong> <code>save-if</code> est conditionné par <code>github.ref == 'refs/heads/master'</code>, donc les exécutions des PR lisent le cache initialisé par le maître mais ne le mettent jamais à jour. Les branches de PR ne peuvent pas polluer le cache partagé avec des artefacts spécifiques à la branche.</li>
+<li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>Le cache est conservé en cas d’échec.</strong> L’option <code>cache-on-failure: true</code> est définie pour chaque job, de sorte qu’une exécution partielle permet de réutiliser le cache pour la tentative suivante.</li>
-<li><strong>Windows ne dispose pas de cache Rust.</strong> <code>if: runner.os != 'Windows'</code> saute l’étape de cache sur la branche Windows — la gestion des chemins par <code>rust-cache</code> pose problème sous Windows. Windows s’exécute toujours sans cache.</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>La compilation incrémentale est désactivée.</strong> <code>CARGO_INCREMENTAL: 0</code> au niveau du workflow. Les builds incrémentaux augmentent la taille du cache et produisent des artefacts non reproductibles dans des conditions de partielle périmée.</li>
 <li><strong><code>cargo-deny</code> n’est pas mis en cache.</strong> Le job <code>security</code> l’installe à partir des sources à chaque exécution. Une amélioration future consisterait à utiliser <code>taiki-e/install-action</code>, qui met déjà en cache <code>cargo-nextest</code>.</li>
 </ul>
