@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,38 +295,31 @@
                         <h1 id="macos"><a class="header" href="#macos">macOS</a></h1>
 <p>在 macOS（Intel 或 Apple Silicon）上安装、更新、作为 LaunchAgent 运行以及卸载。</p>
 <h2 id="安装"><a class="header" href="#安装">安装</a></h2>
-<p>推荐使用 <code>install.sh</code>；如果你希望集成 <code>brew services</code>，Homebrew 是一个不错的选择。</p>
-<h3 id="选项-1--通过-curl-安装-installsh最快"><a class="header" href="#选项-1--通过-curl-安装-installsh最快">选项 1 — 通过 curl 安装 <code>install.sh</code>（最快）</a></h3>
-<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash
+<pre><code class="language-sh">./install.sh
 </code></pre>
-<h3 id="选项-2--从克隆版本中运行-installsh"><a class="header" href="#选项-2--从克隆版本中运行-installsh">选项 2 — 从克隆版本中运行 <code>install.sh</code></a></h3>
-<pre><code class="language-bash">git clone https://github.com/zeroclaw-labs/zeroclaw.git
-cd zeroclaw
-./install.sh
+<p>That is the whole install. Run it from a clone, or pipe it from <code>curl</code>:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash
 </code></pre>
-<h3 id="安装程序执行的操作"><a class="header" href="#安装程序执行的操作">安装程序执行的操作</a></h3>
-<ol>
-<li>询问您是否希望使用预构建的二进制文件还是从源代码构建</li>
-<li>安装到 <code>~/.cargo/bin/zeroclaw</code></li>
-<li>Runs <code>zeroclaw quickstart</code> to complete first-time setup</li>
-</ol>
-<p>标志：</p>
-<pre><code class="language-bash">./install.sh --prebuilt                      # 始终预构建，跳过提示
-./install.sh --source                        # 始终从源代码构建
-./install.sh --minimal                       # 仅内核（约 6.6 MB）
-./install.sh --source --features agent-runtime,channel-discord   # 自定义功能
-./install.sh --skip-quickstart                  # install only; run `zeroclaw quickstart` later
-./install.sh --list-features                 # 打印可用功能并退出
-./install.sh --help                          # 完整标志参考
+</div>
+
+<p>The installer picks a prebuilt binary or builds from source (interactive by default), installs to <code>~/.cargo/bin/zeroclaw</code>, and offers to run <a href="../getting-started/quickstart.html"><code>zeroclaw quickstart</code></a> for first-time setup. Pass <code>--help</code> for the full flag reference, or <code>--skip-quickstart</code> to install only.</p>
+<h3 id="homebrew"><a class="header" href="#homebrew">Homebrew</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">brew install zeroclaw
 </code></pre>
-<h3 id="选项-3--homebrew"><a class="header" href="#选项-3--homebrew">选项 3 — Homebrew</a></h3>
-<pre><code class="language-bash">brew install zeroclaw
-zeroclaw quickstart
-</code></pre>
+</div>
+
 <p>提供 <code>brew services</code> 集成。二进制文件位于 <code>$HOMEBREW_PREFIX/bin/zeroclaw</code>。</p>
 <p><strong>工作区位置注意事项：</strong> 使用 Homebrew 时，服务用户和 CLI 用户可能不同，因此工作区位于 <code>$HOMEBREW_PREFIX/var/zeroclaw/</code> 而不是 <code>~/.zeroclaw/</code>。请将 CLI 调用指向相同的工作区：</p>
-<pre><code class="language-bash">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
 </code></pre>
+</div>
+
 <p>如果希望永久生效，请将其添加到您的 shell 配置文件中。</p>
 <h2 id="系统依赖"><a class="header" href="#系统依赖">系统依赖</a></h2>
 <p>大多数功能在标准 macOS 安装中即可使用。可选的额外功能：</p>
@@ -268,36 +337,62 @@ zeroclaw quickstart
 </table>
 </div>
 <h2 id="作为服务运行"><a class="header" href="#作为服务运行">作为服务运行</a></h2>
-<pre><code class="language-bash">zeroclaw service install   # 写入 ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service install   # 写入 ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 zeroclaw service start
 zeroclaw service status
 </code></pre>
-<p>日志文件位于 <code>~/Library/Logs/ZeroClaw/</code>：</p>
-<pre><code class="language-bash">tail -f ~/Library/Logs/ZeroClaw/zeroclaw.log
+</div>
+
+<p>Logs go to <code>~/.zeroclaw/logs/</code> (Homebrew installs: <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code>):</p>
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">tail -f ~/.zeroclaw/logs/daemon.stdout.log
 </code></pre>
+</div>
+
 <p>对于 Homebrew 安装，推荐使用：</p>
-<pre><code class="language-bash">brew services start zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">brew services start zeroclaw
 brew services info zeroclaw
 </code></pre>
-<p>这两种方法产生的最终状态相同——一个在登录时启动的已加载 LaunchAgent。选择一种并坚持使用它。</p>
+</div>
+
+<p>Both methods produce the same end state, a loaded LaunchAgent that starts on login. Pick one and stick with it.</p>
 <p>详细信息：<a href="./service.html">服务管理</a>。</p>
 <h2 id="更新"><a class="header" href="#更新">更新</a></h2>
-<p>重新运行安装程序——它会检测到现有安装并进行就地升级：</p>
-<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash -s -- --skip-quickstart
+<p>Re-run the installer, it detects the existing install and upgrades in place:</p>
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash -s -- --skip-quickstart
 zeroclaw service restart
 </code></pre>
+</div>
+
 <p>或者从克隆版本中：</p>
-<pre><code class="language-bash">cd /path/to/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">cd /path/to/zeroclaw
 git pull
 ./install.sh --skip-quickstart
 zeroclaw service restart
 </code></pre>
+</div>
+
 <p>如果通过 Homebrew 安装：</p>
-<pre><code class="language-bash">brew update &amp;&amp; brew upgrade zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">brew update &amp;&amp; brew upgrade zeroclaw
 brew services restart zeroclaw
 </code></pre>
+</div>
+
 <h2 id="卸载"><a class="header" href="#卸载">卸载</a></h2>
-<pre><code class="language-bash"># 停止并注销服务
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
+<pre><code class="language-sh"># 停止并注销服务
 zeroclaw service stop
 zeroclaw service uninstall
 
@@ -307,26 +402,29 @@ brew uninstall zeroclaw
 # bootstrap / cargo
 rm ~/.cargo/bin/zeroclaw
 </code></pre>
-<p>移除配置和工作区（可选 — 这将删除对话历史）：</p>
-<pre><code class="language-bash"># Homebrew 工作区
+</div>
+
+<p>Remove config and workspace (optional: this deletes conversation history):</p>
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
+<pre><code class="language-sh"># Homebrew 工作区
 rm -rf "$HOMEBREW_PREFIX/var/zeroclaw"
 
-# 默认工作区
+# Default workspace (includes logs at ~/.zeroclaw/logs)
 rm -rf ~/.zeroclaw ~/.config/zeroclaw
-
-# 日志
-rm -rf ~/Library/Logs/ZeroClaw
 </code></pre>
+</div>
+
 <h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
 <ul>
-<li><strong>Homebrew 配置路径不匹配。</strong> <code>brew services</code> 守护进程读取的是 <code>$HOMEBREW_PREFIX/var/zeroclaw/config.toml</code>，而非 <code>~/.zeroclaw/config.toml</code>。如果你的服务读取的是过时的配置，请检查守护进程实际读取的是哪一个，并相应地设置 <code>ZEROCLAW_WORKSPACE</code>。</li>
+<li><strong>Homebrew config path mismatch.</strong> The <code>brew services</code> daemon reads config from <code>$HOMEBREW_PREFIX/var/zeroclaw/</code>, not <code>~/.zeroclaw/</code>. If your service is reading stale config, check which one the daemon sees and set <code>ZEROCLAW_WORKSPACE</code> accordingly.</li>
 <li><strong>首次启动浏览器工具</strong>会通过 Playwright 下载 Chromium（约 150 MB）。</li>
 <li><strong>Apple Silicon</strong> 和 <strong>Intel</strong> 构建版本均已发布。引导脚本会自动检测，Homebrew 会自动选择。</li>
 </ul>
 <h2 id="下一个"><a class="header" href="#下一个">下一个</a></h2>
 <ul>
 <li><a href="./service.html">服务管理</a></li>
-<li><a href="../getting-started/quick-start.html">快速入门</a></li>
+<li><a href="../getting-started/quickstart.html">Quickstart</a></li>
 <li><a href="../ops/overview.html">操作 → 概览</a></li>
 </ul>
 

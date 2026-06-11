@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -223,24 +299,24 @@
 <pre><code>┌──────────────────────────────────────────────────────────────┐
 │                        STARTUP (boot)                        │
 │                                                              │
-│  1. aardvark-sysに確認: "アダプターがプラグインされているか？"            │
-│  2. 見つかったものごとに → デバイスとトランスポートを登録               │
-│  3. ハードウェアが見つかった場合のみツールをロード                    │
-└──────────────────────────────────────┬───────────────────┘
+│  1. Ask aardvark-sys: "any adapters plugged in?"             │
+│  2. For each one found → register a device + transport       │
+│  3. Load tools only if hardware was found                    │
+└──────────────────────────────────────────┬───────────────────┘
                                            │
-                    ┌──────────────────────▼──────────────────────┐
+                    ┌──────────────────────▼───────────────────────┐
                     │              RUNTIME (agent loop)            │
                     │                                              │
-                    │  ユーザー: "i2cバスをスキャン"                        │
-                    │     → エージェントはi2c_scanツールを呼び出す              │
-                    │     → ツールはZcCommandを構築する                │
-                    │     → AardvarkTransportはハードウェアに送信     │
-                    │     → レスポンスはテキストとして戻る            │
+                    │  User: "scan i2c bus"                        │
+                    │     → agent calls i2c_scan tool              │
+                    │     → tool builds a ZcCommand                │
+                    │     → AardvarkTransport sends to hardware    │
+                    │     → response flows back as text            │
                     └──────────────────────────────────────────────┘
 </code></pre>
 <hr>
 <h2 id="レイヤーごとに"><a class="header" href="#レイヤーごとに">レイヤーごとに</a></h2>
-<h3 id="レイヤー-1--aardvark-sys-usbの通信者"><a class="header" href="#レイヤー-1--aardvark-sys-usbの通信者">レイヤー 1 — <code>aardvark-sys</code> (USBの通信者)</a></h3>
+<h3 id="layer-1-aardvark-sys-the-usb-talker"><a class="header" href="#layer-1-aardvark-sys-the-usb-talker">Layer 1: <code>aardvark-sys</code> (the USB talker)</a></h3>
 <p><strong>ファイル:</strong> <code>crates/aardvark-sys/src/lib.rs</code></p>
 <p>これは生のCライブラリに触れる唯一のレイヤーです。C関数呼び出しを安全なRustに変換するシンラッパーと考えてください。</p>
 <p><strong>アルゴリズム:</strong></p>
@@ -282,7 +358,7 @@ Drop(handle)
 </code></pre>
 <p><strong>スタブモード内</strong> (SDKなし): すべてのメソッドは直ちに <code>Err(NotFound)</code> を返します。<code>find_devices()</code> は <code>[]</code> を返します。何もクラッシュしません。</p>
 <hr>
-<h3 id="レイヤー-2--aardvarktransportブリッジ"><a class="header" href="#レイヤー-2--aardvarktransportブリッジ">レイヤー 2 — <code>AardvarkTransport</code>（ブリッジ）</a></h3>
+<h3 id="layer-2-aardvarktransport-the-bridge"><a class="header" href="#layer-2-aardvarktransport-the-bridge">Layer 2: <code>AardvarkTransport</code> (the bridge)</a></h3>
 <p><strong>ファイル:</strong> <code>crates/zeroclaw-hardware/src/aardvark.rs</code></p>
 <p>ZeroClaw の残りの部分は単一の言語を話します: <code>ZcCommand</code> → <code>ZcResponse</code>。<code>AardvarkTransport</code> はそのプロトコルと上記の aardvark-sys 呼び出しの間を翻訳します。</p>
 <p><strong>アルゴリズム:</strong></p>
@@ -321,9 +397,9 @@ Drop(handle)
 
   on any AardvarkError → return ZcResponse{ error: "..." }
 </code></pre>
-<p><strong>設計上の重要な選択 — 遅延オープン:</strong> ハンドルはコマンドごとに新しく開かれ、終了時にドロップされます。これはホールドされた接続がなく、クリーンアップする状態がなく、「まだ開いているか?」というロジックがどこにもないことを意味します。</p>
+<p><strong>Key design choice: lazy open:</strong> The handle is opened fresh for every command and dropped at the end. This means no held connection, no state to clean up, and no “is it still open?” logic anywhere.</p>
 <hr>
-<h3 id="レイヤー-3--ツールエージェントが呼び出すもの"><a class="header" href="#レイヤー-3--ツールエージェントが呼び出すもの">レイヤー 3 — ツール（エージェントが呼び出すもの）</a></h3>
+<h3 id="layer-3-tools-what-the-agent-calls"><a class="header" href="#layer-3-tools-what-the-agent-calls">Layer 3: Tools (what the agent calls)</a></h3>
 <p><strong>ファイル:</strong> <code>crates/zeroclaw-hardware/src/aardvark_tools.rs</code></p>
 <p>各ツールは薄いラッパーです。それは:</p>
 <ol>
@@ -369,7 +445,7 @@ DatasheetTool.call(args)
   → "read":     open a saved PDF and return its text
 </code></pre>
 <hr>
-<h3 id="レイヤー-4--デバイスレジストリアドレス帳"><a class="header" href="#レイヤー-4--デバイスレジストリアドレス帳">レイヤー 4 — デバイスレジストリ（アドレス帳）</a></h3>
+<h3 id="layer-4-device-registry-the-address-book"><a class="header" href="#layer-4-device-registry-the-address-book">Layer 4: Device Registry (the address book)</a></h3>
 <p><strong>ファイル:</strong> <code>crates/zeroclaw-hardware/src/device.rs</code></p>
 <p>レジストリは、接続されたすべてのデバイスのランタイムマップです。各エントリは以下を保存します: エイリアス、種類、機能、トランスポートハンドル。</p>
 <pre><code>register("aardvark", vid=0x2b76, ...)
@@ -390,7 +466,7 @@ resolve_aardvark_device(args)
   → return (alias, DeviceContext{ transport, capabilities })
 </code></pre>
 <hr>
-<h3 id="レイヤー-5--bootスタートアップ配線"><a class="header" href="#レイヤー-5--bootスタートアップ配線">レイヤー 5 — <code>boot()</code>（スタートアップ配線）</a></h3>
+<h3 id="layer-5-boot-startup-wiring"><a class="header" href="#layer-5-boot-startup-wiring">Layer 5: <code>boot()</code> (startup wiring)</a></h3>
 <p><strong>ファイル:</strong> <code>crates/zeroclaw-hardware/src/lib.rs</code></p>
 <p><code>boot()</code> はスタートアップ時に一度実行されます。Aardvark の場合:</p>
 <pre><code>boot()
@@ -409,19 +485,20 @@ resolve_aardvark_device(args)
   ...
 </code></pre>
 <hr>
-<h3 id="レイヤー-6--ツールレジストリローダー"><a class="header" href="#レイヤー-6--ツールレジストリローダー">レイヤー 6 — ツールレジストリ（ローダー）</a></h3>
+<h3 id="layer-6-tool-registry-the-loader"><a class="header" href="#layer-6-tool-registry-the-loader">Layer 6: Tool Registry (the loader)</a></h3>
 <p><strong>ファイル:</strong> <code>crates/zeroclaw-hardware/src/tool_registry.rs</code></p>
 <p><code>boot()</code> の後、ツールレジストリは存在するハードウェアをチェックし、関連するツールのみをロードします:</p>
 <pre><code>ToolRegistry::load(devices)
 
-  # always loaded (Pico / GPIO)
-  register: gpio_write, gpio_read, gpio_toggle, pico_flash, device_list, device_status
+  # always loaded (base hardware tools — see catalog::BASE_TOOLS)
+  register: gpio_read, gpio_write, pico_flash,
+            device_read_code, device_write_code, device_exec
 
-  # only loaded if an Aardvark was found at boot
+  # only loaded if an Aardvark was found at boot (catalog::AARDVARK_TOOLS)
   if devices.has_aardvark():
     register: i2c_scan, i2c_read, i2c_write, spi_transfer, gpio_aardvark, datasheet
 </code></pre>
-<p>これが <code>hardware_feature_registers_all_six_tools</code> テストがスタブモードでも合格する理由です — <code>has_aardvark()</code> は false を返し、追加ツールは 0 個ロードされ、カウントは 6 のままです。</p>
+<p>This is why the <code>hardware_feature_registers_catalog_base_tools</code> test still passes in stub mode: <code>has_aardvark()</code> returns false, 0 extra tools load, count stays at the base set.</p>
 <hr>
 <h2 id="完全なフロー図"><a class="header" href="#完全なフロー図">完全なフロー図</a></h2>
 <pre><code> SDK FILES          aardvark-sys            ZeroClaw core
@@ -439,7 +516,7 @@ resolve_aardvark_device(args)
                        │                ▼
                        │         ToolRegistry::load()
                        │           has_aardvark() == true
-                       │           → load 6 aardvark tools
+                       │           → load aardvark tools
                        │
 ─────────────────────────────────────────────────────────────────
 
@@ -482,13 +559,13 @@ resolve_aardvark_device(args)
 <tr><td><code>find_devices()</code></td><td><code>[]</code> を返す</td><td><code>[0]</code> を返す</td></tr>
 <tr><td><code>open_port(0)</code></td><td><code>Err(NotFound)</code></td><td>USB を開き、ハンドルを返す</td></tr>
 <tr><td><code>i2c_scan()</code></td><td><code>[]</code></td><td>バスをプローブし、アドレスを返す</td></tr>
-<tr><td>ロード済みツール</td><td>Pico ツール 6 個のみ</td><td>Pico ツール 6 個 + Aardvark ツール 6 個</td></tr>
+<tr><td>ロード済みツール</td><td>only the base hardware tools</td><td>base tools + Aardvark tools</td></tr>
 <tr><td><code>has_aardvark()</code></td><td><code>false</code></td><td><code>true</code></td></tr>
 <tr><td>必要な SDK</td><td>いいえ</td><td>はい（<code>vendor/aardvark.h</code> + <code>.so</code>）</td></tr>
 </tbody>
 </table>
 </div>
-<p>実ハードウェアを接続したときに変わる唯一のコードは <code>crates/aardvark-sys/src/lib.rs</code> 内です — 他のすべてのレイヤーは既に配線されており、待機中です。</p>
+<p>The only code that changes when you plug in real hardware is inside <code>crates/aardvark-sys/src/lib.rs</code>: every other layer is already wired up and waiting.</p>
 
                     </main>
 

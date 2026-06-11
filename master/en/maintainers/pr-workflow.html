@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,19 +298,19 @@
 <p>The workflow exists to keep five things true under high PR volume:</p>
 <ol>
 <li>Merge throughput is predictable.</li>
-<li>CI signal quality stays high — fast feedback, low false positives.</li>
+<li>CI signal quality stays high, fast feedback, low false positives.</li>
 <li>Security review is explicit on risky surfaces.</li>
 <li>Changes are easy to reason about and easy to revert.</li>
 <li>Repository artifacts stay free of personal or sensitive data.</li>
 </ol>
 <p>The control loop that delivers this is layered on purpose:</p>
 <ul>
-<li><strong>Intake classification</strong> — path/size/risk labels route the PR to the right depth.</li>
-<li><strong>Deterministic validation</strong> — the merge gate depends on reproducible checks, not subjective comments.</li>
-<li><strong>Risk-based review depth</strong> — high-risk paths get deep review, low-risk paths stay fast.</li>
-<li><strong>Rollback-first merge contract</strong> — every merge path includes a concrete recovery story.</li>
+<li><strong>Intake classification</strong>: path/size/risk labels route the PR to the right depth.</li>
+<li><strong>Deterministic validation</strong>: the merge gate depends on reproducible checks, not subjective comments.</li>
+<li><strong>Risk-based review depth</strong>: high-risk paths get deep review, low-risk paths stay fast.</li>
+<li><strong>Rollback-first merge contract</strong>: every merge path includes a concrete recovery story.</li>
 </ul>
-<p>Automation handles intake labels and CI gating. Final merge accountability stays with human maintainers and PR authors.</p>
+<p>Automation handles path/scope labels and CI gating. Risk, size, type, and contributor-tier labels are maintainer intake decisions unless a maintained workflow explicitly owns them. Final merge accountability stays with human maintainers and PR authors.</p>
 <h2 id="project-board-contract"><a class="header" href="#project-board-contract">Project board contract</a></h2>
 <p>The Project board is an automated planning board, not the authoritative PR review queue.</p>
 <p>Use the board for issue readiness, active ownership, roadmap grouping, dependencies, blocker state, and stale-exemption reasons. Those signals move slowly enough that a board field or planning lane can stay useful.</p>
@@ -293,9 +369,8 @@
 <li>Require status checks before merge.</li>
 <li>Require check <code>CI Required Gate</code>.</li>
 <li>Require pull request reviews before merge.</li>
-<li>Require CODEOWNERS review for protected paths.</li>
-<li>For <code>.github/workflows/**</code>, require owner approval via <code>CI Required Gate</code> (<code>WORKFLOW_OWNER_LOGINS</code>); keep branch / ruleset bypass limited to org owners.</li>
-<li>Default workflow-owner allowlist is configured via the <code>WORKFLOW_OWNER_LOGINS</code> repository variable (see CODEOWNERS for the current list).</li>
+<li>Require CODEOWNERS review for protected paths. <code>.github/**</code> (including <code>.github/workflows/**</code>) is owned by the maintainers listed in <code>.github/CODEOWNERS</code>, so workflow changes need an owning maintainer’s review.</li>
+<li>Keep branch / ruleset bypass limited to org owners.</li>
 <li>Dismiss stale approvals when new commits are pushed.</li>
 <li>Restrict force-push.</li>
 <li>All contributor PRs target <code>master</code> directly.</li>
@@ -305,9 +380,9 @@
 <ul>
 <li>PR template fully completed.</li>
 <li>Scope boundary explicit (what changed / what did not).</li>
-<li>Validation evidence attached — actual command output, not “CI will check.”</li>
-<li>Security &amp; privacy and rollback fields completed for risky paths.</li>
-<li>Privacy and data-hygiene rules satisfied — neutral, project-scoped test wording. See <a href="../contributing/privacy.html">Privacy</a>.</li>
+<li>Validation evidence attached, actual command output, not “CI will check.”</li>
+<li>Security &amp; privacy, compatibility, and (for risky paths) rollback fields completed.</li>
+<li>Privacy and data-hygiene rules satisfied, neutral, project-scoped test wording. See <a href="../contributing/privacy.html">Privacy</a>.</li>
 <li>Identity-like wording, where unavoidable, uses ZeroClaw / project-native labels.</li>
 </ul>
 <h2 id="definition-of-done-dod"><a class="header" href="#definition-of-done-dod">Definition of Done (DoD)</a></h2>
@@ -330,7 +405,7 @@
 <li>Rollback plan is explicit.</li>
 <li>Commit title follows Conventional Commits.</li>
 </ul>
-<p>Squash-merge with full commit history preserved in the body. The <code>squash-merge</code> skill produces both the purple <strong>Merged</strong> badge and the conventional-commits formatted body — see <a href="./skills.html">Skills</a> for invocation.</p>
+<p>Squash-merge with full commit history preserved in the body. The <code>squash-merge</code> skill produces both the purple <strong>Merged</strong> badge and the conventional-commits formatted body, see <a href="./skills.html">Skills</a> for invocation.</p>
 <h2 id="ai--agent-contribution-policy"><a class="header" href="#ai--agent-contribution-policy">AI / Agent contribution policy</a></h2>
 <p>AI-assisted PRs are welcome. Review can also be agent-assisted.</p>
 <p><strong>Required:</strong></p>
@@ -361,21 +436,22 @@
 </ul>
 <p>For stacked work, require explicit <code>Depends on #...</code> so review order is deterministic.</p>
 <p>For replacements, require explicit <code>Supersedes #...</code>. See <a href="./superseding.html">Superseding PRs</a> for attribution and template rules.</p>
-<p>The reviewer-side queue management — backlog pruning order, stale handling, label hygiene — is in <a href="./reviewer-playbook.html">Reviewer Playbook</a>.</p>
+<p>The reviewer-side queue management, backlog pruning order, stale handling, label hygiene, is in <a href="./reviewer-playbook.html">Reviewer Playbook</a>.</p>
 <h2 id="security-and-stability-rules"><a class="header" href="#security-and-stability-rules">Security and stability rules</a></h2>
-<p>These paths require stricter review and stronger test evidence:</p>
+<p>These paths require stricter review and stronger test evidence. The canonical
+high-risk path set is defined in <a href="./labels.html#risk-labels">Labels → Risk labels</a>.
+In review terms that set covers:</p>
 <ul>
-<li><code>crates/zeroclaw-runtime/src/security/</code></li>
-<li>The rest of <code>crates/zeroclaw-runtime/</code></li>
+<li><code>crates/zeroclaw-runtime/</code> (including <code>src/security/</code>)</li>
 <li><code>crates/zeroclaw-gateway/</code> (ingress, authentication, pairing)</li>
 <li><code>crates/zeroclaw-tools/</code> (anything with execution capability)</li>
-<li>Filesystem access boundaries.</li>
-<li>Network and authentication behavior.</li>
-<li><code>.github/workflows/</code> and the release pipeline.</li>
+<li><code>.github/workflows/</code> and the release pipeline</li>
 </ul>
+<p>Filesystem access boundaries and network/authentication behavior inside those
+crates carry the same scrutiny even when the diff looks small.</p>
 <p><strong>Minimum for risky PRs:</strong> threat / risk statement, mitigation notes, rollback steps.</p>
 <p><strong>Recommended for high-risk PRs:</strong> a focused test proving boundary behavior, plus one explicit failure-mode scenario with expected degradation.</p>
-<p>For agent-assisted contributions on these paths, reviewers also verify the author can talk through runtime behavior and blast radius — not just paste validation output.</p>
+<p>For agent-assisted contributions on these paths, reviewers also verify the author can talk through runtime behavior and blast radius, not just paste validation output.</p>
 <h2 id="failure-recovery"><a class="header" href="#failure-recovery">Failure recovery</a></h2>
 <p>If a merged PR causes regressions:</p>
 <ol>
@@ -386,12 +462,12 @@
 <p>Prefer fast restoration of service quality over a delayed perfect fix.</p>
 <h2 id="what-this-page-does-not-cover"><a class="header" href="#what-this-page-does-not-cover">What this page does NOT cover</a></h2>
 <ul>
-<li><strong>Day-to-day review mechanics</strong> — see <a href="./reviewer-playbook.html">Reviewer Playbook</a> and <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a>.</li>
-<li><strong>Label thresholds and definitions</strong> — see <a href="./labels.html">Labels</a>.</li>
-<li><strong>Privacy and PII rules</strong> — see <a href="../contributing/privacy.html">Privacy</a>.</li>
-<li><strong>Supersede attribution and templates</strong> — see <a href="./superseding.html">Superseding PRs</a>.</li>
-<li><strong>CI workflow inventory and triage</strong> — see <a href="./ci-and-actions.html">CI &amp; Actions</a>.</li>
-<li><strong>Release procedure</strong> — see <a href="./release-runbook.html">Release Runbook</a>.</li>
+<li><strong>Day-to-day review mechanics</strong>: see <a href="./reviewer-playbook.html">Reviewer Playbook</a> and <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a>.</li>
+<li><strong>Label thresholds and definitions</strong>: see <a href="./labels.html">Labels</a>.</li>
+<li><strong>Privacy and PII rules</strong>: see <a href="../contributing/privacy.html">Privacy</a>.</li>
+<li><strong>Supersede attribution and templates</strong>: see <a href="./superseding.html">Superseding PRs</a>.</li>
+<li><strong>CI workflow inventory and triage</strong>: see <a href="./ci-and-actions.html">CI &amp; Actions</a>.</li>
+<li><strong>Release procedure</strong>: see <a href="./release-runbook.html">Release Runbook</a>.</li>
 </ul>
 
                     </main>

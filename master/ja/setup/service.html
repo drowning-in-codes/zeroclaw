@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,95 +294,134 @@
                     <main>
                         <h1 id="サービス管理"><a class="header" href="#サービス管理">サービス管理</a></h1>
 <p>ZeroClaw は、systemd（Linux）、launchctl（macOS）、タスク スケジューラ / Windows サービス（Windows）に対して、ファーストクラスのサービス統合を提供します。これら3つはすべて、1つのCLIインターフェースによって制御されます：</p>
-<pre><code class="language-bash">zeroclaw service install     # サービスを登録する
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service install     # サービスを登録する
 zeroclaw service start       # 起動する
 zeroclaw service stop        停止
 zeroclaw service restart     # 停止 + 開始
 zeroclaw service status      # 実行中 / 停止中、最後の終了コード
 zeroclaw service uninstall   # 削除してください
 </code></pre>
-<p>プラットフォーム固有のバックエンドは <code>crates/zeroclaw-runtime/src/service/</code> に実装されています。これらについて深く考える必要はありませんが、デバッグ時にそれらが生成する内容を知っていると役立ちます。</p>
-<h2 id="linux--systemd"><a class="header" href="#linux--systemd">Linux — systemd</a></h2>
+</div>
+
+<p>The platform-specific backends are implemented in <code>crates/zeroclaw-runtime/src/service/</code>. You don’t have to think about them, but knowing what they produce helps when debugging.</p>
+<h2 id="linux-systemd"><a class="header" href="#linux-systemd">Linux: systemd</a></h2>
 <p><code>zeroclaw service install</code> は、<code>~/.config/systemd/user/zeroclaw.service</code> にユーザースコープのユニットファイルを書き込みます。</p>
 <p>単位：</p>
 <ul>
 <li><code>Type=simple</code> とエージェントプロセスがフォアグラウンドで実行される</li>
-<li><code>User=</code> は呼び出し元のユーザーに設定されます</li>
-<li><code>SupplementaryGroups=gpio spi i2c</code> (ハードウェア機能がコンパイルされている場合に有効)</li>
-<li><code>Restart=on-failure</code> を10秒のバックオフで</li>
-<li><code>ExecStart=/home/$USER/.cargo/bin/zeroclaw daemon</code></li>
+<li><code>ExecStart={cargo-bin}/zeroclaw daemon</code></li>
+<li><code>Restart=always</code> with <code>RestartSec=3</code></li>
+<li><code>Environment=HOME=%h</code> and <code>PassEnvironment=DISPLAY XDG_RUNTIME_DIR</code> so headless browser tools can create profile/cache dirs and reach the user session</li>
+<li><code>WantedBy=default.target</code></li>
 </ul>
-<h3 id="手動制御"><a class="header" href="#手動制御">手動制御</a></h3>
-<pre><code class="language-bash">systemctl --user start zeroclaw
+<h3 id="manual-control-systemd"><a class="header" href="#manual-control-systemd">Manual control (systemd)</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">systemctl --user start zeroclaw
 systemctl --user stop zeroclaw
 systemctl --user status zeroclaw
 systemctl --user enable zeroclaw     # ログイン時に開始
 </code></pre>
+</div>
+
 <h3 id="ログ"><a class="header" href="#ログ">ログ</a></h3>
-<pre><code class="language-bash">journalctl --user -u zeroclaw -f        # フォロー
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">journalctl --user -u zeroclaw -f        # フォロー
 journalctl --user -u zeroclaw --since 1時間前
 </code></pre>
-<h3 id="システムスコープルートサービス"><a class="header" href="#システムスコープルートサービス">システムスコープ（ルート）サービス</a></h3>
-<p>ZeroClaw をユーザーログイン前に起動する必要がある場合（ヘッドレス SBC、VPS など）、root としてインストールコマンドを実行してください：</p>
-<pre><code class="language-bash">sudo zeroclaw service install
-sudo systemctl enable --now zeroclaw
+</div>
+
+<h3 id="starting-before-user-login"><a class="header" href="#starting-before-user-login">Starting before user login</a></h3>
+<p>The CLI only ever writes a user-scoped unit (<code>systemctl --user</code>), which by default starts at login and stops at logout. To keep ZeroClaw running on a headless box without an active session, enable lingering for the service user:</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">sudo loginctl enable-linger $USER
+systemctl --user enable --now zeroclaw
 </code></pre>
-<p><code>sudo</code>/root で実行すると、<code>zeroclaw service install</code> は <code>/etc/systemd/system/zeroclaw.service</code> にシステムスコープのユニットを作成し、専用の <code>zeroclaw</code> サービスユーザーをプロビジョニングします。</p>
-<h2 id="linux--openrc"><a class="header" href="#linux--openrc">Linux — OpenRC</a></h2>
+</div>
+
+<p>If you need a true system-scope unit (root-owned, <code>/etc/systemd/system/</code>, dedicated service account, or hardware groups via <code>SupplementaryGroups</code>), the CLI does not generate one; adapt the system-level template at <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/scripts/zeroclaw.service"><code>scripts/zeroclaw.service</code></a> and install it yourself. On OpenRC hosts, <code>sudo zeroclaw service install</code> does provision a dedicated <code>zeroclaw</code> user and system paths (see below).</p>
+<h2 id="linux-openrc"><a class="header" href="#linux-openrc">Linux: OpenRC</a></h2>
 <p><code>/run/openrc</code> が存在するときに自動的に検出されます（Alpine、一部のGentoo設定など）。</p>
-<pre><code class="language-bash">zeroclaw service install   # /etc/init.d/zeroclaw に書き込み
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service install   # /etc/init.d/zeroclaw に書き込み
 rc-service zeroclaw start
 rc-update add zeroclaw default    # ブート時に開始
 </code></pre>
-<h2 id="macos--launchagent"><a class="header" href="#macos--launchagent">macOS — LaunchAgent</a></h2>
+</div>
+
+<h2 id="macos-launchagent"><a class="header" href="#macos-launchagent">macOS: LaunchAgent</a></h2>
 <p><code>zeroclaw service install</code> は <code>~/Library/LaunchAgents/com.zeroclaw.daemon.plist</code> を書き出し、それをロードします。</p>
-<pre><code class="language-bash">launchctl list | grep zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">launchctl list | grep zeroclaw
 launchctl unload ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 launchctl load ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 </code></pre>
-<p>ログは <code>~/Library/Logs/ZeroClaw/zeroclaw.log</code> (stdout) と <code>zeroclaw.err</code> (stderr) に出力されます。</p>
+</div>
+
+<p>Logs go to <code>&lt;config-dir&gt;/logs/</code> as <code>daemon.stdout.log</code> and <code>daemon.stderr.log</code> (for a default install, <code>~/.zeroclaw/logs/</code>). Homebrew installs write to <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code> instead.</p>
 <h3 id="homebrew管理"><a class="header" href="#homebrew管理">Homebrew管理</a></h3>
 <p>Homebrew経由でインストールした場合、<code>brew services</code> が推奨されるインターフェースです：</p>
-<pre><code class="language-bash">brew services start zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">brew services start zeroclaw
 brew services restart zeroclaw
 brew services info zeroclaw
 </code></pre>
-<p><code>zeroclaw service</code> の CLI コマンドと <code>brew services</code> を混在させないでください。どちらか一方を選んでください。どちらも plist ファイルに書き込むため、両方存在すると <code>launchctl</code> が混乱します。</p>
-<h2 id="windows--タスク-スケジューラ"><a class="header" href="#windows--タスク-スケジューラ">Windows — タスク スケジューラ</a></h2>
-<p><code>zeroclaw service install</code> は、現在のユーザーのセッションにスケジュールされたタスクを作成します：</p>
+</div>
+
+<p>Don’t mix <code>zeroclaw service</code> CLI commands with <code>brew services</code>, pick one. Both end up writing a plist; having both around confuses <code>launchctl</code>.</p>
+<h2 id="windows-task-scheduler"><a class="header" href="#windows-task-scheduler">Windows: Task Scheduler</a></h2>
+<p><code>zeroclaw service install</code> creates a per-user scheduled task named <strong>ZeroClaw Daemon</strong>:</p>
 <ul>
-<li>トリガー: ログオン時</li>
-<li>条件: バッテリー、アイドル、および省電力の条件が<strong>すべて無効</strong>になっている（そうしないとタスクが予期せず停止する）</li>
-<li>アクション: <code>zeroclaw daemon</code> をバックグラウンドで実行</li>
+<li>Trigger: at logon (<code>/SC ONLOGON</code>)</li>
+<li>Run level: <code>LIMITED</code> (runs as the current user, not elevated)</li>
+<li>Action: runs the install wrapper <code>zeroclaw-daemon.cmd</code>, which launches <code>zeroclaw daemon</code></li>
 </ul>
-<p>タスク スケジューラの GUI (<code>taskschd.msc</code>) で、タスク スケジューラ ライブラリ → ZeroClaw を確認してください。</p>
-<p>ログは <code>%LOCALAPPDATA%\ZeroClaw\logs\</code> に出力されます：</p>
-<pre><code class="language-cmd">type %LOCALAPPDATA%\ZeroClaw\logs\zeroclaw.log
+<p>Verify in Task Scheduler GUI (<code>taskschd.msc</code>) under Task Scheduler Library → ZeroClaw Daemon.</p>
+<p>Logs go to <code>&lt;config-dir&gt;\logs\</code> as <code>daemon.stdout.log</code> and <code>daemon.stderr.log</code> (for a default install, <code>%USERPROFILE%\.zeroclaw\logs\</code>):</p>
+<div class="os-tabs-src">
+<h4 id="cmd"><a class="header" href="#cmd">cmd</a></h4>
+<pre><code class="language-cmd">type %USERPROFILE%\.zeroclaw\logs\daemon.stdout.log
 </code></pre>
-<h3 id="windows-サービスシステムスコープ"><a class="header" href="#windows-サービスシステムスコープ">Windows サービス（システムスコープ）</a></h3>
-<p>サーバーまたはマルチユーザーの Windows インストールの場合、管理者プロンプトから <code>zeroclaw service install</code> を実行してください：</p>
-<pre><code class="language-cmd">:: 管理者として cmd.exe
-zeroclaw service install
+</div>
+
+<h3 id="manual-control-task-scheduler"><a class="header" href="#manual-control-task-scheduler">Manual control (Task Scheduler)</a></h3>
+<p>The task is driven through <code>zeroclaw service start|stop|status</code>, which wrap <code>schtasks /Run</code>, <code>/End</code>, and <code>/Query</code> against the <strong>ZeroClaw Daemon</strong> task. You can also manage it directly:</p>
+<div class="os-tabs-src">
+<h4 id="cmd-1"><a class="header" href="#cmd-1">cmd</a></h4>
+<pre><code class="language-cmd">schtasks /Run /TN "ZeroClaw Daemon"
+schtasks /End /TN "ZeroClaw Daemon"
+schtasks /Query /TN "ZeroClaw Daemon" /FO LIST
 </code></pre>
-<p>管理者権限で実行すると、インストーラはユーザースコープのタスク スケジューラではなく、<code>LocalSystem</code> 下の実際の Windows サービスを登録します。<code>services.msc</code> または:</p>
-<pre><code class="language-cmd">sc query ZeroClaw
-sc start ZeroClaw
-sc stop ZeroClaw
-</code></pre>
+</div>
+
+<p>The CLI installs only a per-user ONLOGON task; it does not register a <code>LocalSystem</code> Windows Service. For a true system service, wrap the binary with a third-party supervisor (e.g. NSSM) yourself.</p>
 <h2 id="設定ファイルパスの解決"><a class="header" href="#設定ファイルパスの解決">設定ファイルパスの解決</a></h2>
-<p>サービスは、インストールされたワークスペースから設定を読み取ります。順序:</p>
+<p>The service reads config from whichever directory resolved at install time. Precedence (first match wins):</p>
 <ol>
-<li><code>$ZEROCLAW_CONFIG_DIR/config.toml</code> が設定されている場合</li>
-<li><code>$ZEROCLAW_WORKSPACE/.zeroclaw/config.toml</code> が設定されている場合</li>
-<li>Homebrew経由でインストールした場合、<code>$HOMEBREW_PREFIX/var/zeroclaw/.zeroclaw/config.toml</code></li>
-<li><code>~/.zeroclaw/config.toml</code> (Linux/macOS) または <code>%USERPROFILE%\.zeroclaw\config.toml</code> (Windows)</li>
+<li><code>$ZEROCLAW_CONFIG_DIR</code> (config lives directly under <code>$ZEROCLAW_CONFIG_DIR</code>)</li>
+<li><code>$ZEROCLAW_DATA_DIR</code></li>
+<li><code>$ZEROCLAW_WORKSPACE</code> (<strong>deprecated</strong>, prefer <code>ZEROCLAW_DATA_DIR</code>; resolves either <code>$ZEROCLAW_WORKSPACE</code> or the legacy sibling <code>.zeroclaw/</code>)</li>
+<li>On macOS only, the Homebrew config dir (<code>$HOMEBREW_PREFIX/var/zeroclaw/</code>) when installed via Homebrew</li>
+<li>Default <code>~/.zeroclaw/</code> (Linux/macOS) or <code>%USERPROFILE%\.zeroclaw\</code> (Windows)</li>
 </ol>
-<p>サービスが設定変更を無視しているように見える場合は、デーモンがどのパスを読み込んでいるかを確認してください：</p>
-<pre><code class="language-bash">zeroclaw config list
+<p><code>ZEROCLAW_CONFIG_DIR</code> overrides everything; setting it alongside <code>ZEROCLAW_DATA_DIR</code> or <code>ZEROCLAW_WORKSPACE</code> logs a warning and ignores the others.</p>
+<p>If your service seems to ignore config changes, check which path the daemon resolved against, <code>zeroclaw status</code> reports the active config file, and the runtime logs a resolution-source line at startup:</p>
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">zeroclaw status
 </code></pre>
-<p>出力の最初の数行には、解決された設定ファイルのパスが表示されます。</p>
+</div>
+
+<p>The output includes the config file path it resolved against.</p>
 <h2 id="自動更新"><a class="header" href="#自動更新">自動更新</a></h2>
-<p>このサービスは<strong>自動更新されません</strong>。これは意図的な設計で、新しいコードを適用するタイミングをあなたが選択できるようになっています。GitHub のリリースフィードまたは Discord の <code>#releases</code> チャンネルを購読してください（<a href="../contributing/communication.html">コントリビューション → コミュニケーション</a> を参照）。</p>
+<p>The service does <strong>not</strong> auto-update. That’s deliberate; you pick when to take new code. Subscribe to the GitHub release feed or the Discord <code>#releases</code> channel (see <a href="../contributing/communication.html">Contributing → Communication</a>).</p>
 <h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
 <ul>
 <li><a href="./linux.html">Linux のセットアップ</a>、<a href="./macos.html">macOS のセットアップ</a>、<a href="./windows.html">Windows のセットアップ</a></li>

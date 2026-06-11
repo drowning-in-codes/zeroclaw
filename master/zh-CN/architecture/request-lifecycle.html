@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,19 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="请求生命周期"><a class="header" href="#请求生命周期">请求生命周期</a></h1>
-<p>在“用户发送消息”和“代理回复”之间——完整路径，包含流式处理、工具调用和安全门控的标注。</p>
+<p>What happens between “user sends a message” and “agent replies”: the full path, with streaming, tool calls, and security gates annotated.</p>
 <h2 id="入站"><a class="header" href="#入站">入站</a></h2>
 <pre class="mermaid">flowchart LR
     A[External event] --&gt;|webhook / push / poll / WS| B[Channel adapter]
     B --&gt;|decode, dedup, pair-check| C[Inbound envelope]
-    C --&gt;|workspace binding| D[Runtime: deliver_message]
+    C --&gt;|workspace binding| D[Runtime: process_message]
 </pre>
 
 <p>通道适配器（例如 <code>discord.rs</code>、<code>telegram.rs</code>、<code>email_channel.rs</code>）接收平台原生事件，并将其转换为统一的外部信封。适配器处理：</p>
 <ul>
-<li><strong>解码</strong> — 平台特定的有效载荷 → 规范消息格式</li>
-<li><strong>去重</strong> — 防止重复处理同一条消息（重启、重试）</li>
-<li><strong>配对检查</strong> — 在事件到达运行时之前，强制执行 <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM 策略</li>
+<li><strong>Decoding</strong>: platform-specific payload → canonical message format</li>
+<li><strong>Deduplication</strong>: prevents replaying the same message twice (restarts, retries)</li>
+<li><strong>Pair-check</strong>: enforces the <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM policy before the event reaches the runtime</li>
 </ul>
 <p>如果频道未配对或用户无权访问，该事件在运行时看到它之前就会被丢弃。</p>
 <h2 id="代理循环"><a class="header" href="#代理循环">代理循环</a></h2>
@@ -241,7 +317,7 @@
     participant PR as Provider
     participant TL as Tool
 
-    CH-&gt;&gt;RT: deliver_message(envelope)
+    CH-&gt;&gt;RT: process_message(envelope)
     RT-&gt;&gt;MEM: load_context(conversation_id)
     MEM--&gt;&gt;RT: prior messages + retrieved facts
     RT-&gt;&gt;PR: chat(system, history, tools)
@@ -250,7 +326,7 @@
         RT--&gt;&gt;CH: draft update (if channel supports it)
     end
     PR--&gt;&gt;RT: StreamEvent::ToolCall(args)
-    RT-&gt;&gt;SEC: validate_tool_call(name, args, risk)
+    RT-&gt;&gt;SEC: evaluate_tool_access(name, args, risk)
     alt Blocked
         SEC--&gt;&gt;RT: Err(reason)
         RT-&gt;&gt;PR: chat(..., + tool_error)
@@ -273,19 +349,19 @@
 <ul>
 <li><strong>流式传输是端到端的。</strong> 提供商会流式传输令牌。如果通道适配器报告 <code>supports_draft_updates()</code>，运行时会在文本到达时就地编辑已发送的消息。Discord、Slack 和 Telegram 支持此功能。</li>
 <li><strong>工具调用是流式进行的。</strong> 模型在生成文本的同时可以发出工具调用。运行时暂停流，验证、调用工具，将结果反馈回来，然后继续。</li>
-<li><strong>每次工具调用都会经过安全门控。</strong> <code>validate_tool_call</code> 会参考 <a href="../security/autonomy.html">自主级别</a>、允许/拒绝列表以及路径边界。在 <code>Supervised</code> 自主级别下，中等风险调用将进入操作员审批流程。</li>
-<li><strong>内存是持久的。</strong> 完整的对话、工具调用、工具结果和收据都会写入内存后端。</li>
+<li><strong>Security gates every tool call.</strong> <code>evaluate_tool_access</code> consults the <a href="../security/autonomy.html">autonomy level</a>, allow/deny lists, and path boundaries. Medium-risk calls under <code>Supervised</code> autonomy go to the operator-approval path.</li>
+<li><strong>Memory is persistent.</strong> The conversation, tool calls, and tool results are written to the memory backend. (Receipts ride in-band in the conversation text rather than as a separate persisted artifact.)</li>
 </ul>
 <h2 id="工具收据"><a class="header" href="#工具收据">工具收据</a></h2>
-<p>每次工具调用都会生成一个签名收据，并写入工具收据日志。请参阅 <a href="../security/tool-receipts.html">工具收据</a>。收据是链式连接的——每个收据都包含前一个收据的哈希值，因此篡改任何收据都会使日志中的其余部分失效。</p>
+<p>Every tool invocation produces an HMAC-SHA256 receipt that is appended to the tool-result text and passed back to the model in the conversation, proving the tool actually ran. The HMAC is keyed by a per-daemon-process key and computed over <code>tool_name || args || result || timestamp</code>. Receipts are not written to a separate on-disk log and are not chained; the model can echo them but cannot forge a new valid one without the key. See <a href="../security/tool-receipts.html">Tool receipts</a>.</p>
 <h2 id="出站"><a class="header" href="#出站">出站</a></h2>
 <p>出站消息会通过相同的通道适配器返回。支持多消息的适配器（如 Discord、Slack）可以将长回复作为一系列消息进行流式传输；其他适配器（如电子邮件、短信）则在流完成时刷新。</p>
 <h2 id="在代码中的位置"><a class="header" href="#在代码中的位置">在代码中的位置</a></h2>
 <ul>
-<li>代理循环：<code>crates/zeroclaw-runtime/src/agent/loop_.rs</code></li>
-<li>工具调用验证：<code>crates/zeroclaw-runtime/src/security/</code></li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Tool-call access checks: <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>通道编排：<code>crates/zeroclaw-channels/src/orchestrator/</code></li>
-<li>提供程序流式传输：<code>crates/zeroclaw-providers/src/traits.rs</code>（<code>StreamEvent</code> 枚举）、<code>compatible.rs</code>（SSE 解析器）</li>
+<li>Provider streaming: <code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>StreamEvent</code> enum, re-exported from <code>zeroclaw-providers</code>), <code>compatible.rs</code> (SSE parser)</li>
 </ul>
 
                     </main>

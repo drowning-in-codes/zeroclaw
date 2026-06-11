@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,38 +295,31 @@
                         <h1 id="macos"><a class="header" href="#macos">macOS</a></h1>
 <p>Instalar, actualizar, ejecutar como LaunchAgent y desinstalar en macOS (Intel o Apple Silicon).</p>
 <h2 id="instalar"><a class="header" href="#instalar">Instalar</a></h2>
-<p><code>install.sh</code> es la ruta preferida; Homebrew es una alternativa razonable si deseas integración con <code>brew services</code>.</p>
-<h3 id="opción-1--installsh-mediante-curl-más-rápido"><a class="header" href="#opción-1--installsh-mediante-curl-más-rápido">Opción 1 — <code>install.sh</code> mediante curl (más rápido)</a></h3>
-<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash
+<pre><code class="language-sh">./install.sh
 </code></pre>
-<h3 id="opción-2--installsh-desde-un-clon"><a class="header" href="#opción-2--installsh-desde-un-clon">Opción 2 — <code>install.sh</code> desde un clon</a></h3>
-<pre><code class="language-bash">git clone https://github.com/zeroclaw-labs/zeroclaw.git
-cd zeroclaw
-./install.sh
+<p>That is the whole install. Run it from a clone, or pipe it from <code>curl</code>:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash
 </code></pre>
-<h3 id="lo-que-hace-el-instalador"><a class="header" href="#lo-que-hace-el-instalador">Lo que hace el instalador</a></h3>
-<ol>
-<li>Pregunta si desea un binario precompilado o compilar desde el código fuente.</li>
-<li>Se instala en <code>~/.cargo/bin/zeroclaw</code></li>
-<li>Runs <code>zeroclaw quickstart</code> to complete first-time setup</li>
-</ol>
-<p>Banderas:</p>
-<pre><code class="language-bash">./install.sh --prebuilt                      # siempre precompilado, omitir el mensaje
-./install.sh --source                        # siempre compilar desde el código fuente
-./install.sh --minimal                       # solo el kernel (~6.6 MB)
-./install.sh --source --features agent-runtime,channel-discord   # características personalizadas
-./install.sh --skip-quickstart                  # install only; run `zeroclaw quickstart` later
-./install.sh --list-features                 # imprimir las características disponibles y salir
-./install.sh --help                          # Referencia completa de las opciones
+</div>
+
+<p>The installer picks a prebuilt binary or builds from source (interactive by default), installs to <code>~/.cargo/bin/zeroclaw</code>, and offers to run <a href="../getting-started/quickstart.html"><code>zeroclaw quickstart</code></a> for first-time setup. Pass <code>--help</code> for the full flag reference, or <code>--skip-quickstart</code> to install only.</p>
+<h3 id="homebrew"><a class="header" href="#homebrew">Homebrew</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">brew install zeroclaw
 </code></pre>
-<h3 id="opción-3--homebrew"><a class="header" href="#opción-3--homebrew">Opción 3 — Homebrew</a></h3>
-<pre><code class="language-bash">brew install zeroclaw
-zeroclaw quickstart
-</code></pre>
+</div>
+
 <p>Te proporciona la integración con <code>brew services</code>. El binario se encuentra en <code>$HOMEBREW_PREFIX/bin/zeroclaw</code>.</p>
 <p><strong>Cuidado con la ubicación del espacio de trabajo:</strong> con Homebrew, el usuario del servicio y el usuario de la CLI pueden ser diferentes, por lo que el espacio de trabajo se encuentra en <code>$HOMEBREW_PREFIX/var/zeroclaw/</code> en lugar de <code>~/.zeroclaw/</code>. Dirige las invocaciones de la CLI al mismo espacio de trabajo:</p>
-<pre><code class="language-bash">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
 </code></pre>
+</div>
+
 <p>Agrega eso a tu perfil de shell si quieres que sea permanente.</p>
 <h2 id="dependencias-del-sistema"><a class="header" href="#dependencias-del-sistema">Dependencias del sistema</a></h2>
 <p>La mayoría de las funciones funcionan con una instalación estándar de macOS. Extras opcionales:</p>
@@ -268,36 +337,62 @@ zeroclaw quickstart
 </table>
 </div>
 <h2 id="ejecutándose-como-un-servicio"><a class="header" href="#ejecutándose-como-un-servicio">Ejecutándose como un servicio</a></h2>
-<pre><code class="language-bash">zeroclaw service install   # escribe ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service install   # escribe ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 zeroclaw service start
 zeroclaw service status
 </code></pre>
-<p>Los registros se guardan en <code>~/Library/Logs/ZeroClaw/</code>:</p>
-<pre><code class="language-bash">tail -f ~/Library/Logs/ZeroClaw/zeroclaw.log
+</div>
+
+<p>Logs go to <code>~/.zeroclaw/logs/</code> (Homebrew installs: <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code>):</p>
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">tail -f ~/.zeroclaw/logs/daemon.stdout.log
 </code></pre>
+</div>
+
 <p>Para las instalaciones de Homebrew, se prefiere:</p>
-<pre><code class="language-bash">brew services start zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">brew services start zeroclaw
 brew services info zeroclaw
 </code></pre>
-<p>Ambos métodos producen el mismo estado final: un LaunchAgent cargado que se inicia al iniciar sesión. Elige uno y mantente con él.</p>
+</div>
+
+<p>Both methods produce the same end state, a loaded LaunchAgent that starts on login. Pick one and stick with it.</p>
 <p>Detalles completos: <a href="./service.html">Gestión de servicios</a>.</p>
 <h2 id="actualizar"><a class="header" href="#actualizar">Actualizar</a></h2>
-<p>Vuelve a ejecutar el instalador: detecta la instalación existente y la actualiza en el mismo lugar:</p>
-<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash -s -- --skip-quickstart
+<p>Re-run the installer, it detects the existing install and upgrades in place:</p>
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash -s -- --skip-quickstart
 zeroclaw service restart
 </code></pre>
+</div>
+
 <p>O desde un clon:</p>
-<pre><code class="language-bash">cd /path/to/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">cd /path/to/zeroclaw
 git pull
 ./install.sh --skip-quickstart
 zeroclaw service restart
 </code></pre>
+</div>
+
 <p>Si se instaló a través de Homebrew en su lugar:</p>
-<pre><code class="language-bash">brew update &amp;&amp; brew upgrade zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">brew update &amp;&amp; brew upgrade zeroclaw
 brew services restart zeroclaw
 </code></pre>
+</div>
+
 <h2 id="desinstalar"><a class="header" href="#desinstalar">Desinstalar</a></h2>
-<pre><code class="language-bash"># detener y desregistrar el servicio
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
+<pre><code class="language-sh"># detener y desregistrar el servicio
 zeroclaw service stop
 zeroclaw service uninstall
 
@@ -307,26 +402,29 @@ brew uninstall zeroclaw
 # bootstrap / cargo
 rm ~/.cargo/bin/zeroclaw
 </code></pre>
-<p>Eliminar configuración y espacio de trabajo (opcional: esto elimina el historial de conversaciones):</p>
-<pre><code class="language-bash"># Espacio de trabajo de Homebrew
+</div>
+
+<p>Remove config and workspace (optional: this deletes conversation history):</p>
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
+<pre><code class="language-sh"># Espacio de trabajo de Homebrew
 rm -rf "$HOMEBREW_PREFIX/var/zeroclaw"
 
-# Espacio de trabajo predeterminado
+# Default workspace (includes logs at ~/.zeroclaw/logs)
 rm -rf ~/.zeroclaw ~/.config/zeroclaw
-
-# Registros
-rm -rf ~/Library/Logs/ZeroClaw
 </code></pre>
+</div>
+
 <h2 id="cosas-a-tener-en-cuenta"><a class="header" href="#cosas-a-tener-en-cuenta">Cosas a tener en cuenta</a></h2>
 <ul>
-<li><strong>Discrepancia en la ruta de configuración de Homebrew.</strong> El daemon <code>brew services</code> lee <code>$HOMEBREW_PREFIX/var/zeroclaw/config.toml</code>, no <code>~/.zeroclaw/config.toml</code>. Si tu servicio está leyendo una configuración obsoleta, comprueba cuál ve el daemon y establece <code>ZEROCLAW_WORKSPACE</code> en consecuencia.</li>
+<li><strong>Homebrew config path mismatch.</strong> The <code>brew services</code> daemon reads config from <code>$HOMEBREW_PREFIX/var/zeroclaw/</code>, not <code>~/.zeroclaw/</code>. If your service is reading stale config, check which one the daemon sees and set <code>ZEROCLAW_WORKSPACE</code> accordingly.</li>
 <li><strong>La primera ejecución de la herramienta del navegador</strong> descarga Chromium (~150 MB) a través de Playwright.</li>
 <li>Se publican tanto las compilaciones para <strong>Apple Silicon</strong> como para <strong>Intel</strong>. El script de inicialización detecta automáticamente. Homebrew selecciona automáticamente.</li>
 </ul>
 <h2 id="siguiente"><a class="header" href="#siguiente">Siguiente</a></h2>
 <ul>
 <li><a href="./service.html">Gestión de servicios</a></li>
-<li><a href="../getting-started/quick-start.html">Inicio rápido</a></li>
+<li><a href="../getting-started/quickstart.html">Quickstart</a></li>
 <li><a href="../ops/overview.html">Operaciones → Resumen</a></li>
 </ul>
 

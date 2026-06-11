@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,11 +295,6 @@
                         <h1 id="aislamiento"><a class="header" href="#aislamiento">Aislamiento</a></h1>
 <p>El runtime puede envolver las invocaciones de herramientas en un sandbox a nivel de sistema operativo que restringe el acceso al sistema de archivos al workspace y elimina el acceso a los secrets del proceso padre. Esto es distinto del sistema de autonomía y de la lista de permitidos de comandos: estas son capas de <em>política</em> que deciden si una herramienta puede ejecutarse; el sandbox es una capa de <em>mecanismo</em> que confina lo que una herramienta en ejecución puede alcanzar si efectivamente se ejecuta.</p>
 <p>La configuración del sandbox se encuentra en un perfil de riesgo. Cada agente apunta a un perfil de riesgo mediante <code>agents.&lt;alias&gt;.risk_profile</code>; el sandbox enable/backend del agente se lee de ese perfil.</p>
-<pre><code class="language-toml">[risk_profiles.assistant]
-sandbox_enabled = true
-sandbox_backend = "auto"     # "auto" | "landlock" | "firejail" | "bubblewrap" | "docker" | "sandbox-exec" | "none"
-firejail_args   = []          # argumentos adicionales cuando sandbox_backend = "firejail"
-</code></pre>
 <p><code>sandbox_enabled = false</code> (o <code>sandbox_backend = "none"</code>) deshabilita el aislamiento (sandboxing) para las herramientas que se ejecutan bajo este perfil. Consulta el <a href="../providers/configuration.html#minimal-working-example">Ejemplo mínimo funcional</a> canónico para ver cómo encaja un perfil de riesgo en el resto de la configuración.</p>
 <h2 id="detección-automática"><a class="header" href="#detección-automática">Detección automática</a></h2>
 <p><code>sandbox_backend = "auto"</code> selecciona el mejor backend disponible al iniciar:</p>
@@ -244,14 +315,14 @@ firejail_args   = []          # argumentos adicionales cuando sandbox_backend = 
 <h2 id="lo-que-el-sandbox-confina"><a class="header" href="#lo-que-el-sandbox-confina">Lo que el sandbox confina</a></h2>
 <h3 id="sistema-de-archivos"><a class="header" href="#sistema-de-archivos">Sistema de archivos</a></h3>
 <ul>
-<li><strong>Acceso de lectura</strong> — restringido al espacio de trabajo, <code>/usr</code>, <code>/lib</code>, <code>/etc</code> (solo lectura) y rutas adicionales explícitamente listadas.</li>
-<li><strong>Acceso de escritura</strong> — restringido al workspace y <code>/tmp</code>.</li>
-<li><strong>Rutas prohibidas</strong>: cualquier elemento incluido en <code>[risk_profiles.&lt;alias&gt;].forbidden_paths</code>.</li>
+<li><strong>Read access</strong>: restricted to the workspace, <code>/usr</code>, <code>/lib</code>, <code>/etc</code> (read-only), and explicitly-listed extra paths.</li>
+<li><strong>Write access</strong>: restricted to the workspace and <code>/tmp</code>.</li>
+<li><strong>Forbidden paths</strong>: anything listed in <code>[risk_profiles.&lt;alias&gt;].forbidden_paths</code>.</li>
 </ul>
 <h3 id="red"><a class="header" href="#red">Red</a></h3>
 <p>De forma predeterminada, las herramientas en entorno aislado tienen salida de red completa pero sin escucha entrante. Advertencias por backend:</p>
 <ul>
-<li>Landlock no controla la red — solo funciona con el sistema de archivos.</li>
+<li>Landlock does not control network, it is filesystem-only.</li>
 <li>Bubblewrap y Firejail pueden bloquear la red cuando se configuran.</li>
 <li>El modo de red del contenedor Docker sigue <code>[runtime.docker].network</code> cuando <code>[runtime].kind = "docker"</code>.</li>
 </ul>
@@ -261,57 +332,56 @@ firejail_args   = []          # argumentos adicionales cuando sandbox_backend = 
 <p>El sandbox solo deja pasar las variables de entorno indicadas en <code>[risk_profiles.&lt;alias&gt;].shell_env_passthrough</code>. Los secretos heredados no llegan a las herramientas en sandbox a menos que se pasen explícitamente.</p>
 <h3 id="límites-de-procesos"><a class="header" href="#límites-de-procesos">Límites de procesos</a></h3>
 <p>Los tiempos de espera de tiempo real por herramienta residen en el bloque de configuración propio de la herramienta (<code>[shell_tool].timeout_secs</code>, etc.). Los límites específicos de Docker (memoria, CPU) residen en <code>[runtime.docker]</code> cuando el tipo de runtime del agente está configurado como <code>docker</code>:</p>
-<pre><code class="language-toml">[runtime]
-kind = "docker"
-
-[runtime.docker]
-image            = "alpine:3.20"
-network          = "none"
-memory_limit_mb  = 512
-cpu_limit        = 1.0
-read_only_rootfs = true
-mount_workspace  = true
-</code></pre>
 <h2 id="notas-por-backend"><a class="header" href="#notas-por-backend">Notas por backend</a></h2>
 <h3 id="landlock"><a class="header" href="#landlock">Landlock</a></h3>
 <p>La ruta nativa de Linux. Sin configuración, aplicada por el kernel, con una sobrecarga muy baja. Requiere el kernel 5.13 o posterior.</p>
 <p>Limitaciones:</p>
 <ul>
-<li>Sin confinamiento de red: Landlock solo controla el acceso al sistema de archivos.</li>
+<li>No network confinement: Landlock only controls filesystem access.</li>
 <li><code>forbidden_paths</code> se aplica mediante reglas basadas en rutas, no en inodos, por lo que un enlace simbólico ingenioso a veces puede eludirlo (resolvemos los enlaces antes de pasarlos a Landlock para mitigar esto).</li>
 </ul>
 <h3 id="bubblewrap-bwrap"><a class="header" href="#bubblewrap-bwrap">Bubblewrap (<code>bwrap</code>)</a></h3>
 <p>Sandbox basado en espacios de nombres de usuario de Flatpak. Confina el sistema de archivos y puede bloquear la red. Requiere tener <code>bubblewrap</code> instalado.</p>
-<pre><code class="language-bash">sudo apt install bubblewrap       # Debian/Ubuntu
-sudo pacman -S bubblewrap         # Arch
-sudo dnf install bubblewrap       # Fedora
+<div class="os-tabs-src">
+<h4 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h4>
+<pre><code class="language-sh">sudo apt install bubblewrap
 </code></pre>
+<h4 id="arch"><a class="header" href="#arch">Arch</a></h4>
+<pre><code class="language-sh">sudo pacman -S bubblewrap
+</code></pre>
+<h4 id="fedora"><a class="header" href="#fedora">Fedora</a></h4>
+<pre><code class="language-sh">sudo dnf install bubblewrap
+</code></pre>
+</div>
+
 <h3 id="firejail"><a class="header" href="#firejail">Firejail</a></h3>
 <p>Sandbox basado en SUID. Más antiguo pero ampliamente disponible.</p>
-<pre><code class="language-bash">sudo apt install firejail
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">sudo apt install firejail
 </code></pre>
+</div>
+
 <p>El perfil predeterminado de Firejail es bastante permisivo; ZeroClaw aplica un perfil personalizado. Pasa argumentos adicionales con <code>firejail_args</code> en el perfil de riesgo.</p>
 <h3 id="docker"><a class="header" href="#docker">Docker</a></h3>
 <p>Funciona en cualquier lugar donde funcione Docker. El tipo de runtime de Docker (<code>[runtime] kind = "docker"</code>) ejecuta cada invocación de shell en un contenedor efímero; consulta el bloque <code>[runtime.docker]</code> anterior para conocer los controles de imagen y recursos.</p>
-<pre><code class="language-bash">docker build -t zeroclaw-sandbox:local dev/sandbox/   # compilar la imagen del kit de herramientas integrado
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">docker build -t zeroclaw-sandbox:local dev/sandbox/   # compilar la imagen del kit de herramientas integrado
 </code></pre>
-<pre><code class="language-toml">[runtime]
-kind = "docker"
+</div>
 
-[runtime.docker]
-image = "zeroclaw-sandbox:local"
-</code></pre>
 <p>Ventajas: fuerte aislamiento, funciona en cualquier sistema operativo. Desventajas: costo de inicio del contenedor por invocación (100–500 ms). Ideal para implementaciones en producción donde la sobrecarga es aceptable.</p>
 <h3 id="cinturón-de-seguridad-macos"><a class="header" href="#cinturón-de-seguridad-macos">Cinturón de seguridad (macOS)</a></h3>
-<p>Sandbox nativo de macOS (<code>sandbox-exec</code>). Los perfiles son SBPL — ZeroClaw incluye uno para las ejecuciones de herramientas. Funciona en macOS 10.11+.</p>
-<p>Limitación: algunas herramientas de CLI (versiones antiguas de <code>git</code>, algunos binarios vinculados a Homebrew) no cooperan con las reglas de acceso a archivos de Seatbelt. Si ves errores de “Operation not permitted” en las llamadas del shell del agente en macOS, la herramienta necesita un acceso más amplio al sistema de archivos: considera cambiar a Docker.</p>
+<p>Native macOS sandbox (<code>sandbox-exec</code>). Profiles are SBPL: ZeroClaw bundles one for tool runs. Works on macOS 10.11+.</p>
+<p>Limitation: some CLI tools (older <code>git</code>, some Homebrew-linked binaries) don’t cooperate with Seatbelt’s file-access rules. If you see “Operation not permitted” errors from the agent’s shell calls on macOS, the tool needs broader filesystem access: consider switching to Docker.</p>
 <h3 id="none"><a class="header" href="#none"><code>none</code></a></h3>
 <p>Sin sandboxing. Las herramientas se ejecutan con todos los privilegios del usuario del servicio ZeroClaw. Esto es lo que habilita el modo YOLO. Ruidoso, obvio e intencional.</p>
 <h2 id="solución-de-problemas"><a class="header" href="#solución-de-problemas">Solución de problemas</a></h2>
 <ul>
-<li><strong>“Backend de sandbox no disponible”</strong> al iniciar — verifica <code>zeroclaw service status</code> y el registro de journal; los registros de detección automática indican qué backends intentó.</li>
-<li><strong>Herramientas que funcionan en el entorno de desarrollo, pero fallan en el servicio</strong> — el usuario del servicio suele ser diferente del usuario de la CLI. Verifica que ambos tengan los permisos necesarios relacionados con el sandbox (Landlock: nada; Bubblewrap: userns habilitado; Docker: usuario del servicio en el grupo <code>docker</code>).</li>
-<li><strong>Invocaciones de herramientas lentas</strong> en el runtime de Docker: la primera invocación descarga la imagen, las siguientes son rápidas. Descárgala previamente con <code>docker pull &lt;image&gt;</code>.</li>
+<li><strong>“Sandbox backend unavailable”</strong> on startup: check <code>zeroclaw service status</code> and the journal; the auto-detect logs which backends it tried.</li>
+<li><strong>Tools working on dev, failing in service</strong>: the service user often differs from the CLI user. Verify both have whatever sandbox-adjacent permissions are needed (Landlock: nothing; Bubblewrap: userns enabled; Docker: service user in <code>docker</code> group).</li>
+<li><strong>Slow tool invocations</strong> on the Docker runtime: first invocation pulls the image, subsequent are fast. Pre-pull with <code>docker pull &lt;image&gt;</code>.</li>
 </ul>
 <h2 id="referencia-de-código"><a class="header" href="#referencia-de-código">Referencia de código</a></h2>
 <ul>

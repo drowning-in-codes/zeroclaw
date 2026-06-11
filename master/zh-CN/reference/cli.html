@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -248,7 +324,7 @@
 <li><a href="#zeroclaw-gateway-restart"><code>zeroclaw gateway restart</code>↴</a></li>
 <li><a href="#zeroclaw-gateway-get-paircode"><code>zeroclaw gateway get-paircode</code>↴</a></li>
 <li><a href="#zeroclaw-acp"><code>zeroclaw acp</code>↴</a></li>
-<li><a href="#zeroclaw-daemon"><code>zeroclaw 守护进程</code>↴</a></li>
+<li><a href="#zeroclaw-daemon"><code>zeroclaw daemon</code>↴</a></li>
 <li><a href="#zeroclaw-service"><code>zeroclaw service</code>↴</a></li>
 <li><a href="#zeroclaw-service-install"><code>zeroclaw service install</code>↴</a></li>
 <li><a href="#zeroclaw-service-start"><code>zeroclaw service start</code>↴</a></li>
@@ -546,7 +622,7 @@
 <p>显示用于连接新客户端的配对码，而无需重启网关。需要网关正在运行。</p>
 <p>With –new, generates a fresh pairing code even if the gateway was previously paired (useful for adding additional clients). This does NOT revoke existing tokens.</p>
 <p>With –rotate, revokes ALL paired bearer tokens, clears the device registry, and issues a fresh code. Use this after a suspected token leak when you do not know which token was compromised; every client must re-pair.</p>
-<p>With –rotate-device <id>, revokes just that device’s bearer token and issues a fresh code for re-pairing that one device.</id></p>
+<p>With –rotate-device ID, revokes just that device’s bearer token and issues a fresh code for re-pairing that one device.</p>
 <p>Examples: zeroclaw gateway get-paircode               # show current pairing code zeroclaw gateway get-paircode –new         # add another client (no revocation) zeroclaw gateway get-paircode –rotate      # revoke ALL tokens, then issue a code zeroclaw gateway get-paircode –rotate-device dash-1  # revoke one device’s token zeroclaw gateway get-paircode –new –port 3001 # target alternate-port gateway</p>
 <p><strong>用法：</strong> <code>zeroclaw gateway get-paircode [OPTIONS]</code></p>
 <p><strong>选项：</strong></p>
@@ -568,7 +644,7 @@
 <li><code>--max-sessions &lt;MAX_SESSIONS&gt;</code> — 最大并发会话数（默认值：10）</li>
 <li><code>--session-timeout &lt;SESSION_TIMEOUT&gt;</code> — 会话不活动超时时间（秒）（默认值：3600）</li>
 </ul>
-<h2 id="zeroclaw-守护进程"><a class="header" href="#zeroclaw-守护进程"><code>zeroclaw 守护进程</code></a></h2>
+<h2 id="zeroclaw-daemon"><a class="header" href="#zeroclaw-daemon"><code>zeroclaw daemon</code></a></h2>
 <p>启动长期运行的自主守护进程。</p>
 <p>启动完整的 ZeroClaw 运行时：包括网关服务器、所有已配置的频道（Telegram、Discord、Slack 等）、心跳监控器和定时任务调度器。这是在生产环境或作为常驻助手运行 ZeroClaw 的推荐方式。</p>
 <p>使用 <code>zeroclaw service install</code> 将守护进程注册为操作系统服务（systemd/launchd），以便在启动时自动运行。</p>
@@ -1398,7 +1474,7 @@
 <li><code>get</code> — 获取配置属性值</li>
 <li><code>set</code> — 设置配置属性（敏感字段会自动提示以掩码方式输入）</li>
 <li><code>init</code> — 使用默认值（enabled=false）初始化未配置的部分</li>
-<li><code>migrate</code> — 将 config.toml 迁移到磁盘上的当前 schema 版本（保留注释）</li>
+<li><code>migrate</code> — Migrate the on-disk config to the current schema version (preserves comments)</li>
 <li><code>patch</code> — 以原子方式应用 JSON Patch (RFC 6902) 文档。对应 <code>PATCH /api/config</code></li>
 <li><code>docs</code> — 打印 API 浏览器 URL（如果守护进程未运行，则附带提示）</li>
 <li><code>generate</code> — 在 stdout 输出指定受支持架构版本的标准配置</li>
@@ -1455,7 +1531,7 @@
 <li><code>--json</code> — 输出结构化的 JSON 封装（{initialized: […]}）而非纯文本</li>
 </ul>
 <h2 id="zeroclaw-config-migrate"><a class="header" href="#zeroclaw-config-migrate"><code>zeroclaw config migrate</code></a></h2>
-<p>将 config.toml 迁移到磁盘上的当前架构版本（保留注释）</p>
+<p>Migrate the on-disk config to the current schema version (preserves comments)</p>
 <p><strong>用法：</strong> <code>zeroclaw config migrate [OPTIONS]</code></p>
 <p><strong>选项：</strong></p>
 <ul>

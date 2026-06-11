@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -224,86 +300,86 @@
 <tr><th>Section</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>acp</code></td><td>ACP (Agent Client Protocol) server configuration (<code>[acp]</code> section).</td></tr>
-<tr><td><code>agents</code></td><td>Agents avec alias dans cette installation. Chaque entrée sous <code>[agents.&lt;alias&gt;]</code></td></tr>
-<tr><td><code>backup</code></td><td>Configuration de l’outil de sauvegarde (section <code>[backup]</code>).</td></tr>
-<tr><td><code>navigateur</code></td><td>Configuration de l’automatisation du navigateur (section <code>[browser]</code>).</td></tr>
-<tr><td><code>browser_delegate</code></td><td></td></tr>
-<tr><td><code>canaux</code></td><td>Configurations de canal de premier niveau (<code>[channels]</code> section).</td></tr>
-<tr><td><code>claude_code</code></td><td>Configuration de l’outil CLI Claude Code (section <code>[claude_code]</code>).</td></tr>
-<tr><td><code>claude_code_runner</code></td><td>Configuration du lanceur de tâches Claude Code (section <code>[claude_code_runner]</code>).</td></tr>
-<tr><td><code>cloud_ops</code></td><td>Contrôle les outils d’analyse de transformation du nuage de points en lecture seule :</td></tr>
-<tr><td><code>codex_cli</code></td><td>Configuration de l’outil CLI Codex (section <code>[codex_cli]</code>).</td></tr>
-<tr><td><code>composio</code></td><td>Intégration des outils gérés par Composio pour OAuth (<code>[composio]</code> section).</td></tr>
-<tr><td><code>conversational_ai</code></td><td>Configuration de l’agent d’IA conversationnelle (<code>[conversational_ai]</code> section).</td></tr>
-<tr><td><code>coût</code></td><td>Configuration du suivi des coûts et de l’application du budget (section <code>[cost]</code>).</td></tr>
-<tr><td><code>cron</code></td><td>Tâches cron déclaratives (<code>[cron.&lt;alias&gt;]</code>), indexées par alias.</td></tr>
-<tr><td><code>data_retention</code></td><td>Configuration de la rétention et du purgeage des données (section <code>[data_retention]</code>).</td></tr>
-<tr><td><code>déléguer</code></td><td>Configuration globale de l’outil de délégation pour les valeurs par défaut des délais d’attente.</td></tr>
-<tr><td><code>embedding_routes</code></td><td>Règles de routage d’embedding — route <code>hint:&lt;name&gt;</code> vers un</td></tr>
-<tr><td><code>escalation</code></td><td>Configuration du routage d’escalade (section <code>[escalation]</code>).</td></tr>
-<tr><td><code>file_download</code></td><td>Standalone file download tool configuration (<code>[file_download]</code>).</td></tr>
-<tr><td><code>file_upload</code></td><td>Standalone file upload tool configuration (<code>[file_upload]</code>).</td></tr>
-<tr><td><code>file_upload_bundle</code></td><td>Standalone multi-file bundle upload tool configuration</td></tr>
-<tr><td><code>gateway</code></td><td>Configuration du serveur passerelle (section <code>[gateway]</code>).</td></tr>
-<tr><td><code>gemini_cli</code></td><td>Configuration de l’outil CLI Gemini (section <code>[gemini_cli]</code>).</td></tr>
-<tr><td><code>google_workspace</code></td><td>Configuration de l’outil CLI Google Workspace (<code>gws</code>) (section <code>[google_workspace]</code>).</td></tr>
-<tr><td><code>hardware</code></td><td>Configuration matérielle guidée par un assistant pour l’interaction avec le monde physique.</td></tr>
-<tr><td><code>heartbeat</code></td><td>Configuration du heartbeat pour les pings de santé périodiques (section <code>[heartbeat]</code>).</td></tr>
-<tr><td><code>hooks</code></td><td></td></tr>
-<tr><td><code>http_request</code></td><td>Configuration de l’outil de requête HTTP (section <code>[http_request]</code>).</td></tr>
-<tr><td><code>image_gen</code></td><td>Configuration de l’outil de génération d’images autonome (<code>[image_gen]</code>).</td></tr>
-<tr><td><code>jira</code></td><td>Configuration de l’intégration Jira (<code>[jira]</code>).</td></tr>
-<tr><td><code>connaissances</code></td><td>Configuration du graphe de connaissances pour la capture et la réutilisation de l’expertise.</td></tr>
-<tr><td><code>knowledge_bundles</code></td><td>Lots de connaissances nommés (<code>[knowledge_bundles.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>link_enricher</code></td><td>Compréhension automatique des liens pour les messages entrants du canal (<code>[link_enricher]</code>).</td></tr>
-<tr><td><code>linkedin</code></td><td>Configuration de l’intégration LinkedIn (section <code>[linkedin]</code>).</td></tr>
-<tr><td><code>locale</code></td><td>Locale pour les descriptions d’outils (par exemple, <code>"en"</code>, <code>"zh-CN"</code>).</td></tr>
-<tr><td><code>mcp</code></td><td>Configuration externe du client MCP (section <code>[mcp]</code>).</td></tr>
-<tr><td><code>mcp_bundles</code></td><td>Bundles de serveurs MCP nommés (<code>[mcp_bundles.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>media_pipeline</code></td><td>Configuration du pipeline de compréhension automatique des médias (<code>[media_pipeline]</code>).</td></tr>
-<tr><td><code>mémoire</code></td><td>Configuration du backend de mémoire (section <code>[memory]</code>).</td></tr>
-<tr><td><code>microsoft365</code></td><td>Intégration de Microsoft 365 via l’API Microsoft Graph (section <code>[microsoft365]</code>).</td></tr>
-<tr><td><code>model_routes</code></td><td>Règles de routage de modèles — acheminer <code>hint:&lt;name&gt;</code> vers un modèle spécifique</td></tr>
-<tr><td><code>multimodal</code></td><td>Configuration de la gestion multimodale (image) (section <code>[multimodal]</code>).</td></tr>
-<tr><td><code>node_transport</code></td><td>Configuration du transport sécurisé pour la communication entre nœuds (<code>[node_transport]</code>).</td></tr>
-<tr><td><code>nœuds</code></td><td>Configuration pour le système de découverte dynamique des nœuds (<code>[nodes]</code>).</td></tr>
-<tr><td><code>notion</code></td><td>Configuration de l’intégration Notion (<code>[notion]</code>).</td></tr>
-<tr><td><code>observabilité</code></td><td>Configuration du backend d’observabilité (section <code>[observability]</code>).</td></tr>
-<tr><td><code>onboard_state</code></td><td>Configuration d’isolation de l’espace de travail multi-client.</td></tr>
-<tr><td><code>opencode_cli</code></td><td>Configuration de l’outil CLI OpenCode (section <code>[opencode_cli]</code>).</td></tr>
-<tr><td><code>pacing</code></td><td>Contrôles de pacing pour les charges de travail LLM lentes/locales (<code>[pacing]</code> section).</td></tr>
-<tr><td><code>peer_groups</code></td><td>Groupes de pairs nommés (<code>[peer_groups.&lt;name&gt;]</code>). Chaque entrée associe un</td></tr>
-<tr><td><code>périphériques</code></td><td>Configuration d’intégration de la carte périphérique (section <code>[peripherals]</code>).</td></tr>
-<tr><td><code>pipeline</code></td><td>Configuration de l’outil de pipeline (section <code>[pipeline]</code>).</td></tr>
-<tr><td><code>plugins</code></td><td>Configuration du système de plugins.</td></tr>
-<tr><td><code>project_intel</code></td><td>Configuration de l’intelligence de livraison de projet (<code>[project_intel]</code> section).</td></tr>
-<tr><td><code>providers</code></td><td>Conteneur de premier niveau pour chaque catégorie de fournisseur. La racine TOML voit un</td></tr>
-<tr><td><code>proxy</code></td><td>Configuration du proxy pour le trafic HTTP/HTTPS/SOCKS5 sortant (section <code>[proxy]</code>).</td></tr>
-<tr><td><code>query_classification</code></td><td>Classification automatique des requêtes — classe les messages des utilisateurs par mot-clé ou motif</td></tr>
-<tr><td><code>fiabilité</code></td><td>Configuration de la fiabilité et de la supervision (section <code>[reliability]</code>).</td></tr>
-<tr><td><code>risk_profiles</code></td><td>Profils de risque/autonomie nommés (<code>[risk_profiles.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>runtime</code></td><td>Configuration de l’adaptateur d’exécution (section <code>[runtime]</code>).</td></tr>
-<tr><td><code>runtime_profiles</code></td><td>Profils d’exécution runtime/LLM nommés (<code>[runtime_profiles.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>scheduler</code></td><td>Configuration du planificateur pour l’exécution périodique des tâches (section <code>[scheduler]</code>).</td></tr>
-<tr><td><code>schema_version</code></td><td>Version du schéma du fichier de configuration.</td></tr>
-<tr><td><code>secrets</code></td><td>Configuration de chiffrement des secrets (section <code>[secrets]</code>).</td></tr>
-<tr><td><code>sécurité</code></td><td>Configuration de sécurité pour la journalisation d’audit, l’OTP, l’arrêt d’urgence, l’IAM/SSO et WebAuthn.</td></tr>
-<tr><td><code>security_ops</code></td><td>Configuration de l’agent du tableau de bord du service de cybersécurité géré (MCSS) (<code>[security_ops]</code>).</td></tr>
-<tr><td><code>shell_tool</code></td><td>Configuration de l’outil Shell (section <code>[shell_tool]</code>).</td></tr>
-<tr><td><code>skill_bundles</code></td><td>Lots de compétences nommés (<code>[skill_bundles.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>compétences</code></td><td>Configuration de chargement des compétences (<code>[skills]</code> section).</td></tr>
-<tr><td><code>sop</code></td><td>Configuration du moteur des procédures opérationnelles standard (<code>[sop]</code>).</td></tr>
-<tr><td><code>stockage</code></td><td>Configuration du stockage persistant (section <code>[storage]</code>).</td></tr>
-<tr><td><code>text_browser</code></td><td>Configuration de l’outil de navigateur de texte (<code>[text_browser]</code> section).</td></tr>
-<tr><td><code>transcription</code></td><td>Configuration de transcription vocale avec prise en charge de plusieurs fournisseurs.</td></tr>
-<tr><td><code>confiance</code></td><td></td></tr>
-<tr><td><code>tts</code></td><td>Configuration du sous-système de synthèse vocale (<code>[tts]</code>).</td></tr>
-<tr><td><code>tunnel</code></td><td>Configuration du tunnel pour exposer publiquement la passerelle (section <code>[tunnel]</code>).</td></tr>
-<tr><td><code>verifiable_intent</code></td><td>Vérification et émission des identifiants d’intention vérifiable (VI) (section <code>[verifiable_intent]</code>).</td></tr>
-<tr><td><code>web_fetch</code></td><td>Configuration de l’outil de récupération web (section <code>[web_fetch]</code>).</td></tr>
-<tr><td><code>web_search</code></td><td>Configuration de l’outil de recherche Web (section <code>[web_search]</code>).</td></tr>
-<tr><td><code>wss</code></td><td>WebSocket Secure (WSS) transport for remote TUI-to-daemon connections (<code>[wss]</code>).</td></tr>
+<tr><td><a href="#acp"><code>acp</code></a></td><td>ACP (Agent Client Protocol) server configuration (<code>[acp]</code> section).</td></tr>
+<tr><td><a href="#agents"><code>agents</code></a></td><td>Agents avec alias dans cette installation. Chaque entrée sous <code>[agents.&lt;alias&gt;]</code></td></tr>
+<tr><td><a href="#backup"><code>backup</code></a></td><td>Configuration de l’outil de sauvegarde (section <code>[backup]</code>).</td></tr>
+<tr><td><a href="#browser"><code>browser</code></a></td><td>Configuration de l’automatisation du navigateur (section <code>[browser]</code>).</td></tr>
+<tr><td><a href="#browser_delegate"><code>browser_delegate</code></a></td><td></td></tr>
+<tr><td><a href="#channels"><code>channels</code></a></td><td>Configurations de canal de premier niveau (<code>[channels]</code> section).</td></tr>
+<tr><td><a href="#claude_code"><code>claude_code</code></a></td><td>Configuration de l’outil CLI Claude Code (section <code>[claude_code]</code>).</td></tr>
+<tr><td><a href="#claude_code_runner"><code>claude_code_runner</code></a></td><td>Configuration du lanceur de tâches Claude Code (section <code>[claude_code_runner]</code>).</td></tr>
+<tr><td><a href="#cloud_ops"><code>cloud_ops</code></a></td><td>Contrôle les outils d’analyse de transformation du nuage de points en lecture seule :</td></tr>
+<tr><td><a href="#codex_cli"><code>codex_cli</code></a></td><td>Configuration de l’outil CLI Codex (section <code>[codex_cli]</code>).</td></tr>
+<tr><td><a href="#composio"><code>composio</code></a></td><td>Intégration des outils gérés par Composio pour OAuth (<code>[composio]</code> section).</td></tr>
+<tr><td><a href="#conversational_ai"><code>conversational_ai</code></a></td><td>Configuration de l’agent d’IA conversationnelle (<code>[conversational_ai]</code> section).</td></tr>
+<tr><td><a href="#cost"><code>cost</code></a></td><td>Configuration du suivi des coûts et de l’application du budget (section <code>[cost]</code>).</td></tr>
+<tr><td><a href="#cron"><code>cron</code></a></td><td>Tâches cron déclaratives (<code>[cron.&lt;alias&gt;]</code>), indexées par alias.</td></tr>
+<tr><td><a href="#data_retention"><code>data_retention</code></a></td><td>Configuration de la rétention et du purgeage des données (section <code>[data_retention]</code>).</td></tr>
+<tr><td><a href="#delegate"><code>delegate</code></a></td><td>Configuration globale de l’outil de délégation pour les valeurs par défaut des délais d’attente.</td></tr>
+<tr><td><a href="#embedding_routes"><code>embedding_routes</code></a></td><td>Règles de routage d’embedding — route <code>hint:&lt;name&gt;</code> vers un</td></tr>
+<tr><td><a href="#escalation"><code>escalation</code></a></td><td>Configuration du routage d’escalade (section <code>[escalation]</code>).</td></tr>
+<tr><td><a href="#file_download"><code>file_download</code></a></td><td>Standalone file download tool configuration (<code>[file_download]</code>).</td></tr>
+<tr><td><a href="#file_upload"><code>file_upload</code></a></td><td>Standalone file upload tool configuration (<code>[file_upload]</code>).</td></tr>
+<tr><td><a href="#file_upload_bundle"><code>file_upload_bundle</code></a></td><td>Standalone multi-file bundle upload tool configuration</td></tr>
+<tr><td><a href="#gateway"><code>gateway</code></a></td><td>Configuration du serveur passerelle (section <code>[gateway]</code>).</td></tr>
+<tr><td><a href="#gemini_cli"><code>gemini_cli</code></a></td><td>Configuration de l’outil CLI Gemini (section <code>[gemini_cli]</code>).</td></tr>
+<tr><td><a href="#google_workspace"><code>google_workspace</code></a></td><td>Configuration de l’outil CLI Google Workspace (<code>gws</code>) (section <code>[google_workspace]</code>).</td></tr>
+<tr><td><a href="#hardware"><code>hardware</code></a></td><td>Configuration matérielle guidée par un assistant pour l’interaction avec le monde physique.</td></tr>
+<tr><td><a href="#heartbeat"><code>heartbeat</code></a></td><td>Configuration du heartbeat pour les pings de santé périodiques (section <code>[heartbeat]</code>).</td></tr>
+<tr><td><a href="#hooks"><code>hooks</code></a></td><td></td></tr>
+<tr><td><a href="#http_request"><code>http_request</code></a></td><td>Configuration de l’outil de requête HTTP (section <code>[http_request]</code>).</td></tr>
+<tr><td><a href="#image_gen"><code>image_gen</code></a></td><td>Configuration de l’outil de génération d’images autonome (<code>[image_gen]</code>).</td></tr>
+<tr><td><a href="#jira"><code>jira</code></a></td><td>Configuration de l’intégration Jira (<code>[jira]</code>).</td></tr>
+<tr><td><a href="#knowledge"><code>knowledge</code></a></td><td>Configuration du graphe de connaissances pour la capture et la réutilisation de l’expertise.</td></tr>
+<tr><td><a href="#knowledge_bundles"><code>knowledge_bundles</code></a></td><td>Lots de connaissances nommés (<code>[knowledge_bundles.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><a href="#link_enricher"><code>link_enricher</code></a></td><td>Compréhension automatique des liens pour les messages entrants du canal (<code>[link_enricher]</code>).</td></tr>
+<tr><td><a href="#linkedin"><code>linkedin</code></a></td><td>Configuration de l’intégration LinkedIn (section <code>[linkedin]</code>).</td></tr>
+<tr><td><a href="#locale"><code>locale</code></a></td><td>Locale pour les descriptions d’outils (par exemple, <code>"en"</code>, <code>"zh-CN"</code>).</td></tr>
+<tr><td><a href="#mcp"><code>mcp</code></a></td><td>Configuration externe du client MCP (section <code>[mcp]</code>).</td></tr>
+<tr><td><a href="#mcp_bundles"><code>mcp_bundles</code></a></td><td>Bundles de serveurs MCP nommés (<code>[mcp_bundles.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><a href="#media_pipeline"><code>media_pipeline</code></a></td><td>Configuration du pipeline de compréhension automatique des médias (<code>[media_pipeline]</code>).</td></tr>
+<tr><td><a href="#memory"><code>memory</code></a></td><td>Configuration du backend de mémoire (section <code>[memory]</code>).</td></tr>
+<tr><td><a href="#microsoft365"><code>microsoft365</code></a></td><td>Intégration de Microsoft 365 via l’API Microsoft Graph (section <code>[microsoft365]</code>).</td></tr>
+<tr><td><a href="#model_routes"><code>model_routes</code></a></td><td>Règles de routage de modèles — acheminer <code>hint:&lt;name&gt;</code> vers un modèle spécifique</td></tr>
+<tr><td><a href="#multimodal"><code>multimodal</code></a></td><td>Configuration de la gestion multimodale (image) (section <code>[multimodal]</code>).</td></tr>
+<tr><td><a href="#node_transport"><code>node_transport</code></a></td><td>Configuration du transport sécurisé pour la communication entre nœuds (<code>[node_transport]</code>).</td></tr>
+<tr><td><a href="#nodes"><code>nodes</code></a></td><td>Configuration pour le système de découverte dynamique des nœuds (<code>[nodes]</code>).</td></tr>
+<tr><td><a href="#notion"><code>notion</code></a></td><td>Configuration de l’intégration Notion (<code>[notion]</code>).</td></tr>
+<tr><td><a href="#observability"><code>observability</code></a></td><td>Configuration du backend d’observabilité (section <code>[observability]</code>).</td></tr>
+<tr><td><a href="#onboard_state"><code>onboard_state</code></a></td><td>Configuration d’isolation de l’espace de travail multi-client.</td></tr>
+<tr><td><a href="#opencode_cli"><code>opencode_cli</code></a></td><td>Configuration de l’outil CLI OpenCode (section <code>[opencode_cli]</code>).</td></tr>
+<tr><td><a href="#pacing"><code>pacing</code></a></td><td>Contrôles de pacing pour les charges de travail LLM lentes/locales (<code>[pacing]</code> section).</td></tr>
+<tr><td><a href="#peer_groups"><code>peer_groups</code></a></td><td>Groupes de pairs nommés (<code>[peer_groups.&lt;name&gt;]</code>). Chaque entrée associe un</td></tr>
+<tr><td><a href="#peripherals"><code>peripherals</code></a></td><td>Configuration d’intégration de la carte périphérique (section <code>[peripherals]</code>).</td></tr>
+<tr><td><a href="#pipeline"><code>pipeline</code></a></td><td>Configuration de l’outil de pipeline (section <code>[pipeline]</code>).</td></tr>
+<tr><td><a href="#plugins"><code>plugins</code></a></td><td>Configuration du système de plugins.</td></tr>
+<tr><td><a href="#project_intel"><code>project_intel</code></a></td><td>Configuration de l’intelligence de livraison de projet (<code>[project_intel]</code> section).</td></tr>
+<tr><td><a href="#providers"><code>providers</code></a></td><td>Conteneur de premier niveau pour chaque catégorie de fournisseur. La racine TOML voit un</td></tr>
+<tr><td><a href="#proxy"><code>proxy</code></a></td><td>Configuration du proxy pour le trafic HTTP/HTTPS/SOCKS5 sortant (section <code>[proxy]</code>).</td></tr>
+<tr><td><a href="#query_classification"><code>query_classification</code></a></td><td>Classification automatique des requêtes — classe les messages des utilisateurs par mot-clé ou motif</td></tr>
+<tr><td><a href="#reliability"><code>reliability</code></a></td><td>Configuration de la fiabilité et de la supervision (section <code>[reliability]</code>).</td></tr>
+<tr><td><a href="#risk_profiles"><code>risk_profiles</code></a></td><td>Profils de risque/autonomie nommés (<code>[risk_profiles.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><a href="#runtime"><code>runtime</code></a></td><td>Configuration de l’adaptateur d’exécution (section <code>[runtime]</code>).</td></tr>
+<tr><td><a href="#runtime_profiles"><code>runtime_profiles</code></a></td><td>Profils d’exécution runtime/LLM nommés (<code>[runtime_profiles.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><a href="#scheduler"><code>scheduler</code></a></td><td>Configuration du planificateur pour l’exécution périodique des tâches (section <code>[scheduler]</code>).</td></tr>
+<tr><td><a href="#schema_version"><code>schema_version</code></a></td><td>Version du schéma du fichier de configuration.</td></tr>
+<tr><td><a href="#secrets"><code>secrets</code></a></td><td>Configuration de chiffrement des secrets (section <code>[secrets]</code>).</td></tr>
+<tr><td><a href="#security"><code>security</code></a></td><td>Configuration de sécurité pour la journalisation d’audit, l’OTP, l’arrêt d’urgence, l’IAM/SSO et WebAuthn.</td></tr>
+<tr><td><a href="#security_ops"><code>security_ops</code></a></td><td>Configuration de l’agent du tableau de bord du service de cybersécurité géré (MCSS) (<code>[security_ops]</code>).</td></tr>
+<tr><td><a href="#shell_tool"><code>shell_tool</code></a></td><td>Configuration de l’outil Shell (section <code>[shell_tool]</code>).</td></tr>
+<tr><td><a href="#skill_bundles"><code>skill_bundles</code></a></td><td>Lots de compétences nommés (<code>[skill_bundles.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><a href="#skills"><code>skills</code></a></td><td>Configuration de chargement des compétences (<code>[skills]</code> section).</td></tr>
+<tr><td><a href="#sop"><code>sop</code></a></td><td>Configuration du moteur des procédures opérationnelles standard (<code>[sop]</code>).</td></tr>
+<tr><td><a href="#storage"><code>storage</code></a></td><td>Configuration du stockage persistant (section <code>[storage]</code>).</td></tr>
+<tr><td><a href="#text_browser"><code>text_browser</code></a></td><td>Configuration de l’outil de navigateur de texte (<code>[text_browser]</code> section).</td></tr>
+<tr><td><a href="#transcription"><code>transcription</code></a></td><td>Configuration de transcription vocale avec prise en charge de plusieurs fournisseurs.</td></tr>
+<tr><td><a href="#trust"><code>trust</code></a></td><td></td></tr>
+<tr><td><a href="#tts"><code>tts</code></a></td><td>Configuration du sous-système de synthèse vocale (<code>[tts]</code>).</td></tr>
+<tr><td><a href="#tunnel"><code>tunnel</code></a></td><td>Configuration du tunnel pour exposer publiquement la passerelle (section <code>[tunnel]</code>).</td></tr>
+<tr><td><a href="#verifiable_intent"><code>verifiable_intent</code></a></td><td>Vérification et émission des identifiants d’intention vérifiable (VI) (section <code>[verifiable_intent]</code>).</td></tr>
+<tr><td><a href="#web_fetch"><code>web_fetch</code></a></td><td>Configuration de l’outil de récupération web (section <code>[web_fetch]</code>).</td></tr>
+<tr><td><a href="#web_search"><code>web_search</code></a></td><td>Configuration de l’outil de recherche Web (section <code>[web_search]</code>).</td></tr>
+<tr><td><a href="#wss"><code>wss</code></a></td><td>WebSocket Secure (WSS) transport for remote TUI-to-daemon connections (<code>[wss]</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -315,7 +391,7 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>default_agent</code></td><td>aucun</td><td>—</td><td>Agent alias to use when <code>session/new</code> omits <code>agentAlias</code> and more than</td></tr>
+<tr><td><code>default_agent</code></td><td>string?</td><td><code>—</code></td><td>Agent alias to use when <code>session/new</code> omits <code>agentAlias</code> and more than</td></tr>
 <tr><td><code>max_sessions</code></td><td>entier</td><td><code>10</code></td><td>Maximum number of concurrent ACP sessions. Default: <code>10</code>.</td></tr>
 <tr><td><code>session_timeout_secs</code></td><td>entier</td><td><code>3600</code></td><td>Idle session timeout in seconds. Sessions with no activity for this</td></tr>
 </tbody>
@@ -337,8 +413,8 @@
 <tr><td><code>encrypt</code></td><td>bool</td><td><code>false</code></td><td>Chiffrer les archives de sauvegarde (nécessite une clé de magasin de secrets configurée).</td></tr>
 <tr><td><code>include_dirs</code></td><td>string[]</td><td><code>["config","memory","audit","knowledge"]</code></td><td>Sous-répertoires de l’espace de travail à inclure dans les sauvegardes.</td></tr>
 <tr><td><code>max_keep</code></td><td>entier</td><td><code>10</code></td><td>Nombre maximum de sauvegardes à conserver (les plus anciennes sont supprimées).</td></tr>
-<tr><td><code>schedule_cron</code></td><td>aucun</td><td><code>null</code></td><td>Expression cron optionnelle pour les sauvegardes automatiques planifiées.</td></tr>
-<tr><td><code>fuseau_horaire_de_planification</code></td><td>aucun</td><td><code>null</code></td><td>Fuseau horaire IANA pour <code>schedule_cron</code>.</td></tr>
+<tr><td><code>schedule_cron</code></td><td>string?</td><td><code>null</code></td><td>Expression cron optionnelle pour les sauvegardes automatiques planifiées.</td></tr>
+<tr><td><code>fuseau_horaire_de_planification</code></td><td>string?</td><td><code>null</code></td><td>Fuseau horaire IANA pour <code>schedule_cron</code>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -353,13 +429,13 @@
 <tbody>
 <tr><td><code>allowed_domains</code></td><td>string[]</td><td><code>["*"]</code></td><td>Domaines autorisés pour <code>browser_open</code> (correspondance exacte ou sous-domaine)</td></tr>
 <tr><td><code>backend</code></td><td>chaîne</td><td><code>"agent_browser"</code></td><td>Backend d’automatisation du navigateur : “agent_browser” | “rust_native” | “computer_use” | “auto”</td></tr>
-<tr><td><code>computer_use</code></td><td>objet</td><td>—</td><td>Configuration du sidecar d’utilisation de l’ordinateur (section <code>[browser.computer_use]</code>).</td></tr>
+<tr><td><code>computer_use</code></td><td>objet</td><td><code>—</code></td><td>Configuration du sidecar d’utilisation de l’ordinateur (section <code>[browser.computer_use]</code>).</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>vrai</code></td><td>Activer l’outil <code>browser_open</code> (ouvre les URL dans le navigateur système sans extraction de contenu)</td></tr>
-<tr><td><code>headed</code></td><td>aucun</td><td><code>null</code></td><td>Show browser window for agent_browser backend. When unset, inherits AGENT_BROWSER_HEADED.</td></tr>
-<tr><td><code>native_chrome_path</code></td><td>aucun</td><td><code>null</code></td><td>Chemin exécutable Chrome/Chromium optionnel pour le backend natif Rust</td></tr>
+<tr><td><code>headed</code></td><td>bool?</td><td><code>null</code></td><td>Show browser window for agent_browser backend. When unset, inherits AGENT_BROWSER_HEADED.</td></tr>
+<tr><td><code>native_chrome_path</code></td><td>string?</td><td><code>null</code></td><td>Chemin exécutable Chrome/Chromium optionnel pour le backend natif Rust</td></tr>
 <tr><td><code>native_headless</code></td><td>bool</td><td><code>vrai</code></td><td>Mode sans tête pour le backend natif Rust</td></tr>
 <tr><td><code>native_webdriver_url</code></td><td>chaîne</td><td><code>"http://127.0.0.1:9515"</code></td><td>URL de l’endpoint WebDriver pour le backend natif Rust (par exemple, <code>http://127.0.0.1:9515</code>)</td></tr>
-<tr><td><code>session_name</code></td><td>aucun</td><td><code>null</code></td><td>Nom de la session du navigateur (pour l’automatisation agent-browser)</td></tr>
+<tr><td><code>session_name</code></td><td>string?</td><td><code>null</code></td><td>Nom de la session du navigateur (pour l’automatisation agent-browser)</td></tr>
 </tbody>
 </table>
 </div>
@@ -373,10 +449,10 @@
 </thead>
 <tbody>
 <tr><td><code>allow_remote_endpoint</code></td><td>bool</td><td><code>false</code></td><td>Autoriser un point de terminaison distant/public pour le sidecar d’utilisation de l’ordinateur (par défaut : false)</td></tr>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Jeton d’authentification facultatif pour le sidecar d’utilisation de l’ordinateur</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Jeton d’authentification facultatif pour le sidecar d’utilisation de l’ordinateur</td></tr>
 <tr><td><code>endpoint</code></td><td>chaîne</td><td><code>"http://127.0.0.1:8787/v1/actions"</code></td><td>Point de terminaison Sidecar pour les actions d’utilisation de l’ordinateur (souris/clavier/capture d’écran au niveau du système d’exploitation)</td></tr>
-<tr><td><code>max_coordinate_x</code></td><td>aucun</td><td><code>null</code></td><td>Limite facultative de l’axe X pour les actions basées sur les coordonnées</td></tr>
-<tr><td><code>max_coordinate_y</code></td><td>aucun</td><td><code>null</code></td><td>Limite facultative de l’axe Y pour les actions basées sur les coordonnées</td></tr>
+<tr><td><code>max_coordinate_x</code></td><td>integer?</td><td><code>null</code></td><td>Limite facultative de l’axe X pour les actions basées sur les coordonnées</td></tr>
+<tr><td><code>max_coordinate_y</code></td><td>integer?</td><td><code>null</code></td><td>Limite facultative de l’axe Y pour les actions basées sur les coordonnées</td></tr>
 <tr><td><code>timeout_ms</code></td><td>entier</td><td><code>15000</code></td><td>Délai d’expiration de la requête par action en millisecondes</td></tr>
 <tr><td><code>window_allowlist</code></td><td>string[]</td><td><code>[]</code></td><td>Liste blanche facultative des titres de fenêtre/processus transmise à la politique du sidecar</td></tr>
 </tbody>
@@ -408,47 +484,48 @@
 </thead>
 <tbody>
 <tr><td><code>ack_reactions</code></td><td>bool</td><td><code>vrai</code></td><td>S’il faut ajouter des réactions d’accusé de réception (👀 à la réception, ✅/⚠️ à la</td></tr>
-<tr><td><code>amqp</code></td><td>carte</td><td>—</td><td>AMQP channel instances (<code>[channels.amqp.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>bluesky</code></td><td>carte</td><td>—</td><td>Instances de canal Bluesky (<code>[channels.bluesky.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>clawdtalk</code></td><td>carte</td><td>—</td><td>Instances de canal vocal ClawdTalk (<code>[channels.clawdtalk.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>amqp</code></td><td>carte</td><td><code>—</code></td><td>AMQP channel instances (<code>[channels.amqp.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>bluesky</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Bluesky (<code>[channels.bluesky.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>clawdtalk</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal vocal ClawdTalk (<code>[channels.clawdtalk.&lt;alias&gt;]</code>).</td></tr>
 <tr><td><code>cli</code></td><td>bool</td><td><code>vrai</code></td><td>Activer le canal interactif de la CLI. Par défaut : <code>true</code>.</td></tr>
 <tr><td><code>debounce_ms</code></td><td>entier</td><td><code>0</code></td><td>Fenêtre de débounce des messages entrants en millisecondes. Lorsqu’un expéditeur envoie</td></tr>
-<tr><td><code>dingtalk</code></td><td>carte</td><td>—</td><td>Instances de canal DingTalk (<code>[channels.dingtalk.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>discord</code></td><td>carte</td><td>—</td><td>Instances de canaux du bot Discord (<code>[channels.discord.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>email</code></td><td>carte</td><td>—</td><td>Instances de canal e-mail (<code>[channels.email.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>gmail_push</code></td><td>carte</td><td>—</td><td>Instances de canal de notifications push Gmail Pub/Sub (<code>[channels.gmail_push.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>imessage</code></td><td>carte</td><td>—</td><td>Instances de canal iMessage (<code>[channels.imessage.&lt;alias&gt;]</code>, macOS uniquement).</td></tr>
-<tr><td><code>irc</code></td><td>carte</td><td>—</td><td>Instances de canaux IRC (<code>[channels.irc.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>lark</code></td><td>carte</td><td>—</td><td>Instances de canal Lark (<code>[channels.lark.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>ligne</code></td><td>carte</td><td>—</td><td>Instances de canal LINE Messaging API (<code>[channels.line.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>linq</code></td><td>carte</td><td>—</td><td>Instances de canal Linq Partner API (<code>[channels.linq.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>matrice</code></td><td>carte</td><td>—</td><td>Instances de canal Matrix (<code>[channels.matrix.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>mattermost</code></td><td>carte</td><td>—</td><td>Instances de canal de bot Mattermost (<code>[channels.mattermost.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>dingtalk</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal DingTalk (<code>[channels.dingtalk.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>discord</code></td><td>carte</td><td><code>—</code></td><td>Instances de canaux du bot Discord (<code>[channels.discord.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>email</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal e-mail (<code>[channels.email.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>gmail_push</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de notifications push Gmail Pub/Sub (<code>[channels.gmail_push.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>imessage</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal iMessage (<code>[channels.imessage.&lt;alias&gt;]</code>, macOS uniquement).</td></tr>
+<tr><td><code>irc</code></td><td>carte</td><td><code>—</code></td><td>Instances de canaux IRC (<code>[channels.irc.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>lark</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Lark (<code>[channels.lark.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>ligne</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal LINE Messaging API (<code>[channels.line.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>linq</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Linq Partner API (<code>[channels.linq.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>matrice</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Matrix (<code>[channels.matrix.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>mattermost</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de bot Mattermost (<code>[channels.mattermost.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>max_concurrent_per_channel</code></td><td>entier</td><td><code>4</code></td><td>Per-channel multiplier for the global channel message in-flight budget.</td></tr>
 <tr><td><code>message_timeout_secs</code></td><td>entier</td><td><code>300</code></td><td>Délai d’attente par défaut en secondes pour le traitement d’un message d’un seul canal (LLM + outils).</td></tr>
-<tr><td><code>mochat</code></td><td>carte</td><td>—</td><td>Instances de canal de service client Mochat (<code>[channels.mochat.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>mqtt</code></td><td>carte</td><td>—</td><td>Instances de canaux MQTT (<code>[channels.mqtt.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>nextcloud_talk</code></td><td>carte</td><td>—</td><td>Instances de canal de bot Nextcloud Talk (<code>[channels.nextcloud_talk.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>nostr</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>qq</code></td><td>carte</td><td>—</td><td>Instances de canaux QQ Official Bot (<code>[channels.qq.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>reddit</code></td><td>carte</td><td>—</td><td>Instances de canal Reddit (<code>[channels.reddit.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>mochat</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de service client Mochat (<code>[channels.mochat.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>mqtt</code></td><td>carte</td><td><code>—</code></td><td>Instances de canaux MQTT (<code>[channels.mqtt.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>nextcloud_talk</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de bot Nextcloud Talk (<code>[channels.nextcloud_talk.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>nostr</code></td><td>carte</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>qq</code></td><td>carte</td><td><code>—</code></td><td>Instances de canaux QQ Official Bot (<code>[channels.qq.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>reddit</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Reddit (<code>[channels.reddit.&lt;alias&gt;]</code>).</td></tr>
 <tr><td><code>session_backend</code></td><td>chaîne</td><td><code>"sqlite"</code></td><td>Backend de persistance de session : <code>"jsonl"</code> (hérité) ou <code>"sqlite"</code> (nouvelle valeur par défaut).</td></tr>
 <tr><td><code>session_persistence</code></td><td>bool</td><td><code>vrai</code></td><td>Conserver l’historique des conversations des canaux dans des fichiers JSONL afin que les sessions survivent</td></tr>
 <tr><td><code>session_ttl_hours</code></td><td>entier</td><td><code>0</code></td><td>Archive automatiquement les sessions obsolètes après ce nombre d’heures. <code>0</code> désactive. Par défaut : <code>0</code>.</td></tr>
 <tr><td><code>show_tool_calls</code></td><td>bool</td><td><code>false</code></td><td>Indique s’il faut envoyer des messages de notification d’appel d’outil (par exemple, <code>🔧 web_search_tool: …</code>)</td></tr>
-<tr><td><code>signal</code></td><td>carte</td><td>—</td><td>Instances de canal Signal (<code>[channels.signal.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>slack</code></td><td>carte</td><td>—</td><td>Instances de canaux de bot Slack (<code>[channels.slack.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>telegram</code></td><td>carte</td><td>—</td><td>Instances de canal de bot Telegram (<code>[channels.telegram.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>twitch</code></td><td>carte</td><td>—</td><td>Twitch chat channel instances (<code>[channels.twitch.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>twitter</code></td><td>carte</td><td>—</td><td>Instances de canal X/Twitter (<code>[channels.twitter.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>voice_call</code></td><td>carte</td><td>—</td><td>Instances de canal d’appel vocal (<code>[channels.voice_call.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>voice_duplex</code></td><td>carte</td><td>—</td><td>Instances voice duplex (<code>[channels.voice_duplex.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>voice_wake</code></td><td>carte</td><td>—</td><td>Instances de canal de détection de mot d’activation vocal (<code>[channels.voice_wake.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>wati</code></td><td>carte</td><td>—</td><td>Instances de canal de l’API WhatsApp Business WATI (<code>[channels.wati.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>webhook</code></td><td>carte</td><td>—</td><td>Instances de canal webhook (<code>[channels.webhook.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>wechat</code></td><td>carte</td><td>—</td><td>Instances de canal WeChat personnel iLink Bot (<code>[channels.wechat.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>wecom</code></td><td>carte</td><td>—</td><td>Instances de canal Webhook Bot WeCom (WeChat Enterprise) (<code>[channels.wecom.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>wecom_ws</code></td><td>carte</td><td>—</td><td>WeCom AI Bot WebSocket channel instances (<code>[channels.wecom_ws.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>whatsapp</code></td><td>carte</td><td>—</td><td>Instances de canal WhatsApp (<code>[channels.whatsapp.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>signal</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Signal (<code>[channels.signal.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>slack</code></td><td>carte</td><td><code>—</code></td><td>Instances de canaux de bot Slack (<code>[channels.slack.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>telegram</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de bot Telegram (<code>[channels.telegram.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>twitch</code></td><td>carte</td><td><code>—</code></td><td>Twitch chat channel instances (<code>[channels.twitch.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>twitter</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal X/Twitter (<code>[channels.twitter.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>voice_call</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal d’appel vocal (<code>[channels.voice_call.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>voice_duplex</code></td><td>carte</td><td><code>—</code></td><td>Instances voice duplex (<code>[channels.voice_duplex.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>voice_wake</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de détection de mot d’activation vocal (<code>[channels.voice_wake.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>wati</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal de l’API WhatsApp Business WATI (<code>[channels.wati.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>webhook</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal webhook (<code>[channels.webhook.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>wechat</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal WeChat personnel iLink Bot (<code>[channels.wechat.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>wecom</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal Webhook Bot WeCom (WeChat Enterprise) (<code>[channels.wecom.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>wecom_ws</code></td><td>carte</td><td><code>—</code></td><td>WeCom AI Bot WebSocket channel instances (<code>[channels.wecom_ws.&lt;alias&gt;]</code>).</td></tr>
+<tr><td><code>whatsapp</code></td><td>carte</td><td><code>—</code></td><td>Instances de canal WhatsApp (<code>[channels.whatsapp.&lt;alias&gt;]</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -465,7 +542,7 @@
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activez l’outil <code>claude_code</code></td></tr>
 <tr><td><code>env_passthrough</code></td><td>string[]</td><td><code>[]</code></td><td>Variables d’environnement supplémentaires transmises au sous-processus Claude (par exemple, ANTHROPIC_API_KEY pour la facturation par clé API)</td></tr>
 <tr><td><code>max_output_bytes</code></td><td>entier</td><td><code>2097152</code></td><td>Taille maximale de sortie en octets (2 Mo par défaut)</td></tr>
-<tr><td><code>system_prompt</code></td><td>aucun</td><td><code>null</code></td><td>Invite de système optionnelle ajoutée aux invocations de Claude Code</td></tr>
+<tr><td><code>system_prompt</code></td><td>string?</td><td><code>null</code></td><td>Invite de système optionnelle ajoutée aux invocations de Claude Code</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>600</code></td><td>Temps d’exécution maximum en secondes (les tâches de codage peuvent être longues)</td></tr>
 </tbody>
 </table>
@@ -481,7 +558,7 @@
 <tbody>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activez l’outil <code>claude_code_runner</code></td></tr>
 <tr><td><code>session_ttl</code></td><td>entier</td><td><code>3600</code></td><td>Durée de vie de la session en secondes avant le nettoyage automatique (par défaut : 3600)</td></tr>
-<tr><td><code>ssh_host</code></td><td>aucun</td><td><code>null</code></td><td>Hôte SSH pour les liens de transfert de session (par exemple, « myhost.example.com »)</td></tr>
+<tr><td><code>ssh_host</code></td><td>string?</td><td><code>null</code></td><td>Hôte SSH pour les liens de transfert de session (par exemple, « myhost.example.com »)</td></tr>
 <tr><td><code>tmux_prefix</code></td><td>chaîne</td><td><code>"zc-claude-"</code></td><td>Préfixe pour les noms de sessions tmux (par défaut : « zc-claude- »)</td></tr>
 </tbody>
 </table>
@@ -529,7 +606,7 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API Composio (stockée de manière chiffrée lorsque secrets.encrypt = true)</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API Composio (stockée de manière chiffrée lorsque secrets.encrypt = true)</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’intégration Composio pour plus de 1000 outils OAuth</td></tr>
 <tr><td><code>entity_id</code></td><td>chaîne</td><td><code>"default"</code></td><td>ID d’entité par défaut pour les configurations multi-utilisateurs</td></tr>
 </tbody>
@@ -550,7 +627,7 @@
 <tr><td><code>default_language</code></td><td>chaîne</td><td><code>"en"</code></td><td>Langue par défaut pour les conversations (tag BCP-47). Par défaut : « en ».</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer les fonctionnalités d’IA conversationnelle. Par défaut : false.</td></tr>
 <tr><td><code>escalation_confidence_threshold</code></td><td>nombre</td><td><code>0.3</code></td><td>Une confiance d’intention inférieure à ce seuil déclenche une escalade. Par défaut : 0,3.</td></tr>
-<tr><td><code>knowledge_base_tool</code></td><td>aucun</td><td><code>null</code></td><td>Nom d’outil optionnel pour la recherche dans une base de connaissances basée sur RAG pendant les conversations.</td></tr>
+<tr><td><code>knowledge_base_tool</code></td><td>string?</td><td><code>null</code></td><td>Nom d’outil optionnel pour la recherche dans une base de connaissances basée sur RAG pendant les conversations.</td></tr>
 <tr><td><code>max_conversation_turns</code></td><td>entier</td><td><code>50</code></td><td>Nombre maximum de tours de conversation avant la fin automatique. Par défaut : 50.</td></tr>
 <tr><td><code>supported_languages</code></td><td>string[]</td><td><code>["en","de","fr","it"]</code></td><td>Langues prises en charge pour les conversations. Par défaut : [<code>en</code>, <code>de</code>, <code>fr</code>, <code>it</code>].</td></tr>
 </tbody>
@@ -567,9 +644,9 @@
 <tr><td><code>allow_override</code></td><td>bool</td><td><code>false</code></td><td>Autoriser les requêtes à dépasser le budget avec l’indicateur <code>--override</code> (par défaut : false)</td></tr>
 <tr><td><code>daily_limit_usd</code></td><td>nombre</td><td><code>10.0</code></td><td>Limite de dépenses quotidienne en USD (par défaut : 10,00)</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>vrai</code></td><td>Activer le suivi des coûts (par défaut : true)</td></tr>
-<tr><td><code>application</code></td><td>objet</td><td>—</td><td>Configuration du comportement de l’application des coûts lorsque les limites de budget sont atteintes.</td></tr>
+<tr><td><code>application</code></td><td>objet</td><td><code>—</code></td><td>Configuration du comportement de l’application des coûts lorsque les limites de budget sont atteintes.</td></tr>
 <tr><td><code>monthly_limit_usd</code></td><td>nombre</td><td><code>100.0</code></td><td>Limite de dépenses mensuelle en USD (par défaut : 100,00)</td></tr>
-<tr><td><code>rates</code></td><td>objet</td><td>—</td><td><code>[cost.rates]</code> — espace de noms de premier niveau pour la grille tarifaire. Reflète le</td></tr>
+<tr><td><code>rates</code></td><td>objet</td><td><code>—</code></td><td><code>[cost.rates]</code> — espace de noms de premier niveau pour la grille tarifaire. Reflète le</td></tr>
 <tr><td><code>track_per_agent</code></td><td>bool</td><td><code>vrai</code></td><td>Estampillez chaque entrée de coût enregistrée avec l’alias de l’agent d’origine afin de</td></tr>
 <tr><td><code>warn_at_percent</code></td><td>entier</td><td><code>80</code></td><td>Avertir lorsque les dépenses atteignent ce pourcentage de la limite (par défaut : 80)</td></tr>
 </tbody>
@@ -585,7 +662,7 @@
 <tbody>
 <tr><td><code>mode</code></td><td>chaîne</td><td><code>"warn"</code></td><td>Mode d’application : « warn », « block » ou « route_down ».</td></tr>
 <tr><td><code>reserve_percent</code></td><td>entier</td><td><code>10</code></td><td>Réservez ce pourcentage du budget pour les opérations critiques.</td></tr>
-<tr><td><code>route_down_model</code></td><td>aucun</td><td><code>null</code></td><td>Modèle de secours à utiliser lorsque le budget est dépassé (utilisé avec le mode « route_down »).</td></tr>
+<tr><td><code>route_down_model</code></td><td>string?</td><td><code>null</code></td><td>Modèle de secours à utiliser lorsque le budget est dépassé (utilisé avec le mode « route_down »).</td></tr>
 </tbody>
 </table>
 </div>
@@ -597,7 +674,7 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>providers</code></td><td>objet</td><td>—</td><td><code>[cost.rates.providers.*]</code> — fiches tarifaires structurées par fournisseur. Chaque champ</td></tr>
+<tr><td><code>providers</code></td><td>objet</td><td><code>—</code></td><td><code>[cost.rates.providers.*]</code> — fiches tarifaires structurées par fournisseur. Chaque champ</td></tr>
 <tr><td><code>tools</code></td><td>carte</td><td><code>{}</code></td><td><code>[cost.rates.tools.&lt;name&gt;]</code> — tarifs par appel pour les outils qui</td></tr>
 </tbody>
 </table>
@@ -610,9 +687,9 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>models</code></td><td>objet</td><td>—</td><td><code>[cost.rates.providers.models.&lt;type&gt;.&lt;model&gt;]</code> — taux de coût des tokens</td></tr>
-<tr><td><code>transcription</code></td><td>objet</td><td>—</td><td><code>cost.rates.providers.transcription.&lt;type&gt;.&lt;model&gt;</code></td></tr>
-<tr><td><code>tts</code></td><td>objet</td><td>—</td><td><code>cost.rates.providers.tts.&lt;type&gt;.&lt;voice&gt;</code></td></tr>
+<tr><td><code>models</code></td><td>objet</td><td><code>—</code></td><td><code>[cost.rates.providers.models.&lt;type&gt;.&lt;model&gt;]</code> — taux de coût des tokens</td></tr>
+<tr><td><code>transcription</code></td><td>objet</td><td><code>—</code></td><td><code>cost.rates.providers.transcription.&lt;type&gt;.&lt;model&gt;</code></td></tr>
+<tr><td><code>tts</code></td><td>objet</td><td><code>—</code></td><td><code>cost.rates.providers.tts.&lt;type&gt;.&lt;voice&gt;</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -675,7 +752,7 @@
 <tr><td><code>headers</code></td><td>carte</td><td><code>{}</code></td><td>Static HTTP headers attached to every download request — typically an</td></tr>
 <tr><td><code>max_file_size_bytes</code></td><td>entier</td><td><code>26214400</code></td><td>Maximum download size in bytes. Enforced while streaming: the transfer</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>120</code></td><td>Request timeout in seconds. Default: 120.</td></tr>
-<tr><td><code>url</code></td><td>aucun</td><td><code>null</code></td><td>Download endpoint URL. Tool is disabled when this is <code>None</code> or empty.</td></tr>
+<tr><td><code>url</code></td><td>string?</td><td><code>null</code></td><td>Download endpoint URL. Tool is disabled when this is <code>None</code> or empty.</td></tr>
 </tbody>
 </table>
 </div>
@@ -694,7 +771,7 @@
 <tr><td><code>max_file_size_bytes</code></td><td>entier</td><td><code>26214400</code></td><td>Maximum file size in bytes. Larger files are rejected before any</td></tr>
 <tr><td><code>méthode</code></td><td>chaîne</td><td><code>"POST"</code></td><td>HTTP method. Only <code>POST</code> (default) and <code>PUT</code> are accepted.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>60</code></td><td>Request timeout in seconds. Default: 60.</td></tr>
-<tr><td><code>url</code></td><td>aucun</td><td><code>null</code></td><td>Upload endpoint URL. Tool is disabled when this is <code>None</code> or empty.</td></tr>
+<tr><td><code>url</code></td><td>string?</td><td><code>null</code></td><td>Upload endpoint URL. Tool is disabled when this is <code>None</code> or empty.</td></tr>
 </tbody>
 </table>
 </div>
@@ -716,7 +793,7 @@
 <tr><td><code>max_total_size_bytes</code></td><td>entier</td><td><code>33554432</code></td><td>Maximum cumulative size across every file in one call. Default: 32 MiB.</td></tr>
 <tr><td><code>méthode</code></td><td>chaîne</td><td><code>"POST"</code></td><td>HTTP method. Only <code>POST</code> (default) and <code>PUT</code> are accepted.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>120</code></td><td>Request timeout in seconds. Default: 120.</td></tr>
-<tr><td><code>url</code></td><td>aucun</td><td><code>null</code></td><td>Upload endpoint URL. Tool is disabled when this is <code>None</code> or empty.</td></tr>
+<tr><td><code>url</code></td><td>string?</td><td><code>null</code></td><td>Upload endpoint URL. Tool is disabled when this is <code>None</code> or empty.</td></tr>
 </tbody>
 </table>
 </div>
@@ -730,23 +807,24 @@
 </thead>
 <tbody>
 <tr><td><code>allow_public_bind</code></td><td>bool</td><td><code>false</code></td><td>Autoriser la liaison à une adresse autre que localhost sans tunnel (par défaut : false)</td></tr>
+<tr><td><code>allow_remote_admin</code></td><td>bool</td><td><code>false</code></td><td>Allow authenticated remote callers to use admin endpoints that are</td></tr>
 <tr><td><code>hôte</code></td><td>chaîne</td><td><code>"127.0.0.1"</code></td><td>Hôte de la passerelle (par défaut : 127.0.0.1)</td></tr>
 <tr><td><code>idempotency_max_keys</code></td><td>entier</td><td><code>10000</code></td><td>Nombre maximum de clés d’idempotence distinctes conservées en mémoire.</td></tr>
 <tr><td><code>idempotency_ttl_secs</code></td><td>entier</td><td><code>300</code></td><td>TTL pour les clés d’idempotence des webhooks.</td></tr>
 <tr><td><code>long_running_request_timeout_secs</code></td><td>entier</td><td><code>600</code></td><td>Délai d’expiration de la requête HTTP (en secondes) pour <code>POST /api/cron/{id}/run</code>, qui</td></tr>
 <tr><td><code>pair_rate_limit_per_minute</code></td><td>entier</td><td><code>10</code></td><td>Nombre maximum de requêtes <code>/pair</code> par minute par clé client.</td></tr>
 <tr><td><code>paired_tokens</code> 🔑</td><td>string[]</td><td><code>[]</code></td><td>Jeton(s) de porteur apparié(s) (géré(s) automatiquement, non modifié(s) par l’utilisateur)</td></tr>
-<tr><td><code>pairing_dashboard</code></td><td>objet</td><td>—</td><td>Configuration du tableau de bord d’appairage (<code>[gateway.pairing_dashboard]</code>).</td></tr>
-<tr><td><code>path_prefix</code></td><td>aucun</td><td><code>null</code></td><td>Préfixe de chemin URL optionnel pour les déploiements en reverse-proxy.</td></tr>
+<tr><td><code>pairing_dashboard</code></td><td>objet</td><td><code>—</code></td><td>Configuration du tableau de bord d’appairage (<code>[gateway.pairing_dashboard]</code>).</td></tr>
+<tr><td><code>path_prefix</code></td><td>string?</td><td><code>null</code></td><td>Préfixe de chemin URL optionnel pour les déploiements en reverse-proxy.</td></tr>
 <tr><td><code>port</code></td><td>entier</td><td><code>42617</code></td><td>Port de passerelle (par défaut : 42617)</td></tr>
 <tr><td><code>rate_limit_max_keys</code></td><td>entier</td><td><code>10000</code></td><td>Nombre maximum de clés de client distinctes suivies par les cartes de limiteur de débit de la passerelle.</td></tr>
 <tr><td><code>request_timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration des requêtes HTTP (en secondes) pour les routes de passerelle autres que la</td></tr>
 <tr><td><code>require_pairing</code></td><td>bool</td><td><code>vrai</code></td><td>Exiger l’appariement avant d’accepter les requêtes (par défaut : true)</td></tr>
 <tr><td><code>session_persistence</code></td><td>bool</td><td><code>vrai</code></td><td>Persister les sessions de chat WebSocket du gateway dans SQLite. Par défaut : true.</td></tr>
 <tr><td><code>session_ttl_hours</code></td><td>entier</td><td><code>0</code></td><td>Archive automatiquement les sessions de passerie obsolètes depuis plus de N heures. 0 = désactivé. Par défaut : 0.</td></tr>
-<tr><td><code>tls</code></td><td>objet</td><td>—</td><td>Configuration TLS pour le serveur passerelle (<code>[gateway.tls]</code>).</td></tr>
+<tr><td><code>tls</code></td><td>objet</td><td><code>—</code></td><td>Configuration TLS pour le serveur passerelle (<code>[gateway.tls]</code>).</td></tr>
 <tr><td><code>trust_forwarded_headers</code></td><td>bool</td><td><code>false</code></td><td>Faire confiance aux en-têtes d’IP client transmis par le proxy (<code>X-Forwarded-For</code>, <code>X-Real-IP</code>).</td></tr>
-<tr><td><code>web_dist_dir</code></td><td>aucun</td><td><code>null</code></td><td>Chemin vers le répertoire <code>dist</code> du tableau de bord web. Lorsqu’il est défini, la passerelle</td></tr>
+<tr><td><code>web_dist_dir</code></td><td>string?</td><td><code>null</code></td><td>Chemin vers le répertoire <code>dist</code> du tableau de bord web. Lorsqu’il est défini, la passerelle</td></tr>
 <tr><td><code>webhook_rate_limit_per_minute</code></td><td>entier</td><td><code>60</code></td><td>Nombre maximal de requêtes <code>/webhook</code> par minute par clé client.</td></tr>
 </tbody>
 </table>
@@ -775,10 +853,10 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>cert_path</code>*</td><td>chaîne</td><td>—</td><td>Chemin vers le fichier de certificat serveur encodé en PEM.</td></tr>
-<tr><td><code>client_auth</code></td><td>objet</td><td>—</td><td>Configuration de l’authentification par certificat client (mTLS) (<code>[gateway.tls.client_auth]</code>).</td></tr>
+<tr><td><code>cert_path</code>*</td><td>chaîne</td><td><code>—</code></td><td>Chemin vers le fichier de certificat serveur encodé en PEM.</td></tr>
+<tr><td><code>client_auth</code></td><td>objet</td><td><code>—</code></td><td>Configuration de l’authentification par certificat client (mTLS) (<code>[gateway.tls.client_auth]</code>).</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer TLS pour la passerelle (par défaut : false).</td></tr>
-<tr><td><code>key_path</code>*</td><td>chaîne</td><td>—</td><td>Chemin vers le fichier de clé privée du serveur encodé en PEM.</td></tr>
+<tr><td><code>key_path</code>*</td><td>chaîne</td><td><code>—</code></td><td>Chemin vers le fichier de clé privée du serveur encodé en PEM.</td></tr>
 </tbody>
 </table>
 </div>
@@ -839,8 +917,8 @@
 <tr><td><code>allowed_operations</code></td><td>object[]</td><td><code>[]</code></td><td>Restreindre les combinaisons de ressources/méthodes que l’agent peut accéder.</td></tr>
 <tr><td><code>allowed_services</code></td><td>string[]</td><td><code>[]</code></td><td>Restreindre les services Google Workspace auxquels l’agent peut accéder.</td></tr>
 <tr><td><code>audit_log</code></td><td>bool</td><td><code>false</code></td><td>Activer la journalisation d’audit pour chaque invocation de <code>gws</code> (service, ressource,</td></tr>
-<tr><td><code>credentials_path</code></td><td>aucun</td><td><code>null</code></td><td>Chemin vers le fichier JSON du compte de service ou le fichier d’identifiants du client OAuth.</td></tr>
-<tr><td><code>default_account</code></td><td>aucun</td><td><code>null</code></td><td>Adresse e-mail du compte Google par défaut à passer à <code>gws --account</code>.</td></tr>
+<tr><td><code>credentials_path</code></td><td>string?</td><td><code>null</code></td><td>Chemin vers le fichier JSON du compte de service ou le fichier d’identifiants du client OAuth.</td></tr>
+<tr><td><code>default_account</code></td><td>string?</td><td><code>null</code></td><td>Adresse e-mail du compte Google par défaut à passer à <code>gws --account</code>.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activez l’outil <code>google_workspace</code>. Par défaut : <code>false</code>.</td></tr>
 <tr><td><code>rate_limit_per_minute</code></td><td>entier</td><td><code>60</code></td><td>Nombre maximum d’appels API <code>gws</code> autorisés par minute. Par défaut : <code>60</code>.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration de l’exécution de la commande en secondes. Par défaut : <code>30</code>.</td></tr>
@@ -857,9 +935,9 @@
 <tbody>
 <tr><td><code>baud_rate</code></td><td>entier</td><td><code>115200</code></td><td>Débit en bauds négocié sur la liaison série. 115200 correspond à la valeur par défaut courante du bootloader Arduino / ESP32 ; passez à 230400+ lorsque votre firmware prend explicitement en charge des débits plus élevés et que vous avez besoin du débit de données.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activez le contrôle direct du matériel physique — broches GPIO, microcontrôleurs connectés en USB (Arduino, ESP32, Nucleo) ou sondes de débogage SWD/JTAG. Laissez désactivé pour un usage purement logiciel ; l’activer sans avoir configuré le transport approprié n’a aucun effet.</td></tr>
-<tr><td><code>sonde_cible</code></td><td>aucun</td><td><code>null</code></td><td>Identifiant de la puce cible pour <code>transport = probe</code> (par ex. <code>STM32F401RE</code>, <code>nRF52840_xxAA</code>). Transmis directement à probe-rs pour les opérations de flash/débogage ; doit correspondre à une puce reconnue par probe-rs.</td></tr>
-<tr><td><code>port_série</code></td><td>aucun</td><td><code>null</code></td><td>Chemin TTY pour le transport <code>serial</code> — par exemple <code>/dev/ttyACM0</code> sous Linux, <code>/dev/tty.usbmodem1</code> sous macOS, <code>COM3</code> sous Windows. Ignoré pour les autres transports.</td></tr>
-<tr><td><code>transport</code></td><td><code>None</code> | <code>Native</code> | <code>Serial</code> | <code>Probe</code></td><td>—</td><td>Mode de transport matériel.</td></tr>
+<tr><td><code>sonde_cible</code></td><td>string?</td><td><code>null</code></td><td>Identifiant de la puce cible pour <code>transport = probe</code> (par ex. <code>STM32F401RE</code>, <code>nRF52840_xxAA</code>). Transmis directement à probe-rs pour les opérations de flash/débogage ; doit correspondre à une puce reconnue par probe-rs.</td></tr>
+<tr><td><code>port_série</code></td><td>string?</td><td><code>null</code></td><td>Chemin TTY pour le transport <code>serial</code> — par exemple <code>/dev/ttyACM0</code> sous Linux, <code>/dev/tty.usbmodem1</code> sous macOS, <code>COM3</code> sous Windows. Ignoré pour les autres transports.</td></tr>
+<tr><td><code>transport</code></td><td><code>None</code> | <code>Native</code> | <code>Serial</code> | <code>Probe</code></td><td><code>—</code></td><td>Mode de transport matériel.</td></tr>
 <tr><td><code>workspace_datasheets</code></td><td>bool</td><td><code>false</code></td><td>Indexe les schémas PDF et les fiches techniques de l’espace de travail dans un magasin RAG local, afin que l’agent puisse consulter les affectations de broches et les spécifications électriques en ligne lorsque vous posez des questions sur le matériel. Désactivé par défaut — activez-le une fois que des PDF pertinents ont été déposés dans l’espace de travail.</td></tr>
 </tbody>
 </table>
@@ -874,19 +952,19 @@
 <tbody>
 <tr><td><code>adaptatif</code></td><td>bool</td><td><code>false</code></td><td>Activer les intervalles adaptatifs qui ralentissent en cas d’échecs et accélèrent pour</td></tr>
 <tr><td><code>agent</code></td><td>chaîne</td><td><code>""</code></td><td>Alias d’agent configuré sous lequel s’exécute le worker heartbeat. Requis</td></tr>
-<tr><td><code>deadman_channel</code></td><td>aucun</td><td><code>null</code></td><td>Canal pour les alertes du commutateur de sécurité (par exemple <code>telegram</code>). Fait appel à</td></tr>
+<tr><td><code>deadman_channel</code></td><td>string?</td><td><code>null</code></td><td>Canal pour les alertes du commutateur de sécurité (par exemple <code>telegram</code>). Fait appel à</td></tr>
 <tr><td><code>deadman_timeout_minutes</code></td><td>entier</td><td><code>0</code></td><td>Délai d’expiration du commutateur de sécurité en minutes. Si le battement de cœur n’a pas été émis</td></tr>
-<tr><td><code>deadman_to</code></td><td>aucun</td><td><code>null</code></td><td>Destinataire des alertes du commutateur de sécurité. Utilise <code>to</code> par défaut.</td></tr>
+<tr><td><code>deadman_to</code></td><td>string?</td><td><code>null</code></td><td>Destinataire des alertes du commutateur de sécurité. Utilise <code>to</code> par défaut.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer les pings de heartbeat périodiques. Par défaut : <code>false</code>. Lorsque cette option est activée,</td></tr>
 <tr><td><code>interval_minutes</code></td><td>entier</td><td><code>30</code></td><td>Intervalle en minutes entre les pings de heartbeat. Minimum : <code>1</code>. Par défaut : <code>30</code>.</td></tr>
 <tr><td><code>load_session_context</code></td><td>bool</td><td><code>false</code></td><td>Chargez l’historique de la session de la chaîne avant chaque exécution de la tâche de battement cardiaque afin</td></tr>
 <tr><td><code>max_interval_minutes</code></td><td>entier</td><td><code>120</code></td><td>Intervalle maximum en minutes lorsque le mode adaptatif recule. Par défaut : <code>120</code>.</td></tr>
 <tr><td><code>max_run_history</code></td><td>entier</td><td><code>100</code></td><td>Nombre maximum d’enregistrements de l’historique des cœurs battants à conserver. Par défaut : <code>100</code>.</td></tr>
-<tr><td><code>message</code></td><td>aucun</td><td><code>null</code></td><td>Texte de tâche de secours optionnel lorsque <code>HEARTBEAT.md</code> ne contient aucune entrée de tâche.</td></tr>
+<tr><td><code>message</code></td><td>string?</td><td><code>null</code></td><td>Texte de tâche de secours optionnel lorsque <code>HEARTBEAT.md</code> ne contient aucune entrée de tâche.</td></tr>
 <tr><td><code>min_interval_minutes</code></td><td>entier</td><td><code>5</code></td><td>Intervalle minimum en minutes lorsque le mode adaptatif est activé. Par défaut : <code>5</code>.</td></tr>
-<tr><td><code>target</code></td><td>aucun</td><td><code>null</code></td><td>Chaîne de livraison facultative pour la sortie des battements de cœur (par exemple : <code>telegram</code>).</td></tr>
+<tr><td><code>target</code></td><td>string?</td><td><code>null</code></td><td>Chaîne de livraison facultative pour la sortie des battements de cœur (par exemple : <code>telegram</code>).</td></tr>
 <tr><td><code>task_timeout_secs</code></td><td>entier</td><td><code>600</code></td><td>Nombre maximum de secondes d’horloge autorisées pour une invocation d’un agent unique</td></tr>
-<tr><td><code>to</code></td><td>aucun</td><td><code>null</code></td><td>Identifiant du destinataire/chat de livraison optionnel (obligatoire lorsque <code>target</code> est</td></tr>
+<tr><td><code>to</code></td><td>string?</td><td><code>null</code></td><td>Identifiant du destinataire/chat de livraison optionnel (obligatoire lorsque <code>target</code> est</td></tr>
 <tr><td><code>two_phase</code></td><td>bool</td><td><code>vrai</code></td><td>Activer le battement de cœur en deux phases : la phase 1 demande au LLM s’il faut exécuter, la phase 2</td></tr>
 </tbody>
 </table>
@@ -898,8 +976,8 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>builtin</code></td><td>objet</td><td>—</td><td></td></tr>
-<tr><td><code>enabled</code>*</td><td>bool</td><td>—</td><td>Activer l’exécution des hooks de cycle de vie.</td></tr>
+<tr><td><code>builtin</code></td><td>objet</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>enabled</code>*</td><td>bool</td><td><code>—</code></td><td>Activer l’exécution des hooks de cycle de vie.</td></tr>
 </tbody>
 </table>
 </div>
@@ -910,8 +988,8 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>command_logger</code>*</td><td>bool</td><td>—</td><td>Activer le hook de journalisation des commandes (enregistre les appels d’outils aux fins d’audit).</td></tr>
-<tr><td><code>webhook_audit</code></td><td>objet</td><td>—</td><td>Configuration pour le hook intégré webhook-audit.</td></tr>
+<tr><td><code>command_logger</code>*</td><td>bool</td><td><code>—</code></td><td>Activer le hook de journalisation des commandes (enregistre les appels d’outils aux fins d’audit).</td></tr>
+<tr><td><code>webhook_audit</code></td><td>objet</td><td><code>—</code></td><td>Configuration pour le hook intégré webhook-audit.</td></tr>
 </tbody>
 </table>
 </div>
@@ -946,6 +1024,7 @@
 <tr><td><code>hôtes privés autorisés</code></td><td>string[]</td><td><code>[]</code></td><td>Private/internal hosts explicitly allowed to bypass SSRF protection.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’outil <code>http_request</code> pour les interactions API</td></tr>
 <tr><td><code>max_response_size</code></td><td>entier</td><td><code>1000000</code></td><td>Taille maximale de la réponse en octets (par défaut : 1 Mo, 0 = illimité)</td></tr>
+<tr><td><code>secrets</code> 🔑</td><td>carte</td><td><code>{}</code></td><td>Named authorization secrets for <code>auth_secret</code> requests.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration de la requête en secondes (par défaut : 30)</td></tr>
 </tbody>
 </table>
@@ -985,7 +1064,7 @@
 <tr><td><code>allowed_actions</code></td><td>string[]</td><td><code>["get_ticket"]</code></td><td>Actions que l’agent est autorisé à appeler.</td></tr>
 <tr><td><code>api_token</code> 🔑</td><td>chaîne</td><td><code>""</code></td><td>Jeton d’API Jira. Chiffré au repos. Utilise la variable d’environnement <code>JIRA_API_TOKEN</code> en cas de défaut.</td></tr>
 <tr><td><code>base_url</code></td><td>chaîne</td><td><code>""</code></td><td>URL de base de l’instance Atlassian, par exemple <code>https://yourco.atlassian.net</code>.</td></tr>
-<tr><td><code>email</code></td><td>aucun</td><td>—</td><td>E-mail du compte Jira utilisé pour l’authentification Basic (Cloud).</td></tr>
+<tr><td><code>email</code></td><td>string?</td><td><code>—</code></td><td>E-mail du compte Jira utilisé pour l’authentification Basic (Cloud).</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activez l’outil <code>jira</code>. Par défaut : <code>false</code>.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration de la requête en secondes. Par défaut : <code>30</code>.</td></tr>
 </tbody>
@@ -1034,9 +1113,9 @@
 </thead>
 <tbody>
 <tr><td><code>api_version</code></td><td>chaîne</td><td><code>"202602"</code></td><td>En-tête de version de l’API REST LinkedIn (format AAAAMM).</td></tr>
-<tr><td><code>content</code></td><td>objet</td><td>—</td><td>Configuration de la stratégie de contenu pour la publication automatique sur LinkedIn (<code>[linkedin.content]</code>).</td></tr>
+<tr><td><code>content</code></td><td>objet</td><td><code>—</code></td><td>Configuration de la stratégie de contenu pour la publication automatique sur LinkedIn (<code>[linkedin.content]</code>).</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’outil LinkedIn.</td></tr>
-<tr><td><code>image</code></td><td>objet</td><td>—</td><td>Configuration de génération d’image pour les publications LinkedIn (<code>[linkedin.image]</code>).</td></tr>
+<tr><td><code>image</code></td><td>objet</td><td><code>—</code></td><td>Configuration de génération d’image pour les publications LinkedIn (<code>[linkedin.image]</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -1067,13 +1146,13 @@
 </thead>
 <tbody>
 <tr><td><code>card_accent_color</code></td><td>chaîne</td><td><code>"#0A66C2"</code></td><td>Couleur d’accentuation pour la carte de repli (hexadécimal CSS).</td></tr>
-<tr><td><code>dalle</code></td><td>objet</td><td>—</td><td>Paramètres OpenAI DALL-E (<code>[linkedin.image.dalle]</code>).</td></tr>
+<tr><td><code>dalle</code></td><td>objet</td><td><code>—</code></td><td>Paramètres OpenAI DALL-E (<code>[linkedin.image.dalle]</code>).</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer la génération d’images pour les publications.</td></tr>
 <tr><td><code>fallback_card</code></td><td>bool</td><td><code>vrai</code></td><td>Générer une carte de texte SVG personnalisée lorsque tous les model_providers d’IA échouent.</td></tr>
-<tr><td><code>flux</code></td><td>objet</td><td>—</td><td>Paramètres de génération d’images Flux (fal.ai) (<code>[linkedin.image.flux]</code>).</td></tr>
-<tr><td><code>imagen</code></td><td>objet</td><td>—</td><td>Paramètres de Google Imagen (Vertex AI) (<code>[linkedin.image.imagen]</code>).</td></tr>
+<tr><td><code>flux</code></td><td>objet</td><td><code>—</code></td><td>Paramètres de génération d’images Flux (fal.ai) (<code>[linkedin.image.flux]</code>).</td></tr>
+<tr><td><code>imagen</code></td><td>objet</td><td><code>—</code></td><td>Paramètres de Google Imagen (Vertex AI) (<code>[linkedin.image.imagen]</code>).</td></tr>
 <tr><td><code>providers</code></td><td>string[]</td><td><code>["stability","imagen","dalle","flux"]</code></td><td>Ordre de priorité des ModelProvider. Essayés en séquence ; le premier qui réussit l’emporte.</td></tr>
-<tr><td><code>stabilité</code></td><td>objet</td><td>—</td><td>Paramètres de génération d’images de Stability AI (<code>[linkedin.image.stability]</code>).</td></tr>
+<tr><td><code>stabilité</code></td><td>objet</td><td><code>—</code></td><td>Paramètres de génération d’images de Stability AI (<code>[linkedin.image.stability]</code>).</td></tr>
 <tr><td><code>temp_dir</code></td><td>chaîne</td><td><code>"linkedin/images"</code></td><td>Répertoire temporaire pour les images générées, relatif à l’espace de travail.</td></tr>
 </tbody>
 </table>
@@ -1182,7 +1261,7 @@
 <tr><td><code>audit_retention_days</code></td><td>entier</td><td><code>30</code></td><td>Durée de conservation des entrées d’audit en jours (par défaut : 30).</td></tr>
 <tr><td><code>auto_hydrate</code></td><td>bool</td><td><code>vrai</code></td><td>Auto-hydrate depuis MEMORY_SNAPSHOT.md lorsque brain.db est manquant</td></tr>
 <tr><td><code>auto_save</code></td><td>bool</td><td><code>vrai</code></td><td>Enregistre automatiquement en mémoire ce que <em>vous</em> communiquez à ZeroClaw en tant qu’historique de conversation — les réponses de l’agent ne sont pas enregistrées. Désactivez cette option si vous souhaitez que la mémoire ne conserve que les éléments que vous enregistrez explicitement via l’outil de mémoire.</td></tr>
-<tr><td><code>backend</code>*</td><td>chaîne</td><td>—</td><td>Référence pointée vers l’instance de stockage active : <code>&lt;backend&gt;.&lt;alias&gt;</code></td></tr>
+<tr><td><code>backend</code>*</td><td>chaîne</td><td><code>—</code></td><td>Référence pointée vers l’instance de stockage active : <code>&lt;backend&gt;.&lt;alias&gt;</code></td></tr>
 <tr><td><code>chunk_max_tokens</code></td><td>entier</td><td><code>512</code></td><td>Nombre maximal de jetons par fragment pour le fractionnement des documents</td></tr>
 <tr><td><code>conflict_threshold</code></td><td>nombre</td><td><code>0.85</code></td><td>Seuil de similarité cosinus pour la détection de conflits (0,0–1,0).</td></tr>
 <tr><td><code>jours de conservation des conversations</code></td><td>entier</td><td><code>30</code></td><td>Pour le backend sqlite uniquement — supprime les lignes de conversation plus anciennes que ce nombre de jours afin de garder la base de données légère. N’affecte pas les souvenirs principaux ni les notes.</td></tr>
@@ -1195,7 +1274,7 @@
 <tr><td><code>hygiene_enabled</code></td><td>bool</td><td><code>vrai</code></td><td>Exécute la passe d’hygiène périodique qui archive les fichiers quotidiens/de session obsolètes et applique les fenêtres de rétention. Laissez activé sauf si vous souhaitez gérer le nettoyage vous-même.</td></tr>
 <tr><td><code>poids_mot_clé</code></td><td>nombre</td><td><code>0.3</code></td><td>Niveau de prise en compte du chevauchement BM25 (mots-clés) lorsque <code>search_mode = hybrid</code>. Augmentez vers 1.0 pour une correspondance exacte des termes ; diminuez-le lorsque les paraphrases doivent tout de même obtenir un bon score.</td></tr>
 <tr><td><code>min_relevance_score</code></td><td>nombre</td><td><code>0.4</code></td><td>Score hybride minimum (0,0–1,0) pour qu’une mémoire soit incluse dans le contexte.</td></tr>
-<tr><td><code>policy</code></td><td>objet</td><td>—</td><td>Configuration de la politique de mémoire (section <code>[memory.policy]</code>).</td></tr>
+<tr><td><code>policy</code></td><td>objet</td><td><code>—</code></td><td>Configuration de la politique de mémoire (section <code>[memory.policy]</code>).</td></tr>
 <tr><td><code>purge_after_days</code></td><td>entier</td><td><code>30</code></td><td>Supprimer définitivement les fichiers archivés après ce nombre de jours. Définissez une valeur élevée si vous avez besoin d’un historique à long terme ; définissez une valeur faible pour des raisons de confidentialité ou d’espace disque.</td></tr>
 <tr><td><code>rerank_enabled</code></td><td>bool</td><td><code>false</code></td><td>Activer le reranking par LLM lorsque le nombre de candidats dépasse le seuil.</td></tr>
 <tr><td><code>rerank_threshold</code></td><td>entier</td><td><code>5</code></td><td>Nombre minimum de candidats pour déclencher le reranking.</td></tr>
@@ -1204,7 +1283,7 @@
 <tr><td><code>response_cache_max_entries</code></td><td>entier</td><td><code>5000</code></td><td>Nombre maximum de réponses mises en cache avant éviction LRU (par défaut : 5000)</td></tr>
 <tr><td><code>response_cache_ttl_minutes</code></td><td>entier</td><td><code>60</code></td><td>TTL en minutes pour les réponses mises en cache (par défaut : 60)</td></tr>
 <tr><td><code>retrieval_stages</code></td><td>string[]</td><td><code>["cache","fts","vector"]</code></td><td>Étapes de récupération à exécuter dans l’ordre. Valeurs valides : « cache », « fts », « vector ».</td></tr>
-<tr><td><code>search_mode</code></td><td>aucun</td><td>—</td><td>Stratégie de recherche pour la récupération en mémoire.</td></tr>
+<tr><td><code>search_mode</code></td><td>table</td><td><code>—</code></td><td>Stratégie de recherche pour la récupération en mémoire.</td></tr>
 <tr><td><code>snapshot_enabled</code></td><td>bool</td><td><code>false</code></td><td>Activer l’export périodique des mémoires principales vers MEMORY_SNAPSHOT.md</td></tr>
 <tr><td><code>snapshot_on_hygiene</code></td><td>bool</td><td><code>false</code></td><td>Exécuter la capture instantanée pendant les passes d’hygiène (basées sur le battement de cœur)</td></tr>
 <tr><td><code>poids_vectoriel</code></td><td>nombre</td><td><code>0.7</code></td><td>Le poids accordé à la similarité vectorielle (sémantique) lorsque <code>search_mode = hybrid</code>. Augmentez-le vers 1.0 pour privilégier les correspondances basées sur le sens ; diminuez-le pour vous appuyer plutôt sur le chevauchement de mots-clés.</td></tr>
@@ -1236,13 +1315,13 @@
 </thead>
 <tbody>
 <tr><td><code>auth_flow</code></td><td>chaîne</td><td><code>"client_credentials"</code></td><td>Flux d’authentification : « client_credentials » ou « device_code »</td></tr>
-<tr><td><code>client_id</code></td><td>aucun</td><td><code>null</code></td><td>ID d’application (client) Azure AD</td></tr>
-<tr><td><code>client_secret</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé secrète Azure AD (stockée de manière chiffrée lorsque secrets.encrypt = true)</td></tr>
+<tr><td><code>client_id</code></td><td>string?</td><td><code>null</code></td><td>ID d’application (client) Azure AD</td></tr>
+<tr><td><code>client_secret</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé secrète Azure AD (stockée de manière chiffrée lorsque secrets.encrypt = true)</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’intégration avec Microsoft 365</td></tr>
 <tr><td><code>scopes</code></td><td>string[]</td><td><code>["https://graph.microsoft.com/.default"]</code></td><td>Portées OAuth à demander</td></tr>
-<tr><td><code>tenant_id</code></td><td>aucun</td><td><code>null</code></td><td>ID de locataire Azure AD</td></tr>
+<tr><td><code>tenant_id</code></td><td>string?</td><td><code>null</code></td><td>ID de locataire Azure AD</td></tr>
 <tr><td><code>token_cache_encrypted</code></td><td>bool</td><td><code>vrai</code></td><td>Chiffrer le fichier de cache de jeton sur le disque</td></tr>
-<tr><td><code>user_id</code></td><td>aucun</td><td><code>null</code></td><td>Nom principal utilisateur ou « me » (pour les flux délégués)</td></tr>
+<tr><td><code>user_id</code></td><td>string?</td><td><code>null</code></td><td>Nom principal utilisateur ou « me » (pour les flux délégués)</td></tr>
 </tbody>
 </table>
 </div>
@@ -1263,8 +1342,8 @@
 <tr><td><code>max_image_size_mb</code></td><td>entier</td><td><code>5</code></td><td>Taille maximale du chargement d’image en MiB avant l’encodage en base64.</td></tr>
 <tr><td><code>max_image_turns</code></td><td>entier</td><td><code>0</code></td><td>Maximum age of images in conversation turns.</td></tr>
 <tr><td><code>max_images</code></td><td>entier</td><td><code>4</code></td><td>Nombre maximum de pièces jointes d’image acceptées par requête.</td></tr>
-<tr><td><code>vision_model</code></td><td>aucun</td><td><code>null</code></td><td>Modèle à utiliser lors du routage vers le model_provider de vision (par ex. <code>"llava:7b"</code>).</td></tr>
-<tr><td><code>vision_model_provider</code></td><td>aucun</td><td><code>null</code></td><td>Nom du ModelProvider à utiliser pour les messages vision/image (par ex. <code>"ollama"</code>).</td></tr>
+<tr><td><code>vision_model</code></td><td>string?</td><td><code>null</code></td><td>Modèle à utiliser lors du routage vers le model_provider de vision (par ex. <code>"llava:7b"</code>).</td></tr>
+<tr><td><code>vision_model_provider</code></td><td>string?</td><td><code>null</code></td><td>Nom du ModelProvider à utiliser pour les messages vision/image (par ex. <code>"ollama"</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -1283,8 +1362,8 @@
 <tr><td><code>mutual_tls</code></td><td>bool</td><td><code>false</code></td><td>Exiger des certificats client (TLS mutuel).</td></tr>
 <tr><td><code>require_https</code></td><td>bool</td><td><code>vrai</code></td><td>Exiger HTTPS pour toutes les communications entre les nœuds.</td></tr>
 <tr><td><code>shared_secret</code> 🔑</td><td>chaîne</td><td><code>""</code></td><td>Secret partagé pour l’authentification HMAC entre les nœuds.</td></tr>
-<tr><td><code>tls_cert_path</code></td><td>aucun</td><td><code>null</code></td><td>Chemin vers le fichier de certificat TLS.</td></tr>
-<tr><td><code>tls_key_path</code></td><td>aucun</td><td><code>null</code></td><td>Chemin vers le fichier de clé privée TLS.</td></tr>
+<tr><td><code>tls_cert_path</code></td><td>string?</td><td><code>null</code></td><td>Chemin vers le fichier de certificat TLS.</td></tr>
+<tr><td><code>tls_key_path</code></td><td>string?</td><td><code>null</code></td><td>Chemin vers le fichier de clé privée TLS.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1297,7 +1376,7 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>auth_token</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Jeton d’authentification optionnel pour l’authentification du nœud.</td></tr>
+<tr><td><code>auth_token</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Jeton d’authentification optionnel pour l’authentification du nœud.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer le point de terminaison de découverte dynamique des nœuds.</td></tr>
 <tr><td><code>max_nodes</code></td><td>entier</td><td><code>16</code></td><td>Nombre maximum de connexions de nœuds simultanées.</td></tr>
 </tbody>
@@ -1332,16 +1411,16 @@
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>backend</code>*</td><td>chaîne</td><td>—</td><td>“aucun” | “journal” | “détaillé” | “prometheus” | “otel”</td></tr>
+<tr><td><code>backend</code>*</td><td>chaîne</td><td><code>—</code></td><td>“aucun” | “journal” | “détaillé” | “prometheus” | “otel”</td></tr>
 <tr><td><code>log_persistence</code></td><td>chaîne</td><td><code>"rolling"</code></td><td>Mode de persistance des journaux : “none” | “rolling” | “full”.</td></tr>
 <tr><td><code>log_persistence_max_entries</code></td><td>entier</td><td><code>200</code></td><td>Nombre maximal d’entrées conservées lorsque <code>log_persistence = "rolling"</code>.</td></tr>
 <tr><td><code>log_persistence_path</code></td><td>chaîne</td><td><code>"state/runtime-trace.jsonl"</code></td><td>Chemin du fichier de persistance des logs. Les chemins relatifs sont résolus dans workspace_dir.</td></tr>
 <tr><td><code>log_tool_io</code></td><td>chaîne</td><td><code>"redacted"</code></td><td>Politique de capture des E/S de l’outil : “off” | “redacted” | “full”.</td></tr>
 <tr><td><code>log_tool_io_denylist</code></td><td>string[]</td><td><code>[]</code></td><td>Noms des outils dont les E/S ne sont jamais journalisées au-delà du nom + résultat + durée</td></tr>
 <tr><td><code>log_tool_io_truncate_bytes</code></td><td>entier</td><td><code>40960</code></td><td>Tronquer l’entrée et la sortie capturées de l’outil à ce nombre d’octets lorsque</td></tr>
-<tr><td><code>otel_endpoint</code></td><td>aucun</td><td><code>null</code></td><td>Point de terminaison OTLP (par exemple, <code>"http://localhost:4318"</code>). Utilisé uniquement lorsque le backend est <code>"otel"</code>.</td></tr>
-<tr><td><code>otel_headers</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>En-têtes HTTP optionnels envoyés avec chaque requête d’export OTLP (par exemple, l’autorisation).</td></tr>
-<tr><td><code>otel_service_name</code></td><td>aucun</td><td><code>null</code></td><td>Nom du service signalé au collecteur OTel. Par défaut, « zeroclaw ».</td></tr>
+<tr><td><code>otel_endpoint</code></td><td>string?</td><td><code>null</code></td><td>Point de terminaison OTLP (par exemple, <code>"http://localhost:4318"</code>). Utilisé uniquement lorsque le backend est <code>"otel"</code>.</td></tr>
+<tr><td><code>otel_headers</code> 🔑</td><td>map?</td><td><code>null</code></td><td>En-têtes HTTP optionnels envoyés avec chaque requête d’export OTLP (par exemple, l’autorisation).</td></tr>
+<tr><td><code>otel_service_name</code></td><td>string?</td><td><code>null</code></td><td>Nom du service signalé au collecteur OTel. Par défaut, « zeroclaw ».</td></tr>
 </tbody>
 </table>
 </div>
@@ -1387,11 +1466,11 @@
 <tbody>
 <tr><td><code>loop_detection_enabled</code></td><td>bool</td><td><code>vrai</code></td><td>Activer la détection de boucle basée sur les motifs (répétition exacte, va-et-vient,</td></tr>
 <tr><td><code>loop_detection_max_repeats</code></td><td>entier</td><td><code>3</code></td><td>Nombre d’appels consécutifs identiques d’outils+arguments avant le premier</td></tr>
-<tr><td><code>loop_detection_min_elapsed_secs</code></td><td>aucun</td><td><code>null</code></td><td>Nombre minimum de secondes d’écoulement avant que la détection de boucle ne s’active.</td></tr>
+<tr><td><code>loop_detection_min_elapsed_secs</code></td><td>integer?</td><td><code>null</code></td><td>Nombre minimum de secondes d’écoulement avant que la détection de boucle ne s’active.</td></tr>
 <tr><td><code>loop_detection_window_size</code></td><td>entier</td><td><code>20</code></td><td>Taille de la fenêtre glissante pour le détecteur de boucle basé sur les motifs.</td></tr>
 <tr><td><code>loop_ignore_tools</code></td><td>string[]</td><td><code>[]</code></td><td>Noms d’outils exclus de la boucle de sortie identique / motif alternatif</td></tr>
-<tr><td><code>message_timeout_scale_max</code></td><td>aucun</td><td><code>null</code></td><td>Remplacement de la valeur par défaut du facteur d’échelle du délai d’attente (par défaut : 4).</td></tr>
-<tr><td><code>step_timeout_secs</code></td><td>aucun</td><td><code>null</code></td><td>Délai d’expiration par étape en secondes : le temps maximum autorisé pour une seule</td></tr>
+<tr><td><code>message_timeout_scale_max</code></td><td>integer?</td><td><code>null</code></td><td>Remplacement de la valeur par défaut du facteur d’échelle du délai d’attente (par défaut : 4).</td></tr>
+<tr><td><code>step_timeout_secs</code></td><td>integer?</td><td><code>null</code></td><td>Délai d’expiration par étape en secondes : le temps maximum autorisé pour une seule</td></tr>
 </tbody>
 </table>
 </div>
@@ -1407,7 +1486,7 @@
 </thead>
 <tbody>
 <tr><td><code>boards</code></td><td>object[]</td><td><code>[]</code></td><td>Configurations de carte (nucleo-f401re, rpi-gpio, etc.)</td></tr>
-<tr><td><code>datasheet_dir</code></td><td>aucun</td><td><code>null</code></td><td>Chemin vers les documents de la fiche technique (relatif à l’espace de travail) pour la récupération RAG.</td></tr>
+<tr><td><code>datasheet_dir</code></td><td>string?</td><td><code>null</code></td><td>Chemin vers les documents de la fiche technique (relatif à l’espace de travail) pour la récupération RAG.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer la prise en charge des périphériques (les cartes deviennent des outils d’agent)</td></tr>
 </tbody>
 </table>
@@ -1438,7 +1517,7 @@
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer le système de plugins (par défaut : false)</td></tr>
 <tr><td><code>max_plugins</code></td><td>entier</td><td><code>50</code></td><td>Nombre maximum de plugins qui peuvent être chargés</td></tr>
 <tr><td><code>plugins_dir</code></td><td>chaîne</td><td><code>"/home/runner/.zeroclaw/plugins"</code></td><td>Répertoire où les plugins sont stockés</td></tr>
-<tr><td><code>sécurité</code></td><td>objet</td><td>—</td><td>Configuration de la vérification de la signature des plugins (<code>[plugins.security]</code>).</td></tr>
+<tr><td><code>sécurité</code></td><td>objet</td><td><code>—</code></td><td>Configuration de la vérification de la signature des plugins (<code>[plugins.security]</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -1468,10 +1547,10 @@
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’outil project_intel. Par défaut : false.</td></tr>
 <tr><td><code>include_git_data</code></td><td>bool</td><td><code>vrai</code></td><td>Inclure les données de <code>git log</code> dans les rapports. Par défaut : true.</td></tr>
 <tr><td><code>include_jira_data</code></td><td>bool</td><td><code>false</code></td><td>Inclure les données Jira dans les rapports. Par défaut : false.</td></tr>
-<tr><td><code>jira_base_url</code></td><td>aucun</td><td><code>null</code></td><td>URL de base de l’instance Jira (obligatoire si include_jira_data est true).</td></tr>
+<tr><td><code>jira_base_url</code></td><td>string?</td><td><code>null</code></td><td>URL de base de l’instance Jira (obligatoire si include_jira_data est true).</td></tr>
 <tr><td><code>report_output_dir</code></td><td>chaîne</td><td><code>"/home/runner/.zeroclaw/project-reports"</code></td><td>Répertoire de sortie pour les rapports générés.</td></tr>
 <tr><td><code>sensibilité au risque</code></td><td>chaîne</td><td><code>"medium"</code></td><td>Sensibilité de détection des risques : faible, moyenne, élevée. Par défaut : « medium ».</td></tr>
-<tr><td><code>templates_dir</code></td><td>aucun</td><td><code>null</code></td><td>Répertoire de modèles personnalisés optionnel.</td></tr>
+<tr><td><code>templates_dir</code></td><td>string?</td><td><code>null</code></td><td>Répertoire de modèles personnalisés optionnel.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1493,9 +1572,9 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>models</code></td><td>objet</td><td>—</td><td>Conteneur typé de fournisseur de modèle — un emplacement par type <code>model_provider</code> canonique.</td></tr>
-<tr><td><code>transcription</code></td><td>objet</td><td>—</td><td>Conteneur typé de fournisseur de transcription — un emplacement par famille STT.</td></tr>
-<tr><td><code>tts</code></td><td>objet</td><td>—</td><td>Conteneur de fournisseur TTS typé — un emplacement par famille TTS. Reflète</td></tr>
+<tr><td><code>models</code></td><td>objet</td><td><code>—</code></td><td>Conteneur typé de fournisseur de modèle — un emplacement par type <code>model_provider</code> canonique.</td></tr>
+<tr><td><code>transcription</code></td><td>objet</td><td><code>—</code></td><td>Conteneur typé de fournisseur de transcription — un emplacement par famille STT.</td></tr>
+<tr><td><code>tts</code></td><td>objet</td><td><code>—</code></td><td>Conteneur de fournisseur TTS typé — un emplacement par famille TTS. Reflète</td></tr>
 </tbody>
 </table>
 </div>
@@ -1503,120 +1582,14 @@ api_key = "..."
 <p>Conteneur typé de fournisseur de modèle — un emplacement par type <code>model_provider</code> canonique.</p>
 <p>Remplace le <code>HashMap&lt;String, HashMap&lt;String, ModelProviderConfig&gt;&gt;</code> par une structure typée afin que la table par alias de chaque famille porte sa propre configuration typée (avec l’énumération <code>*Endpoint</code> de la famille et les extras spécifiques à la famille visibles au niveau du type).</p>
 <p>La structure TOML est préservée à l’octet près : chaque champ nommé est désérialisé à partir du même bloc <code>[model_providers.&lt;type&gt;.&lt;alias&gt;]</code> qu’auparavant.</p>
-<p>L’ajout d’une nouvelle famille de model_provider implique de : définir la configuration typée dans <code>schema.rs</code>, puis d’ajouter une ligne à <code>for_each_model_provider_slot!</code> — chaque helper prend en charge le nouveau slot automatiquement.</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>ai21</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>aihubmix</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>anthropic</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>anyscale</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>arcee</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>astrai</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>atomic_chat</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>avian</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>azure</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>baichuan</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td>baseten</td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>bedrock</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>cerebras</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>cloudflare</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>cohere</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>copilot</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>custom</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>deepinfra</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>deepmyst</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>deepseek</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>doubao</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>featherless</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>fireworks</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>friendli</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>gemini</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>gemini_cli</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>github_models</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>glm</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>groq</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>huggingface</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>hunyuan</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>hyperbolic</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>inception</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>kilocli</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>lambda_ai</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>lepton</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>litellm</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>llamacpp</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>lmstudio</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>minimax</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>mistral</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>moonshot</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>morph</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>nebius</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>novita</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>nscale</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>nvidia</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>ollama</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>openai</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>opencode</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>openrouter</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>osaurus</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>ovh</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>perplexity</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>qianfan</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>qwen</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>reka</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>sambanova</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>sglang</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>siliconflow</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>stepfun</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>synthetic</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>telnyx</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>together</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>upstage</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>venice</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>vercel</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>vllm</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>xai</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>yi</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>zai</code></td><td>carte</td><td>—</td><td></td></tr>
-</tbody>
-</table>
-</div>
+<p>Adding a new model_provider family means: define the typed config in <code>schema.rs</code>, then add one row to <code>for_each_model_provider_slot!</code>, and every helper picks up the new slot automatically.</p>
+<p>One slot per family (<code>ai21</code>, <code>aihubmix</code>, <code>anthropic</code>, <code>anyscale</code>, <code>arcee</code>, <code>astrai</code>, <code>atomic_chat</code>, <code>avian</code>, <code>azure</code>, <code>baichuan</code>, <code>baseten</code>, <code>bedrock</code>, <code>cerebras</code>, <code>cloudflare</code>, <code>cohere</code>, <code>copilot</code>, <code>custom</code>, <code>deepinfra</code>, <code>deepmyst</code>, <code>deepseek</code>, <code>doubao</code>, <code>featherless</code>, <code>fireworks</code>, <code>friendli</code>, <code>gemini</code>, <code>gemini_cli</code>, <code>github_models</code>, <code>glm</code>, <code>groq</code>, <code>huggingface</code>, <code>hunyuan</code>, <code>hyperbolic</code>, <code>inception</code>, <code>kilo</code>, <code>kilocli</code>, <code>lambda_ai</code>, <code>lepton</code>, <code>litellm</code>, <code>llamacpp</code>, <code>lmstudio</code>, <code>minimax</code>, <code>mistral</code>, <code>moonshot</code>, <code>morph</code>, <code>nebius</code>, <code>novita</code>, <code>nscale</code>, <code>nvidia</code>, <code>ollama</code>, <code>openai</code>, <code>opencode</code>, <code>openrouter</code>, <code>osaurus</code>, <code>ovh</code>, <code>perplexity</code>, <code>qianfan</code>, <code>qwen</code>, <code>reka</code>, <code>sambanova</code>, <code>sglang</code>, <code>siliconflow</code>, <code>stepfun</code>, <code>synthetic</code>, <code>telnyx</code>, <code>together</code>, <code>upstage</code>, <code>venice</code>, <code>vercel</code>, <code>vllm</code>, <code>xai</code>, <code>yi</code>, <code>zai</code>). Each slot is a <code>[providers.models.&lt;slot&gt;.&lt;alias&gt;]</code> map; see the dedicated section page for the per-field reference.</p>
 <h3 id="providerstranscription"><a class="header" href="#providerstranscription"><code>providers.transcription</code></a></h3>
 <p>Conteneur typé de fournisseurs de transcription — un emplacement par famille STT. Reflète <code>ModelProviders</code> / <code>TtsProviders</code>. Ensemble fermé de 6 familles : groq, openai, deepgram, assemblyai, google, local_whisper.</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>assemblyai</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>deepgram</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>google</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>groq</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>local_whisper</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>openai</code></td><td>carte</td><td>—</td><td></td></tr>
-</tbody>
-</table>
-</div>
+<p>One slot per family (<code>assemblyai</code>, <code>deepgram</code>, <code>google</code>, <code>groq</code>, <code>local_whisper</code>, <code>openai</code>). Each slot is a <code>[providers.transcription.&lt;slot&gt;.&lt;alias&gt;]</code> map; see the dedicated section page for the per-field reference.</p>
 <h3 id="providerstts"><a class="header" href="#providerstts"><code>providers.tts</code></a></h3>
 <p>Conteneur typé de fournisseurs TTS — un emplacement par famille TTS. Reflète <code>ModelProviders</code> mais en plus petit (TTS dispose d’un ensemble fermé de 5 familles : openai, elevenlabs, google, edge, piper). Aucun fourre-tout nécessaire.</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>edge</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>elevenlabs</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>google</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>openai</code></td><td>carte</td><td>—</td><td></td></tr>
-<tr><td><code>piper</code></td><td>carte</td><td>—</td><td></td></tr>
-</tbody>
-</table>
-</div>
+<p>One slot per family (<code>edge</code>, <code>elevenlabs</code>, <code>google</code>, <code>openai</code>, <code>piper</code>). Each slot is a <code>[providers.tts.&lt;slot&gt;.&lt;alias&gt;]</code> map; see the dedicated section page for the per-field reference.</p>
 <h2 id="proxy"><a class="header" href="#proxy"><code>proxy</code></a></h2>
 <p>Configuration du proxy pour le trafic HTTP/HTTPS/SOCKS5 sortant (section <code>[proxy]</code>).</p>
 <div class="table-wrapper">
@@ -1625,12 +1598,12 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>all_proxy</code></td><td>aucun</td><td><code>null</code></td><td>URL du proxy de secours pour tous les schémas.</td></tr>
+<tr><td><code>all_proxy</code></td><td>string?</td><td><code>null</code></td><td>URL du proxy de secours pour tous les schémas.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer la prise en charge du proxy pour la portée sélectionnée.</td></tr>
-<tr><td><code>http_proxy</code></td><td>aucun</td><td><code>null</code></td><td>URL du proxy pour les requêtes HTTP (prend en charge http, https, socks5, socks5h).</td></tr>
-<tr><td><code>https_proxy</code></td><td>aucun</td><td><code>null</code></td><td>URL du proxy pour les requêtes HTTPS (prend en charge http, https, socks5, socks5h).</td></tr>
+<tr><td><code>http_proxy</code></td><td>string?</td><td><code>null</code></td><td>URL du proxy pour les requêtes HTTP (prend en charge http, https, socks5, socks5h).</td></tr>
+<tr><td><code>https_proxy</code></td><td>string?</td><td><code>null</code></td><td>URL du proxy pour les requêtes HTTPS (prend en charge http, https, socks5, socks5h).</td></tr>
 <tr><td><code>no_proxy</code></td><td>string[]</td><td><code>[]</code></td><td>Liste de contournement de proxy. Même format que NO_PROXY.</td></tr>
-<tr><td><code>scope</code></td><td>aucun</td><td>—</td><td>Portée de l’application proxy — détermine quel trafic sortant utilise le proxy.</td></tr>
+<tr><td><code>scope</code></td><td>table</td><td><code>—</code></td><td>Portée de l’application proxy — détermine quel trafic sortant utilise le proxy.</td></tr>
 <tr><td><code>services</code></td><td>string[]</td><td><code>[]</code></td><td>Sélecteurs de services utilisés lorsque scope = “services”.</td></tr>
 </tbody>
 </table>
@@ -1677,10 +1650,10 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>docker</code></td><td>objet</td><td>—</td><td>Configuration de l’exécution Docker (section <code>[runtime.docker]</code>).</td></tr>
+<tr><td><code>docker</code></td><td>objet</td><td><code>—</code></td><td>Configuration de l’exécution Docker (section <code>[runtime.docker]</code>).</td></tr>
 <tr><td><code>kind</code></td><td>chaîne</td><td><code>"natif"</code></td><td>Type d’exécution (<code>native</code> | <code>docker</code>).</td></tr>
-<tr><td><code>effort_de_raisonnement</code></td><td>aucun</td><td><code>null</code></td><td>Effort de raisonnement facultatif pour les model_providers qui exposent un contrôle de niveau.</td></tr>
-<tr><td><code>reasoning_enabled</code></td><td>aucun</td><td><code>null</code></td><td>Remplacement global du raisonnement pour les model_providers qui exposent des contrôles explicites.</td></tr>
+<tr><td><code>effort_de_raisonnement</code></td><td>string?</td><td><code>null</code></td><td>Effort de raisonnement facultatif pour les model_providers qui exposent un contrôle de niveau.</td></tr>
+<tr><td><code>reasoning_enabled</code></td><td>bool?</td><td><code>null</code></td><td>Remplacement global du raisonnement pour les model_providers qui exposent des contrôles explicites.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1693,9 +1666,9 @@ api_key = "..."
 </thead>
 <tbody>
 <tr><td><code>racines d'espaces de travail autorisées</code></td><td>string[]</td><td><code>[]</code></td><td>Liste blanche facultative du répertoire racine de l’espace de travail pour la validation des montages Docker.</td></tr>
-<tr><td><code>cpu_limit</code></td><td>aucun</td><td><code>1.0</code></td><td>Limite CPU optionnelle (<code>None</code> = pas de limite explicite).</td></tr>
+<tr><td><code>cpu_limit</code></td><td>number?</td><td><code>1.0</code></td><td>Limite CPU optionnelle (<code>None</code> = pas de limite explicite).</td></tr>
 <tr><td><code>image</code></td><td>chaîne</td><td><code>"alpine:3.20"</code></td><td>Image d’exécution utilisée pour exécuter des commandes shell.</td></tr>
-<tr><td><code>memory_limit_mb</code></td><td>aucun</td><td><code>512</code></td><td>Limite de mémoire optionnelle en Mo (<code>None</code> = pas de limite explicite).</td></tr>
+<tr><td><code>memory_limit_mb</code></td><td>integer?</td><td><code>512</code></td><td>Limite de mémoire optionnelle en Mo (<code>None</code> = pas de limite explicite).</td></tr>
 <tr><td><code>mount_workspace</code></td><td>bool</td><td><code>vrai</code></td><td>Monter l’espace de travail configuré dans <code>/workspace</code>.</td></tr>
 <tr><td><code>network</code></td><td>chaîne</td><td><code>"aucun"</code></td><td>Mode de réseau Docker (<code>none</code>, <code>bridge</code>, etc.).</td></tr>
 <tr><td><code>read_only_rootfs</code></td><td>bool</td><td><code>vrai</code></td><td>Monter le système de fichiers racine en lecture seule.</td></tr>
@@ -1731,7 +1704,7 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>encrypt</code></td><td>bool</td><td><code>vrai</code></td><td>Activer le chiffrement pour les clés API et les jetons dans config.toml</td></tr>
+<tr><td><code>encrypt</code></td><td>bool</td><td><code>vrai</code></td><td>Enable encryption for API keys and tokens at rest</td></tr>
 </tbody>
 </table>
 </div>
@@ -1744,11 +1717,11 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>audit</code></td><td>objet</td><td>—</td><td>Configuration de la journalisation des audits</td></tr>
-<tr><td><code>estop</code></td><td>carte</td><td>—</td><td>Configuration de l’arrêt d’urgence.</td></tr>
-<tr><td><code>nevis</code></td><td>carte</td><td>—</td><td>Configuration d’intégration IAM Nevis.</td></tr>
-<tr><td><code>otp</code></td><td>carte</td><td>—</td><td>Configuration de l’OTP de sécurité.</td></tr>
-<tr><td><code>webauthn</code></td><td>objet</td><td>—</td><td>Configuration de l’authentification par clé matérielle WebAuthn / FIDO2 (<code>[security.webauthn]</code>).</td></tr>
+<tr><td><code>audit</code></td><td>objet</td><td><code>—</code></td><td>Configuration de la journalisation des audits</td></tr>
+<tr><td><code>estop</code></td><td>carte</td><td><code>—</code></td><td>Configuration de l’arrêt d’urgence.</td></tr>
+<tr><td><code>nevis</code></td><td>carte</td><td><code>—</code></td><td>Configuration d’intégration IAM Nevis.</td></tr>
+<tr><td><code>otp</code></td><td>carte</td><td><code>—</code></td><td>Configuration de l’OTP de sécurité.</td></tr>
+<tr><td><code>webauthn</code></td><td>objet</td><td><code>—</code></td><td>Configuration de l’authentification par clé matérielle WebAuthn / FIDO2 (<code>[security.webauthn]</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -1791,10 +1764,10 @@ api_key = "..."
 </thead>
 <tbody>
 <tr><td><code>client_id</code></td><td>chaîne</td><td><code>""</code></td><td>ID client OAuth2 enregistré dans Nevis.</td></tr>
-<tr><td><code>client_secret</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé secrète du client OAuth2. Chiffrée via SecretStore lors de la sauvegarde sur le disque.</td></tr>
+<tr><td><code>client_secret</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé secrète du client OAuth2. Chiffrée via SecretStore lors de la sauvegarde sur le disque.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’intégration Nevis IAM. La valeur par défaut est false pour assurer la compatibilité ascendante.</td></tr>
 <tr><td><code>instance_url</code></td><td>chaîne</td><td><code>""</code></td><td>URL de base de l’instance Nevis (par exemple, <code>https://nevis.example.com</code>).</td></tr>
-<tr><td><code>jwks_url</code></td><td>aucun</td><td><code>null</code></td><td>URL de l’endpoint JWKS pour la validation locale des jetons.</td></tr>
+<tr><td><code>jwks_url</code></td><td>string?</td><td><code>null</code></td><td>URL de l’endpoint JWKS pour la validation locale des jetons.</td></tr>
 <tr><td><code>realm</code></td><td>chaîne</td><td><code>"master"</code></td><td>Realm Nevis à utiliser pour l’authentification.</td></tr>
 <tr><td><code>require_mfa</code></td><td>bool</td><td><code>false</code></td><td>Exiger la vérification MFA pour toutes les requêtes authentifiées via Nevis.</td></tr>
 <tr><td><code>role_mapping</code></td><td>map[]</td><td><code>[]</code></td><td>Mappages des rôles Nevis aux autorisations ZeroClaw.</td></tr>
@@ -1814,10 +1787,10 @@ api_key = "..."
 <tr><td><code>cache_valid_secs</code></td><td>entier</td><td><code>300</code></td><td>Réutiliser la fenêtre pour les codes OTP récemment validés.</td></tr>
 <tr><td><code>challenge_max_attempts</code></td><td>entier</td><td><code>3</code></td><td>Nombre maximum de tentatives de défi OTP avant le verrouillage.</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer le filtrage par OTP. La valeur par défaut est désactivée pour assurer la compatibilité avec les versions antérieures.</td></tr>
-<tr><td><code>gated_actions</code></td><td>string[]</td><td><code>["shell","file_write","browser_open","browser","memory_forget"]</code></td><td>Noms d’outils/actions soumis à l’OTP.</td></tr>
+<tr><td><code>gated_actions</code></td><td>string[]</td><td><code>["shell","file_write","browser_open","browser","memory_forget"]</code></td><td>Tool/action names gated by OTP. Empty or malformed entries are rejected</td></tr>
 <tr><td><code>gated_domain_categories</code></td><td>string[]</td><td><code>[]</code></td><td>Les catégories de domaine prédéfinies ont été étendues dans <code>gated_domains</code>.</td></tr>
 <tr><td><code>gated_domains</code></td><td>string[]</td><td><code>[]</code></td><td><strong>Modèles de domaine explicites verrouillés par OTP.</strong></td></tr>
-<tr><td><code>méthode</code></td><td>aucun</td><td>—</td><td>Stratégie de validation OTP.</td></tr>
+<tr><td><code>méthode</code></td><td>table</td><td><code>—</code></td><td>Stratégie de validation OTP.</td></tr>
 <tr><td><code>token_ttl_secs</code></td><td>entier</td><td><code>30</code></td><td>Pas de temps TOTP en secondes.</td></tr>
 </tbody>
 </table>
@@ -1852,7 +1825,7 @@ api_key = "..."
 <tr><td><code>playbooks_dir</code></td><td>chaîne</td><td><code>"/home/runner/.zeroclaw/playbooks"</code></td><td>Répertoire contenant les définitions de playbook de réponse aux incidents (JSON).</td></tr>
 <tr><td><code>report_output_dir</code></td><td>chaîne</td><td><code>"/home/runner/.zeroclaw/security-reports"</code></td><td>Répertoire pour les rapports de sécurité générés.</td></tr>
 <tr><td><code>require_approval_for_actions</code></td><td>bool</td><td><code>vrai</code></td><td>Demander une approbation humaine avant d’exécuter les actions du playbook.</td></tr>
-<tr><td><code>siem_integration</code></td><td>aucun</td><td><code>null</code></td><td>URL du webhook SIEM optionnel pour l’ingestion des alertes.</td></tr>
+<tr><td><code>siem_integration</code></td><td>string?</td><td><code>null</code></td><td>URL du webhook SIEM optionnel pour l’ingestion des alertes.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1880,13 +1853,13 @@ api_key = "..."
 </thead>
 <tbody>
 <tr><td><code>allow_scripts</code></td><td>bool</td><td><code>false</code></td><td>Autoriser les fichiers de type script dans les compétences (<code>.sh</code>, <code>.bash</code>, <code>.ps1</code>, fichiers shell avec shebang).</td></tr>
-<tr><td><code>install_suggestions</code></td><td>objet</td><td>—</td><td>Suggestions d’installation de skills déclenchées par invite (section <code>[skills.install_suggestions]</code>).</td></tr>
-<tr><td><code>open_skills_dir</code></td><td>aucun</td><td><code>null</code></td><td>Chemin optionnel vers un dépôt local open-skills.</td></tr>
+<tr><td><code>install_suggestions</code></td><td>objet</td><td><code>—</code></td><td>Suggestions d’installation de skills déclenchées par invite (section <code>[skills.install_suggestions]</code>).</td></tr>
+<tr><td><code>open_skills_dir</code></td><td>string?</td><td><code>null</code></td><td>Chemin optionnel vers un dépôt local open-skills.</td></tr>
 <tr><td><code>open_skills_enabled</code></td><td>bool</td><td><code>false</code></td><td>Activer le chargement et la synchronisation du dépôt open-skills de la communauté.</td></tr>
-<tr><td><code>mode_d'injection_de_prompt</code></td><td>aucun</td><td>—</td><td>Configuration de chargement des compétences (<code>[skills]</code> section).</td></tr>
-<tr><td><code>registry_url</code></td><td>aucun</td><td><code>null</code></td><td>URL du dépôt du registre des compétences pour les installations par nom nu.</td></tr>
-<tr><td><code>skill_creation</code></td><td>objet</td><td>—</td><td>Configuration de la création autonome de compétences (<code>[skills.skill_creation]</code> section).</td></tr>
-<tr><td><code>amélioration_compétence</code></td><td>objet</td><td>—</td><td>Configuration d’amélioration automatique des compétences (<code>[skills.auto_improve]</code> section).</td></tr>
+<tr><td><code>mode_d'injection_de_prompt</code></td><td>table</td><td><code>—</code></td><td>Configuration de chargement des compétences (<code>[skills]</code> section).</td></tr>
+<tr><td><code>registry_url</code></td><td>string?</td><td><code>null</code></td><td>URL du dépôt du registre des compétences pour les installations par nom nu.</td></tr>
+<tr><td><code>skill_creation</code></td><td>objet</td><td><code>—</code></td><td>Configuration de la création autonome de compétences (<code>[skills.skill_creation]</code> section).</td></tr>
+<tr><td><code>amélioration_compétence</code></td><td>objet</td><td><code>—</code></td><td>Configuration d’amélioration automatique des compétences (<code>[skills.auto_improve]</code> section).</td></tr>
 </tbody>
 </table>
 </div>
@@ -1942,27 +1915,14 @@ api_key = "..."
 <tr><td><code>mode_d'exécution_par_défaut</code></td><td>chaîne</td><td><code>"supervisé"</code></td><td>Mode d’exécution par défaut pour les SOP qui omettent <code>execution_mode</code>.</td></tr>
 <tr><td><code>max_concurrent_total</code></td><td>entier</td><td><code>4</code></td><td>Nombre total maximum d’exécutions concurrentes de SOP sur l’ensemble des SOP.</td></tr>
 <tr><td><code>max_finished_runs</code></td><td>entier</td><td><code>100</code></td><td>Nombre maximum d’exécutions terminées conservées en mémoire pour les requêtes de statut.</td></tr>
-<tr><td><code>sops_dir</code></td><td>aucun</td><td><code>null</code></td><td>Répertoire contenant les définitions de SOP (sous-répertoires avec SOP.toml + SOP.md).</td></tr>
+<tr><td><code>sops_dir</code></td><td>string?</td><td><code>null</code></td><td>Répertoire contenant les définitions de SOP (sous-répertoires avec SOP.toml + SOP.md).</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="stockage"><a class="header" href="#stockage"><code>stockage</code></a></h2>
 <p>Configuration du stockage persistant (section <code>[storage]</code>).</p>
 <p>Le stockage est une carte à deux niveaux indexée par alias : <code>[storage.&lt;backend&gt;.&lt;alias&gt;]</code>, parallèle à <code>[model_providers.&lt;type&gt;.&lt;alias&gt;]</code>. Chaque backend possède sa propre structure de config typée. <code>MemoryConfig.backend</code> contient une référence pointée (<code>"sqlite.default"</code>, <code>"postgres.work"</code>) qui se résout vers l’une de ces entrées via [<code>Config::resolve_active_storage</code>].</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>lucid</code></td><td>carte</td><td>—</td><td>Instances de synchronisation Lucid CLI (<code>[storage.lucid.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>markdown</code></td><td>carte</td><td>—</td><td>Instances de stockage Markdown (<code>[storage.markdown.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>postgres</code></td><td>carte</td><td>—</td><td>Instances de stockage PostgreSQL (<code>[storage.postgres.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>qdrant</code></td><td>carte</td><td>—</td><td>Instances de stockage Qdrant (<code>[storage.qdrant.&lt;alias&gt;]</code>).</td></tr>
-<tr><td><code>sqlite</code></td><td>carte</td><td>—</td><td>Instances de stockage SQLite (<code>[storage.sqlite.&lt;alias&gt;]</code>).</td></tr>
-</tbody>
-</table>
-</div>
+<p>One slot per family (<code>lucid</code>, <code>markdown</code>, <code>postgres</code>, <code>qdrant</code>, <code>sqlite</code>). Each slot is a <code>[storage.&lt;slot&gt;.&lt;alias&gt;]</code> map; see the dedicated section page for the per-field reference.</p>
 <h2 id="text_browser"><a class="header" href="#text_browser"><code>text_browser</code></a></h2>
 <p>Configuration de l’outil de navigateur de texte (<code>[text_browser]</code> section).</p>
 <p>Utilise des navigateurs basés sur le texte (lynx, links, w3m) pour afficher les pages web sous forme de texte brut. Conçu pour les environnements sans tête/SSH sans navigateurs graphiques.</p>
@@ -1973,7 +1933,7 @@ api_key = "..."
 </thead>
 <tbody>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’outil <code>text_browser</code></td></tr>
-<tr><td><code>preferred_browser</code></td><td>aucun</td><td><code>null</code></td><td>Navigateur texte préféré (« lynx », « links » ou « w3m »). Si non défini, la détection automatique est utilisée.</td></tr>
+<tr><td><code>preferred_browser</code></td><td>string?</td><td><code>null</code></td><td>Navigateur texte préféré (« lynx », « links » ou « w3m »). Si non défini, la détection automatique est utilisée.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration de la requête en secondes (par défaut : 30)</td></tr>
 </tbody>
 </table>
@@ -1987,19 +1947,19 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API utilisée pour les requêtes de transcription (fournisseur de transcription Groq).</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API utilisée pour les requêtes de transcription (fournisseur de transcription Groq).</td></tr>
 <tr><td><code>api_url</code></td><td>chaîne</td><td><code>"https://api.groq.com/openai/v1/audio/transcriptions"</code></td><td>URL du point de terminaison de l’API Whisper (fournisseur de transcription Groq).</td></tr>
-<tr><td><code>assemblyai</code></td><td>objet</td><td>—</td><td>Configuration AssemblyAI STT model_provider (<code>[transcription.assemblyai]</code>).</td></tr>
-<tr><td><code>deepgram</code></td><td>objet</td><td>—</td><td>Configuration de model_provider STT Deepgram (<code>[transcription.deepgram]</code>).</td></tr>
+<tr><td><code>assemblyai</code></td><td>objet</td><td><code>—</code></td><td>Configuration AssemblyAI STT model_provider (<code>[transcription.assemblyai]</code>).</td></tr>
+<tr><td><code>deepgram</code></td><td>objet</td><td><code>—</code></td><td>Configuration de model_provider STT Deepgram (<code>[transcription.deepgram]</code>).</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer la transcription vocale pour les canaux qui le prennent en charge.</td></tr>
-<tr><td><code>google</code></td><td>objet</td><td>—</td><td>Configuration de model_provider Google Cloud Speech-to-Text (<code>[transcription.google]</code>).</td></tr>
-<tr><td><code>initial_prompt</code></td><td>aucun</td><td><code>null</code></td><td>Invite initiale optionnelle pour orienter la transcription vers le vocabulaire attendu</td></tr>
-<tr><td><code>langue</code></td><td>aucun</td><td><code>null</code></td><td>Indication de langue facultative (ISO-639-1, par ex. « en », « ru ») pour le fournisseur de transcription Groq.</td></tr>
-<tr><td><code>local_whisper</code></td><td>objet</td><td>—</td><td>Point de terminaison STT compatible Whisper local/auto-hébergé (<code>[transcription.local_whisper]</code>).</td></tr>
-<tr><td><code>max_audio_bytes</code></td><td>aucun</td><td><code>null</code></td><td>Optional global audio size upper bound in bytes, enforced before</td></tr>
+<tr><td><code>google</code></td><td>objet</td><td><code>—</code></td><td>Configuration de model_provider Google Cloud Speech-to-Text (<code>[transcription.google]</code>).</td></tr>
+<tr><td><code>initial_prompt</code></td><td>string?</td><td><code>null</code></td><td>Invite initiale optionnelle pour orienter la transcription vers le vocabulaire attendu</td></tr>
+<tr><td><code>langue</code></td><td>string?</td><td><code>null</code></td><td>Indication de langue facultative (ISO-639-1, par ex. « en », « ru ») pour le fournisseur de transcription Groq.</td></tr>
+<tr><td><code>local_whisper</code></td><td>objet</td><td><code>—</code></td><td>Point de terminaison STT compatible Whisper local/auto-hébergé (<code>[transcription.local_whisper]</code>).</td></tr>
+<tr><td><code>max_audio_bytes</code></td><td>integer?</td><td><code>null</code></td><td>Optional global audio size upper bound in bytes, enforced before</td></tr>
 <tr><td><code>max_duration_secs</code></td><td>entier</td><td><code>120</code></td><td>Durée maximale de la voix en secondes (les messages plus longs que cette durée sont ignorés).</td></tr>
 <tr><td><code>model</code></td><td>chaîne</td><td><code>"whisper-large-v3-turbo"</code></td><td>Nom du modèle Whisper (fournisseur de transcription Groq).</td></tr>
-<tr><td><code>openai</code></td><td>objet</td><td>—</td><td>Configuration de model_provider pour le modèle STT OpenAI Whisper (<code>[transcription.openai]</code>).</td></tr>
+<tr><td><code>openai</code></td><td>objet</td><td><code>—</code></td><td>Configuration de model_provider pour le modèle STT OpenAI Whisper (<code>[transcription.openai]</code>).</td></tr>
 <tr><td><code>transcribe_non_ptt_audio</code></td><td>bool</td><td><code>false</code></td><td>Transcrivez également les messages audio non-PTT (transférés/ordinaires) sur WhatsApp,</td></tr>
 </tbody>
 </table>
@@ -2012,7 +1972,7 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API AssemblyAI.</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API AssemblyAI.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2024,7 +1984,7 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API Deepgram.</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API Deepgram.</td></tr>
 <tr><td><code>model</code></td><td>chaîne</td><td><code>"nova-2"</code></td><td>Nom du modèle Deepgram (par défaut : « nova-2 »).</td></tr>
 </tbody>
 </table>
@@ -2037,7 +1997,7 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API Google Cloud.</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API Google Cloud.</td></tr>
 <tr><td><code>code_langue</code></td><td>chaîne</td><td><code>"fr-FR"</code></td><td>Code de langue BCP-47 (par défaut : « en-US »).</td></tr>
 </tbody>
 </table>
@@ -2051,10 +2011,10 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>bearer_token</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Jeton Bearer pour l’authentification de l’endpoint.</td></tr>
+<tr><td><code>bearer_token</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Jeton Bearer pour l’authentification de l’endpoint.</td></tr>
 <tr><td><code>max_audio_bytes</code></td><td>entier</td><td><code>26214400</code></td><td>Taille maximale du fichier audio en octets acceptée par ce point de terminaison.</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>300</code></td><td>Délai d’expiration de la requête en secondes. La valeur par défaut est de 300 (pour les gros fichiers sur un GPU local).</td></tr>
-<tr><td><code>url</code>*</td><td>chaîne</td><td>—</td><td>URL de l’endpoint HTTP ou HTTPS, par exemple <code>"http://10.10.0.1:8001/v1/transcribe"</code>.</td></tr>
+<tr><td><code>url</code>*</td><td>chaîne</td><td><code>—</code></td><td>URL de l’endpoint HTTP ou HTTPS, par exemple <code>"http://10.10.0.1:8001/v1/transcribe"</code>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2066,7 +2026,7 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API OpenAI pour la transcription Whisper.</td></tr>
+<tr><td><code>api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API OpenAI pour la transcription Whisper.</td></tr>
 <tr><td><code>model</code></td><td>chaîne</td><td><code>"whisper-1"</code></td><td>Nom du modèle Whisper (par défaut : « whisper-1 »).</td></tr>
 </tbody>
 </table>
@@ -2111,13 +2071,13 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>cloudflare</code></td><td>objet</td><td>—</td><td></td></tr>
-<tr><td><code>custom</code></td><td>objet</td><td>—</td><td></td></tr>
-<tr><td><code>ngrok</code></td><td>objet</td><td>—</td><td></td></tr>
-<tr><td><code>openvpn</code></td><td>objet</td><td>—</td><td>Configuration du tunnel OpenVPN (<code>[tunnel.openvpn]</code>).</td></tr>
-<tr><td><code>pinggy</code></td><td>objet</td><td>—</td><td></td></tr>
-<tr><td><code>tailscale</code></td><td>objet</td><td>—</td><td></td></tr>
-<tr><td><code>tunnel_provider</code>*</td><td>chaîne</td><td>—</td><td>Comment la passerelle est exposée à l’internet public pour que les webhooks (Telegram, Slack, etc.) puissent l’atteindre. <code>none</code> = la garder locale, pas de tunnel ; <code>cloudflare</code> = Cloudflare Tunnel via cloudflared (nécessite un compte et un token Zero Trust) ; <code>tailscale</code> = Tailscale Funnel/Serve (réseau tailnet uniquement ou public, aucun compte au-delà de tailscale) ; <code>ngrok</code> = agent ngrok avec token d’authentification ; <code>openvpn</code> = sortie OpenVPN que vous fournissez ; <code>pinggy</code> = tunnels SSH Pinggy (URLs ponctuelles rapides) ; <code>custom</code> = exécuter une commande arbitraire que vous définissez sous <code>[tunnel.custom]</code>.</td></tr>
+<tr><td><code>cloudflare</code></td><td>objet</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>custom</code></td><td>objet</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>ngrok</code></td><td>objet</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>openvpn</code></td><td>objet</td><td><code>—</code></td><td>Configuration du tunnel OpenVPN (<code>[tunnel.openvpn]</code>).</td></tr>
+<tr><td><code>pinggy</code></td><td>objet</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>tailscale</code></td><td>objet</td><td><code>—</code></td><td></td></tr>
+<tr><td><code>tunnel_provider</code>*</td><td>chaîne</td><td><code>—</code></td><td>Comment la passerelle est exposée à l’internet public pour que les webhooks (Telegram, Slack, etc.) puissent l’atteindre. <code>none</code> = la garder locale, pas de tunnel ; <code>cloudflare</code> = Cloudflare Tunnel via cloudflared (nécessite un compte et un token Zero Trust) ; <code>tailscale</code> = Tailscale Funnel/Serve (réseau tailnet uniquement ou public, aucun compte au-delà de tailscale) ; <code>ngrok</code> = agent ngrok avec token d’authentification ; <code>openvpn</code> = sortie OpenVPN que vous fournissez ; <code>pinggy</code> = tunnels SSH Pinggy (URLs ponctuelles rapides) ; <code>custom</code> = exécuter une commande arbitraire que vous définissez sous <code>[tunnel.custom]</code>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2139,9 +2099,9 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>health_url</code></td><td>aucun</td><td><code>null</code></td><td>URL optionnelle pour vérifier la santé du tunnel</td></tr>
+<tr><td><code>health_url</code></td><td>string?</td><td><code>null</code></td><td>URL optionnelle pour vérifier la santé du tunnel</td></tr>
 <tr><td><code>start_command</code></td><td>chaîne</td><td><code>""</code></td><td>Modèle de commande pour démarrer le tunnel. Utilisez les espaces réservés {port} et {host}.</td></tr>
-<tr><td><code>url_pattern</code></td><td>aucun</td><td><code>null</code></td><td>Expression régulière optionnelle pour extraire l’URL publique depuis la sortie standard de la commande</td></tr>
+<tr><td><code>url_pattern</code></td><td>string?</td><td><code>null</code></td><td>Expression régulière optionnelle pour extraire l’URL publique depuis la sortie standard de la commande</td></tr>
 </tbody>
 </table>
 </div>
@@ -2153,7 +2113,7 @@ api_key = "..."
 </thead>
 <tbody>
 <tr><td><code>auth_token</code> 🔑</td><td>chaîne</td><td><code>""</code></td><td>jeton d’authentification ngrok</td></tr>
-<tr><td><code>domain</code></td><td>aucun</td><td><code>null</code></td><td>Domaine personnalisé optionnel</td></tr>
+<tr><td><code>domain</code></td><td>string?</td><td><code>null</code></td><td>Domaine personnalisé optionnel</td></tr>
 </tbody>
 </table>
 </div>
@@ -2167,9 +2127,9 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>advertise_address</code></td><td>aucun</td><td><code>null</code></td><td>Adresse annoncée une fois la connexion VPN établie (par exemple, <code>"10.8.0.2:42617"</code>).</td></tr>
-<tr><td><code>auth_file</code></td><td>aucun</td><td><code>null</code></td><td>Chemin optionnel vers le fichier d’identifiants d’authentification (<code>--auth-user-pass</code>).</td></tr>
-<tr><td><code>config_file</code>*</td><td>chaîne</td><td>—</td><td>Chemin vers le fichier de configuration <code>.ovpn</code> (ne doit pas être vide).</td></tr>
+<tr><td><code>advertise_address</code></td><td>string?</td><td><code>null</code></td><td>Adresse annoncée une fois la connexion VPN établie (par exemple, <code>"10.8.0.2:42617"</code>).</td></tr>
+<tr><td><code>auth_file</code></td><td>string?</td><td><code>null</code></td><td>Chemin optionnel vers le fichier d’identifiants d’authentification (<code>--auth-user-pass</code>).</td></tr>
+<tr><td><code>config_file</code>*</td><td>chaîne</td><td><code>—</code></td><td>Chemin vers le fichier de configuration <code>.ovpn</code> (ne doit pas être vide).</td></tr>
 <tr><td><code>connect_timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration de la connexion en secondes (par défaut : 30, doit être &gt; 0).</td></tr>
 <tr><td><code>extra_args</code></td><td>string[]</td><td><code>[]</code></td><td>Arguments CLI supplémentaires d’OpenVPN transmis tels quels.</td></tr>
 </tbody>
@@ -2182,8 +2142,8 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>region</code></td><td>aucun</td><td><code>null</code></td><td>Région du serveur : <code>"us"</code> (États-Unis), <code>"eu"</code> (Europe), <code>"ap"</code> (Asie), <code>"br"</code> (Amérique du Sud), <code>"au"</code> (Australie), ou omettre pour l’auto-détection.</td></tr>
-<tr><td><code>token</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Jeton d’accès Pinggy (facultatif — le plan gratuit fonctionne sans).</td></tr>
+<tr><td><code>region</code></td><td>string?</td><td><code>null</code></td><td>Région du serveur : <code>"us"</code> (États-Unis), <code>"eu"</code> (Europe), <code>"ap"</code> (Asie), <code>"br"</code> (Amérique du Sud), <code>"au"</code> (Australie), ou omettre pour l’auto-détection.</td></tr>
+<tr><td><code>token</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Jeton d’accès Pinggy (facultatif — le plan gratuit fonctionne sans).</td></tr>
 </tbody>
 </table>
 </div>
@@ -2195,7 +2155,7 @@ api_key = "..."
 </thead>
 <tbody>
 <tr><td><code>entonnoir</code></td><td>bool</td><td><code>false</code></td><td>Utilisez Tailscale Funnel (internet public) vs Serve (uniquement sur le tailnet)</td></tr>
-<tr><td><code>hostname</code></td><td>aucun</td><td><code>null</code></td><td>Remplacement facultatif du nom d’hôte</td></tr>
+<tr><td><code>hostname</code></td><td>string?</td><td><code>null</code></td><td>Remplacement facultatif du nom d’hôte</td></tr>
 </tbody>
 </table>
 </div>
@@ -2225,7 +2185,7 @@ api_key = "..."
 <tr><td><code>hôtes privés autorisés</code></td><td>string[]</td><td><code>[]</code></td><td>Hôtes privés/interne autorisés à contourner la protection SSRF (par exemple, <code>["192.168.1.10", "internal.local"]</code>)</td></tr>
 <tr><td><code>blocked_domains</code></td><td>string[]</td><td><code>[]</code></td><td>Domaines bloqués (correspondance exacte ou sous-domaine ; prend toujours la priorité sur allowed_domains)</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer l’outil <code>web_fetch</code> pour récupérer le contenu des pages web.</td></tr>
-<tr><td><code>firecrawl</code></td><td>objet</td><td>—</td><td>Configuration de secours de Firecrawl pour les sites lourds en JavaScript et bloqués par les robots.</td></tr>
+<tr><td><code>firecrawl</code></td><td>objet</td><td><code>—</code></td><td>Configuration de secours de Firecrawl pour les sites lourds en JavaScript et bloqués par les robots.</td></tr>
 <tr><td><code>max_response_size</code></td><td>entier</td><td><code>500000</code></td><td>Taille maximale de la réponse en octets (par défaut : 500 Ko, le texte brut est beaucoup plus petit que le HTML brut)</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>30</code></td><td>Délai d’expiration de la requête en secondes (par défaut : 30)</td></tr>
 </tbody>
@@ -2243,7 +2203,7 @@ api_key = "..."
 <tr><td><code>api_key_env</code></td><td>chaîne</td><td><code>"FIRECRAWL_API_KEY"</code></td><td>Nom de la variable d’environnement pour la clé API Firecrawl</td></tr>
 <tr><td><code>api_url</code></td><td>chaîne</td><td><code>"https://api.firecrawl.dev/v1"</code></td><td>URL de base de l’API Firecrawl</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer le fallback de Firecrawl</td></tr>
-<tr><td><code>mode</code></td><td>aucun</td><td>—</td><td>Mode de repli de Firecrawl : extraire une seule page ou explorer les pages liées.</td></tr>
+<tr><td><code>mode</code></td><td>table</td><td><code>—</code></td><td>Mode de repli de Firecrawl : extraire une seule page ou explorer les pages liées.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2255,13 +2215,13 @@ api_key = "..."
 <tr><th>Clé</th><th>Type</th><th>Par défaut</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>brave_api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API Brave Search (requise si search_provider est « brave »)</td></tr>
+<tr><td><code>brave_api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API Brave Search (requise si search_provider est « brave »)</td></tr>
 <tr><td><code>activé</code></td><td>bool</td><td><code>false</code></td><td>Activer <code>web_search_tool</code> pour les recherches web</td></tr>
-<tr><td><code>jina_api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Jina AI API key (required if search_provider is “jina”)</td></tr>
+<tr><td><code>jina_api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Jina AI API key (required if search_provider is “jina”)</td></tr>
 <tr><td><code>max_results</code></td><td>entier</td><td><code>5</code></td><td>Résultats maximum par recherche (1-10)</td></tr>
 <tr><td><code>search_provider</code></td><td>chaîne</td><td><code>"duckduckgo"</code></td><td>Search provider: “duckduckgo” (free), “brave” (requires API key), “tavily” (requires API key), “searxng” (self-hosted), or “jina” (requires API key)</td></tr>
-<tr><td><code>searxng_instance_url</code></td><td>aucun</td><td><code>null</code></td><td>URL de l’instance SearXNG (requis si search_provider est <code>"searxng"</code>), par exemple <code>"https://searx.example.com"</code>.</td></tr>
-<tr><td><code>tavily_api_key</code> 🔑</td><td>aucun</td><td><code>null</code></td><td>Clé API Tavily Search (requise si search_provider est “tavily”)</td></tr>
+<tr><td><code>searxng_instance_url</code></td><td>string?</td><td><code>null</code></td><td>URL de l’instance SearXNG (requis si search_provider est <code>"searxng"</code>), par exemple <code>"https://searx.example.com"</code>.</td></tr>
+<tr><td><code>tavily_api_key</code> 🔑</td><td>string?</td><td><code>null</code></td><td>Clé API Tavily Search (requise si search_provider est “tavily”)</td></tr>
 <tr><td><code>timeout_secs</code></td><td>entier</td><td><code>15</code></td><td>Délai d’expiration de la requête en secondes</td></tr>
 </tbody>
 </table>

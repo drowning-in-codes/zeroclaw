@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -250,16 +326,6 @@
 </code></pre>
 <p>各 <code>SKILL.md</code> には、<code>name</code> フィールドと <code>description</code> フィールドを含む YAML フロントマターを記述する必要があります。いずれかが欠落しているスキルを含むバンドルは、最初の呼び出し時ではなく検出時にランタイムによって拒否されます。スキルは、ユーザーが作成したスキルとの衝突やバンドル間の衝突を回避するため、<code>plugin:&lt;plugin-name&gt;/&lt;skill-name&gt;</code> 形式（例: <code>plugin:my-toolkit/design-review</code>）のプラグイン名前空間付き ID で登録されます。</p>
 <h2 id="マニフェスト形式"><a class="header" href="#マニフェスト形式">マニフェスト形式</a></h2>
-<pre><code class="language-toml">name = "my-plugin"                    # 一意の識別子（必須）
-version = "0.1.0"                     # Semverバージョン（必須）
-description = "What this plugin does" # 人間が読める説明（任意）
-author = "Your Name"                  # 作成者（任意）
-wasm_path = "plugin.wasm"             # マニフェストからの相対的な.wasmへのパス（skill以外の機能では必須、skillのみの場合は任意/無視）
-capabilities = ["tool"]               # プラグインが提供する機能（必須）
-permissions = ["http_client"]          # プラグインが必要とするもの（任意）
-signature = "base64url..."            # Ed25519署名（任意）
-publisher_key = "hex..."              # 発行者の公開鍵（任意）
-</code></pre>
 <h3 id="機能"><a class="header" href="#機能">機能</a></h3>
 <div class="table-wrapper">
 <table>
@@ -328,7 +394,7 @@ publisher_key = "hex..."              # 発行者の公開鍵（任意）
 }
 </code></pre>
 <h2 id="ホスト関数"><a class="header" href="#ホスト関数">ホスト関数</a></h2>
-<p>ホスト関数はZeroClawランタイムによって提供され、WASMプラグイン内から呼び出し可能です。各関数はマニフェストパーミッション上で制御されており、必要なパーミッションなしで呼び出すとエラーが返されます。</p>
+<p>Host functions are provided by the ZeroClaw runtime and callable from within the WASM plugin. Each is gated on a manifest permission, calling without the required permission returns an error.</p>
 <h3 id="zc_http_request"><a class="header" href="#zc_http_request"><code>zc_http_request</code></a></h3>
 <p><strong>パーミッション:</strong> <code>http_client</code></p>
 <p><strong>入力:</strong> JSON文字列</p>
@@ -358,20 +424,6 @@ publisher_key = "hex..."              # 発行者の公開鍵（任意）
 <p><strong>出力:</strong> 環境変数の値(通常の文字列)。変数が設定されていない場合はエラーを返します。</p>
 <h2 id="rustでプラグインを書く"><a class="header" href="#rustでプラグインを書く">Rustでプラグインを書く</a></h2>
 <h3 id="依存関係"><a class="header" href="#依存関係">依存関係</a></h3>
-<pre><code class="language-toml">[package]
-name = "my-plugin"
-edition = "2024"
-
-[lib]
-crate-type = ["cdylib"]
-
-[dependencies]
-extism-pdk = "1.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-[workspace]
-</code></pre>
 <p><code>[workspace]</code>テーブルは、Cargoが親ワークスペースを検索するのを防ぐために必要です。</p>
 <h3 id="ホスト関数を宣言する"><a class="header" href="#ホスト関数を宣言する">ホスト関数を宣言する</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -417,22 +469,30 @@ pub fn execute(input: String) -&gt; FnResult&lt;String&gt; {
 }
 <span class="boring">}</span></code></pre>
 <h3 id="ビルド"><a class="header" href="#ビルド">ビルド</a></h3>
-<pre><code class="language-bash"># WASMターゲットをインストール(1回のみ)
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh"># WASMターゲットをインストール(1回のみ)
 rustup target add wasm32-wasip1
 
 # ビルド
 cargo build --target wasm32-wasip1 --release
 </code></pre>
+</div>
+
 <p>出力<code>.wasm</code>ファイルは<code>target/wasm32-wasip1/release/&lt;crate_name&gt;.wasm</code>にあります。<code>manifest.toml</code>と同じ場所にコピーします。</p>
 <h3 id="インストール"><a class="header" href="#インストール">インストール</a></h3>
-<pre><code class="language-bash"># プラグインディレクトリにコピー
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh"># プラグインディレクトリにコピー
 zeroclaw plugin install /path/to/my-plugin/
 
 # または手動で
 cp -r my-plugin/ ~/.zeroclaw/plugins/my-plugin/
 </code></pre>
+</div>
+
 <h2 id="設定"><a class="header" href="#設定">設定</a></h2>
-<p><code>[plugins]</code> および <code>[plugins.security]</code> セクションの <code>config.toml</code> 経由でプラグインシステムを有効にします — すべてのフィールド、デフォルト、および <code>signature_mode</code> 列挙型については <a href="../reference/config.html">Config reference</a> を参照してください。</p>
+<p>Enable the plugin system via the <code>plugins</code> and <code>plugins.security</code> sections (gateway, zerocode, or <code>zeroclaw config set</code>): see the <a href="../reference/config.html">Config reference</a> for all fields, defaults, and the <code>signature_mode</code> enum.</p>
 <p><code>plugins-wasm</code> フィーチャーフラグはコンパイル時に有効にする必要があります (デフォルトの <code>ci-all</code> フィーチャーセットに含まれています)。</p>
 
                     </main>

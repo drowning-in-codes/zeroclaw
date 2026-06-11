@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,37 +296,9 @@
 <p>ZeroClaw enregistre chaque appel d’API facturé dans un journal en ajout seul, attribue les dépenses à l’agent à l’origine de l’appel, applique des budgets quotidiens/mensuels et affiche le récapitulatif dans l’onglet <code>Cost</code> du tableau de bord. Les règles de tarification résident dans la configuration, ce qui permet aux opérateurs de les modifier sans recompilation.</p>
 <p>Cette page décrit le schéma, le pipeline de recherche et les surfaces opérateur. Le code se trouve dans <code>crates/zeroclaw-config/src/cost/</code> et <code>crates/zeroclaw-runtime/src/agent/cost.rs</code>.</p>
 <h2 id="schéma-de-configuration"><a class="header" href="#schéma-de-configuration">Schéma de configuration</a></h2>
-<p>Deux sections liées possèdent la surface :</p>
-<pre><code class="language-toml">[cost]
-enabled            = true
-daily_limit_usd    = 10.0
-monthly_limit_usd  = 100.0
-warn_at_percent    = 80
-allow_override     = false
-track_per_agent    = true
-
-[cost.enforcement]
-mode               = "warn"   # "warn" | "block" | "route_down"
-route_down_model   = "claude-haiku-4-5"  # utilisé avec route_down
-reserve_percent    = 10
-
-[cost.rates.providers.models.anthropic."claude-opus-4-7"]
-input_per_mtok        = 15.0
-output_per_mtok       = 75.0
-cached_input_per_mtok = 1.5
-
-[cost.rates.providers.tts.openai."tts-1-hd"]
-per_mchar = 30.0
-
-[cost.rates.providers.transcription.openai.whisper-1]
-per_minute = 0.006
-
-[cost.rates.tools.web_search]
-per_call = 0.005
-</code></pre>
-<p><code>[cost]</code> couvre l’application du budget et le comportement d’enregistrement. <code>[cost.rates.*]</code> est la grille tarifaire gérée par l’opérateur ; le chemin pointé de chaque sous-section reflète le chemin <code>[providers.*]</code> correspondant, le segment final <code>&lt;alias&gt;</code> étant remplacé par la ressource amont tarifée.</p>
+<p>Two related sections own the surface. <code>cost</code> covers budget enforcement and recording behavior. <code>cost.rates.*</code> is the operator-managed rate sheet; every subsection’s dotted path mirrors the matching <code>providers.*</code> path with the trailing <code>&lt;alias&gt;</code> segment replaced by the upstream resource being priced.</p>
 <h3 id="pourquoi-la-clé-est-un-identifiant-de-ressource-et-non-un-alias"><a class="header" href="#pourquoi-la-clé-est-un-identifiant-de-ressource-et-non-un-alias">Pourquoi la clé est un identifiant de ressource, et non un alias</a></h3>
-<p>Une entrée <code>[providers.models.anthropic.&lt;alias&gt;]</code> est indexée par un alias choisi par l’opérateur (<code>glados</code>, <code>production</code>) qui respecte le validateur d’alias : ASCII minuscule, traits de soulignement simples, sans tirets. Une entrée <code>[cost.rates.providers.models.anthropic.&lt;resource&gt;]</code> est indexée par l’<strong>identifiant de modèle en amont</strong> tel qu’il apparaît dans la télémétrie d’utilisation (<code>claude-opus-4-7</code>, <code>gpt-4o-mini</code>, <code>whisper-1</code>) — ces chaînes d’identifiant proviennent de l’espace de noms du fournisseur et contiennent presque toujours des tirets.</p>
+<p>A <code>[providers.models.anthropic.&lt;alias&gt;]</code> entry is keyed by an operator-chosen alias (<code>glados</code>, <code>production</code>) that follows the alias validator: lowercase ASCII, single underscores, no hyphens. A <code>[cost.rates.providers.models.anthropic.&lt;resource&gt;]</code> entry is keyed by the <strong>upstream model id</strong> as it appears in usage telemetry (<code>claude-opus-4-7</code>, <code>gpt-4o-mini</code>, <code>whisper-1</code>): those id strings come from the provider’s namespace and almost always contain hyphens.</p>
 <p>Le schéma marque chaque HashMap de grille tarifaire avec <code>#[resource_key]</code> (dans <code>crates/zeroclaw-macros/src/lib.rs</code>). Cet attribut exclut le champ de <code>validate_alias_key</code> dans <code>create_map_key</code> / <code>rename_map_key</code>, de sorte que le <code>POST /api/config/map-key</code> de la passerelle accepte les ids comportant des traits d’union. Sans cela, <code>create_map_key</code> rejette tout id de modèle réaliste et l’interface de la grille tarifaire échoue. Les alias et les ids de ressource partagent la même structure sur disque (<code>HashMap&lt;String, T&gt;</code>), mais il s’agit de systèmes de nommage différents avec des validateurs différents.</p>
 <h3 id="les-listes-de-slots-sont-lunique-source-de-vérité"><a class="header" href="#les-listes-de-slots-sont-lunique-source-de-vérité">Les listes de slots sont l’unique source de vérité</a></h3>
 <p>Les emplacements par type de fournisseur sous <code>[cost.rates.providers.models.&lt;type&gt;]</code>, <code>[cost.rates.providers.tts.&lt;type&gt;]</code> et <code>[cost.rates.providers.transcription.&lt;type&gt;]</code> se développent à partir des mêmes macros qui pilotent les wrappers d’emplacement <code>[providers.*]</code> :</p>
@@ -266,7 +314,7 @@ for_each_transcription_provider_slot!(emit_transcription_cost_rates_struct, supe
 <p>Le pipeline depuis <code>[cost.rates.*]</code> vers une valeur <code>cost_usd</code> enregistrée est :</p>
 <ol>
 <li>
-<p><strong>Le démarrage de l’orchestrateur construit la table de tarification.</strong> Lorsque le superviseur de canaux instancie un contexte d’exécution pour un agent, il parcourt <code>config.cost.rates.providers.models.iter_entries()</code> et fusionne les tarifs dans une <code>HashMap&lt;provider_type, HashMap&lt;key, f64&gt;&gt;</code> où <code>key</code> est <code>"&lt;model_id&gt;.input"</code>, <code>"&lt;model_id&gt;.output"</code> ou <code>"&lt;model_id&gt;.cached_input"</code>. L’ancienne table <code>[providers.models.&lt;type&gt;.&lt;alias&gt;].pricing</code> par alias est également fusionnée ; <code>[cost.rates.*]</code> l’emporte en cas de conflit car c’est la surface tournée vers l’avenir. (Voir <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code> — la closure sous <code>cost_tracking: CostTracker::get_or_init_global(...).map(|tracker| ...)</code>.)</p>
+<p><strong>Orchestrator startup builds the pricing map.</strong> When the channels supervisor instantiates a runtime context for an agent it walks <code>config.cost.rates.providers.models.iter_entries()</code> and merges the rates into a <code>HashMap&lt;provider_type, HashMap&lt;key, f64&gt;&gt;</code> where <code>key</code> is <code>"&lt;model_id&gt;.input"</code>, <code>"&lt;model_id&gt;.output"</code>, or <code>"&lt;model_id&gt;.cached_input"</code>. The legacy per-alias <code>[providers.models.&lt;type&gt;.&lt;alias&gt;].pricing</code> table is merged in too; <code>[cost.rates.*]</code> wins on conflict because it’s the forward-looking surface. (See <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>, the closure under <code>cost_tracking: CostTracker::get_or_init_global(...).map(|tracker| ...)</code>.)</p>
 </li>
 <li>
 <p><strong>Enregistrement à l’intérieur de la boucle de l’agent.</strong> Chaque réponse LLM réussie atteint <code>record_tool_loop_cost_usage(provider_name, model, usage)</code> dans <code>crates/zeroclaw-runtime/src/agent/cost.rs</code>. La fonction récupère l’emplacement de la table de tarification pour <code>provider_name</code>, appelle <code>resolve_rates(map, model)</code>, multiplie par le nombre de tokens, et stocke un <code>CostRecord</code> via le <code>CostTracker</code> global.</p>
@@ -275,19 +323,19 @@ for_each_transcription_provider_slot!(emit_transcription_cost_rates_struct, supe
 <p><strong>resolve_rates</strong> essaie d’abord l’id du modèle, puis la forme avec suffixe de chemin pour les chaînes <code>provider/model</code> (ainsi <code>anthropic/claude-opus-4-7</code> se réduit à <code>claude-opus-4-7</code> si l’opérateur n’a stocké que la forme courte). Renvoie <code>(0.0, 0.0)</code> en cas d’échec et déclenche un avertissement unique <code>missing_pricing</code> afin que les enregistrements silencieux à coût nul apparaissent dans les logs.</p>
 </li>
 <li>
-<p><strong>CostTracker est un singleton global au processus</strong> (<code>OnceLock</code> dans <code>crates/zeroclaw-config/src/cost/tracker.rs</code>). Sa <code>CostConfig</code> est figée à la première initialisation ; si l’opérateur modifie <code>cost.enabled</code> après cela, le daemon doit redémarrer pour que le tracker prenne en compte la nouvelle valeur. La table de tarification de l’orchestrateur, en revanche, est reconstruite à chaque rechargement du daemon à partir de la configuration en cours — ainsi les modifications de tarifs prennent effet à la requête suivante après le rechargement.</p>
+<p><strong>CostTracker is a process-global singleton</strong> (<code>OnceLock</code> in <code>crates/zeroclaw-config/src/cost/tracker.rs</code>). Its <code>CostConfig</code> is frozen at first init; if the operator flips <code>cost.enabled</code> after that, the daemon must restart for the tracker to honor the new value. The orchestrator’s pricing map, in contrast, is rebuilt on every daemon reload from the live config, so rate edits take effect on the next request after reload.</p>
 </li>
 </ol>
 <h2 id="persistance"><a class="header" href="#persistance">Persistance</a></h2>
 <p><code>CostTracker::record_usage_with_agent</code> ajoute un <code>CostRecord</code> par réponse facturée à <code>&lt;workspace&gt;/state/costs.jsonl</code>, un objet JSON par ligne. Le fichier est lu au démarrage pour initialiser <code>daily_records()</code>, afin que le récapitulatif par agent du tableau de bord soit conservé après les redémarrages.</p>
-<p><code>cost_usd</code> est calculé au moment de l’enregistrement à partir de la grille tarifaire en vigueur <strong>à cet instant</strong>. Les enregistrements sont immuables — si l’opérateur ajoute des tarifs après que certaines requêtes ont déjà été enregistrées, ces enregistrements existants conservent <code>cost_usd = 0</code>. Seules les requêtes effectuées après la configuration du tarif (et le rechargement du daemon afin que la table de tarification de l’orchestrateur soit reconstruite) comportent un coût non nul.</p>
+<p><code>cost_usd</code> is computed at record time from the rate sheet in effect <strong>at that moment</strong>. Records are immutable: if the operator adds rates after some requests have already been recorded, those existing records keep <code>cost_usd = 0</code>. Only requests made after the rate is configured (and the daemon reloaded so the orchestrator’s pricing map rebuilds) carry a non-zero cost.</p>
 <p>Il s’agit de la surprise la plus courante après l’activation initiale de la grille tarifaire. La solution consiste à attendre de nouvelles requêtes ; il n’y a pas de retarification rétroactive.</p>
 <h2 id="application-du-budget"><a class="header" href="#application-du-budget">Application du budget</a></h2>
 <p><code>CostConfig::enforcement.mode</code> détermine ce qui se passe lorsqu’un coût projeté dépasserait la limite configurée pour <code>daily_total</code> ou <code>monthly_total</code> :</p>
 <ul>
-<li><code>warn</code> — la valeur par défaut ; enregistre l’événement dans un journal de niveau warn et laisse passer la requête.</li>
-<li><code>block</code> — refuse la requête avec une erreur <code>BudgetExceeded</code>.</li>
-<li><code>route_down</code> — remplace le modèle d’origine par <code>route_down_model</code> (une alternative moins coûteuse). La substitution a lieu avant l’envoi de la requête.</li>
+<li><code>warn</code>: the default; record the event with a warn-level log and let the request through.</li>
+<li><code>block</code>: refuse the request with a <code>BudgetExceeded</code> error.</li>
+<li><code>route_down</code>: substitute <code>route_down_model</code> (a cheaper alternative) for the original model. The substitution happens before the request is dispatched.</li>
 </ul>
 <p><code>allow_override = true</code> permet à une requête de contourner <code>block</code> en passant un jeton de remplacement via la CLI (<code>zeroclaw --override</code>). La valeur par défaut est <code>false</code>. <code>warn_at_percent</code> contrôle le moment où la passerelle affiche une bannière d’avertissement avant la limite stricte ; la valeur par défaut est 80 %.</p>
 <h2 id="attribution-par-agent"><a class="header" href="#attribution-par-agent">Attribution par agent</a></h2>
@@ -295,25 +343,25 @@ for_each_transcription_provider_slot!(emit_transcription_cost_rates_struct, supe
 <h2 id="surfaces-de-lopérateur"><a class="header" href="#surfaces-de-lopérateur">Surfaces de l’opérateur</a></h2>
 <h3 id="interface-de-configuration"><a class="header" href="#interface-de-configuration">Interface de configuration</a></h3>
 <ul>
-<li><code>/config/cost</code> → onglet <strong>Limits</strong> : tous les champs <code>[cost].*</code> simples (enabled, limits, enforcement, track_per_agent). Les lignes de la grille tarifaire ne sont pas modifiées ici — elles sont liées au fournisseur propriétaire du modèle, donc elles se trouvent un niveau en dessous.</li>
+<li><code>/config/cost</code> → <strong>Limits</strong> tab: every flat <code>[cost].*</code> field (enabled, limits, enforcement, track_per_agent). Rate-sheet rows are not edited here, they’re tied to the provider that owns the model, so they live one tier down.</li>
 <li><code>/config/providers.&lt;category&gt;/&lt;type&gt;</code> → onglet <strong>Costs</strong> : éditeur de grille tarifaire pour ce type de fournisseur. Le champ <code>+ Add</code> suggère des identifiants de ressources en amont issus de <code>providers.&lt;category&gt;.&lt;type&gt;.*.model</code> parmi les alias configurés, afin que l’opérateur puisse ajouter en un clic une ligne de tarif pour chaque modèle qu’il a réellement lié. Il s’agit du seul point d’entrée pour modifier <code>[cost.rates.providers.&lt;category&gt;.&lt;type&gt;.*]</code>.</li>
 </ul>
 <h3 id="tableau-de-bord"><a class="header" href="#tableau-de-bord">Tableau de bord</a></h3>
 <p>L’onglet <strong>Cost</strong> du tableau de bord affiche trois panneaux ainsi qu’un sélecteur de période (aujourd’hui / 7 derniers jours / 30 derniers jours / ce mois-ci / depuis le début) :</p>
 <ul>
-<li><strong>Totaux des dépenses</strong> — totaux quotidiens et mensuels depuis <code>costs.jsonl</code>.</li>
-<li><strong>Spend by agent · <code>&lt;window&gt;</code></strong> — per-agent rollup over the picked window. Visible when <code>track_per_agent</code> is true.</li>
-<li><strong>Spend by model · <code>&lt;window&gt;</code></strong> — per-model rollup. Each row’s model id is clickable; the click resolves the owning provider type from configured aliases and navigates to that provider’s Costs tab. When the model id isn’t bound to any configured provider the click is a no-op (there’s no qualified rate-sheet route for an orphan model).</li>
+<li><strong>Spend totals</strong>: daily and monthly totals from <code>costs.jsonl</code>.</li>
+<li><strong>Spend by agent · <code>&lt;window&gt;</code></strong>: per-agent rollup over the picked window. Visible when <code>track_per_agent</code> is true.</li>
+<li><strong>Spend by model · <code>&lt;window&gt;</code></strong>: per-model rollup. Each row’s model id is clickable; the click resolves the owning provider type from configured aliases and navigates to that provider’s Costs tab. When the model id isn’t bound to any configured provider the click is a no-op (there’s no qualified rate-sheet route for an orphan model).</li>
 </ul>
 <h3 id="passerelle"><a class="header" href="#passerelle">Passerelle</a></h3>
 <ul>
-<li><code>GET /api/cost</code> — <code>CostSummary</code> actuel (correspond à la structure de la vue d’ensemble des coûts du tableau de bord). Ajoutez <code>?agent=&lt;alias&gt;</code> pour une vue centrée sur un seul agent.</li>
-<li><code>GET /api/config/templates</code> — chaque section à clé de mappage que le schéma enregistre, utilisée par les menus déroulants catégorie × type de fournisseur de l’onglet Rates.</li>
-<li><code>POST /api/config/map-key?path=cost.rates.providers.&lt;category&gt;.&lt;type&gt;&amp;key=&lt;resource&gt;</code> — crée une nouvelle ligne de tarif. Le chemin est rejeté si aucune section de mappage de ce type n’existe ; la clé de ressource passe par <code>#[resource_key]</code> au lieu de <code>validate_alias_key</code>.</li>
+<li><code>GET /api/cost</code>: current <code>CostSummary</code> (matches the dashboard’s Cost overview shape). Add <code>?agent=&lt;alias&gt;</code> for a single-agent view.</li>
+<li><code>GET /api/config/templates</code>: every map-keyed section the schema registers, used by the Rates tab’s category × provider-type dropdowns.</li>
+<li><code>POST /api/config/map-key?path=cost.rates.providers.&lt;category&gt;.&lt;type&gt;&amp;key=&lt;resource&gt;</code> create a new rate row. The path is rejected if no such map section exists; the resource key passes <code>#[resource_key]</code> instead of <code>validate_alias_key</code>.</li>
 </ul>
 <h2 id="dépannage"><a class="header" href="#dépannage">Dépannage</a></h2>
-<p><strong>Le tableau de bord affiche 0,0000 $ pour tous les agents après la configuration des tarifs.</strong> Les anciens enregistrements sont immuables — ils ont été enregistrés avec <code>cost_usd = 0</code> car aucun tarif n’était défini au moment où ils ont eu lieu. Effectuez une nouvelle requête de chat après le rechargement du daemon et vérifiez <strong>Cost overview &gt; Session</strong> ainsi que <strong>Spend by model</strong> ; les deux devraient se remplir pour la nouvelle requête.</p>
-<p><strong>Dérive détectée sur les chemins <code>cost.rates.*</code> après la sauvegarde.</strong> Un démon antérieur à la v0.8.0 corrompait les clés HashMap comportant des traits d’union dans le chemin dirty-save, ignorant silencieusement chaque écriture dans la grille tarifaire. Si vous observez ce comportement sur la v0.8.0 ou une version ultérieure, il s’agit d’un véritable bug — la résolution du dirty-path se trouve dans <code>crates/zeroclaw-config/src/schema.rs::apply_dirty_path</code> ; ouvrez un ticket en indiquant la version du démon et le chemin ayant dérivé.</p>
+<p><strong>Dashboard shows $0.0000 for all agents after configuring rates.</strong> Old records are immutable, they were recorded with <code>cost_usd = 0</code> because no rate was set when they happened. Make a new chat request after the daemon reload and check <strong>Cost overview &gt; Session</strong> plus <strong>Spend by model</strong>; both should populate for the new request.</p>
+<p><strong>Drift detected against <code>cost.rates.*</code> paths after save.</strong> A pre v0.8.0 daemon mangled hyphenated HashMap keys in the dirty-save path, silently dropping every write to the rate sheet. If you see this on v0.8.0+ it’s a real bug: the dirty-path resolution lives in <code>crates/zeroclaw-config/src/schema.rs::apply_dirty_path</code>; file an issue with the daemon version and the path that drifted.</p>
 <p><strong>Les avertissements <code>missing_pricing</code> saturent le journal.</strong> Émis une fois par paire <code>(provider_type, model)</code> lorsque <code>resolve_rates</code> renvoie <code>(0.0, 0.0)</code>. Soit le tarif n’est pas configuré pour ce modèle, soit l’amont a renvoyé un id de modèle différent de celui figurant dans la grille tarifaire (certains fournisseurs renvoient des id versionnés comme <code>claude-3-5-sonnet-20241022</code> même lorsque vous avez configuré <code>claude-3-5-sonnet</code>). Ajoutez l’id exact mentionné par l’avertissement, ou définissez l’id non versionné et appuyez-vous sur le mécanisme de correspondance par suffixe de <code>resolve_rates</code>.</p>
 
                     </main>

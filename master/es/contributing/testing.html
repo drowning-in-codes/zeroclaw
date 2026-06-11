@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="pruebas"><a class="header" href="#pruebas">Pruebas</a></h1>
-<p>ZeroClaw utiliza una taxonomía de pruebas de cinco niveles respaldada por la estructura del sistema de archivos. Cada nivel tiene un límite diferente y un costo distinto; elige el nivel más bajo que demuestre lo que necesitas demostrar.</p>
+<p>ZeroClaw uses a five-level testing taxonomy backed by filesystem layout. Each level has a different boundary and a different cost; pick the lowest level that proves what you need to prove.</p>
 <h2 id="los-cinco-niveles"><a class="header" href="#los-cinco-niveles">Los cinco niveles</a></h2>
 <div class="table-wrapper">
 <table>
@@ -240,22 +316,27 @@
 <tr><th>Directorio</th><th>Propósito</th></tr>
 </thead>
 <tbody>
-<tr><td><code>tests/manual/</code></td><td>Scripts de prueba dirigidos por humanos (shell, Python) — se ejecutan directamente, no a través de cargo</td></tr>
-<tr><td><code>tests/support/</code></td><td>Infraestructura compartida de simulación — no un binario de prueba, incluida como <code>mod support;</code> desde cada nivel</td></tr>
+<tr><td><code>tests/manual/</code></td><td>Human-driven test scripts (shell, Python), run directly, not via cargo</td></tr>
+<tr><td><code>tests/support/</code></td><td>Shared mock infrastructure, not a test binary, included as <code>mod support;</code> from each level</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="ejecutando-pruebas"><a class="header" href="#ejecutando-pruebas">Ejecutando pruebas</a></h2>
-<pre><code class="language-bash">cargo test                                  # unidad + componente + integración + sistema
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo test                                  # unidad + componente + integración + sistema
 cargo test --lib                            # solo unidad
 cargo test --test component                 # solo componente
 cargo test --test integration               # solo integración
 cargo test --test system                    # solo del sistema
 cargo test --test live -- --ignored         # live (requiere credenciales de API)
 cargo test --test integration agent         # filtro dentro de un nivel
-./dev/ci.sh all                             # batería completa de CI
-./dev/ci.sh test-component                  # comandos de CI específicos por nivel
+cargo nextest run --locked --workspace --exclude zeroclaw-desktop  # what CI runs
+./dev/ci.sh all                             # full CI battery (Docker)
+./dev/ci.sh test-component                  # level-specific CI commands (Docker)
 </code></pre>
+</div>
+
 <h2 id="elegir-un-nivel-para-una-nueva-prueba"><a class="header" href="#elegir-un-nivel-para-una-nueva-prueba">Elegir un nivel para una nueva prueba</a></h2>
 <ol>
 <li>¿Probando un subsistema de forma aislada? → <code>tests/component/</code></li>
@@ -272,10 +353,10 @@ cargo test --test integration agent         # filtro dentro de un nivel
 <tr><th>Módulo</th><th>Contenido</th></tr>
 </thead>
 <tbody>
-<tr><td><code>mock_provider.rs</code></td><td><code>MockProvider</code> (FIFO scripteado), <code>RecordingProvider</code> (captura solicitudes), <code>TraceLlmProvider</code> (reproducción de fixtures JSON)</td></tr>
+<tr><td><code>mock_model_provider.rs</code></td><td><code>MockModelProvider</code> (FIFO scripted), <code>RecordingModelProvider</code> (captures requests), <code>TraceLlmModelProvider</code> (JSON fixture replay)</td></tr>
 <tr><td><code>mock_tools.rs</code></td><td><code>EchoTool</code>, <code>CountingTool</code>, <code>FailingTool</code>, <code>RecordingTool</code></td></tr>
 <tr><td><code>mock_channel.rs</code></td><td><code>TestChannel</code> (captura los envíos, registra los eventos de escritura)</td></tr>
-<tr><td><code>helpers.rs</code></td><td><code>make_memory()</code>, <code>make_observer()</code>, <code>build_agent()</code>, <code>text_response()</code>, <code>tool_response()</code>, <code>StaticMemoryLoader</code></td></tr>
+<tr><td><code>helpers.rs</code></td><td><code>make_memory()</code>, <code>make_observer()</code>, <code>build_agent()</code>, <code>text_response()</code>, <code>tool_response()</code>, <code>StaticMemoryStrategy</code></td></tr>
 <tr><td><code>trace.rs</code></td><td>Tipos <code>LlmTrace</code>, <code>TraceTurn</code>, <code>TraceStep</code> + <code>LlmTrace::from_file()</code></td></tr>
 <tr><td><code>assertions.rs</code></td><td><code>verify_expects()</code> para la aserción de trazas declarativas</td></tr>
 </tbody>
@@ -284,14 +365,14 @@ cargo test --test integration agent         # filtro dentro de un nivel
 <p>Uso típico:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use crate::support::{MockProvider, EchoTool, CountingTool};
+</span>use crate::support::{MockModelProvider, EchoTool, CountingTool};
 use crate::support::helpers::{build_agent, text_response, tool_response};
 <span class="boring">}</span></code></pre>
 <h2 id="fixtures-de-trazas-json"><a class="header" href="#fixtures-de-trazas-json">Fixtures de trazas JSON</a></h2>
-<p>Los <em>fixtures</em> de trazas son scripts de respuestas de LLM predefinidos almacenados como archivos JSON en <code>tests/fixtures/traces/</code>. Reemplazan la configuración de simulación en línea con scripts de conversación declarativos, mucho más fáciles de leer y editar que las cadenas de <code>mockall</code>.</p>
+<p>Trace fixtures are canned LLM response scripts stored as JSON files in <code>tests/fixtures/traces/</code>. They replace inline mock setup with declarative conversation scripts, much easier to read and edit than <code>mockall</code> chains.</p>
 <p>Cómo funciona:</p>
 <ol>
-<li><code>TraceLlmProvider</code> carga un fixture e implementa el rasgo <code>Provider</code>.</li>
+<li><code>TraceLlmModelProvider</code> loads a fixture and implements the <code>ModelProvider</code> trait.</li>
 <li>Cada llamada a <code>provider.chat()</code> devuelve el siguiente paso del fixture en orden FIFO.</li>
 <li>Las herramientas reales se ejecutan normalmente (<code>EchoTool</code> procesa realmente sus argumentos).</li>
 <li>Después de todas las rondas, <code>verify_expects()</code> verifica las aserciones declarativas.</li>
@@ -325,14 +406,14 @@ use crate::support::helpers::{build_agent, text_response, tool_response};
 <p>Tipos de respuesta: <code>"text"</code> (texto plano) o <code>"tool_calls"</code> (solicitudes de herramientas LLM).</p>
 <p>Espera los campos: <code>response_contains</code>, <code>response_not_contains</code>, <code>tools_used</code>, <code>tools_not_used</code>, <code>max_tool_calls</code>, <code>all_tools_succeeded</code>, <code>response_matches</code> (regex).</p>
 <h2 id="convenciones-de-pruebas-en-vivo"><a class="header" href="#convenciones-de-pruebas-en-vivo">Convenciones de pruebas en vivo</a></h2>
-<p>Las pruebas en vivo acceden a servicios externos reales y cuestan dinero real; están <code>#[ignore]</code> de forma predeterminada y solo se ejecutan con una opción explícita.</p>
+<p>Live tests hit real external services and cost real money; they are <code>#[ignore]</code> by default and only run with explicit opt-in.</p>
 <ul>
 <li>Siempre <code>#[ignore]</code>. Nunca permitas que una prueba en vivo se ejecute durante un <code>cargo test</code> normal.</li>
-<li>Lee las credenciales desde <code>env::var("ZEROCLAW_TEST_*")</code>. No leas desde <code>~/.zeroclaw/config.toml</code> — las pruebas en vivo deben ser herméticas.</li>
+<li>Read credentials from <code>env::var("ZEROCLAW_TEST_*")</code>. Don’t read the operator’s config; live tests should be hermetic.</li>
 <li>Ejecuta con <code>cargo test --test live -- --ignored --nocapture</code>.</li>
 </ul>
 <h2 id="las-pruebas-de-base-de-datos-son-pruebas-de-integración"><a class="header" href="#las-pruebas-de-base-de-datos-son-pruebas-de-integración">Las pruebas de base de datos son pruebas de integración</a></h2>
-<p>No te burles de SQLite para las pruebas que ejercitan el esquema o SQL: las pruebas de integración deben conectarse a una base de datos real. El tipo de bug en el que las pruebas con mocks pasan pero la producción falla es real y ya lo hemos sufrido antes.</p>
+<p>Don’t mock SQLite for tests that exercise schema or SQL; integration tests must hit a real database. The mock-passes-but-prod-fails class of bug is real and we’ve eaten it before.</p>
 <h2 id="pruebas-manuales"><a class="header" href="#pruebas-manuales">Pruebas manuales</a></h2>
 <p><code>tests/manual/</code> contiene scripts para pruebas realizadas por humanos que no pueden automatizarse mediante <code>cargo test</code>. Ejecútalos directamente. Las pruebas de humo manuales específicas del canal se encuentran bajo <code>tests/manual/&lt;channel&gt;/</code>.</p>
 

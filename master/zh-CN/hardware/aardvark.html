@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -221,26 +297,26 @@
 <hr>
 <h2 id="大局"><a class="header" href="#大局">大局</a></h2>
 <pre><code>┌──────────────────────────────────────────────────────────────┐
-│                        启动（引导）                        │
+│                        STARTUP (boot)                        │
 │                                                              │
-│  1. 询问 aardvark-sys：“是否有适配器连接？”            │
-│  2. 对每个找到的适配器 → 注册设备 + 传输通道       │
-│  3. 仅当检测到硬件时才加载工具                    │
+│  1. Ask aardvark-sys: "any adapters plugged in?"             │
+│  2. For each one found → register a device + transport       │
+│  3. Load tools only if hardware was found                    │
 └──────────────────────────────────────────┬───────────────────┘
                                            │
-                    ┌──────────────────────▼──────────────────────┐
-                    │              运行时（代理循环）            │
+                    ┌──────────────────────▼───────────────────────┐
+                    │              RUNTIME (agent loop)            │
                     │                                              │
-                    │  用户：“扫描 i2c 总线”                        │
-                    │     → 代理调用 i2c_scan 工具              │
-                    │     → 工具构建 ZcCommand                │
-                    │     → AardvarkTransport 发送到硬件     │
-                    │     → 响应以文本形式返回            │
+                    │  User: "scan i2c bus"                        │
+                    │     → agent calls i2c_scan tool              │
+                    │     → tool builds a ZcCommand                │
+                    │     → AardvarkTransport sends to hardware    │
+                    │     → response flows back as text            │
                     └──────────────────────────────────────────────┘
 </code></pre>
 <hr>
 <h2 id="逐层"><a class="header" href="#逐层">逐层</a></h2>
-<h3 id="第-1-层--aardvark-sysusb-发送方"><a class="header" href="#第-1-层--aardvark-sysusb-发送方">第 1 层 — <code>aardvark-sys</code>（USB 发送方）</a></h3>
+<h3 id="layer-1-aardvark-sys-the-usb-talker"><a class="header" href="#layer-1-aardvark-sys-the-usb-talker">Layer 1: <code>aardvark-sys</code> (the USB talker)</a></h3>
 <p><strong>文件：</strong> <code>crates/aardvark-sys/src/lib.rs</code></p>
 <p>这是唯一一层直接与原始 C 库交互的层。可以把它看作是一个轻量级的翻译器：它将 C 函数调用转换为安全的 Rust 代码。</p>
 <p><strong>算法：</strong></p>
@@ -282,7 +358,7 @@ Drop(handle)
 </code></pre>
 <p><strong>在存根模式</strong>（无 SDK）下：每个方法都会立即返回 <code>Err(NotFound)</code>。<code>find_devices()</code> 返回 <code>[]</code>。不会发生崩溃。</p>
 <hr>
-<h3 id="第-2-层--aardvarktransport桥接层"><a class="header" href="#第-2-层--aardvarktransport桥接层">第 2 层 — <code>AardvarkTransport</code>（桥接层）</a></h3>
+<h3 id="layer-2-aardvarktransport-the-bridge"><a class="header" href="#layer-2-aardvarktransport-the-bridge">Layer 2: <code>AardvarkTransport</code> (the bridge)</a></h3>
 <p><strong>文件：</strong> <code>crates/zeroclaw-hardware/src/aardvark.rs</code></p>
 <p>ZeroClaw 的其余部分使用单一语言：<code>ZcCommand</code> → <code>ZcResponse</code>。<code>AardvarkTransport</code> 负责在该协议与上述 aardvark-sys 调用之间进行转换。</p>
 <p><strong>算法：</strong></p>
@@ -321,9 +397,9 @@ Drop(handle)
 
   遇到任何 AardvarkError → 返回 ZcResponse{ error: "..." }
 </code></pre>
-<p><strong>关键设计选择——延迟打开：</strong> 句柄为每个命令重新打开，并在命令结束时释放。这意味着没有保持的连接、无需清理状态，也无需任何“是否仍打开”的逻辑。</p>
+<p><strong>Key design choice: lazy open:</strong> The handle is opened fresh for every command and dropped at the end. This means no held connection, no state to clean up, and no “is it still open?” logic anywhere.</p>
 <hr>
-<h3 id="第-3-层--工具智能体调用的内容"><a class="header" href="#第-3-层--工具智能体调用的内容">第 3 层 — 工具（智能体调用的内容）</a></h3>
+<h3 id="layer-3-tools-what-the-agent-calls"><a class="header" href="#layer-3-tools-what-the-agent-calls">Layer 3: Tools (what the agent calls)</a></h3>
 <p><strong>文件：</strong> <code>crates/zeroclaw-hardware/src/aardvark_tools.rs</code></p>
 <p>每个工具都是一个轻量级封装。它：</p>
 <ol>
@@ -339,7 +415,7 @@ Drop(handle)
 <p><code>SpiTransferTool.call(args)</code> → 要求 <code>args["bytes"]</code>（十六进制字符串） → 构建 <code>ZcCommand{ name: "spi_transfer", params: {bytes} }</code> → 发送 → 返回接收到的字节</p>
 <p><code>GpioAardvarkTool.call(args)</code> → 要求 <code>args["direction"]</code> 和 <code>args["value"]</code>（设置模式） 或者无额外参数（获取模式） → 构建相应的 <code>ZcCommand</code> → 发送 → 返回结果</p>
 <p><code>DatasheetTool.call(args)</code> → <code>action = args["action"]</code>: “search” | “download” | “list” | “read” → “search”:   返回用于查找该设备的 Google/厂商搜索 URL → “download”: 从 <code>args["url"]</code> 获取 PDF → 保存至 <code>~/.zeroclaw/hardware/datasheets/</code> → “list”:     扫描数据手册目录 → 返回文件名 → “read”:     打开已保存的 PDF 并返回其文本内容—</p>
-<h3 id="第-4-层--设备注册表地址簿"><a class="header" href="#第-4-层--设备注册表地址簿">第 4 层 — 设备注册表（地址簿）</a></h3>
+<h3 id="layer-4-device-registry-the-address-book"><a class="header" href="#layer-4-device-registry-the-address-book">Layer 4: Device Registry (the address book)</a></h3>
 <p><strong>文件：</strong> <code>crates/zeroclaw-hardware/src/device.rs</code></p>
 <p>注册表是连接设备的运行时映射。每个条目存储：别名、类型、功能、传输句柄。</p>
 <pre><code>register("aardvark", vid=0x2b76, ...)
@@ -360,7 +436,7 @@ resolve_aardvark_device(args)
   → 返回 (alias, DeviceContext{ transport, capabilities })
 </code></pre>
 <hr>
-<h3 id="第-5-层--boot启动接线"><a class="header" href="#第-5-层--boot启动接线">第 5 层 — <code>boot()</code>（启动接线）</a></h3>
+<h3 id="layer-5-boot-startup-wiring"><a class="header" href="#layer-5-boot-startup-wiring">Layer 5: <code>boot()</code> (startup wiring)</a></h3>
 <p><strong>文件：</strong> <code>crates/zeroclaw-hardware/src/lib.rs</code></p>
 <p><code>boot()</code> 在启动时运行一次。对于 Aardvark：</p>
 <pre><code>boot()
@@ -379,25 +455,70 @@ resolve_aardvark_device(args)
   ...
 </code></pre>
 <hr>
-<h3 id="第-6-层--工具注册表加载器"><a class="header" href="#第-6-层--工具注册表加载器">第 6 层 — 工具注册表（加载器）</a></h3>
+<h3 id="layer-6-tool-registry-the-loader"><a class="header" href="#layer-6-tool-registry-the-loader">Layer 6: Tool Registry (the loader)</a></h3>
 <p><strong>文件：</strong> <code>crates/zeroclaw-hardware/src/tool_registry.rs</code></p>
 <p>在调用 <code>boot()</code> 之后，工具注册表会检查当前存在的硬件，并仅加载相关的工具：</p>
 <pre><code>ToolRegistry::load(devices)
 
-  # always loaded (Pico / GPIO)
-  register: gpio_write, gpio_read, gpio_toggle, pico_flash, device_list, device_status
+  # always loaded (base hardware tools — see catalog::BASE_TOOLS)
+  register: gpio_read, gpio_write, pico_flash,
+            device_read_code, device_write_code, device_exec
 
-  # only loaded if an Aardvark was found at boot
+  # only loaded if an Aardvark was found at boot (catalog::AARDVARK_TOOLS)
   if devices.has_aardvark():
     register: i2c_scan, i2c_read, i2c_write, spi_transfer, gpio_aardvark, datasheet
 </code></pre>
-<p>这就是为什么 <code>hardware_feature_registers_all_six_tools</code> 测试在存根模式下仍然通过的原因——<code>has_aardvark()</code> 返回 false，不会加载额外的工具，计数保持为 6。</p>
+<p>This is why the <code>hardware_feature_registers_catalog_base_tools</code> test still passes in stub mode: <code>has_aardvark()</code> returns false, 0 extra tools load, count stays at the base set.</p>
 <hr>
 <h2 id="完整流程图"><a class="header" href="#完整流程图">完整流程图</a></h2>
-<p>SDK 文件          aardvark-sys            ZeroClaw 核心 (vendor/)          (crates/)               (src/) ─────────────────────────────────────────────────────────────────</p>
-<p>aardvark.h  ──►  build.rs         boot() aardvark.so       (bindgen)    ──►  find_devices() │                │ bindings.rs           │  vec![0]  (一个适配器) │                ▼ lib.rs           register(“aardvark0”) AardvarkHandle   attach_transport(AardvarkTransport) │                │ │                ▼ │         ToolRegistry::load() │           has_aardvark() == true │           → 加载 6 个 aardvark 工具 │ ─────────────────────────────────────────────────────────────────</p>
-<p>用户消息：“扫描 I2C 总线”</p>
-<p>代理循环 │ ▼ I2cScanTool.call() │ ▼ resolve_aardvark_device(“aardvark0”) │  返回 transport Arc ▼ AardvarkTransport.send(ZcCommand{ name: “i2c_scan” }) │ ▼ AardvarkHandle::open_port(0)    ← 打开 USB 连接 │ ▼ aa_i2c_read(0x08..0x77)         ← 探测每个地址 │ ▼ AardvarkHandle dropped           ← 关闭 USB 连接 │ ▼ ZcResponse{ output: “Found: 0x48, 0x68” } │ ▼ 代理向用户发送回复：“我找到了两个 I2C 设备：0x48 和 0x68”—</p>
+<pre><code> SDK FILES          aardvark-sys            ZeroClaw core
+ (vendor/)          (crates/)               (src/)
+─────────────────────────────────────────────────────────────────
+
+ aardvark.h  ──►  build.rs         boot()
+ aardvark.so       (bindgen)    ──►  find_devices()
+                       │                │
+                  bindings.rs           │  vec![0]  (one adapter)
+                       │                ▼
+                  lib.rs           register("aardvark0")
+                  AardvarkHandle   attach_transport(AardvarkTransport)
+                       │                │
+                       │                ▼
+                       │         ToolRegistry::load()
+                       │           has_aardvark() == true
+                       │           → load aardvark tools
+                       │
+─────────────────────────────────────────────────────────────────
+
+ USER MESSAGE: "scan the i2c bus"
+
+  agent loop
+      │
+      ▼
+  I2cScanTool.call()
+      │
+      ▼
+  resolve_aardvark_device("aardvark0")
+      │  returns transport Arc
+      ▼
+  AardvarkTransport.send(ZcCommand{ name: "i2c_scan" })
+      │
+      ▼
+  AardvarkHandle::open_port(0)    ← opens USB connection
+      │
+      ▼
+  aa_i2c_read(0x08..0x77)         ← probes each address
+      │
+      ▼
+  AardvarkHandle dropped           ← USB connection closed
+      │
+      ▼
+  ZcResponse{ output: "Found: 0x48, 0x68" }
+      │
+      ▼
+  agent sends reply to user: "I found two I2C devices: 0x48 and 0x68"
+</code></pre>
+<hr>
 <h2 id="存根与真实对象对比"><a class="header" href="#存根与真实对象对比">存根与真实对象对比</a></h2>
 <div class="table-wrapper">
 <table>
@@ -408,13 +529,13 @@ resolve_aardvark_device(args)
 <tr><td><code>find_devices()</code></td><td>返回 <code>[]</code></td><td>返回 <code>[0]</code></td></tr>
 <tr><td><code>open_port(0)</code></td><td><code>Err(NotFound)</code></td><td>打开 USB，返回句柄</td></tr>
 <tr><td><code>i2c_scan()</code></td><td><code>[]</code></td><td>探测总线，返回地址</td></tr>
-<tr><td>已加载工具</td><td>仅包含 6 个 Pico 工具</td><td>6 个 Pico 工具 + 6 个 Aardvark 工具</td></tr>
+<tr><td>已加载工具</td><td>only the base hardware tools</td><td>base tools + Aardvark tools</td></tr>
 <tr><td><code>has_aardvark()</code></td><td><code>false</code></td><td><code>true</code></td></tr>
 <tr><td>需要 SDK</td><td>不</td><td>是的（<code>vendor/aardvark.h</code> + <code>.so</code>）</td></tr>
 </tbody>
 </table>
 </div>
-<p>只有在插入真实硬件时，<code>crates/aardvark-sys/src/lib.rs</code> 中的代码才会发生变化——其他所有层都已经连接好并等待就绪。</p>
+<p>The only code that changes when you plug in real hardware is inside <code>crates/aardvark-sys/src/lib.rs</code>: every other layer is already wired up and waiting.</p>
 
                     </main>
 

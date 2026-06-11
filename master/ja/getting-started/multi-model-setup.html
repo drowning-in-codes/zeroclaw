@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -221,9 +297,9 @@
 <blockquote>
 <p>プロバイダーシステムの<strong>リファレンス資料</strong>は以下にあります：</p>
 <ul>
-<li><a href="../providers/overview.html">モデルプロバイダー → 概要</a> — プロバイダーとは何か、設定の構造</li>
-<li><a href="../providers/routing.html">モデルプロバイダー → ルーティング</a> — エージェントごとのディスパッチと OpenRouter</li>
-<li><a href="../providers/catalog.html">モデルプロバイダー → カタログ</a> — 各プロバイダーの構成形状</li>
+<li><a href="../providers/overview.html">Model Providers → Overview</a>: what providers are, configuration shape</li>
+<li><a href="../providers/routing.html">Model Providers → Routing</a>: per-agent dispatch and OpenRouter</li>
+<li><a href="../providers/catalog.html">Model Providers → Catalog</a>: every provider’s config shape</li>
 </ul>
 </blockquote>
 <h2 id="マルチモデル構成を使用するタイミング"><a class="header" href="#マルチモデル構成を使用するタイミング">マルチモデル構成を使用するタイミング</a></h2>
@@ -235,188 +311,20 @@
 <li><strong>チーム単位の分離</strong>: 異なるチームが、それぞれ異なる model_providers と認証情報を持つ異なるエージェントを使用します</li>
 <li><strong>レート制限の処理</strong>: <code>429</code>（レート制限）レスポンス時にAPIキーをローテーションする</li>
 </ol>
-<h2 id="コアコンセプト--エージェントごとのディスパッチ"><a class="header" href="#コアコンセプト--エージェントごとのディスパッチ">コアコンセプト — エージェントごとのディスパッチ</a></h2>
+<h2 id="core-idea-per-agent-dispatch"><a class="header" href="#core-idea-per-agent-dispatch">Core idea: per-agent dispatch</a></h2>
 <p>各 <code>[agents.&lt;alias&gt;]</code> エントリは、ちょうど 1 つの <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> を指します。モデルがダウンすると、エージェントもダウンします。オペレーターは影響を受けたチャンネルを別のエージェントにルーティングします。完全なパターンについては <a href="../providers/routing.html">Routing</a> を参照してください。</p>
-<p>複数のモデルを実行するには、複数のエージェントを実行します:</p>
-<pre><code class="language-toml">[providers.models.anthropic.haiku]
-model   = "claude-haiku-4-5-20251001"
-api_key = "sk-ant-..."
-
-[providers.models.anthropic.sonnet]
-model   = "claude-sonnet-4-6"
-api_key = "sk-ant-..."
-
-[providers.models.deepseek.reasoner]
-model   = "deepseek-reasoner"
-api_key = "sk-..."
-
-[channels.telegram.home]
-bot_token = "..."
-
-[channels.slack.engineering]
-bot_token = "..."
-
-[channels.slack.research]
-bot_token = "..."
-
-[agents.fast]
-model_provider  = "anthropic.haiku"
-risk_profile    = "hardened"
-runtime_profile = "tight"            # 軽快な公開返信のための少ない反復回数
-channels        = ["telegram.home"]
-
-[agents.deep]
-model_provider  = "anthropic.sonnet"
-risk_profile    = "hardened"
-runtime_profile = "deep"             # エンジニアリングタスク向けの高い反復回数上限
-channels        = ["slack.engineering"]
-
-[agents.reasoner]
-model_provider  = "deepseek.reasoner"
-risk_profile    = "hardened"
-runtime_profile = "deep"             # リサーチスタイルのプロンプト向けの拡張チェーン
-channels        = ["slack.research"]
-
-# 3つの公開向けエージェント全体で共有される `hardened` ポスチャと、
-# エージェントごとのスループット意図に応じた個別の `tight` / `deep` ランタイムプロファイル。
-# `risk_profile` と `runtime_profile` は独立したマップです。
-
-[risk_profiles.hardened]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-</code></pre>
-<p>各チャネルは一度に1つのエージェントにバインドされます。チャネルを別のエージェントに移動するには、そのチャネルを引き継ぐエージェントの <code>channels = [...]</code> リストを編集します。<code>Config::validate()</code> が起動時に参照が解決されることを確認します。</p>
-<h2 id="ベンダー横断の信頼性--openrouter-を使用"><a class="header" href="#ベンダー横断の信頼性--openrouter-を使用">ベンダー横断の信頼性 — OpenRouter を使用</a></h2>
-<p>OpenRouter は単一のファーストクラスプロバイダーとして扱われます。1 つのエンドポイントの背後でベンダーのファンアウトと稼働時間を処理します:</p>
-<pre><code class="language-toml">[providers.models.openrouter.home]
-model   = "anthropic/claude-sonnet-4-20250514"
-api_key = "sk-or-..."
-
-[agents.assistant]
-model_provider = "openrouter.home"
-risk_profile   = "hardened"
-# runtime_profile を省略 — ランタイムのデフォルトを使用
-
-[risk_profiles.hardened]
-level = "supervised"
-</code></pre>
-<p>「あるプロバイダーがダウンしたら、自動的に別のプロバイダーを使う」というのが目的であれば、それは OpenRouter の役割であって、ZeroClaw の役割ではありません。ランタイムは 1 つのプロバイダーしか認識せず、OpenRouter が上流でベンダー間の処理を行います。</p>
+<p>To run multiple models, run multiple agents, each binding to one model provider. Each channel binds to one agent at a time. To move a channel to a different agent, edit the <code>channels</code> list on the agent that should pick it up; <code>Config::validate()</code> makes sure references resolve at startup.</p>
+<h2 id="cross-vendor-reliability-use-openrouter"><a class="header" href="#cross-vendor-reliability-use-openrouter">Cross-vendor reliability: use OpenRouter</a></h2>
+<p>OpenRouter is treated as a single first-class provider. It handles vendor fan-out and uptime behind one endpoint. If your goal is “one provider goes down, automatically use another”, that’s OpenRouter’s job, not ZeroClaw’s. The runtime sees one provider; OpenRouter does the cross-vendor work upstream.</p>
 <h2 id="同一ベンダーでの再試行"><a class="header" href="#同一ベンダーでの再試行">同一ベンダーでの再試行</a></h2>
-<p>同一プロバイダーに対する一時的なエラー（ネットワークの瞬断、503、タイムアウト）が発生した場合、ZeroClaw は指数バックオフでリトライします。これはグローバルに設定可能です:</p>
-<pre><code class="language-toml">[reliability]
-provider_retries    = 2          # retries per provider attempt before bailing
-provider_backoff_ms = 500        # initial backoff; doubles per retry
-</code></pre>
-<p>デフォルトは2回のリトライ、初期バックオフ500msです。これらは1つのプロバイダー内でのリトライです。</p>
+<p>For transient errors (network blip, 503, timeout) against the <em>same</em> provider, ZeroClaw retries with exponential backoff, configurable globally under <code>reliability</code> (defaults: 2 retries, 500 ms initial backoff). These are inside-one-provider retries.</p>
 <h2 id="apiキーのローテーション"><a class="header" href="#apiキーのローテーション">APIキーのローテーション</a></h2>
-<p>レート制限に頻繁に遭遇するプロバイダーの場合は、<code>429</code>レスポンス時にZeroClawがローテーションする追加のAPIキーを指定してください:</p>
-<pre><code class="language-toml">[reliability]
-api_keys = ["sk-key-2", "sk-key-3", "sk-key-4"]
-</code></pre>
-<p>プライマリの <code>api_key</code>（プロバイダーエントリで設定されたもの）が常に最初に試行されます。これらの追加キーは、レート制限エラー時にローテーションされます。すべてのキーは同一のプロバイダーアカウントクラスに属している必要があります。これはレート制限の平滑化を目的としたものであり、マルチテナントなキーのやりくりではありません。</p>
+<p>For providers that frequently encounter rate limits, supply additional API keys on the provider entry that ZeroClaw rotates through on <code>429</code> responses. The primary <code>api_key</code> is always tried first; extras are rotated on rate-limit errors. All keys must belong to the same provider account class; this is rate-limit smoothing, not multi-tenant key juggling.</p>
 <h2 id="ホスティング型の代替手段を用いたローカル開発"><a class="header" href="#ホスティング型の代替手段を用いたローカル開発">ホスティング型の代替手段を用いたローカル開発</a></h2>
 <p>ローカルの Ollama エージェントとホスト型プロバイダーのエージェントを並行して実行し、各チャネルを使用したいエージェントへルーティングします。</p>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri   = "http://localhost:11434"
-model = "qwen3.6:35b-a3b"
-
-[providers.models.openrouter.home]
-model   = "anthropic/claude-haiku-4-5-20251001"
-api_key = "sk-or-..."
-
-[channels.telegram.production]
-bot_token = "..."
-
-[channels.slack.production]
-bot_token = "..."
-
-[agents.dev]
-model_provider  = "ollama.local"
-risk_profile    = "permissive"      # ローカル開発機 — 緩めのゲート
-runtime_profile = "deep"            # イテレーション中の反復は十分に
-
-[agents.prod]
-model_provider  = "openrouter.home"
-risk_profile    = "hardened"        # 公開チャンネル — 厳格なゲート
-runtime_profile = "tight"           # 本番の規律 — 短いループ、低コスト
-channels        = ["telegram.production", "slack.production"]
-
-[risk_profiles.permissive]
-level          = "full"
-workspace_only = false
-
-[risk_profiles.hardened]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-</code></pre>
-<p><code>dev</code> エージェントは CLI から実行されます（チャネルのバインドは不要 — <code>zeroclaw agent -a dev</code> だけで十分です）。Ollama がダウンしている場合、dev エージェントは即座に失敗してエラーを表面化します。prod チャネルには影響しません。</p>
-<h2 id="コストの段階管理--必要なときは高性能モデルそれ以外は高速モデル"><a class="header" href="#コストの段階管理--必要なときは高性能モデルそれ以外は高速モデル">コストの段階管理 — 必要なときは高性能モデル、それ以外は高速モデル</a></h2>
-<p>2つのエージェントを実行し、チャネルを適切なティアにルーティングします。<code>delegate</code> ツールを使うと、1つのエージェントが会話の途中で別のエージェントに処理を引き継げます。委譲にはゲートがあります。呼び出し元のリスクプロファイルで <code>delegation_policy mode = "allow"</code> を設定する必要があり、さらに <strong>両方のエージェントが同じリスクプロファイルを共有していなければなりません</strong>（委譲は信頼ティアをまたぎません）。そのため、以下のフロントラインエージェントとヘビーエージェントは <em>同じ</em> <code>trusted</code> リスクプロファイル上で実行されます。両者の違いはモデルとランタイムプロファイル（イテレーション予算）であり、信頼サーフェスではありません。</p>
-<pre><code class="language-toml">[providers.models.anthropic.opus]
-model   = "claude-opus-4-7"
-api_key = "sk-ant-..."
-# (temperature なし — claude-opus-4-7 は temperature 設定を一切拒否する)
-
-[providers.models.anthropic.haiku]
-model   = "claude-haiku-4-5-20251001"
-api_key = "sk-ant-..."
-
-[channels.telegram.home]
-bot_token = "..."
-
-[agents.frontline]
-model_provider  = "anthropic.haiku"
-risk_profile    = "trusted"      # 共有信頼ティア (委譲には一致が必要)
-runtime_profile = "tight"        # 低い反復上限、高速なターンアラウンド
-channels        = ["telegram.home"]
-
-[agents.heavy]
-model_provider  = "anthropic.opus"
-risk_profile    = "trusted"      # frontline と同じプロファイル — 委譲可能にするために必須
-runtime_profile = "deep"         # chain-of-thought 作業のための高い反復上限
-# channels なし — frontline から delegate ツール経由で呼び出される
-
-# runtime_profile は risk_profile とは独立したエイリアスマップを参照する。
-# 2つのエージェントは1つの risk プロファイルを共有するが、runtime プロファイルは異なる。
-
-[risk_profiles.trusted]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-# このプロファイルのエージェント同士の委譲を許可する。これがないと、
-# 委譲はデフォルトで禁止される。
-delegation_policy                = { mode = "allow" }
-allowed_tools                    = ["shell", "file_read", "memory_recall", "delegate"]
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-</code></pre>
+<p>The <code>dev</code> agent runs from the CLI (no channel binding required, <code>zeroclaw agent -a dev</code> is enough). When Ollama is down, the dev agent fails fast and surfaces the error. The prod channels are unaffected.</p>
+<h2 id="cost-tiering-heavy-model-when-needed-fast-model-otherwise"><a class="header" href="#cost-tiering-heavy-model-when-needed-fast-model-otherwise">Cost tiering: heavy model when needed, fast model otherwise</a></h2>
+<p>Run two agents and route channels to the appropriate tier. The <code>delegate</code> tool lets one agent hand off to another mid-conversation. <a href="../agents/delegation.html">Delegation</a> is gated: the caller’s risk profile must set <code>delegation_policy mode = "allow"</code>, and <strong>both agents must share the same risk profile</strong> (delegation does not cross trust tiers). So the frontline and heavy agents below run on the <em>same</em> <code>trusted</code> risk profile, they differ in model and runtime profile (iteration budget), not in trust surface.</p>
 <p>フロントラインエージェントは、すべての受信メッセージをHaiku上で処理します。より深い推論が必要になると、<code>delegate</code>ツールを<code>agent = "heavy"</code>で呼び出します。両方のエージェントが<code>trusted</code>リスクプロファイルを共有しており、そのプロファイルが委任を許可しているため、より重量級のエージェントがOpus上でサブタスクを引き継ぎます。</p>
 <h2 id="エラー処理"><a class="header" href="#エラー処理">エラー処理</a></h2>
 <p>1つのプロバイダー内でのリトライは、次の場合にトリガーされます：</p>
@@ -432,23 +340,22 @@ max_actions_per_hour = 200
 <li><strong>永続的な認証エラー</strong>: API キーの形式が無効です</li>
 <li><strong>モデル出力エラー</strong>: モデルは応答しましたが、エラーペイロードを返しました</li>
 </ol>
-<p>単一のプロバイダーですべてのリトライを使い果たすと、その失敗は呼び出し元のチャネルに表面化します。プロバイダー間での自動リトライは行われません。これこそが OpenRouter を使用したり、複数のエージェントにトラフィックを分散させたりする目的です。</p>
+<p>When all retries are exhausted on a single provider, the failure surfaces to the calling channel. There is no automatic cross-provider retry, that’s the point of using OpenRouter or splitting traffic across multiple agents.</p>
 <h2 id="デバッグ"><a class="header" href="#デバッグ">デバッグ</a></h2>
-<p>永続化ログ（デフォルトは <code>"rolling"</code>）は、リトライとキーローテーションの動作を記録します:</p>
-<pre><code class="language-toml">[observability]
-log_persistence = "rolling"
-log_persistence_path = "state/runtime-trace.jsonl"
-</code></pre>
-<p>次にトレースをクエリします:</p>
-<pre><code class="language-bash">zeroclaw doctor traces --contains リトライ
+<p>Persisted logs (<code>"rolling"</code> is the default) capture retry and key-rotation behaviour. Then query traces:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw doctor traces --contains リトライ
 zeroclaw doctor traces --contains "429"
 zeroclaw doctor traces --contains "model_provider"
 </code></pre>
+</div>
+
 <h2 id="ベストプラクティス"><a class="header" href="#ベストプラクティス">ベストプラクティス</a></h2>
 <ol>
 <li><strong>ルーティングの意図ごとに 1 つのエージェントを用意します。</strong> 2 つのチャネルで異なるモデルの動作が必要な場合は、2 つのエージェントに名前を付けます。</li>
 <li><strong>ベンダー横断的な信頼性のためにOpenRouterを使用しましょう。</strong> 「Claudeが失敗したらOpenAIを試す」といったベンダー横断的な処理はOpenRouterの役割です。OpenRouterを1つのプロバイダーとして設定し、そのエンドポイントにフォールバックの分散処理を任せましょう。</li>
-<li><strong>APIキーのローテーションプールは同種のもので統一してください。</strong> <code>[reliability] api_keys</code> 内のすべてのキーは同一のプロバイダーアカウントのものである必要があります。これはレート制限を平準化するためのものであり、マルチテナンシーのためのものではありません。</li>
+<li><strong>Keep API key rotation pools homogeneous.</strong> All keys in <code>[reliability] api_keys</code> should be from the same provider account, this is rate-limit smoothing, not multi-tenancy.</li>
 <li><strong>各エージェントを単独でスモークテストします。</strong> <code>zeroclaw agent -a &lt;alias&gt;</code> は、チャネルの配管に邪魔されずにエージェントを実行します。</li>
 <li><strong>エージェントの意図をドキュメント化する。</strong> 各エージェントがどのチャネルを処理するのか、またその理由を説明する <code># comment</code> 行を追加してください。</li>
 <li><strong>シークレットはインラインではなく env 経由で注入してください。</strong> <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> は起動時に <code>api_key</code> を設定します。<a href="../reference/env-vars.html">環境変数</a>を参照してください。</li>
@@ -459,10 +366,10 @@ zeroclaw doctor traces --contains "model_provider"
 <ol>
 <li>プロバイダーエントリの<strong>インライン <code>api_key</code></strong>。</li>
 <li><code>~/.zeroclaw/secrets</code> にある <strong>Secrets store</strong>。</li>
-<li><strong>汎用的な環境変数オーバーライド</strong> — 起動時に <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> を指定します。完全な文法については <a href="../reference/env-vars.html">環境変数</a> を参照してください。</li>
+<li><strong>Generic env override</strong>: <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> at startup. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</li>
 <li>ファミリーが対応している場合の<strong>ベンダー別環境変数</strong>（例: Anthropic では <code>ANTHROPIC_API_KEY</code> / <code>ANTHROPIC_OAUTH_TOKEN</code>、OpenRouter では <code>OPENROUTER_API_KEY</code>）。</li>
 </ol>
-<p>認証情報はプロバイダー間で共有されません — プロバイダーエントリごとに設定してください。</p>
+<p>Credentials are not shared between providers, set them per provider entry.</p>
 <h2 id="関連ドキュメント"><a class="header" href="#関連ドキュメント">関連ドキュメント</a></h2>
 <ul>
 <li><a href="../providers/overview.html">モデルプロバイダー → 概要</a></li>

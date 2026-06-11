@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,14 +294,20 @@
                     <main>
                         <h1 id="mattermost"><a class="header" href="#mattermost">Mattermost</a></h1>
 <p>Cliente de sondeo REST v4. Los servidores Mattermost autoalojados, on-prem o de nube soberana funcionan todos de la misma manera: el bot sondea cada 3 segundos los canales que puede leer en busca de nuevas publicaciones, y las publicaciones de respuesta se envían mediante <code>POST /api/v4/posts</code>.</p>
+<h2 id="who-can-talk-to-the-agent"><a class="header" href="#who-can-talk-to-the-agent">Who can talk to the agent</a></h2>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for mattermost sets <code>channel</code> to <code>mattermost</code>, lists the allowed senders in <code>external_peers</code> (for mattermost, the Mattermost user UUID (not a username); <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
+<p>To allowlist a specific human, copy their user ID from <strong>System Console → User Management</strong>. Mattermost matches the user <strong>UUID</strong>, not a username, and does not resolve usernames at message-receive time.</p>
 <h2 id="inicio-rápido"><a class="header" href="#inicio-rápido">Inicio rápido</a></h2>
-<p>Configuración mínima para un bot multicanal compatible con mensajes directos:</p>
-<pre><code class="language-toml">[channels.mattermost.work]
-enabled = true
-url = "https://mattermost.example.com"
-bot_token = "..."
-</code></pre>
-<p>Eso por sí solo te ofrece:</p>
+<p>Configure a Mattermost channel (<code>url</code> plus a <code>bot_token</code> secret, see <a href="#authentication">Authentication</a>) through one of the surfaces below. That alone gives you:</p>
 <ol>
 <li>Detección automática de cada canal que el bot puede leer en todos los equipos a los que pertenece.</li>
 <li>Los canales de MD y de MD grupales se descubren automáticamente y se sondean junto con los canales del equipo.</li>
@@ -234,46 +316,290 @@ bot_token = "..."
 </ol>
 <p>Para restringir el bot, acote con <code>channel_ids</code>, <code>team_ids</code> o <code>discover_dms</code>.</p>
 <h2 id="configuración"><a class="header" href="#configuración">Configuración</a></h2>
-<pre><code class="language-toml">[channels.mattermost.&lt;alias&gt;]
-enabled            = true                            # gate; required
-url                = "https://mattermost.example.com" # required
-bot_token          = "..."                            # secret; OR login_id+password
-# login_id         = ""                               # ruta de autenticación alternativa; solo cuando bot_token no está definido
-# password         = ""                               # secret; se empareja con login_id
-
-channel_ids        = []                               # [] o ["*"] = descubrimiento automático
-team_ids           = []                               # [] = todos los equipos
-discover_dms       = true                             # incluye type=D y type=G
-thread_replies     = true                             # hilo en la publicación del usuario
-mention_only       = false                            # filtra el ruido de canales ambientales
-interrupt_on_new_message = false                      # cancela la ejecución en curso ante una nueva publicación del remitente
-
-proxy_url          = ""                               # proxy opcional por canal
-excluded_tools     = []                               # herramientas ocultas para este canal
+<p><code>bot_token</code> and <code>password</code> are secrets:</p>
+<blockquote>
+<p><strong><code>channels.mattermost.&lt;alias&gt;.bot_token</code> is a secret.</strong> Stored encrypted, never in plain <code>config.toml</code>. Set it through one of these, which encrypt on write:</p>
+</blockquote>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.bot_token</code> field there.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.bot_token</code> field (input is masked).</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.bot_token    # prompts for masked input, stores encrypted
 </code></pre>
-<p>Referencia de campos:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>campo</th><th>tipo</th><th>predeterminado</th><th>significado</th></tr>
-</thead>
-<tbody>
-<tr><td><code>enabled</code></td><td>bool</td><td><code>false</code></td><td>Se carga solo cuando es <code>true</code>.</td></tr>
-<tr><td><code>url</code></td><td>cadena</td><td>(requerido)</td><td>URL base del servidor de Mattermost, sin barra al final.</td></tr>
-<tr><td><code>bot_token</code></td><td>secreto</td><td>ninguno</td><td>Token de acceso de la cuenta del bot. Preferido.</td></tr>
-<tr><td><code>login_id</code></td><td>cadena</td><td>ninguno</td><td>Correo electrónico o nombre de usuario para iniciar sesión con contraseña. Se usa solo cuando <code>bot_token</code> no está definido.</td></tr>
-<tr><td><code>password</code></td><td>secreto</td><td>ninguno</td><td>Contraseña de la cuenta. Debe combinarse con <code>login_id</code>.</td></tr>
-<tr><td><code>channel_ids</code></td><td>lista</td><td><code>[]</code></td><td>Una lista vacía o <code>["*"]</code> activa el descubrimiento automático. Los IDs explícitos fijan el bot a ese conjunto exacto.</td></tr>
-<tr><td><code>team_ids</code></td><td>lista</td><td><code>[]</code></td><td>Lista de permitidos de detección automática para canales de equipo. Vacío = todos los equipos a los que pertenece el bot. Los canales de MD y MD grupal no se ven afectados (no incluyen <code>team_id</code>).</td></tr>
-<tr><td><code>discover_dms</code></td><td>bool</td><td><code>true</code></td><td>Al usar el descubrimiento automático, incluye los canales <code>type=D</code> y <code>type=G</code>. Establece <code>false</code> para limitar el bot únicamente a los canales de equipo públicos/privados. No tiene efecto cuando <code>channel_ids</code> es explícito.</td></tr>
-<tr><td><code>thread_replies</code></td><td>bool</td><td><code>true</code></td><td>Una nueva respuesta de nivel superior abre un hilo basado en la publicación del usuario. Las respuestas dentro de un hilo existente siempre permanecen en ese hilo independientemente.</td></tr>
-<tr><td><code>mention_only</code></td><td>bool</td><td><code>false</code></td><td>Canales de equipo públicos/privados: ignora las publicaciones que no <code>@mention</code> al bot. Los DMs y DMs grupales siempre omiten este filtro.</td></tr>
-<tr><td><code>interrupt_on_new_message</code></td><td>bool</td><td><code>false</code></td><td>Una publicación más reciente del mismo remitente en el mismo canal cancela el turno en curso.</td></tr>
-<tr><td><code>proxy_url</code></td><td>cadena</td><td>ninguno</td><td>Anulación de proxy por canal (<code>http</code>, <code>https</code>, <code>socks5</code>, <code>socks5h</code>).</td></tr>
-<tr><td><code>excluded_tools</code></td><td>lista</td><td><code>[]</code></td><td>Nombres de herramientas ocultos al modelo en este canal.</td></tr>
-</tbody>
-</table>
 </div>
+
+<h3 id="field-reference"><a class="header" href="#field-reference">Field reference</a></h3>
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>bot_token</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Mattermost bot access token. When unset, the channel falls back to the login flow using <code>login_id</code> + <code>password</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.bot_token</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.bot_token</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.bot_token    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__bot_token=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>channel_ids</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Channel IDs to restrict the bot to. Empty or <code>["*"]</code> = auto-discover every channel the bot can read (public, private, DMs, group DMs) and poll them all. Explicit IDs disable discovery and pin the bot to the listed channels only. Migrated from the legacy <code>channel_id</code> singular field.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.channel_ids</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.channel_ids</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.channel_ids &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__channel_ids=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>discover_dms</code> <span class="cfg-field-meta"><code>bool?</code> · default <code>null</code></span></summary>
+<p>When true (default), auto-discovery includes DM (<code>type=D</code>) and group DM (<code>type=G</code>) channels. Set false to restrict the bot to public and private team channels only. Has no effect when <code>channel_ids</code> lists explicit IDs. Defaults to <code>true</code> at the call site via <code>discover_dms.unwrap_or(true)</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.discover_dms</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.discover_dms</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.discover_dms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__discover_dms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>interrupt_on_new_message</code> <span class="cfg-field-meta"><code>bool</code> · default <code>false</code></span></summary>
+<p>When true, a newer Mattermost message from the same sender in the same channel cancels the in-flight request and starts a fresh response with preserved history.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.interrupt_on_new_message</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.interrupt_on_new_message</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.interrupt_on_new_message &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__interrupt_on_new_message=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>login_id</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Login ID (email or username) for the password login flow. Used only when <code>bot_token</code> is unset; both <code>login_id</code> and <code>password</code> must be set together.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.login_id</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.login_id</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.login_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__login_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>mention_only</code> <span class="cfg-field-meta"><code>bool?</code> · default <code>null</code></span></summary>
+<p>When true, only respond to messages that @-mention the bot. Other messages in the channel are silently ignored. DM and group DM channels always bypass this filter: a 1:1 (or small-group) direct conversation has no ambient noise to gate against, so every message is treated as addressed to the bot.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.mention_only</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.mention_only</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.mention_only &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__mention_only=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>password</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Account password for the login flow. Used only when <code>bot_token</code> is unset; both <code>login_id</code> and <code>password</code> must be set together.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.password</code> field.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.password</code> field.</p>
+<h4 id="zeroclaw-config-8"><a class="header" href="#zeroclaw-config-8">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.password    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__password=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>proxy_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Per-channel proxy URL (http, https, socks5, socks5h). Overrides the global <code>[proxy]</code> setting for this channel only.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-10"><a class="header" href="#gateway-dashboard-10">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zerocode-10"><a class="header" href="#zerocode-10">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zeroclaw-config-9"><a class="header" href="#zeroclaw-config-9">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.proxy_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-8"><a class="header" href="#environment-variable-8">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__proxy_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_min_interval_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing floor in seconds. Range: <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code> (0 disables).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-11"><a class="header" href="#gateway-dashboard-11">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zerocode-11"><a class="header" href="#zerocode-11">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zeroclaw-config-10"><a class="header" href="#zeroclaw-config-10">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.reply_min_interval_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-9"><a class="header" href="#environment-variable-9">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__reply_min_interval_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_queue_depth_max</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing queue depth. Range: <code>0..=REPLY_QUEUE_DEPTH_CEILING</code>. When <code>reply_min_interval_secs &gt; 0</code> and this value is <code>0</code>, the pacing wrapper substitutes <code>DEFAULT_REPLY_QUEUE_DEPTH</code> (16). When the queue is full, the newest send is dropped and a <code>WARN</code> is logged.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-12"><a class="header" href="#gateway-dashboard-12">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zerocode-12"><a class="header" href="#zerocode-12">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zeroclaw-config-11"><a class="header" href="#zeroclaw-config-11">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.reply_queue_depth_max &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-10"><a class="header" href="#environment-variable-10">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__reply_queue_depth_max=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>team_ids</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Team IDs to restrict auto-discovery to. Empty = discover across every team the bot belongs to. Non-empty = only discover public/private channels whose <code>team_id</code> is in this list. DMs and group DMs (which have no team) are governed by <code>discover_dms</code> instead.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-13"><a class="header" href="#gateway-dashboard-13">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.team_ids</code> field.</p>
+<h4 id="zerocode-13"><a class="header" href="#zerocode-13">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.team_ids</code> field.</p>
+<h4 id="zeroclaw-config-12"><a class="header" href="#zeroclaw-config-12">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.team_ids &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-11"><a class="header" href="#environment-variable-11">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__team_ids=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>thread_replies</code> <span class="cfg-field-meta"><code>bool?</code> · default <code>null</code></span></summary>
+<p>When true (default), replies thread on the original post. When false, replies go to the channel root.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-14"><a class="header" href="#gateway-dashboard-14">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.thread_replies</code> field.</p>
+<h4 id="zerocode-14"><a class="header" href="#zerocode-14">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.thread_replies</code> field.</p>
+<h4 id="zeroclaw-config-13"><a class="header" href="#zeroclaw-config-13">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.thread_replies &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-12"><a class="header" href="#environment-variable-12">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__thread_replies=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>url</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p>Mattermost server URL (e.g. <code>"https://mattermost.example.com"</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-15"><a class="header" href="#gateway-dashboard-15">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and set the <code>channels.mattermost.&lt;alias&gt;.url</code> field.</p>
+<h4 id="zerocode-15"><a class="header" href="#zerocode-15">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.url</code> field.</p>
+<h4 id="zeroclaw-config-14"><a class="header" href="#zeroclaw-config-14">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-13"><a class="header" href="#environment-variable-13">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__mattermost__&lt;alias&gt;__url=
+</code></pre>
+</div>
+
+</details>
+</div>
+
 <h2 id="descubrimiento-de-canales"><a class="header" href="#descubrimiento-de-canales">Descubrimiento de canales</a></h2>
 <p>Hay dos modos de alcance.</p>
 <ol>
@@ -304,6 +630,25 @@ excluded_tools     = []                               # herramientas ocultas par
 <li>La publicación entrante es de nivel superior y <code>thread_replies = true</code> (predeterminado) → la respuesta abre un hilo basado en la publicación entrante.</li>
 <li>La publicación entrante es de nivel superior y <code>thread_replies = false</code> → la respuesta se publica en la raíz del canal.</li>
 </ol>
+<h3 id="context-management"><a class="header" href="#context-management">Context management</a></h3>
+<p>When a Mattermost conversation happens in a thread, that thread is its own conversation. ZeroClaw derives a distinct session key per thread, so every thread carries an independent context window and history: messages in one thread never bleed into another, and the agent does not see a sibling thread’s earlier turns. For Mattermost this is controlled by <code>thread_replies</code>: when it is on, top-level messages open a thread and each thread is a separate conversation; when off, replies post at the channel root and history is keyed by sender and target instead of by thread.</p>
+<ul>
+<li><strong>Isolation is the point.</strong> Each thread’s context is self-contained: it does not leak outside the thread, and nothing from outside the thread leaks in. Parallel threads hold separate conversational state, so unrelated tasks never contaminate each other.</li>
+<li><strong>Long threads grow context.</strong> A thread accumulates history while it stays active, so a very long thread eventually fills the model’s context window like any other long conversation. Start a new thread to reset.</li>
+<li><strong>In-flight work is scoped per thread.</strong> A new message in one thread does not cancel an in-flight response in another; each thread’s task stands alone.</li>
+</ul>
+<p>Set the thread behavior on any surface:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-16"><a class="header" href="#gateway-dashboard-16">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/mattermost"><code>/config/channels/mattermost</code></a> and toggle the <code>channels.mattermost.&lt;alias&gt;.thread_replies</code> field.</p>
+<h4 id="zerocode-16"><a class="header" href="#zerocode-16">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.mattermost.&lt;alias&gt;.thread_replies</code> field.</p>
+<h4 id="zeroclaw-config-15"><a class="header" href="#zeroclaw-config-15">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.mattermost.&lt;alias&gt;.thread_replies true     # thread replies on
+zeroclaw config set channels.mattermost.&lt;alias&gt;.thread_replies false    # replies at the channel root
+</code></pre>
+</div>
+
 <h2 id="autenticación"><a class="header" href="#autenticación">Autenticación</a></h2>
 <p>Dos rutas:</p>
 <ol>
@@ -318,11 +663,9 @@ excluded_tools     = []                               # herramientas ocultas par
 <li>En Mattermost: <strong>System Console → Integrations → Bot Accounts → Add Bot Account</strong>. Define un nombre de usuario (p. ej. <code>zeroclaw</code>), habilita los scopes que quieras.</li>
 <li>Copia el token de acceso. Almacénalo en tu backend de secretos de ZeroClaw.</li>
 <li>Invita al bot a los equipos en los que quieras que esté activo. Para la detección automática de mensajes directos, no se necesitan invitaciones adicionales: cualquier usuario puede enviar un mensaje directo al bot.</li>
-<li>Agrega <code>[channels.mattermost.&lt;alias&gt;]</code> a tu config.toml haciendo referencia al token.</li>
+<li>Create the <code>mattermost.&lt;alias&gt;</code> channel referencing the token through the gateway, zerocode, or <code>zeroclaw config set</code>.</li>
 <li>Vincula el canal a un agente en <code>[agents.&lt;alias&gt;]</code> mediante <code>channels = ["mattermost.&lt;alias&gt;"]</code>.</li>
 </ol>
-<h2 id="identidad-y-grupos-de-pares"><a class="header" href="#identidad-y-grupos-de-pares">Identidad y grupos de pares</a></h2>
-<p>El campo entrante <code>ChannelMessage.sender</code> es el UUID del usuario de Mattermost (<code>user_id</code> del payload del post). La autorización del grupo de pares se compara con ese UUID. Si quieres incluir en la lista de permitidos a una persona específica, copia su user ID desde <strong>System Console → User Management</strong> y agrégalo a <code>[peer_groups.&lt;group&gt;].external_peers</code>. El bot actualmente no resuelve los nombres de usuario en el momento de recibir el mensaje; esa es una cuestión ortogonal que comparte con Discord y otros canales basados en UUID.</p>
 <h2 id="notas-operativas"><a class="header" href="#notas-operativas">Notas operativas</a></h2>
 <ol>
 <li>La cadencia de sondeo es de 3 segundos por canal. N canales descubiertos = N llamadas HTTP cada 3 segundos contra el servidor de Mattermost. Las configuraciones predeterminadas autoalojadas manejan esto fácilmente; si estás en un tenant de nube compartido con límites de tasa estrictos, considera acotar el alcance con <code>channel_ids</code> o <code>team_ids</code>.</li>
@@ -332,7 +675,7 @@ excluded_tools     = []                               # herramientas ocultas par
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
 <li><a href="./overview.html">Visión general de los canales</a></li>
-<li><a href="../security/overview.html">Seguridad: grupos de pares</a></li>
+<li><a href="./peer-groups.html">Peer Groups</a></li>
 <li><a href="../reference/config.html">Referencia: esquema de configuración</a></li>
 </ul>
 
@@ -340,7 +683,7 @@ excluded_tools     = []                               # herramientas ocultas par
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../channels/matrix.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../channels/slack.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -354,7 +697,7 @@ excluded_tools     = []                               # herramientas ocultas par
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../channels/matrix.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../channels/slack.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,19 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="request-lifecycle"><a class="header" href="#request-lifecycle">Request Lifecycle</a></h1>
-<p>What happens between “user sends a message” and “agent replies” — the full path, with streaming, tool calls, and security gates annotated.</p>
+<p>What happens between “user sends a message” and “agent replies”: the full path, with streaming, tool calls, and security gates annotated.</p>
 <h2 id="inbound"><a class="header" href="#inbound">Inbound</a></h2>
 <pre class="mermaid">flowchart LR
     A[External event] --&gt;|webhook / push / poll / WS| B[Channel adapter]
     B --&gt;|decode, dedup, pair-check| C[Inbound envelope]
-    C --&gt;|workspace binding| D[Runtime: deliver_message]
+    C --&gt;|workspace binding| D[Runtime: process_message]
 </pre>
 
 <p>A channel adapter (e.g. <code>discord.rs</code>, <code>telegram.rs</code>, <code>email_channel.rs</code>) receives platform-native events and converts them into a uniform inbound envelope. The adapter handles:</p>
 <ul>
-<li><strong>Decoding</strong> — platform-specific payload → canonical message format</li>
-<li><strong>Deduplication</strong> — prevents replaying the same message twice (restarts, retries)</li>
-<li><strong>Pair-check</strong> — enforces the <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM policy before the event reaches the runtime</li>
+<li><strong>Decoding</strong>: platform-specific payload → canonical message format</li>
+<li><strong>Deduplication</strong>: prevents replaying the same message twice (restarts, retries)</li>
+<li><strong>Pair-check</strong>: enforces the <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM policy before the event reaches the runtime</li>
 </ul>
 <p>If the channel is not paired or the user isn’t allowed, the event is dropped before the runtime sees it.</p>
 <h2 id="agent-loop"><a class="header" href="#agent-loop">Agent loop</a></h2>
@@ -241,7 +317,7 @@
     participant PR as Provider
     participant TL as Tool
 
-    CH-&gt;&gt;RT: deliver_message(envelope)
+    CH-&gt;&gt;RT: process_message(envelope)
     RT-&gt;&gt;MEM: load_context(conversation_id)
     MEM--&gt;&gt;RT: prior messages + retrieved facts
     RT-&gt;&gt;PR: chat(system, history, tools)
@@ -250,7 +326,7 @@
         RT--&gt;&gt;CH: draft update (if channel supports it)
     end
     PR--&gt;&gt;RT: StreamEvent::ToolCall(args)
-    RT-&gt;&gt;SEC: validate_tool_call(name, args, risk)
+    RT-&gt;&gt;SEC: evaluate_tool_access(name, args, risk)
     alt Blocked
         SEC--&gt;&gt;RT: Err(reason)
         RT-&gt;&gt;PR: chat(..., + tool_error)
@@ -273,19 +349,19 @@
 <ul>
 <li><strong>Streaming is end-to-end.</strong> The provider streams tokens. If the channel adapter reports <code>supports_draft_updates()</code>, the runtime edits a sent message in place as text arrives. Discord, Slack, and Telegram support this.</li>
 <li><strong>Tool calls are mid-stream.</strong> The model can emit a tool call while still generating text. The runtime pauses the stream, validates, invokes, feeds the result back, and resumes.</li>
-<li><strong>Security gates every tool call.</strong> <code>validate_tool_call</code> consults the <a href="../security/autonomy.html">autonomy level</a>, allow/deny lists, and path boundaries. Medium-risk calls under <code>Supervised</code> autonomy go to the operator-approval path.</li>
-<li><strong>Memory is persistent.</strong> The full conversation, tool calls, tool results, and receipts are written to the memory backend.</li>
+<li><strong>Security gates every tool call.</strong> <code>evaluate_tool_access</code> consults the <a href="../security/autonomy.html">autonomy level</a>, allow/deny lists, and path boundaries. Medium-risk calls under <code>Supervised</code> autonomy go to the operator-approval path.</li>
+<li><strong>Memory is persistent.</strong> The conversation, tool calls, and tool results are written to the memory backend. (Receipts ride in-band in the conversation text rather than as a separate persisted artifact.)</li>
 </ul>
 <h2 id="tool-receipts"><a class="header" href="#tool-receipts">Tool receipts</a></h2>
-<p>Every tool invocation produces a signed receipt written to the tool-receipts log. See <a href="../security/tool-receipts.html">Tool receipts</a>. Receipts are chained — each one includes the hash of the previous — so tampering with any receipt invalidates the rest of the log.</p>
+<p>Every tool invocation produces an HMAC-SHA256 receipt that is appended to the tool-result text and passed back to the model in the conversation, proving the tool actually ran. The HMAC is keyed by a per-daemon-process key and computed over <code>tool_name || args || result || timestamp</code>. Receipts are not written to a separate on-disk log and are not chained; the model can echo them but cannot forge a new valid one without the key. See <a href="../security/tool-receipts.html">Tool receipts</a>.</p>
 <h2 id="outbound"><a class="header" href="#outbound">Outbound</a></h2>
 <p>Outbound messages go back through the same channel adapter. Adapters with multi-message support (Discord, Slack) can stream long replies as a sequence of messages; others (email, SMS) flush on stream completion.</p>
 <h2 id="where-it-lives-in-code"><a class="header" href="#where-it-lives-in-code">Where it lives in code</a></h2>
 <ul>
-<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code></li>
-<li>Tool-call validation: <code>crates/zeroclaw-runtime/src/security/</code></li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Tool-call access checks: <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>Channel orchestration: <code>crates/zeroclaw-channels/src/orchestrator/</code></li>
-<li>Provider streaming: <code>crates/zeroclaw-providers/src/traits.rs</code> (<code>StreamEvent</code> enum), <code>compatible.rs</code> (SSE parser)</li>
+<li>Provider streaming: <code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>StreamEvent</code> enum, re-exported from <code>zeroclaw-providers</code>), <code>compatible.rs</code> (SSE parser)</li>
 </ul>
 
                     </main>

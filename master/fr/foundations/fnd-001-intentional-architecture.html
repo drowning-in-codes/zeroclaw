@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,21 +292,21 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-001--architecture-intentionnelle--transition-vers-le-microkernel-zeroclaw"><a class="header" href="#fnd-001--architecture-intentionnelle--transition-vers-le-microkernel-zeroclaw">FND-001 : Architecture intentionnelle — Transition vers le microkernel ZeroClaw</a></h1>
-<h3 id="à-partir-de-la-version-070--type--architecture--rév-3"><a class="header" href="#à-partir-de-la-version-070--type--architecture--rév-3">À partir de la version 0.7.0 · Type : Architecture · Rév. 3</a></h3>
+                        <h1 id="fnd-001-intentional-architecture-zeroclaw-microkernel-transition"><a class="header" href="#fnd-001-intentional-architecture-zeroclaw-microkernel-transition">FND-001: Intentional Architecture: ZeroClaw Microkernel Transition</a></h1>
 <blockquote>
+<p>À partir de la version 0.7.0 · Type : Architecture · Rév. 3</p>
 <p><strong>Référence canonique</strong> · Ratifié par l’équipe · Rév. 3 Fil de discussion et historique complet des révisions : <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5574">#5574</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>Une note à l’équipe avant que vous lisiez ceci.</strong></p>
-<p>Ce document a été rédigé pour nous aider à passer d’une base de code qui s’est développée de manière réactive à une autre construite avec intention. Si certains des concepts qui y sont présentés vous sont nouveaux, ce n’est pas un problème — cela signifie que ce document remplit son rôle. Chaque ingénieur senior avec qui vous aurez travaillé a appris ces leçons de la manière la plus difficile, sur une base de code devenue trop complexe à comprendre. Nous avons la rare opportunité de reconnaître ce schéma tôt et de corriger le cap avant que cela ne devienne douloureux. C’est une bonne chose. Prenez votre temps pour le parcourir.</p>
+<p>This document was written to help us move from a codebase that grew reactively into one that is built with intention. If some of the concepts here are new to you, that is not a problem. It means this document is doing its job. Every senior engineer you will ever work with has learned these lessons the hard way, on a codebase that got too big to understand. We have the rare opportunity to recognize the pattern early and course-correct before it becomes painful. This is a good thing. Take your time with it.</p>
 </blockquote>
 <hr>
 <h2 id="table-des-matières"><a class="header" href="#table-des-matières">Table des matières</a></h2>
 <ol>
 <li><a href="#1-a-development-philosophy-vision-first">Une philosophie de développement : la vision d’abord</a></li>
-<li><a href="#2-la-vision--ce-quest-zeroclaw">La vision — Ce qu’est ZeroClaw</a></li>
+<li><a href="#2-the-vision-what-zeroclaw-is">The Vision: What ZeroClaw Is</a></li>
 <li><a href="#3-honest-assessment-where-we-are-today">Évaluation honnête : où nous en sommes aujourd’hui</a></li>
 <li><a href="#4-larchitecture-cible">Architecture cible</a>
 <ul>
@@ -260,7 +336,7 @@
 </div>
 <hr>
 <h2 id="1-une-philosophie-de-développement--la-vision-dabord"><a class="header" href="#1-une-philosophie-de-développement--la-vision-dabord">1. Une philosophie de développement : la vision d’abord</a></h2>
-<p>Chaque décision que nous prenons dans le développement logiciel — quoi construire, comment le construire, quoi ignorer — doit découler d’une hiérarchie d’intention :</p>
+<p>Every decision we make in software, what to build, how to build it, what to skip, should flow downward from a hierarchy of intent:</p>
 <pre><code>Vision
   └── Architecture
         └── Design
@@ -278,8 +354,8 @@
 </thead>
 <tbody>
 <tr><td><strong>Vision</strong></td><td><em>Pourquoi ce projet existe-t-il ? À qui s’adresse-t-il ? À quoi ressemble le succès ?</em></td><td>Vous créez des choses dont personne n’a besoin, ou vous vous contredisez d’une version à l’autre.</td></tr>
-<tr><td><strong>Architecture</strong></td><td>Quelles sont les décisions structurelles qui rendent la vision possible ?</td><td>Vous vous retrouvez avec une « boule de boue » — du code qui fonctionne mais qui ne peut pas être modifié sans casser autre chose.</td></tr>
-<tr><td><strong>Conception</strong></td><td><em>Comment les composants sont-ils liés ? Quelles sont les interfaces entre eux ?</em></td><td>Vous obtenez un couplage serré — des composants qui en savent trop sur les détails internes des autres.</td></tr>
+<tr><td><strong>Architecture</strong></td><td>Quelles sont les décisions structurelles qui rendent la vision possible ?</td><td>You end up with a “Big Ball of Mud”: code that works but cannot be changed without breaking something else</td></tr>
+<tr><td><strong>Conception</strong></td><td><em>Comment les composants sont-ils liés ? Quelles sont les interfaces entre eux ?</em></td><td>You get tight coupling: components that know too much about each other’s internals</td></tr>
 <tr><td><strong>Implémentation</strong></td><td><em>Comment construisons-nous ce composant spécifique ?</em></td><td>Bugs, problèmes de performance, failles de sécurité</td></tr>
 <tr><td><strong>Tests</strong></td><td><em>L’implémentation correspond-elle au design ? Le design sert-il l’architecture ?</em></td><td>Vous livrez des produits défectueux et ne savez pas pourquoi.</td></tr>
 <tr><td><strong>Documentation</strong></td><td>Comment transférer cette connaissance à la personne suivante ?</td><td>Chaque contributeur doit tout redécouvrir depuis le début.</td></tr>
@@ -289,19 +365,19 @@
 </div>
 <h3 id="le-problème-avec-le-saut-du-haut"><a class="header" href="#le-problème-avec-le-saut-du-haut">Le problème avec le saut du haut</a></h3>
 <p>ZeroClaw a été initialisé à l’aide d’outils d’IA travaillant à partir de la base de code TypeScript d’OpenClaw. La génération de code par l’IA opère au niveau de l’<strong>Implémentation</strong>. Elle écrit des fonctions, des structures et des modules qui réalisent des actions. Elle ne définit pas la Vision. Elle ne prend pas de décisions architecturales. Elle ne définit pas les contrats de conception.</p>
-<p>Le résultat est une base de code impressionnante par sa fonctionnalité, mais architecturalement accidentelle. Le code fait ce qu’il doit faire aujourd’hui, mais il n’a pas été conçu — il s’est accumulé. Ce pattern porte un nom dans notre industrie : <strong>la boule de boue (Big Ball of Mud)</strong>. C’est l’architecture la plus courante en logiciel, non pas parce que quelqu’un l’a choisie, mais parce que c’est ce que vous obtenez lorsque vous sautez le haut de la hiérarchie.</p>
-<p>Cette RFC est notre opportunité de corriger cela — non pas en jetant ce qui fonctionne, mais en développant une architecture intentionnelle autour de celle-ci en utilisant une technique appelée le <strong>Strangler Fig Pattern</strong> : nous construisons la nouvelle structure autour des bords de l’ancienne, en migrant progressivement vers l’intérieur au fil du temps, jusqu’à ce que l’ancienne structure disparaisse. Pas de refonte « big bang ». Pas de rejet du code fonctionnel. Juste une amélioration continue et intentionnelle.</p>
+<p>The result is a codebase that is impressively functional but architecturally accidental. The code does what it needs to do today, but it was not designed. It accumulated. This pattern has a name in our industry: <strong>the Big Ball of Mud</strong>. It is the most common architecture in software, not because anyone chose it, but because it is what you get when you skip the top of the hierarchy.</p>
+<p>This RFC is our chance to fix that, not by throwing away what works, but by growing an intentional architecture around it using a technique called the <strong>Strangler Fig Pattern</strong>: we build the new structure around the edges of the old one, migrating inward over time, until the old structure is gone. No “big bang” rewrite. No throwing away working code. Just steady, intentional improvement.</p>
 <hr>
-<h2 id="2-la-vision--ce-quest-zeroclaw"><a class="header" href="#2-la-vision--ce-quest-zeroclaw">2. La Vision — Ce qu’est ZeroClaw</a></h2>
+<h2 id="2-the-vision-what-zeroclaw-is"><a class="header" href="#2-the-vision-what-zeroclaw-is">2. The Vision: What ZeroClaw Is</a></h2>
 <p>Avant d’aborder l’architecture, il faut préciser ce que nous construisons. Il s’agit de la couche Vision. Tout ce qui suit doit servir cet objectif.</p>
 <blockquote>
-<p><strong>ZeroClaw est un environnement d’exécution pour assistant IA personnel que toute personne peut faire fonctionner sur n’importe quel matériel — d’une carte embarquée à 10 $ à un serveur cloud — avec zéro surcharge de configuration, zéro dépendance à des services externes, et zéro compromis sur les capacités ou la sécurité.</strong></p>
+<p><strong>ZeroClaw is a personal AI assistant runtime that any person can run on any hardware, from a $10 embedded board to a cloud server, with zero configuration overhead, zero external service requirements, and zero compromise on capability or security.</strong></p>
 </blockquote>
 <p>En décomposant cela en engagements concrets :</p>
-<p><strong>Zéro surcharge.</strong> L’agent principal démarre en quelques millisecondes et utilise moins de mémoire qu’un onglet de navigateur. Il ne s’agit pas d’une affirmation marketing, mais d’une contrainte architecturale. Chaque décision que nous prenons doit être testée par rapport à cette contrainte.</p>
-<p><strong>Aucune exigence externe.</strong> Un utilisateur qui télécharge ZeroClaw et a configuré un fournisseur de LLM devrait disposer d’un assistant IA fonctionnel et utile sans rien installer d’autre. Les canaux, tableaux de bord et intégrations sont des éléments que vous ajoutez lorsque vous en avez besoin, et non des prérequis pour que cela fonctionne.</p>
+<p><strong>Zero overhead.</strong> The core agent starts in milliseconds and uses less memory than a browser tab. This is not a marketing claim. It is an architectural constraint. Every decision we make must be tested against it.</p>
+<p><strong>Zero external requirements.</strong> A user who downloads ZeroClaw and has an LLM provider configured should have a working, useful AI assistant without installing anything else. Channels, dashboards, and integrations are things you add when you want them, not things you need before it works.</p>
 <p><strong>Zéro compromis.</strong> Lean ne signifie pas faible. ZeroClaw doit disposer d’un modèle de sécurité rigoureux, d’une observabilité réelle et d’une extensibilité authentique. La tension entre « petit binaire » et « pleine capacité » est résolue par la composition : un noyau léger, étendu par des composants que vous choisissez.</p>
-<p><strong>Pour tous les niveaux de compétence.</strong> Un étudiant avec un Raspberry Pi à 10 $ et une équipe effectuant un déploiement en production doivent tous deux avoir l’impression que ZeroClaw a été conçu pour eux. Cela signifie que l’expérience par défaut doit être simple, et l’expérience avancée doit être puissante — pas deux produits différents.</p>
+<p><strong>For every skill level.</strong> A student on a $10 Raspberry Pi and a team running a production deployment should both feel like ZeroClaw was designed for them. This means the default experience must be simple, and the advanced experience must be powerful, not two different products.</p>
 <p><strong>Propriété de l’utilisateur.</strong> Vos données, votre matériel, votre configuration. ZeroClaw ne nécessite pas de compte, ne se connecte pas à distance et ne vous enferme pas dans une plateforme.</p>
 <hr>
 <h2 id="3-évaluation-honnête--où-nous-en-sommes-aujourdhui"><a class="header" href="#3-évaluation-honnête--où-nous-en-sommes-aujourdhui">3. Évaluation honnête : Où nous en sommes aujourd’hui</a></h2>
@@ -311,11 +387,11 @@
 <ul>
 <li>Un canal Telegram et la boucle principale de l’agent sont compilés à partir du même arbre de sources, que vous utilisiez Telegram ou non.</li>
 <li>Le tableau de bord web (une application React complète) est intégré dans le binaire à l’aide de <code>rust-embed</code>, ce qui fait que chaque binaire inclut l’interface utilisateur web, même pour les utilisateurs qui n’utilisent que l’interface CLI.</li>
-<li>Le serveur HTTP de la passerelle contient des gestionnaires de webhooks pour WhatsApp, WATI, Linq, Nextcloud Talk et Gmail — ce qui signifie que des intégrations spécifiques de canaux sont intégrées dans le serveur web.</li>
+<li>The gateway HTTP server contains webhook handlers for WhatsApp, WATI, Linq, Nextcloud Talk, and Gmail, meaning specific channel integrations are baked into the web server</li>
 <li>Chacun des 70+ outils est compilé dans le binaire, indépendamment des outils qu’un utilisateur pourrait appeler.</li>
 <li>Le seul mécanisme pour exclure du code est un indicateur de fonctionnalité Cargo, ce qui nécessite que les utilisateurs disposent d’un environnement de développement Rust et recompilent à partir des sources.</li>
 </ul>
-<p><strong>La conséquence pour les utilisateurs :</strong> L’objectif affiché est un binaire léger pour du matériel à 10 $. Cependant, le binaire inclut du code pour 27 canaux de messagerie, plus de 70 outils, un serveur web complet, une application React, ainsi que des intégrations avec Jira, Notion, Google Workspace, LinkedIn et bien d’autres — la plupart desquels aucun utilisateur donné n’utilisera jamais.</p>
+<p><strong>The consequence for users:</strong> The stated goal is a lean binary for $10 hardware. But the binary ships with code for 27 messaging channels, 70+ tools, a full web server, a React application, and integrations with Jira, Notion, Google Workspace, LinkedIn, and more, most of which any given user will never touch.</p>
 <p><strong>La conséquence pour les contributeurs :</strong> Lorsqu’un fichier fait 9 500 lignes, il est impossible de le comprendre. Lorsque toutes les fonctionnalités sont regroupées dans un seul crate, toucher n’importe quel élément risque de tout casser.</p>
 <h3 id="32-les-preuves"><a class="header" href="#32-les-preuves">3.2 Les preuves</a></h3>
 <p>Ce sont des faits mesurés issus de la base de code actuelle, et non des estimations :</p>
@@ -345,7 +421,7 @@
 <hr>
 <h2 id="4-larchitecture-cible"><a class="header" href="#4-larchitecture-cible">4. L’architecture cible</a></h2>
 <h3 id="41-le-modèle-du-micro-noyau"><a class="header" href="#41-le-modèle-du-micro-noyau">4.1 Le modèle du micro-noyau</a></h3>
-<p>Une architecture à micro-noyau sépare un noyau minimal et stable des sous-systèmes optionnels qui l’étendent. Dans les systèmes d’exploitation, l’exemple classique est un noyau qui ne gère que la mémoire et l’ordonnancement, tandis que tout le reste — les systèmes de fichiers, les pilotes de périphériques, les piles réseau — s’exécute sous forme de processus distincts communiquant via une interface bien définie.</p>
+<p>A microkernel architecture separates a minimal, stable core from optional subsystems that extend it. In operating systems, the classic example is a kernel that only handles memory and scheduling, with everything else, filesystems, device drivers, network stacks, running as separate processes that communicate through a well-defined interface.</p>
 <p>Pour un runtime d’agent IA, la révélation montre <strong>deux couches internes distinctes</strong> que l’analogie avec le système d’exploitation confond :</p>
 <div class="table-wrapper">
 <table>
@@ -353,8 +429,8 @@
 <tr><th>Concept du micro-noyau du système d’exploitation</th><th>Équivalent ZeroClaw</th></tr>
 </thead>
 <tbody>
-<tr><td>Noyau</td><td><strong>Couche de base</strong> — Traits API, configuration, fournisseurs, backends de mémoire, infrastructure, analyseur d’appels d’outils. Le noyau irréductible : compilations avec <code>--no-default-features</code>. Peut échanger des messages avec un LLM et stocker de la mémoire. Rien de plus.</td></tr>
-<tr><td>Système d’initialisation / d’exécution</td><td><strong>Couche d’exécution de l’agent</strong> — Boucle d’orchestration, application des politiques de sécurité, hôte de plugins, outils principaux, API IPC. Le crate <code>zeroclaw-runtime</code>, activé par la fonctionnalité <code>agent-runtime</code>. C’est ce qui fait de ZeroClaw un <em>agent</em>, et non simplement une bibliothèque.</td></tr>
+<tr><td>Noyau</td><td><strong>Foundation layer</strong>: API traits, config, providers, memory backends, infra, tool-call parser. The irreducible core: builds with <code>--no-default-features</code>. Can exchange messages with an LLM and store memory. Nothing more.</td></tr>
+<tr><td>Système d’initialisation / d’exécution</td><td><strong>Agent runtime layer</strong>: Orchestration loop, security policy enforcement, plugin host, core tools, IPC API. The <code>zeroclaw-runtime</code> crate, gated by the <code>agent-runtime</code> feature. This is what makes ZeroClaw an <em>agent</em>, not just a library.</td></tr>
 <tr><td>IPC</td><td>API de socket local / IPC entre l’exécution et les composants externes</td></tr>
 <tr><td>Pilotes de périphérique</td><td>Plugins de canaux (Telegram, Discord, etc.)</td></tr>
 <tr><td>Pilotes de système de fichiers</td><td>Plugins de backend de mémoire (SQLite, Markdown)</td></tr>
@@ -365,7 +441,7 @@
 <p>La distinction est importante : la <strong>base</strong> est le minimum requis pour qu’un binaire ZeroClaw puisse fonctionner. Le <strong>runtime</strong> est le minimum requis pour qu’il puisse fonctionner <em>en tant qu’agent</em>. Tout le reste est composé.</p>
 <p>Cette séparation en deux couches a été identifiée lors de la décomposition de l’espace de travail de la Phase 1 (PR #5559) et est reflétée dans la dénomination des crates : <code>zeroclaw-runtime</code> (la crate) est conditionnée par <code>agent-runtime</code> (la fonctionnalité). Les versions antérieures de cette RFC utilisaient le terme « kernel » de manière imprécise pour désigner ce qui est désormais correctement nommé la couche runtime. Cette révision corrige cette terminologie dans tout le document.</p>
 <h3 id="42-la-règle-de-dépendance"><a class="header" href="#42-la-règle-de-dépendance">4.2 La règle de dépendance</a></h3>
-<p>La règle architecturale la plus importante dans cette conception — celle qui, si elle est violée, fait s’effondrer l’ensemble de la structure — est la suivante :</p>
+<p>The most important architectural rule in this design, the one that, if broken, collapses the whole structure, is this:</p>
 <blockquote>
 <p><strong>Les dépendances s’écoulent vers l’intérieur. Le runtime ne sait rien des plugins. Les plugins connaissent l’API. Rien ne sait tout.</strong></p>
 </blockquote>
@@ -448,27 +524,18 @@
 <h4 id="441-politique-de-versionnement"><a class="header" href="#441-politique-de-versionnement">4.4.1 Politique de versionnement</a></h4>
 <p>Alors que ZeroClaw passe d’un seul crate à un espace de travail multi-crate, deux préoccupations doivent être séparées dès le départ :</p>
 <ul>
-<li><strong>La version du produit</strong> — ce que <code>zeroclaw --version</code> affiche, ainsi que ce que les versions GitHub, les journaux de modifications et les gestionnaires de paquets (Homebrew, apt, cargo-binstall) suivent. C’est la version sur laquelle les opérateurs et les utilisateurs se basent.</li>
-<li><strong>Stabilité du composant</strong> — indique la maturité et la fiabilité d’un composant donné. Un numéro de version unique ne peut pas, à lui seul, transmettre cette information.</li>
+<li><strong>The product version</strong>: what <code>zeroclaw --version</code> reports, what GitHub Releases, changelogs, and package managers (Homebrew, apt, cargo-binstall) track. This is the version operators and users reason about.</li>
+<li><strong>Component stability</strong>: how mature and reliable a given component is. A single version number cannot carry this signal on its own.</li>
 </ul>
 <p>Ces éléments sont orthogonaux. Les confondre crée du bruit sémantique dans les versions semver et érode la confiance dans le numéro de version. Cette politique définit les deux.</p>
 <hr>
-<p><strong>Versionnement des crates : unifié avec des exceptions intentionnelles</strong></p>
-<p>Tous les crates d’application — le noyau, la passerelle, les crates de plugins d’outils, les crates de plugins de canaux et l’interface en ligne de commande — utilisent l’héritage de package de l’espace de travail Cargo :</p>
-<pre><code class="language-toml"># Cargo.toml (racine de l'espace de travail)
-[workspace.package]
-version = "0.8.0"
-
-# crates/zeroclaw-kernel/Cargo.toml
-[package]
-version.workspace = true
-</code></pre>
-<p>Une seule version dans le fichier <code>Cargo.toml</code> racine est la version officielle du produit. Ce modèle est approprié car :</p>
+<h5 id="crate-versioning-unified-with-intentional-exceptions"><a class="header" href="#crate-versioning-unified-with-intentional-exceptions">Crate versioning: unified with intentional exceptions</a></h5>
+<p>All application crates, the kernel, the gateway, tool plugin crates, channel plugin crates, and the CLI use Cargo workspace package inheritance: a single version in the root <code>Cargo.toml</code> is the authoritative product version. This is the right model because:</p>
 <ul>
 <li>Les utilisateurs, les opérateurs et les packagers gèrent une seule version, pas douze.</li>
 <li>L’automatisation des versions via <code>release-plz</code> est simple : une PR, une incrémentation, une entrée dans le journal des modifications.</li>
 <li>Cela reflète l’identité de ZeroClaw en tant que <strong>produit</strong>, et non en tant qu’écosystème de bibliothèques.</li>
-<li>La version de l’interface WIT — et non la version du crate Rust — constitue le véritable contrat d’interface binaire de l’extension (voir §5.2)</li>
+<li>The WIT interface version, not the Rust crate version, is the actual plugin ABI contract (see §5.2)</li>
 </ul>
 <p>Trois classes de crates sont intentionnellement exclues de l’héritage de l’espace de travail et maintiennent des versions indépendantes selon leur propre calendrier :</p>
 <div class="table-wrapper">
@@ -484,8 +551,8 @@ version.workspace = true
 </table>
 </div>
 <hr>
-<p><strong>Ce que signifie « breaking » pour la version du produit</strong></p>
-<p>Étant donné que les crates d’application partagent une version unifiée, l’équipe doit définir ce qu’est une modification incompatible au niveau du produit — distincte d’une modification incompatible au sein de l’implémentation interne d’une seule crate. Une modification incompatible au sein d’une crate de plugin qui ne franchit aucune des limites ci-dessous <strong>n’est pas</strong> une modification incompatible au niveau du produit et ne justifie pas de bump MAJOR.</p>
+<h5 id="what-breaking-means-for-the-product-version"><a class="header" href="#what-breaking-means-for-the-product-version">What “breaking” means for the product version</a></h5>
+<p>Because application crates share a unified version, the team needs a product-level definition of a breaking change, distinct from a breaking change inside a single crate’s internal implementation. A breaking change within a plugin crate that does not cross any of the boundaries below is <strong>not</strong> a product-level breaking change and does not warrant a MAJOR bump.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -499,8 +566,8 @@ version.workspace = true
 </table>
 </div>
 <hr>
-<p><strong>Niveaux de stabilité</strong></p>
-<p>La version du produit répond à la question « quelle est cette version de publication ? ». Un niveau de stabilité répond à la question « dans quelle mesure puis-je me fier à ce composant ? ». Chaque composant — noyau, passerelle, crate de plugin, interface WIT — est associé à l’un des trois niveaux. Les niveaux sont documentés dans le fichier <code>AGENTS.md</code> du composant et dans son manifeste du registre de plugins.</p>
+<h5 id="stability-tiers"><a class="header" href="#stability-tiers">Stability tiers</a></h5>
+<p>The product version answers <em>“what release is this?”</em> A stability tier answers <em>“how much can I rely on this component?”</em> Every component, kernel, gateway, plugin crate, WIT interface, carries one of three tiers. Tiers are documented in the component’s <code>AGENTS.md</code> and in its plugin registry manifest.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -515,17 +582,17 @@ version.workspace = true
 </div>
 <p>Les niveaux de stabilité sont <strong>promus, jamais rétrogradés</strong>, par une décision délibérée de l’équipe. Les promotions sont consignées dans le journal des modifications et, pour les composants architecturaux, dans un ADR. Un composant doit conserver son niveau actuel pendant au moins un cycle de version complet avant qu’une promotion ne soit envisagée.</p>
 <hr>
-<p><strong>Automatisation des versions</strong></p>
+<h5 id="release-automation"><a class="header" href="#release-automation">Release automation</a></h5>
 <p>Les versions utilisent <a href="https://release-plz.eplant.org/"><code>release-plz</code></a>, qui ouvre une PR de version lors d’un push sur <code>master</code>, met à jour la version de l’espace de travail et génère un journal des modifications à partir des titres des commits conventionnels. <code>release-plz</code> comprend nativement l’héritage de l’espace de travail et gère automatiquement l’ordre de publication des crates. Les crates avec des versions indépendantes (<code>zeroclaw-api</code>, les crates de bibliothèques matérielles) sont gérées séparément en utilisant la configuration par crate du même outil.</p>
 <h4 id="442-artéfacts-de-la-version"><a class="header" href="#442-artéfacts-de-la-version">4.4.2 Artéfacts de la version</a></h4>
 <p>La transition vers le microkernel modifie la nature fondamentale de la question « quelles fonctionnalités sont compilées ? ». Aujourd’hui, cette question n’a qu’une seule réponse : toutes les fonctionnalités que vous avez passées via les indicateurs (<code>feature flags</code>) à <code>cargo build</code>. Après la transition, elle se divise en deux préoccupations distinctes :</p>
 <ul>
-<li><strong>Ce qui est inclus dans le binaire du noyau</strong> — fixé lors de la compilation, déterminé par plateforme, publié sur les versions GitHub</li>
-<li><strong>Quelles fonctionnalités sont disponibles</strong> — déterminées au moment de l’exécution en fonction des plugins installés via <code>zeroclaw plugin install</code></li>
+<li><strong>What is in the kernel binary</strong>: fixed at compile time, determined per platform, published to GitHub Releases</li>
+<li><strong>What capabilities are available</strong>: determined at runtime by which plugins are installed via <code>zeroclaw plugin install</code></li>
 </ul>
 <p>Ce ne sont plus les mêmes questions, et la section <code>[features]</code> actuelle de <code>Cargo.toml</code> doit être interprétée à la lumière de cela.</p>
 <hr>
-<p><strong>Sort des indicateurs de fonctionnalité actuels au moment de la compilation</strong></p>
+<h5 id="fate-of-the-current-compile-time-feature-flags"><a class="header" href="#fate-of-the-current-compile-time-feature-flags">Fate of the current compile-time feature flags</a></h5>
 <p>Les plus de 20 indicateurs de fonctionnalité dans le <code>Cargo.toml</code> actuel se répartissent en trois catégories à mesure que l’architecture évolue :</p>
 <div class="table-wrapper">
 <table>
@@ -541,12 +608,12 @@ version.workspace = true
 </div>
 <p>Deux indicateurs nécessitent une décision délibérée de l’équipe avant la version v0.8.0 et sont présentés ici plutôt que résolus de manière unilatérale :</p>
 <ul>
-<li><strong><code>observability-prometheus</code></strong> — actuellement dans <code>default</code>. Les métriques Prometheus ajoutent une surcharge mesurable à la taille binaire. La question est de savoir si un runtime de production doit inclure par défaut l’observabilité, ou si les opérateurs doivent choisir explicitement cette option. Recommandation : conserver dans <code>default</code> pour la version standard ; les opérateurs travaillant sur des cibles fortement contraintes en termes de taille peuvent compiler avec <code>--no-default-features</code>.</li>
-<li><strong><code>observability-otel</code></strong> — L’export OTLP entraîne une empreinte de dépendances plus importante (opentelemetry + client bloquant reqwest). Recommandation : reste en option, non inclus dans <code>default</code>. Les déploiements en production nécessitant l’export de traces doivent l’activer explicitement.</li>
+<li><strong><code>observability-prometheus</code></strong>: currently in <code>default</code>. Prometheus metrics add measurable binary size overhead. The question is whether a production runtime should ship observability on by default, or whether operators opt in. Recommendation: keep in <code>default</code> for the standard release; operators on severely size-constrained targets can build with <code>--no-default-features</code>.</li>
+<li><strong><code>observability-otel</code></strong>: OTLP export carries a larger dependency footprint (opentelemetry + reqwest blocking client). Recommendation: remains opt-in, not in <code>default</code>. Production deployments that need trace export enable it explicitly.</li>
 </ul>
 <p>Le méta-fonctionnalité <code>ci-all</code> se simplifie considérablement à mesure que les indicateurs de canal et d’outil sont retirés. À la version 1.0.0, elle ne couvre plus que les indicateurs de plateforme et d’infrastructure restants.</p>
 <hr>
-<p><strong>Le noyau binaire de la version canonique</strong></p>
+<h5 id="the-canonical-release-kernel-binary"><a class="header" href="#the-canonical-release-kernel-binary">The canonical release kernel binary</a></h5>
 <p>Le binaire publié sur GitHub Releases pour chaque cible de plateforme est construit avec le profil suivant :</p>
 <div class="table-wrapper">
 <table>
@@ -567,7 +634,7 @@ version.workspace = true
 </div>
 <p>Il n’y a plus de binaire « build with everything ». Ce modèle mental est remplacé par <code>zeroclaw plugin install --profile full</code>, qui télécharge le catalogue complet des plugins après l’installation du binaire du noyau léger.</p>
 <hr>
-<p><strong>Matrice des artefacts de version</strong></p>
+<h5 id="release-artifact-matrix"><a class="header" href="#release-artifact-matrix">Release artifact matrix</a></h5>
 <p>Chaque version GitHub publie les artefacts suivants :</p>
 <div class="table-wrapper">
 <table>
@@ -612,13 +679,13 @@ Target (correct):
     └── Registers its own webhook route with the gateway
     └── Handles WhatsApp-specific message parsing
 </code></pre>
-<p><strong>Pourquoi cela importe :</strong> Lorsque la passerelle est un processus distinct, elle peut planter, redémarrer ou être absente sans affecter l’agent. Le noyau continue de s’exécuter. Cela est particulièrement important pour les cas d’utilisation sur du matériel edge — un Raspberry Pi exécutant le noyau peut servir son interface web depuis un VPS, le noyau se connectant en sortie via un plugin de canal. Aucune règle de pare-feu entrant n’est nécessaire.</p>
+<p><strong>Why this matters:</strong> When the gateway is a separate process, it can crash, restart, or be absent without affecting the agent. The kernel keeps running. This is especially important for the edge hardware use case: a Raspberry Pi running the kernel can have its web UI served from a VPS, with the kernel connecting outbound via a channel plugin. No inbound firewall rules needed.</p>
 <hr>
 <h2 id="5-les-normes-que-nous-devrions-adopter"><a class="header" href="#5-les-normes-que-nous-devrions-adopter">5. Les normes que nous devrions adopter</a></h2>
 <p>Les normes sont des accords élaborés par de nombreuses personnes compétentes au fil des années. Les adopter signifie bénéficier gratuitement de ces années de réflexion, et cela permet également à notre logiciel de s’intégrer naturellement au reste de l’écosystème. Voici celles qui s’appliquent directement à ZeroClaw.</p>
 <h3 id="51-observabilité--opentelemetry"><a class="header" href="#51-observabilité--opentelemetry">5.1 Observabilité : OpenTelemetry</a></h3>
 <p><strong>Ce que c’est :</strong> OpenTelemetry (OTel) est la norme de l’industrie pour la collecte de traces, de métriques et de journaux à partir de systèmes logiciels. Il est maintenu par la Cloud Native Computing Foundation et pris en charge par tous les principaux fournisseurs de cloud et outils de surveillance.</p>
-<p><strong>Pourquoi c’est important pour ZeroClaw :</strong> Nous avons déjà implémenté <code>OtelObserver</code> en fonction de notre trait <code>Observer</code>. Nous disposons de métriques Prometheus et de métriques DORA. Le problème est que ces dernières ne sont pas encore standardisées dans l’ensemble du code — certains modules utilisent <code>tracing::info!</code>, d’autres émettent des <code>ObserverEvent</code>, et les deux ne sont pas reliés.</p>
+<p><strong>Why it matters for ZeroClaw:</strong> We have already implemented <code>OtelObserver</code> against our <code>Observer</code> trait. We have Prometheus metrics and DORA metrics. The issue is that these are not yet standardized across the codebase: some modules log with <code>tracing::info!</code>, others emit <code>ObserverEvent</code>s, and the two are not connected.</p>
 <p><strong>Ce que nous devons faire :</strong></p>
 <ul>
 <li>Adopter OpenTelemetry comme interface d’observabilité unique pour tous les composants</li>
@@ -628,14 +695,14 @@ Target (correct):
 </ul>
 <p><strong>Normes :</strong> Spécification OpenTelemetry · W3C Trace Context (REC) · RFC 5424 (Syslog, pour l’intégration des journaux système)</p>
 <h3 id="52-interface-des-plugins--wasi-et-wit"><a class="header" href="#52-interface-des-plugins--wasi-et-wit">5.2 Interface des plugins : WASI et WIT</a></h3>
-<p><strong>Ce que c’est :</strong> WASI (WebAssembly System Interface) est l’API standard que les modules WebAssembly utilisent pour interagir avec le système hôte. WIT (WebAssembly Interface Types) est le langage de définition d’interface permettant de décrire ce qu’un composant WASM exporte et importe — considérez-le comme un fichier <code>.proto</code> mais pour les plugins WASM.</p>
+<p><strong>What it is:</strong> WASI (WebAssembly System Interface) is the standard API that WebAssembly modules use to interact with the host system. WIT (WebAssembly Interface Types) is the interface definition language for describing what a WASM component exports and imports: think of it as a <code>.proto</code> file but for WASM plugins.</p>
 <p><strong>Pourquoi c’est important pour ZeroClaw :</strong> Nos ponts <code>WasmTool</code> et <code>WasmChannel</code> n’ont actuellement aucun contrat formel concernant les exports requis par un binaire WASM de plugin. Cela signifie qu’un auteur de plugin doit deviner. Les fichiers WIT définissent ce contrat avec précision et permettent la génération automatique de code pour les auteurs de plugins dans n’importe quel langage.</p>
 <p><strong>Ce que nous devons faire :</strong></p>
 <ul>
 <li>Définir les fichiers d’interface WIT pour les types de plugins <code>Tool</code>, <code>Channel</code> et <code>Memory</code> (un répertoire <code>wit/</code> à la racine de l’espace de travail)</li>
 <li>Utilisez <code>wit-bindgen</code> pour générer les liaisons côté hôte Rust à partir de ces fichiers WIT.</li>
 <li>Documenter les interfaces WIT en tant que SDK officiel des plugins</li>
-<li>A plugin author writes Rust (or Go, or C, or Python) against the WIT interface and <code>cargo build --target wasm32-wasip2</code> — the result drops into <code>~/.zeroclaw/plugins/</code></li>
+<li>A plugin author writes Rust (or Go, or C, or Python) against the WIT interface and <code>cargo build --target wasm32-wasip2</code>: the result drops into <code>~/.zeroclaw/plugins/</code></li>
 </ul>
 <p><strong>Normes :</strong> WASI 0.2 · Modèle de composants W3C WebAssembly · WIT IDL</p>
 <h3 id="53-api-locale--openapi-31"><a class="header" href="#53-api-locale--openapi-31">5.3 API locale : OpenAPI 3.1</a></h3>
@@ -651,7 +718,7 @@ Target (correct):
 <p><strong>Normes :</strong> OpenAPI 3.1 · JSON Schema Draft 2020-12</p>
 <h3 id="54-sécurité--owasp-asvs"><a class="header" href="#54-sécurité--owasp-asvs">5.4 Sécurité : OWASP ASVS</a></h3>
 <p><strong>Ce que c’est :</strong> Le OWASP Application Security Verification Standard est une liste de contrôle des exigences de sécurité, organisée par niveau de risque (L1 basique, L2 standard, L3 avancé).</p>
-<p><strong>Pourquoi c’est important pour ZeroClaw :</strong> La passerelle gère les webhooks provenant de services externes, traite les entrées utilisateur non fiables et gère les secrets. Le système d’appairage, le support WebAuthn et la limitation de débit sont tous présents, mais il n’existe aucun cadre pour vérifier qu’ils sont complets ou corrects.</p>
+<p><strong>Why it matters for ZeroClaw:</strong> The gateway handles webhooks from external services, processes untrusted user input, and manages secrets. The pairing system, WebAuthn support, and rate limiting all exist, but there is no framework for verifying that they are complete or correct.</p>
 <p><strong>Ce que nous devons faire :</strong></p>
 <ul>
 <li>Ciblez le niveau ASVS 2 pour la passerelle et le module de sécurité.</li>
@@ -668,7 +735,7 @@ Target (correct):
 <li>Ajoutez une brève déclaration sur l’impact qualité dans le modèle de PR pour les modifications architecturales (par exemple, « Cette modification améliore la maintenabilité en réduisant le couplage entre les implémentations de la passerelle et des canaux, sans impact sur l’efficacité des performances »).</li>
 </ul>
 <p><strong>Normes :</strong> ISO/IEC 25010:2023</p>
-<h3 id="56-déjà-adoptées--conservez-les"><a class="header" href="#56-déjà-adoptées--conservez-les">5.6 Déjà adoptées — Conservez-les</a></h3>
+<h3 id="56-already-adopted-keep-these"><a class="header" href="#56-already-adopted-keep-these">5.6 Already Adopted: Keep These</a></h3>
 <p>Ces éléments sont déjà en place et doivent être maintenus :</p>
 <div class="table-wrapper">
 <table>
@@ -690,12 +757,12 @@ Target (correct):
 <p>Chaque phase suit la hiérarchie Vision → Architecture → Conception → Implémentation → Tests → Documentation → Mise en production. Aucune phase ne commence l’implémentation tant que sa conception n’a pas été examinée et approuvée.</p>
 <p>La stratégie de migration globale repose sur le <strong>Strangler Fig Pattern</strong> : nous développons la nouvelle architecture autour des bords du code existant, en migrant progressivement vers l’intérieur, jusqu’à ce que l’ancienne structure soit entièrement remplacée. Nous n’effectuons jamais de réécriture « stop the world ». L’application reste toujours livrable.</p>
 <hr>
-<h3 id="phase-1--v070--les-coutures"><a class="header" href="#phase-1--v070--les-coutures">Phase 1 · v0.7.0 — “Les Coutures”</a></h3>
+<h3 id="phase-1--v070-the-seams"><a class="header" href="#phase-1--v070-the-seams">Phase 1 · v0.7.0: “The Seams”</a></h3>
 <p><strong>Thème :</strong> Rendre l’architecture visible sans modifier le comportement. Tracez les lignes en premier.</p>
-<p><strong>Pourquoi cette phase :</strong> Vous ne pouvez pas migrer vers une architecture en couches tant que les couches n’existent pas en tant que véritables limites. Actuellement, les traits définissent des séparations logiques, mais le compilateur ne les impose pas — tout se trouve dans un seul crate, donc n’importe quel module peut importer n’importe quel autre. Cette phase rend ces séparations effectives.</p>
+<p><strong>Why this phase:</strong> You cannot migrate to a layered architecture until the layers exist as real boundaries. Right now, the traits define logical seams but the compiler does not enforce them: everything is in one crate, so anything can import anything. This phase makes the seams real.</p>
 <p><strong>Alignement de la vision :</strong> Aucune des propriétés de la vision ne change pour les utilisateurs. Cela est entièrement interne. La valeur réside dans le fait que chaque contribution future dispose désormais d’un emplacement structurel, et que les nouveaux contributeurs peuvent comprendre la base de code par parties plutôt que dans son intégralité.</p>
-<h4 id="livrables"><a class="header" href="#livrables">Livrables</a></h4>
-<p><strong>D1 : Extraire le crate <code>zeroclaw-api</code></strong></p>
+<h4 id="phase-1-deliverables"><a class="header" href="#phase-1-deliverables">Phase 1 Deliverables</a></h4>
+<h5 id="d1-extract-zeroclaw-api-crate"><a class="header" href="#d1-extract-zeroclaw-api-crate">D1: Extract <code>zeroclaw-api</code> crate</a></h5>
 <p>Créez un nouveau crate <code>crates/zeroclaw-api</code> contenant uniquement les définitions de traits et leurs types associés. Aucune implémentation. Aucune dépendance lourde. Ce crate doit se compiler en moins de deux secondes.</p>
 <p>Déplacez-vous dans ce crate :</p>
 <ul>
@@ -708,13 +775,13 @@ Target (correct):
 <li><code>src/peripherals/traits.rs</code> → <code>Périphérique</code></li>
 </ul>
 <p>Chaque autre crate de l’espace de travail qui a besoin de ces types ajoute <code>zeroclaw-api</code> en tant que dépendance. Le compilateur impose désormais qu’aucune crate d’implémentation ne puisse importer une autre crate d’implémentation sans passer par la couche API.</p>
-<p><strong>D2 : Extraire le crate <code>zeroclaw-tool-call-parser</code></strong></p>
+<h5 id="d2-extract-zeroclaw-tool-call-parser-crate"><a class="header" href="#d2-extract-zeroclaw-tool-call-parser-crate">D2: Extract <code>zeroclaw-tool-call-parser</code> crate</a></h5>
 <p>La logique d’analyse des appels d’outil dans <code>src/agent/loop_.rs</code> représente environ 1 400 lignes de transformation de texte pur : elle prend une chaîne provenant du LLM et renvoie une liste d’appels d’outils structurés. Elle ne dépend pas de l’état de l’agent, de la mémoire, des fournisseurs ou des canaux. Elle gère une douzaine de formats de sortie différents des LLM (JSON, XML, style GLM, MiniMax, style Perl, barres de code Markdown, et plus encore).</p>
 <p>Cette logique est :</p>
 <ol>
-<li>Autonome — parfait pour son propre crate</li>
-<li>Le code le plus testable par fuzzing dans le projet — les tests basés sur les propriétés appartiennent ici</li>
-<li>Une contribution authentique à l’écosystème Rust — aucun autre crate ne le fait de manière complète.</li>
+<li>Self-contained: perfect for its own crate</li>
+<li>The most fuzz-testable code in the project: property-based tests belong here</li>
+<li>A genuine contribution to the Rust ecosystem: no other crate does this comprehensively</li>
 </ol>
 <p>Créez <code>crates/zeroclaw-tool-call-parser</code> avec une API publique approximativement :</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -733,13 +800,13 @@ pub struct ParsedToolCall {
 }
 <span class="boring">}</span></code></pre>
 <p>Les ~300 tests d’analyse actuellement présents dans <code>loop_.rs</code> sont déplacés vers ce crate. <code>loop_.rs</code> est réduit d’environ 1 400 lignes.</p>
-<p><strong>D3 : Adopter OpenTelemetry comme norme d’observabilité</strong></p>
+<h5 id="d3-adopt-opentelemetry-as-the-observability-standard"><a class="header" href="#d3-adopt-opentelemetry-as-the-observability-standard">D3: Adopt OpenTelemetry as the observability standard</a></h5>
 <p>Formaliser ce qui est déjà implémenté : documenter que <code>ObserverEvent</code> et <code>ObserverMetric</code> constituent le bus d’événements interne, et que <code>OtelObserver</code> est le backend de production canonique. Adopter un abonné de journalisation structurée en JSON pour <code>ZEROCLAW_LOG_FORMAT=json</code>. Adopter le contexte de traçage W3C pour la traçabilité inter-composants à venir.</p>
-<p><strong>D4 : Écrire les fichiers d’interface WIT</strong></p>
+<h5 id="d4-write-wit-interface-files"><a class="header" href="#d4-write-wit-interface-files">D4: Write WIT interface files</a></h5>
 <p>Avant de mettre en œuvre l’exécution des plugins WASM, définissons les contrats. Créez un répertoire <code>wit/</code> à la racine de l’espace de travail avec les définitions d’interface pour :</p>
 <ul>
-<li><code>zeroclaw:tool/tool.wit</code> — l’interface du plugin Tool</li>
-<li><code>zeroclaw:channel/channel.wit</code> — l’interface du plugin Channel</li>
+<li><code>zeroclaw:tool/tool.wit</code>: the Tool plugin interface</li>
+<li><code>zeroclaw:channel/channel.wit</code>: the Channel plugin interface</li>
 </ul>
 <p>Ces fichiers deviennent le SDK officiel du plugin. L’implémentation dans la version 0.8.0 sera générée à partir de ces fichiers.</p>
 <h4 id="indicateurs-de-succès-pour-v070"><a class="header" href="#indicateurs-de-succès-pour-v070">Indicateurs de succès pour v0.7.0</a></h4>
@@ -751,12 +818,12 @@ pub struct ParsedToolCall {
 <li>Aucune régression de performance (la suite de tests de performance passe)</li>
 </ul>
 <hr>
-<h3 id="phase-2--v080--the-runtime"><a class="header" href="#phase-2--v080--the-runtime">Phase 2 · v0.8.0 — “The Runtime”</a></h3>
+<h3 id="phase-2--v080-the-runtime"><a class="header" href="#phase-2--v080-the-runtime">Phase 2 · v0.8.0: “The Runtime”</a></h3>
 <p><strong>Thème :</strong> Formaliser l’exécution de l’agent comme une unité propre et déployable de manière indépendante. Tout ce qui n’est pas l’exécution devient un invité.</p>
-<p><strong>Pourquoi cette phase :</strong> Une fois les interfaces définies (v0.7.0), nous pouvons délimiter explicitement la frontière d’exécution. Cette phase extrait <code>zeroclaw-runtime</code> en tant que crate autonome, finalise le pont d’exécution des plugins WASM et connecte le client du registre de plugins — le mécanisme par lequel tout ce qui se trouve en dehors du runtime y accède.</p>
-<p><strong>Alignement de la vision :</strong> C’est ici que le modèle de composition devient concret pour les utilisateurs. Un utilisateur qui souhaite uniquement un agent CLI télécharge un seul binaire, exécute <code>zeroclaw onboard</code>, et c’est tout — pas besoin de toolchain Rust, ni de compilation. L’assistant <code>zeroclaw onboard</code> acquiert la capacité de télécharger des composants de plugin à la demande.</p>
-<h4 id="livrables-1"><a class="header" href="#livrables-1">Livrables</a></h4>
-<p><strong>D1 : Formaliser le crate <code>zeroclaw-runtime</code></strong></p>
+<p><strong>Why this phase:</strong> Once the seams exist (v0.7.0), we can draw the runtime boundary explicitly. This phase extracts <code>zeroclaw-runtime</code> as a standalone crate, completes the WASM plugin execution bridge, and wires the plugin registry client: the mechanism by which everything outside the runtime connects to it.</p>
+<p><strong>Vision alignment:</strong> This is where the composition model becomes real for users. A user who wants only a CLI agent downloads one binary, runs <code>zeroclaw onboard</code>, and is done: no Rust toolchain, no compilation. The <code>zeroclaw onboard</code> wizard gains the ability to download plugin components on demand.</p>
+<h4 id="phase-2-deliverables"><a class="header" href="#phase-2-deliverables">Phase 2 Deliverables</a></h4>
+<h5 id="d1-formalize-zeroclaw-runtime-crate"><a class="header" href="#d1-formalize-zeroclaw-runtime-crate">D1: Formalize <code>zeroclaw-runtime</code> crate</a></h5>
 <p>Extrayez la boucle d’orchestration de l’agent, le canal CLI, la politique de sécurité, l’hôte de plugin et l’API IPC dans <code>crates/zeroclaw-runtime</code>, en les conditionnant par la fonctionnalité <code>agent-runtime</code>. Ce crate dépend de <code>zeroclaw-api</code> et des crates de base. Il n’a aucune connaissance de Telegram, Discord, Anthropic ou de toute implémentation d’outil spécifique.</p>
 <p>Le runtime expose une API publique propre :</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -774,11 +841,11 @@ pub struct Registry {
 pub async fn run(runtime: Runtime, registry: Registry) -&gt; anyhow::Result&lt;()&gt;;
 <span class="boring">}</span></code></pre>
 <p>Le crate binaire devient une fine couche de câblage qui lit la configuration et appelle <code>run</code>.</p>
-<p><strong>D2 : Finaliser le pont d’exécution WASM</strong></p>
+<h5 id="d2-complete-the-wasm-execution-bridge"><a class="header" href="#d2-complete-the-wasm-execution-bridge">D2: Complete the WASM execution bridge</a></h5>
 <p>The <code>extism</code> dependency is incompatible with WASM Component Model (<code>.wit</code> files) and requires the <code>cranelift</code> feature of <code>wasmtime</code>, which blocks ARM32 targets from compiling. Remove Extism and replace it with direct usage of <code>wasmtime</code>. During the transition, Extism should be left as an option until the final deprecation PR.</p>
 <p>Wire <code>wasmtime</code> into <code>zeroclaw-plugins</code> with optional dependencies on <code>cranelift</code> (for most build targets) or <code>pulley</code> (for ARM32). With WIT interfaces defined in v0.7.0, use <code>wit-bindgen</code> to generate the host-side bindings.</p>
 <p>A complete WASM execution bridge implementation defines the WASI host functions that WASM plugins can call (HTTP requests, memory access, logging) within the permission model already defined in <code>PluginPermission</code>. Where possible, the WASI Preview 2 APIs should be used (<code>wasi:io</code>, <code>wasi:http</code>, <code>wasi:filesystem</code>, etc) to provide a consistent standards-based API for plugins.</p>
-<p><strong>D3 : Client du registre de composants</strong></p>
+<h5 id="d3-component-registry-client"><a class="header" href="#d3-component-registry-client">D3: Component registry client</a></h5>
 <p>Ajoutez une sous-commande <code>zeroclaw plugin</code> prise en charge par un client de registre simple :</p>
 <pre><code>zeroclaw plugin list              # list installed plugins
 zeroclaw plugin search &lt;query&gt;    # search the component registry
@@ -787,9 +854,9 @@ zeroclaw plugin remove &lt;name&gt;     # remove an installed plugin
 zeroclaw plugin update            # update all installed plugins
 </code></pre>
 <p>Le registre est un fichier d’index JSON servi depuis une URL connue (par exemple, <code>https://plugins.zeroclawlabs.ai/index.json</code>). Chaque entrée inclut le nom, la version, l’URL de téléchargement, la somme de contrôle SHA-256 et la clé publique Ed25519 de l’éditeur. La vérification de signature de <code>PluginHost</code> gère déjà le modèle de sécurité.</p>
-<p><strong>D4 : Intégrer <code>zeroclaw onboard</code> au système de plugins</strong></p>
+<h5 id="d4-integrate-zeroclaw-onboard-with-the-plugin-system"><a class="header" href="#d4-integrate-zeroclaw-onboard-with-the-plugin-system">D4: Integrate <code>zeroclaw onboard</code> with the plugin system</a></h5>
 <p>L’assistant de prise en main doit demander à l’utilisateur quels canaux et intégrations il souhaite, puis appeler <code>PluginRegistry::install</code> pour chacun. Aucune compilation n’est nécessaire. L’utilisateur télécharge un binaire, exécute <code>zeroclaw onboard</code>, et dispose d’un agent configuré et fonctionnel en moins de deux minutes.</p>
-<p><strong>D5 : Réduire <code>all_tools_with_runtime</code> aux seuls outils de base</strong></p>
+<h5 id="d5-reduce-all_tools_with_runtime-to-core-tools-only"><a class="header" href="#d5-reduce-all_tools_with_runtime-to-core-tools-only">D5: Reduce <code>all_tools_with_runtime</code> to core tools only</a></h5>
 <p>Le noyau inclut exactement les outils nécessaires à un agent utile sans aucun plugin installé : <code>shell</code>, <code>file_read</code>, <code>file_write</code>, <code>file_edit</code>, <code>git_operations</code>, <code>glob_search</code>, <code>content_search</code>, <code>memory_recall</code>, <code>memory_store</code>, <code>memory_forget</code> et <code>web_fetch</code>. Tout le reste est enregistré par les plugins installés.</p>
 <h4 id="indicateurs-de-succès-pour-v080"><a class="header" href="#indicateurs-de-succès-pour-v080">Indicateurs de succès pour v0.8.0</a></h4>
 <ul>
@@ -800,21 +867,21 @@ zeroclaw plugin update            # update all installed plugins
 <li>Un plugin d’outil WASM écrit en Rust à l’aide de l’interface WIT s’exécute correctement.</li>
 </ul>
 <hr>
-<h3 id="phase-3--v090--the-gateway"><a class="header" href="#phase-3--v090--the-gateway">Phase 3 · v0.9.0 — “The Gateway”</a></h3>
+<h3 id="phase-3--v090-the-gateway"><a class="header" href="#phase-3--v090-the-gateway">Phase 3 · v0.9.0: “The Gateway”</a></h3>
 <p><strong>Thème :</strong> Séparer la surface web du noyau de l’agent.</p>
-<p><strong>Pourquoi cette phase :</strong> La passerelle est actuellement le couplage structurel le plus important dans la base de code. Elle intègre une application React compilée, gère la logique des webhooks spécifiques à chaque canal et est compilée dans chaque binaire — y compris les binaires destinés au matériel edge à 10 $ qui ne servira jamais de page web.</p>
+<p><strong>Why this phase:</strong> The gateway is currently the largest structural coupling in the codebase. It embeds a compiled React application, handles channel-specific webhook logic, and is compiled into every binary, including binaries intended for $10 edge hardware that will never serve a web page.</p>
 <p><strong>Alignement de la vision :</strong> Cette phase réalise pleinement la promesse des « zéro exigences externes ». Un utilisateur sur un Raspberry Pi obtient un binaire du noyau sans serveur web, sans application React et sans écouteur HTTP. Un utilisateur souhaitant le tableau de bord web installe <code>zeroclaw-gw</code> séparément.</p>
-<h4 id="livrables-2"><a class="header" href="#livrables-2">Livrables</a></h4>
-<p><strong>D1 : Définir l’API IPC du noyau</strong></p>
+<h4 id="phase-3-deliverables"><a class="header" href="#phase-3-deliverables">Phase 3 Deliverables</a></h4>
+<h5 id="d1-define-the-kernel-ipc-api"><a class="header" href="#d1-define-the-kernel-ipc-api">D1: Define the kernel IPC API</a></h5>
 <p>Avant d’extraire la passerelle, définissez la spécification OpenAPI 3.1 pour l’API locale exposée par le noyau via un socket Unix ou un port en boucle locale. Cette API est celle à laquelle la passerelle, l’application Tauri et tout futur client se connectent. Elle constitue le contrat stable entre le noyau et l’extérieur.</p>
-<p>Les points de terminaison incluent : envoyer un message, recevoir une réponse en streaming, lister les sessions actives, lister les plugins installés, obtenir le statut de l’agent, gérer la mémoire, et déclencher des tâches planifiées. Ce document est avant tout un document de conception — le spécification doit être revue et approuvée avant qu’une seule ligne de code ne soit écrite.</p>
-<p><strong>D2 : Implémenter le serveur IPC du noyau</strong></p>
+<p>Endpoints include: send a message, receive a streaming response, list active sessions, list installed plugins, get agent status, manage memory, trigger cron jobs. This is a design document first: the spec should be reviewed and agreed upon before a line of implementation is written.</p>
+<h5 id="d2-implement-the-kernel-ipc-server"><a class="header" href="#d2-implement-the-kernel-ipc-server">D2: Implement the kernel IPC server</a></h5>
 <p>Ajoutez le serveur IPC à <code>zeroclaw-kernel</code> derrière un indicateur de fonctionnalité (<code>--features ipc</code>). Sur les plateformes qui le prennent en charge, le noyau écoute sur un socket Unix à l’emplacement <code>~/.zeroclaw/kernel.sock</code>. Sous Windows, utilisez un pipe nommé. La commande <code>zeroclaw gateway</code> (l’entrée actuelle du serveur web) devient <code>zeroclaw-gw</code> et se connecte à ce socket.</p>
-<p><strong>D3 : Extraire <code>zeroclaw-gw</code> en tant que binaire distinct</strong></p>
-<p>Déplacez <code>src/gateway/</code> vers un nouveau crate <code>crates/zeroclaw-gw/</code> avec son propre binaire. Il dépend de <code>zeroclaw-api</code> et se connecte au noyau via l’API IPC. L’application React intégrée via <code>rust-embed</code> est entièrement déplacée dans ce crate — le binaire du noyau ne contient plus aucune ressource web.</p>
-<p><strong>D4 : Déplacer les gestionnaires de webhooks de canal hors de la passerelle</strong></p>
+<h5 id="d3-extract-zeroclaw-gw-as-a-separate-binary"><a class="header" href="#d3-extract-zeroclaw-gw-as-a-separate-binary">D3: Extract <code>zeroclaw-gw</code> as a separate binary</a></h5>
+<p>Move <code>src/gateway/</code> to a new <code>crates/zeroclaw-gw/</code> crate with its own binary. It depends on <code>zeroclaw-api</code> and connects to the kernel via the IPC API. The embedded React application via <code>rust-embed</code> moves entirely into this crate: the kernel binary no longer contains any web assets.</p>
+<h5 id="d4-migrate-channel-webhook-handlers-out-of-the-gateway"><a class="header" href="#d4-migrate-channel-webhook-handlers-out-of-the-gateway">D4: Migrate channel webhook handlers out of the gateway</a></h5>
 <p>Les gestionnaires de webhooks WhatsApp, WATI, Linq, Nextcloud Talk et Gmail actuellement présents dans <code>gateway/mod.rs</code> sont déplacés vers leurs plugins de canal respectifs. La passerelle fournit une API générique d’enregistrement de webhooks : un plugin de canal, lors de son chargement, enregistre son préfixe de chemin de webhook et sa fonction de gestion. La passerelle dirige les webhooks entrants vers le gestionnaire enregistré. La passerelle n’a plus connaissance de WhatsApp.</p>
-<p><strong>D5 : Formaliser la relation entre le sidecar Tauri</strong></p>
+<h5 id="d5-formalize-the-tauri-sidecar-relationship"><a class="header" href="#d5-formalize-the-tauri-sidecar-relationship">D5: Formalize the Tauri sidecar relationship</a></h5>
 <p>Mettez à jour <code>apps/tauri/</code> pour inclure <code>zeroclaw-gw</code> en tant que binaire sidecar Tauri. L’application Tauri devient la distribution « expérience complète » : elle démarre automatiquement le noyau et la passerelle, puis ouvre l’interface web. Les utilisateurs qui téléchargent l’application Tauri obtiennent tout fonctionnel sans avoir à toucher au terminal.</p>
 <h4 id="indicateurs-de-succès-pour-v090"><a class="header" href="#indicateurs-de-succès-pour-v090">Indicateurs de succès pour v0.9.0</a></h4>
 <ul>
@@ -825,15 +892,15 @@ zeroclaw plugin update            # update all installed plugins
 <li>Les bundles d’applications de bureau Tauri démarrent correctement les deux binaires.</li>
 </ul>
 <hr>
-<h3 id="phase-4--v100--la-plateforme"><a class="header" href="#phase-4--v100--la-plateforme">Phase 4 · v1.0.0 — “La Plateforme”</a></h3>
+<h3 id="phase-4--v100-the-platform"><a class="header" href="#phase-4--v100-the-platform">Phase 4 · v1.0.0: “The Platform”</a></h3>
 <p><strong>Thème :</strong> ZeroClaw devient une plateforme composable, et non une application monolithique.</p>
 <p><strong>Pourquoi cette phase :</strong> Avec le noyau stable, la passerelle séparée et le système de plugins fonctionnel, la version 1.0.0 est la release où l’architecture devient le produit. Les développeurs externes peuvent écrire et publier des plugins. Les utilisateurs peuvent assembler exactement le ZeroClaw qu’ils souhaitent. Le binaire peut légitimement revendiquer le profil léger que la vision promet.</p>
-<h4 id="livrables-3"><a class="header" href="#livrables-3">Livrables</a></h4>
-<p><strong>D1 : Migrer tous les canaux restants vers des plugins</strong></p>
+<h4 id="phase-4-deliverables"><a class="header" href="#phase-4-deliverables">Phase 4 Deliverables</a></h4>
+<h5 id="d1-migrate-all-remaining-channels-to-plugins"><a class="header" href="#d1-migrate-all-remaining-channels-to-plugins">D1: Migrate all remaining channels to plugins</a></h5>
 <p>Chaque implémentation des 27+ canaux devient un crate de plugin WASM autonome. Ils sont publiés dans le registre de composants avec des versions signées. Le binaire du noyau ne contient aucune implémentation de canal, sauf pour la CLI.</p>
-<p><strong>D2 : Migrer les outils à longue traîne vers des plugins</strong></p>
+<h5 id="d2-migrate-long-tail-tools-to-plugins"><a class="header" href="#d2-migrate-long-tail-tools-to-plugins">D2: Migrate long-tail tools to plugins</a></h5>
 <p>Environ 60 des 70+ outils sont déplacés vers des crates de plugins, regroupés par domaine : <code>zeroclaw-tools-web</code> (navigateur, recherche, capture d’écran, PDF), <code>zeroclaw-tools-integrations</code> (Jira, Notion, Google Workspace, MS365, LinkedIn), <code>zeroclaw-tools-hardware</code> (informations sur la carte, GPIO), <code>zeroclaw-tools-cloud</code> (opérations cloud, opérations de sécurité). Le noyau ne conserve que les 10 à 12 outils principaux identifiés dans la version v0.8.0.</p>
-<p><strong>D3 : SDK de plugin et documentation pour les développeurs</strong></p>
+<h5 id="d3-plugin-sdk-and-developer-documentation"><a class="header" href="#d3-plugin-sdk-and-developer-documentation">D3: Plugin SDK and developer documentation</a></h5>
 <p>Publiez un guide de développement de plugins. Un développeur devrait pouvoir écrire un nouveau plugin d’outil en un après-midi :</p>
 <ol>
 <li>Ajoutez <code>zeroclaw-plugin-sdk</code> en tant que dépendance</li>
@@ -842,9 +909,9 @@ zeroclaw plugin update            # update all installed plugins
 <li><code>zeroclaw plugin install ./my-plugin/</code></li>
 </ol>
 <p>Le SDK gère les liaisons des fonctions hôtes, le format du manifeste et le modèle de permissions.</p>
-<p><strong>D4 : Stabiliser l’API IPC du noyau en v1.0</strong></p>
+<h5 id="d4-stabilize-the-kernel-ipc-api-at-v10"><a class="header" href="#d4-stabilize-the-kernel-ipc-api-at-v10">D4: Stabilize the kernel IPC API at v1.0</a></h5>
 <p>L’API IPC du noyau reçoit un préfixe de version (<code>/v1/</code>) et une garantie de stabilité. Des modifications incompatibles ne sont pas autorisées pour cette API dans la version v1.x. C’est le contrat sur lequel les clients tiers et la passerelle s’appuient.</p>
-<p><strong>D5 : Extraire la politique de versionnement et les définitions des niveaux de stabilité vers <code>docs/book/src/maintainers/stability-tiers.md</code></strong></p>
+<h5 id="d5-extract-the-versioning-policy-and-stability-tier-definitions-to-docsbooksrcmaintainersstability-tiersmd"><a class="header" href="#d5-extract-the-versioning-policy-and-stability-tier-definitions-to-docsbooksrcmaintainersstability-tiersmd">D5: Extract the versioning policy and stability tier definitions to <code>docs/book/src/maintainers/stability-tiers.md</code></a></h5>
 <p>La politique de versionnement et le tableau des niveaux de stabilité définis dans la section 4.4.1 de cette RFC deviennent un document de référence permanent pour les contributeurs, situé à <code>docs/book/src/maintainers/stability-tiers.md</code>. Ce document sert de référence quotidienne aux contributeurs lors de l’attribution d’un niveau à un nouveau crate de plugin, et est consulté par les mainteneurs lors de la prise de décisions de publication. La RFC elle-même reste le registre historique expliquant <em>pourquoi</em> ces décisions ont été prises ; le document extrait constitue <em>ce</em> que les contributeurs consultent.</p>
 <h4 id="indicateurs-de-succès-pour-la-version-100"><a class="header" href="#indicateurs-de-succès-pour-la-version-100">Indicateurs de succès pour la version 1.0.0</a></h4>
 <ul>
@@ -868,9 +935,9 @@ zeroclaw plugin update            # update all installed plugins
 <tr><td>Plus de 60 implémentations d’outils non essentiels</td><td>~30 000</td><td>Bibliothèques de plugins</td></tr>
 <tr><td>24+ implémentations de canaux non principaux</td><td>~7 200</td><td>Bibliothèques de plugins</td></tr>
 <tr><td>Serveur HTTP de passerelle</td><td>~2 260</td><td>crate <code>zeroclaw-gw</code></td></tr>
-<tr><td>Application React intégrée (poids binaire)</td><td>—</td><td>crate <code>zeroclaw-gw</code></td></tr>
+<tr><td>Application React intégrée (poids binaire)</td><td>N/A</td><td>crate <code>zeroclaw-gw</code></td></tr>
 <tr><td>Gérer les webhooks de canal depuis la passerelle</td><td>~500</td><td>Crate de plugin de canal</td></tr>
-<tr><td><strong>Total estimé retiré du runtime</strong></td><td><strong>~41 000 lignes</strong></td><td>—</td></tr>
+<tr><td><strong>Total estimé retiré du runtime</strong></td><td><strong>~41 000 lignes</strong></td><td>N/A</td></tr>
 </tbody>
 </table>
 </div>
@@ -889,8 +956,8 @@ zeroclaw plugin update            # update all installed plugins
 </tbody>
 </table>
 </div>
-<h3 id="taille-binaire--progrès-mesurés-et-objectif-visé"><a class="header" href="#taille-binaire--progrès-mesurés-et-objectif-visé">Taille binaire — Progrès mesurés et objectif visé</a></h3>
-<p>La vision du projet est exprimée en termes d’exécution : <strong>&lt; 5 Mo de RAM</strong> sur du matériel à 10 $. La taille binaire sur le disque et l’empreinte mémoire en cours d’exécution (RSS) sont liées mais non identiques — la pagination à la demande signifie que seuls les chemins de code exécutés sont résidents. Les deux sont suivis.</p>
+<h3 id="binary-size-measured-progress-and-vision-target"><a class="header" href="#binary-size-measured-progress-and-vision-target">Binary Size: Measured Progress and Vision Target</a></h3>
+<p>The project’s vision is expressed in runtime terms: <strong>&lt;5 MB RAM</strong> on $10 hardware. Binary size on disk and runtime memory footprint (RSS) are related but not identical: demand paging means only executed code paths are resident. Both are tracked.</p>
 <blockquote>
 <p><strong>Modèle en deux passes :</strong> La décomposition architecturale (Phases 1 à 3) et l’optimisation de la taille des binaires sont des flux de travail distincts. La décomposition <em>permet</em> l’optimisation en isolant les dépendances vers leurs crates propriétaires. Maximiser l’efficacité crate par crate constitue la seconde passe attendue, et non une livraison du travail structurel lui-même.</p>
 </blockquote>
@@ -909,7 +976,7 @@ zeroclaw plugin update            # update all installed plugins
 </tbody>
 </table>
 </div>
-<p>La build de fondation de la Phase 1, qui pèse 6,6 Mo, représente un progrès concret par rapport au monolithe de 8,8 Mo et prouve que la décomposition fonctionne. Atteindre l’objectif visé nécessite un passage dédié à l’audit des dépendances et à l’optimisation de chaque crate une fois la décomposition structurelle terminée — en examinant le <code>Cargo.toml</code> de chaque crate pour identifier les dépendances inutiles ou trop lourdes, en validant les profils LTO et strip, et en auditant les indicateurs de fonctionnalité tokio/serde réellement nécessaires.</p>
+<p>The 6.6 MB Phase 1 foundation build represents real progress from the 8.8 MB monolith and proves the decomposition is working. Reaching the vision target requires a dedicated dependency-audit and optimization pass through each crate after the structural decomposition is complete: reviewing each crate’s <code>Cargo.toml</code> for unnecessary or over-featured dependencies, validating LTO and strip profiles, and auditing which tokio/serde feature flags are actually needed.</p>
 <p>Le changement structurel clé : la taille binaire n’est plus une fonction des « fonctionnalités compilées au moment de la construction » mais devient une fonction des « plugins installés au moment de l’exécution », que l’utilisateur contrôle. Ce changement est l’objectif architectural des phases 1 à 3. Les chiffres de taille sont l’objectif d’optimisation de la phase suivante.</p>
 <h3 id="amélioration-du-temps-de-compilation"><a class="header" href="#amélioration-du-temps-de-compilation">Amélioration du temps de compilation</a></h3>
 <p>Actuellement, une compilation complète <code>cargo build --release</code> de cette base de code compile tous les canaux, tous les outils, tous les fournisseurs et l’application React intégrée dans une seule unité de compilation. La décomposition des crates signifie :</p>
@@ -925,7 +992,7 @@ zeroclaw plugin update            # update all installed plugins
 <h3 id="pour-les-nouveaux-contributeurs"><a class="header" href="#pour-les-nouveaux-contributeurs">Pour les nouveaux contributeurs</a></h3>
 <p>La plainte la plus courante des nouveaux contributeurs aux grands projets de code est : « Je ne sais pas par où commencer. » Avec l’architecture actuelle, la réponse à la question « où va un message Discord ? » nécessite de suivre le flux à travers <code>channels/discord.rs</code> → <code>channels/mod.rs</code> → <code>gateway/mod.rs</code> → <code>agent/loop_.rs</code> → des dizaines d’autres fichiers.</p>
 <p>Avec l’architecture micro-noyau, la réponse est : « cela va au récepteur <code>Channel</code> du noyau, via le plugin <code>channel-discord</code> ». Un nouveau contributeur peut comprendre complètement le canal Discord en lisant un seul crate de plugin. Il peut comprendre la boucle complète de l’agent en lisant <code>zeroclaw-kernel</code>, sans avoir besoin de connaître le code des canaux ou des outils.</p>
-<p><strong>Une bonne règle empirique pour les nouveaux contributeurs :</strong> si vous pouvez décrire votre modification en une phrase sans mentionner plus d’un composant, vous travaillez au bon niveau. « Corriger un bug dans la gestion des réponses aux fils par le canal Discord » concerne un seul composant. « Refactoriser la boucle de l’agent, mettre à jour le canal Discord et également corriger le backend de mémoire » concerne trois composants — cela devrait faire l’objet de trois PRs.</p>
+<p><strong>A good rule of thumb for new contributors:</strong> if you can describe your change in one sentence without mentioning more than one component, you are working at the right level. “Fix a bug in how the Discord channel handles thread replies” is one component. “Refactor the agent loop and update the Discord channel and also fix the memory backend” is three components: it should be three PRs.</p>
 <h3 id="pour-les-mainteneurs"><a class="header" href="#pour-les-mainteneurs">Pour les mainteneurs</a></h3>
 <p>Chaque rapport de bug aura un emplacement clair. « L’agent appelle les outils de manière incorrecte » → <code>zeroclaw-tool-call-parser</code> ou <code>zeroclaw-runtime</code>. « L’intégration Discord est cassée » → plugin <code>channel-discord</code>. « Le tableau de bord web ne se charge pas » → <code>zeroclaw-gw</code>. Actuellement, n’importe lequel de ces bugs pourrait se trouver n’importe où dans plus de 50 000 lignes de code.</p>
 <h3 id="pour-le-processus-de-publication"><a class="header" href="#pour-le-processus-de-publication">Pour le processus de publication</a></h3>
@@ -935,39 +1002,39 @@ zeroclaw plugin update            # update all installed plugins
 <hr>
 <h2 id="annexe-a--glossaire"><a class="header" href="#annexe-a--glossaire">Annexe A : Glossaire</a></h2>
 <p>Termes utilisés dans ce document qui peuvent être inconnus :</p>
-<p><strong>Big Ball of Mud</strong> — Une architecture (ou l’absence d’architecture) dans laquelle la base de code a grandi de manière organique sans planification structurelle. Le nom provient d’un article de 1997 par Brian Foote et Joseph Yoder. C’est l’architecture la plus courante dans le logiciel, non pas parce que quelqu’un la choisit, mais parce que c’est ce que vous obtenez par défaut.</p>
-<p><strong>Loi de Conway</strong> — « Toute organisation qui conçoit un système produira une conception dont la structure est l’image miroir de la structure de communication de l’organisation. » (Mel Conway, 1968) Si les contributeurs travaillent en silos isolés sans communiquer entre eux, le code reflétera cette situation. Si les contributeurs collaborent avec des interfaces claires entre leurs travaux, le code reflétera également cette collaboration.</p>
-<p><strong>Principe d’inversion des dépendances</strong> — Les modules de haut niveau ne doivent pas dépendre des modules de bas niveau. Tous deux doivent dépendre d’abstractions. C’est pourquoi <code>zeroclaw-runtime</code> dépend de <code>zeroclaw-api</code> (abstractions) et non de <code>channel-discord</code> (une implémentation spécifique).</p>
-<p><strong>Microkernel</strong> — Une architecture dans laquelle le noyau du système ne contient que les fonctionnalités minimales nécessaires, tandis que toutes les autres capacités sont fournies par des composants distincts qui communiquent avec le noyau via des interfaces bien définies.</p>
-<p><strong>Strangler Fig Pattern</strong> — Une stratégie de migration dans laquelle vous remplacez progressivement des parties d’un système existant en construisant de nouveaux composants à côté des anciens. Ce nom est inspiré de l’arbre strangulier, qui pousse autour d’un arbre existant jusqu’à ce que l’arbre original soit entièrement remplacé. La propriété clé : le système reste toujours en cours d’exécution et toujours déployable pendant la migration.</p>
-<p><strong>Dette technique</strong> — Le coût accumulé résultant de la prise de raccourcis dans la conception des logiciels. Comme la dette financière, une petite quantité peut être productive (vous livrez plus rapidement). Une dette importante devient paralysante (vous passez tout votre temps à payer les intérêts — c’est-à-dire à corriger des bugs et à mettre en place des contournements — au lieu de développer de nouvelles fonctionnalités).</p>
-<p><strong>WIT (WebAssembly Interface Types)</strong> — Un langage de définition d’interface pour décrire ce que les composants WASM exportent et importent. Imaginez-le comme un contrat : « un plugin Tool doit exporter une fonction appelée <code>execute</code> qui prend du JSON et retourne du JSON ». WIT rend ce contrat précis et lisible par une machine.</p>
+<p><strong>Big Ball of Mud</strong>: An architecture (or lack thereof) in which the codebase has grown organically without structural planning. The name comes from a 1997 paper by Brian Foote and Joseph Yoder. It is the most common architecture in software, not because anyone chooses it, but because it is what you get by default.</p>
+<p><strong>Conway’s Law</strong>: “Any organization that designs a system will produce a design whose structure is a mirror image of the organization’s communication structure.” (Mel Conway, 1968) If contributors work in isolated silos without talking to each other, the code will reflect that. If contributors collaborate with clear interfaces between their work, the code will reflect that too.</p>
+<p><strong>Dependency Inversion Principle</strong>: High-level modules should not depend on low-level modules. Both should depend on abstractions. This is why <code>zeroclaw-runtime</code> depends on <code>zeroclaw-api</code> (abstractions) and not on <code>channel-discord</code> (a specific implementation).</p>
+<p><strong>Microkernel</strong>: An architecture in which the core system contains only the minimum necessary functionality, and all other capabilities are provided by separate components that communicate with the core through well-defined interfaces.</p>
+<p><strong>Strangler Fig Pattern</strong>: A migration strategy in which you incrementally replace parts of an existing system by building new components alongside the old ones. Named for the strangler fig plant, which grows around an existing tree until the original tree has been fully replaced. The key property: the system is always running and always deployable during the migration.</p>
+<p><strong>Technical Debt</strong>: The accumulated cost of taking shortcuts in software design. Like financial debt, a small amount can be productive (you ship faster now). A large amount becomes crippling (you spend all your time on interest payments, i.e., bug fixes and workarounds, instead of new features).</p>
+<p><strong>WIT (WebAssembly Interface Types)</strong>: An interface definition language for describing what WASM components export and import. Think of it as a contract: “a Tool plugin must export a function called <code>execute</code> that takes JSON and returns JSON.” WIT makes that contract precise and machine-readable.</p>
 <hr>
 <h2 id="annexe-b--lectures-complémentaires"><a class="header" href="#annexe-b--lectures-complémentaires">Annexe B : Lectures complémentaires</a></h2>
 <p>Voici des ressources que l’équipe peut trouver utiles. Elles ne constituent pas une lecture obligatoire, mais chacune a directement influencé cette proposition.</p>
 <ul>
 <li>
-<p><strong>« Une philosophie de la conception logicielle »</strong> — John Ousterhout. Le meilleur livre court sur la gestion de la complexité dans les logiciels. Son concept de « modules profonds » (interfaces simples, implémentations puissantes) correspond exactement à ce que vise le modèle du micro-noyau.</p>
+<p><strong>“A Philosophy of Software Design”</strong>: John Ousterhout. The best short book on managing complexity in software. His concept of “deep modules” (simple interfaces, powerful implementations) is exactly what the microkernel model aims for.</p>
 </li>
 <li>
-<p><strong>« Clean Architecture »</strong> — Robert C. Martin. La règle de dépendance décrite dans la section 4.2 de ce document provient de ce livre.</p>
+<p><strong>“Clean Architecture”</strong>: Robert C. Martin. The Dependency Rule described in Section 4.2 of this document comes from this book.</p>
 </li>
 <li>
-<p><strong>« Release It! »</strong> — Michael Nygard. Des modèles pratiques pour concevoir des logiciels qui restent opérationnels en production. Les modèles de séparation des passerelles et de disjoncteur présentés ici sont tirés de cet ouvrage.</p>
+<p><strong>“Release It!”</strong>: Michael Nygard. Practical patterns for building software that stays up in production. The gateway separation and circuit-breaker patterns discussed here are drawn from this book.</p>
 </li>
 <li>
-<p><strong>Les recommandations de l’API Rust</strong> — https://rust-lang.github.io/api-guidelines/ — Le guide officiel pour concevoir des bibliothèques Rust idiomatiques. Nos interfaces de traits doivent suivre ces conventions.</p>
+<p><a href="https://rust-lang.github.io/api-guidelines/">The Rust API Guidelines</a>: The official guide for designing idiomatic Rust libraries. Our trait interfaces should follow these conventions.</p>
 </li>
 <li>
-<p><strong>Le modèle de composants WebAssembly</strong> — https://component-model.bytecodealliance.org/ — La base technique du système de plugins proposé dans cette RFC.</p>
+<p><a href="https://component-model.bytecodealliance.org/">The WebAssembly Component Model</a>: The technical foundation for the plugin system proposed in this RFC.</p>
 </li>
 <li>
-<p><strong>Spécification OpenTelemetry</strong> — https://opentelemetry.io/docs/specs/ — La spécification complète de la norme d’observabilité que nous adoptons.</p>
+<p><a href="https://opentelemetry.io/docs/specs/">OpenTelemetry specification</a>: The full specification for the observability standard we are adopting.</p>
 </li>
 </ul>
 <hr>
 <p><em>Cette proposition a été élaborée à partir d’une analyse détaillée de la base de code ZeroClaw en version 0.6.8. Les métriques de code citées sont basées sur une mesure directe des fichiers source. Les recommandations architecturales reflètent des modèles éprouvés dans la conception de logiciels systèmes, appliqués aux contraintes et objectifs spécifiques du projet ZeroClaw.</em></p>
-<p>Les retours, corrections et contre-propositions sont les bienvenus. La meilleure architecture est celle que l’équipe comprend et adhère — pas celle qu’une seule personne a imposée.</p>
+<p><em>Feedback, corrections, and counterproposals are welcome. The best architecture is the one the team understands and believes in, not the one any single person dictated.</em></p>
 
                     </main>
 

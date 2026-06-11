@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,7 +298,7 @@
 <p>Superseding は最も重いオプションです。1つを開く前に、次の順序で試してください：</p>
 <ol>
 <li>
-<p><strong>コントリビューターのブランチにfixupsをプッシュします。</strong> PRが <code>maintainerCanModify: true</code> を持っている場合（個人フォークからのPRのデフォルト値です — <code>gh pr view &lt;number&gt; --json maintainerCanModify</code> で確認してください）、コントリビューターのPRに直接fixupsをプッシュしてマージします。<code>git log</code>、<code>git blame</code>、およびコントリビューターのGitHubプロフィールでの帰属関係はクリーンに保たれます。修正が自明でない場合は、コントリビューターと事前に調整してください — 彼らが未プッシュの作業を持っている間にプッシュすると、彼らが解決しなければならない競合が発生します。</p>
+<p><strong>Push fixups to the contributor’s branch.</strong> If the PR has <code>maintainerCanModify: true</code> (the default for PRs from personal forks; confirm with <code>gh pr view &lt;number&gt; --json maintainerCanModify</code>), push your fixups directly and merge the contributor’s PR. Attribution stays clean in <code>git log</code>, <code>git blame</code>, and the contributor’s GitHub profile. Coordinate with the contributor first if your fix isn’t trivial; pushing while they have unpushed work creates conflicts they have to resolve.</p>
 </li>
 <li>
 <p><strong>具体的な変更を求めながらレビューを残してください。</strong> コントリビューターが対応可能で、その修正が元の範囲内（clippy のリンティング、エッジケース、テスト追加など）であれば、変更を要求し、彼らが修正をプッシュするのを待ちましょう。1行の修正は、通常、上書きするよりも変更を要求する方が好まれます。</p>
@@ -241,10 +317,10 @@
 <h2 id="帰属ルール"><a class="header" href="#帰属ルール">帰属ルール</a></h2>
 <p>上書きを行う際、実質的なコードや設計決定を引き継ぐ場合は、著作者を明示的に保持してください：</p>
 <ul>
-<li>materielに組み込まれた各supersededコントリビューターに対して、1つの <code>Co-authored-by: Name &lt;email&gt;</code> トレーラーを追加してください。GitHubで認識されるメールアドレスを使用してください。これには、コントリビューターの <code>&lt;login@users.noreply.github.com&gt;</code> 形式または確認済みコミットメールが含まれます。</li>
+<li>Add one <code>Co-authored-by: Name &lt;email&gt;</code> trailer per superseded contributor whose work was materially incorporated. Use a GitHub-recognized email: either the contributor’s <code>&lt;login@users.noreply.github.com&gt;</code> form or their verified commit email.</li>
 <li>コミットメッセージの末尾に空行を挟んで、トレーラーはそれぞれ別の行に記述します。トレーラーをエスケープされた <code>\n</code> テキストとしてエンコードしないでください。</li>
 <li>PRの本文に、置き換えられたPRのリンクをリストし、それぞれから取り込まれた内容を簡潔に説明してください。</li>
-<li>実際のコードや設計が組み込まれていない場合（インスピレーションのみ）、<code>Co-authored-by</code> を使用せず、代わりに PR のノートセクションでクレジットを表示してください。</li>
+<li>If no actual code or design was incorporated (only inspiration), don’t use <code>Co-authored-by</code>, give credit in the PR notes section instead.</li>
 </ul>
 <p>これらのトラクターは、GitHub のコントリビューター認識を正しくルーティングします。これらがないと、元の著者は「クローズド」として表示され、引き継ぎの記録がありません。</p>
 <h2 id="prのタイトルと本文のテンプレート"><a class="header" href="#prのタイトルと本文のテンプレート">PRのタイトルと本文のテンプレート</a></h2>

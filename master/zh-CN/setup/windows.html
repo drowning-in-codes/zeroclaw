@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,92 +294,98 @@
                     <main>
                         <h1 id="windows"><a class="header" href="#windows">Windows</a></h1>
 <p>在 Windows 10 / 11 上安装、更新、作为计划任务 / Windows 服务运行以及卸载。</p>
-<p><code>setup.bat</code> 是 <code>install.sh</code> 的 Windows 对应版本——功能相同，只是使用的 Shell 不同。如果您正在运行 WSL2，可以改用 <a href="./linux.html">Linux 安装指南</a>；<code>install.sh</code> 在 WSL 下可直接运行。</p>
+<p><code>setup.bat</code> is the Windows counterpart to <code>install.sh</code>, same job, different shell.</p>
 <h2 id="安装"><a class="header" href="#安装">安装</a></h2>
-<h3 id="选项-1--来自发布的-setupbat"><a class="header" href="#选项-1--来自发布的-setupbat">选项 1 — 来自发布的 <code>setup.bat</code></a></h3>
-<p>下载最新的 ZeroClaw 版本，解压并运行：</p>
 <pre><code class="language-cmd">setup.bat
 </code></pre>
-<p>标志：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>标志</th><th>行为</th></tr>
-</thead>
-<tbody>
-<tr><td><code>--prebuilt</code></td><td>从 GitHub Releases 下载预构建的二进制文件（最快——无需 Rust 工具链）</td></tr>
-<tr><td><code>--minimal</code></td><td>仅构建核心（<code>--no-default-features</code>；无频道，无硬件）</td></tr>
-<tr><td><code>--standard</code></td><td>Build with lean default channels (ACP server, webhook, email, Telegram)</td></tr>
-<tr><td><code>--full</code></td><td>Build with all channels (<code>channels-full</code>)</td></tr>
-</tbody>
-</table>
-</div>
-<p>脚本：</p>
-<ol>
-<li>检查 <code>rustup</code>；如果缺失，则下载 <code>rustup-init.exe</code> 并安装稳定版工具链</li>
-<li>构建（或下载）二进制文件</li>
-<li>安装到 <code>%USERPROFILE%\.zeroclaw\bin\zeroclaw.exe</code></li>
-<li>打印特定模式的后续步骤：
-<ul>
-<li><code>--prebuilt</code>, <code>--standard</code>, <code>--full</code>: run <code>zeroclaw quickstart</code></li>
-<li><code>--minimal</code>: quickstart is unavailable; configure <code>%USERPROFILE%\.zeroclaw\config.toml</code> manually and use the reduced CLI path (<code>zeroclaw agent ...</code>)</li>
-</ul>
-</li>
-</ol>
-<p>对于源码构建，<code>setup.bat</code> 现在会打印它所执行的确切 <code>cargo build ...</code> 命令，并报告已安装的 <code>zeroclaw.exe</code> 大小，以便命令形式和产物预期保持可见。</p>
-<h3 id="选项-2--scoop"><a class="header" href="#选项-2--scoop">选项 2 — Scoop</a></h3>
+<p>That is the whole install: grab <code>setup.bat</code> from a ZeroClaw release and run it. It prompts for a build mode, then either downloads the prebuilt binary or (for source modes) installs a stable Rust toolchain via <code>rustup</code> and compiles. Either way the binary lands at <code>%USERPROFILE%\.zeroclaw\bin\zeroclaw.exe</code>, and it points you at <a href="../getting-started/quickstart.html"><code>zeroclaw quickstart</code></a>.</p>
+<p>To skip the interactive prompt, pass a build-mode flag: <code>--prebuilt</code> (download a release binary, no toolchain), <code>--minimal</code> (core only), <code>--standard</code>, or <code>--full</code>. Run <code>setup.bat --help</code> for the authoritative list of modes and the exact feature set each one compiles; that output is generated from the script itself, so it never drifts. With <code>--minimal</code>, quickstart is unavailable; configure ZeroClaw manually with <code>zeroclaw config set</code> and use the reduced CLI path (<code>zeroclaw agent ...</code>).</p>
+<h3 id="scoop"><a class="header" href="#scoop">Scoop</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd"><a class="header" href="#cmd">cmd</a></h4>
 <pre><code class="language-cmd">scoop install zeroclaw
-zeroclaw quickstart
 </code></pre>
-<h3 id="选项-3--从源代码"><a class="header" href="#选项-3--从源代码">选项 3 — 从源代码</a></h3>
+</div>
+
+<h3 id="从源代码"><a class="header" href="#从源代码">从源代码</a></h3>
 <p>需要 Rust（<code>rustup</code>）和 Visual Studio 构建工具：</p>
+<div class="os-tabs-src">
+<h4 id="cmd-1"><a class="header" href="#cmd-1">cmd</a></h4>
 <pre><code class="language-cmd">git clone https://github.com/zeroclaw-labs/zeroclaw
 cd zeroclaw
 cargo install --locked --path .
-zeroclaw quickstart
 </code></pre>
+</div>
+
+<p>If you’re running WSL2, follow the <a href="./linux.html">Linux setup</a> instead; <code>install.sh</code> runs unchanged under WSL.</p>
 <h2 id="系统依赖"><a class="header" href="#系统依赖">系统依赖</a></h2>
 <p>Windows 构建使用 MSVC 工具链。你需要：</p>
 <ul>
 <li>Visual Studio Build Tools（或完整的 Visual Studio），并安装“使用 C++ 的桌面开发”工作负载</li>
 <li>Rust 稳定版（通过 <code>rustup</code>）</li>
 </ul>
-<p>如果您使用的是 <code>--prebuilt</code>，则无需 Rust 工具链——该二进制文件是自包含的。</p>
+<p>If you’re using <code>--prebuilt</code> you don’t need the Rust toolchain; the binary is self-contained.</p>
 <h2 id="作为服务运行"><a class="header" href="#作为服务运行">作为服务运行</a></h2>
 <p>Windows 提供两种选项：计划任务（用户会话）或 Windows 服务（系统会话）。</p>
 <h3 id="计划任务推荐用于单用户计算机"><a class="header" href="#计划任务推荐用于单用户计算机">计划任务（推荐用于单用户计算机）</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd-2"><a class="header" href="#cmd-2">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service install
 zeroclaw service start
 </code></pre>
+</div>
+
 <p>这将创建一个在您的用户账户下运行并在登录时启动的任务。通过任务计划程序（<code>taskschd.msc</code>）进行管理。</p>
 <p>日志文件位于 <code>%LOCALAPPDATA%\ZeroClaw\logs\</code>。</p>
 <h3 id="windows-服务用于服务器安装"><a class="header" href="#windows-服务用于服务器安装">Windows 服务（用于服务器安装）</a></h3>
 <p>作为真正的服务运行需要在安装期间具有管理员权限。打开提升权限的 <code>cmd.exe</code> 并执行以下操作：</p>
+<div class="os-tabs-src">
+<h4 id="cmd-3"><a class="header" href="#cmd-3">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service install
 </code></pre>
+</div>
+
 <p>以管理员身份运行时，安装程序会在 <code>LocalSystem</code> 下注册 Windows 服务，而不是用户作用域的定时任务。如果代理程序会访问用户作用域的资源，请考虑创建专用的服务账户。</p>
 <p>详细信息：<a href="./service.html">服务管理</a>。</p>
 <h2 id="更新"><a class="header" href="#更新">更新</a></h2>
 <h3 id="从-setupbat--发布版-zip-包"><a class="header" href="#从-setupbat--发布版-zip-包">从 <code>setup.bat</code> / 发布版 zip 包</a></h3>
 <p>重新下载最新版本并重新运行 <code>setup.bat --prebuilt</code>（或你最初使用的其他标志）。然后：</p>
+<div class="os-tabs-src">
+<h4 id="cmd-4"><a class="header" href="#cmd-4">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service restart
 </code></pre>
-<h3 id="scoop"><a class="header" href="#scoop">Scoop</a></h3>
+</div>
+
+<h3 id="scoop-update"><a class="header" href="#scoop-update">Scoop update</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd-5"><a class="header" href="#cmd-5">cmd</a></h4>
 <pre><code class="language-cmd">scoop update zeroclaw
 zeroclaw service restart
 </code></pre>
-<h3 id="从源代码"><a class="header" href="#从源代码">从源代码</a></h3>
+</div>
+
+<h3 id="from-source-update"><a class="header" href="#from-source-update">From source update</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd-6"><a class="header" href="#cmd-6">cmd</a></h4>
 <pre><code class="language-cmd">cd C:\path\to\zeroclaw
 git pull
 cargo install --locked --path . --force
 zeroclaw service restart
 </code></pre>
+</div>
+
 <h2 id="卸载"><a class="header" href="#卸载">卸载</a></h2>
 <p>停止并移除服务：</p>
+<div class="os-tabs-src">
+<h4 id="cmd-7"><a class="header" href="#cmd-7">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service stop
 zeroclaw service uninstall
 </code></pre>
+</div>
+
 <p>移除二进制文件：</p>
+<div class="os-tabs-src">
+<h4 id="cmd-8"><a class="header" href="#cmd-8">cmd</a></h4>
 <pre><code class="language-cmd">:: setup.bat
 del "%USERPROFILE%\.zeroclaw\bin\zeroclaw.exe"
 
@@ -313,10 +395,16 @@ del "%USERPROFILE%\.cargo\bin\zeroclaw.exe"
 :: Scoop
 scoop uninstall zeroclaw
 </code></pre>
-<p>移除配置和工作区（可选 — 这将删除对话历史）：</p>
+</div>
+
+<p>Remove config and workspace (optional, this deletes conversation history):</p>
+<div class="os-tabs-src">
+<h4 id="cmd-9"><a class="header" href="#cmd-9">cmd</a></h4>
 <pre><code class="language-cmd">rmdir /s /q "%USERPROFILE%\.zeroclaw"
 rmdir /s /q "%LOCALAPPDATA%\ZeroClaw"
 </code></pre>
+</div>
+
 <h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
 <ul>
 <li><strong>长路径。</strong> 某些 Windows 文件系统仍将路径长度限制为 260 个字符。如果在构建过程中遇到 <code>path too long</code> 错误，请启用长路径支持（<code>reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f</code>）。</li>
@@ -326,7 +414,7 @@ rmdir /s /q "%LOCALAPPDATA%\ZeroClaw"
 <h2 id="下一个"><a class="header" href="#下一个">下一个</a></h2>
 <ul>
 <li><a href="./service.html">服务管理</a></li>
-<li><a href="../getting-started/quick-start.html">快速入门</a></li>
+<li><a href="../getting-started/quickstart.html">Quickstart</a></li>
 <li><a href="../ops/overview.html">操作 → 概览</a></li>
 </ul>
 

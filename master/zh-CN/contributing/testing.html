@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="测试"><a class="header" href="#测试">测试</a></h1>
-<p>ZeroClaw 采用基于文件系统布局的五层测试分类体系。每一层具有不同的边界和成本——选择能够证明所需内容的最低层级即可。</p>
+<p>ZeroClaw uses a five-level testing taxonomy backed by filesystem layout. Each level has a different boundary and a different cost; pick the lowest level that proves what you need to prove.</p>
 <h2 id="五个级别"><a class="header" href="#五个级别">五个级别</a></h2>
 <div class="table-wrapper">
 <table>
@@ -240,22 +316,27 @@
 <tr><th>目录</th><th>目的</th></tr>
 </thead>
 <tbody>
-<tr><td><code>tests/manual/</code></td><td>人类编写的测试脚本（shell、Python）——直接运行，不通过 cargo</td></tr>
-<tr><td><code>tests/support/</code></td><td>共享的模拟基础设施——不是测试二进制文件，而是通过 <code>mod support;</code> 从每个层级包含</td></tr>
+<tr><td><code>tests/manual/</code></td><td>Human-driven test scripts (shell, Python), run directly, not via cargo</td></tr>
+<tr><td><code>tests/support/</code></td><td>Shared mock infrastructure, not a test binary, included as <code>mod support;</code> from each level</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="运行测试"><a class="header" href="#运行测试">运行测试</a></h2>
-<pre><code class="language-bash">cargo test                                  # 单元测试 + 组件测试 + 集成测试 + 系统测试
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo test                                  # 单元测试 + 组件测试 + 集成测试 + 系统测试
 cargo test --lib                            # 仅单元
 cargo test --test component                 # 仅组件
 cargo test --test integration               # 仅集成
 cargo test --test system                    # 仅系统
 cargo test --test live -- --ignored         # live（需要 API 凭据）
 cargo test --test integration agent         # 在某个层级内过滤
-./dev/ci.sh all                             # 完整的 CI 电池
-./dev/ci.sh test-component                  # 特定于级别的 CI 命令
+cargo nextest run --locked --workspace --exclude zeroclaw-desktop  # what CI runs
+./dev/ci.sh all                             # full CI battery (Docker)
+./dev/ci.sh test-component                  # level-specific CI commands (Docker)
 </code></pre>
+</div>
+
 <h2 id="为新测试选择一个级别"><a class="header" href="#为新测试选择一个级别">为新测试选择一个级别</a></h2>
 <ol>
 <li>单独测试一个子系统？→ <code>tests/component/</code></li>
@@ -272,10 +353,10 @@ cargo test --test integration agent         # 在某个层级内过滤
 <tr><th>模块</th><th>目录</th></tr>
 </thead>
 <tbody>
-<tr><td><code>mock_provider.rs</code></td><td><code>MockProvider</code>（FIFO 脚本化）、<code>RecordingProvider</code>（捕获请求）、<code>TraceLlmProvider</code>（JSON 夹具回放）</td></tr>
+<tr><td><code>mock_model_provider.rs</code></td><td><code>MockModelProvider</code> (FIFO scripted), <code>RecordingModelProvider</code> (captures requests), <code>TraceLlmModelProvider</code> (JSON fixture replay)</td></tr>
 <tr><td><code>mock_tools.rs</code></td><td><code>EchoTool</code>、<code>CountingTool</code>、<code>FailingTool</code>、<code>RecordingTool</code></td></tr>
 <tr><td><code>mock_channel.rs</code></td><td><code>TestChannel</code>（捕获发送内容，记录打字事件）</td></tr>
-<tr><td><code>helpers.rs</code></td><td><code>make_memory()</code>、<code>make_observer()</code>、<code>build_agent()</code>、<code>text_response()</code>、<code>tool_response()</code>、<code>StaticMemoryLoader</code></td></tr>
+<tr><td><code>helpers.rs</code></td><td><code>make_memory()</code>, <code>make_observer()</code>, <code>build_agent()</code>, <code>text_response()</code>, <code>tool_response()</code>, <code>StaticMemoryStrategy</code></td></tr>
 <tr><td><code>trace.rs</code></td><td><code>LlmTrace</code>、<code>TraceTurn</code>、<code>TraceStep</code> 类型 + <code>LlmTrace::from_file()</code></td></tr>
 <tr><td><code>assertions.rs</code></td><td><code>verify_expects()</code> 用于声明式跟踪断言</td></tr>
 </tbody>
@@ -284,14 +365,14 @@ cargo test --test integration agent         # 在某个层级内过滤
 <p>典型用法：</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use crate::support::{MockProvider, EchoTool, CountingTool};
+</span>use crate::support::{MockModelProvider, EchoTool, CountingTool};
 use crate::support::helpers::{build_agent, text_response, tool_response};
 <span class="boring">}</span></code></pre>
 <h2 id="json-跟踪夹具"><a class="header" href="#json-跟踪夹具">JSON 跟踪夹具</a></h2>
-<p>Trace fixtures 是存储在 <code>tests/fixtures/traces/</code> 中的 JSON 文件，包含预定义的 LLM 响应脚本。它们用声明式的对话脚本替代了内联的 mock 设置，比 <code>mockall</code> 链式调用更易于阅读和编辑。</p>
+<p>Trace fixtures are canned LLM response scripts stored as JSON files in <code>tests/fixtures/traces/</code>. They replace inline mock setup with declarative conversation scripts, much easier to read and edit than <code>mockall</code> chains.</p>
 <p>工作原理：</p>
 <ol>
-<li><code>TraceLlmProvider</code> 加载一个 fixture 并实现 <code>Provider</code> 特质。</li>
+<li><code>TraceLlmModelProvider</code> loads a fixture and implements the <code>ModelProvider</code> trait.</li>
 <li>每次调用 <code>provider.chat()</code> 都会按 FIFO（先进先出）顺序返回 fixture 中的下一步。</li>
 <li>真实工具正常运行（<code>EchoTool</code> 实际处理其参数）。</li>
 <li>在所有回合结束后，<code>verify_expects()</code> 会检查声明式断言。</li>
@@ -325,14 +406,14 @@ use crate::support::helpers::{build_agent, text_response, tool_response};
 <p>响应类型：<code>"text"</code>（纯文本）或 <code>"tool_calls"</code>（LLM 请求工具执行）。</p>
 <p>期望字段：<code>response_contains</code>、<code>response_not_contains</code>、<code>tools_used</code>、<code>tools_not_used</code>、<code>max_tool_calls</code>、<code>all_tools_succeeded</code>、<code>response_matches</code>（正则表达式）。</p>
 <h2 id="实时测试规范"><a class="header" href="#实时测试规范">实时测试规范</a></h2>
-<p>实时测试会调用真实的外部服务并产生实际费用——它们默认被 <code>#[ignore]</code> 标记，仅在显式启用时才会运行。</p>
+<p>Live tests hit real external services and cost real money; they are <code>#[ignore]</code> by default and only run with explicit opt-in.</p>
 <ul>
 <li>始终使用 <code>#[ignore]</code>。绝不让实时测试在普通的 <code>cargo test</code> 中运行。</li>
-<li>从 <code>env::var("ZEROCLAW_TEST_*")</code> 读取凭据。不要从 <code>~/.zeroclaw/config.toml</code> 读取——实时测试应保持隔离。</li>
+<li>Read credentials from <code>env::var("ZEROCLAW_TEST_*")</code>. Don’t read the operator’s config; live tests should be hermetic.</li>
 <li>运行 <code>cargo test --test live -- --ignored --nocapture</code>。</li>
 </ul>
 <h2 id="数据库测试是集成测试"><a class="header" href="#数据库测试是集成测试">数据库测试是集成测试</a></h2>
-<p>不要对涉及模式或 SQL 的测试使用 SQLite 模拟——集成测试必须连接真实的数据库。这类“模拟通过但生产环境失败”的 bug 是真实存在的，我们之前已经吃过亏了。</p>
+<p>Don’t mock SQLite for tests that exercise schema or SQL; integration tests must hit a real database. The mock-passes-but-prod-fails class of bug is real and we’ve eaten it before.</p>
 <h2 id="手动测试"><a class="header" href="#手动测试">手动测试</a></h2>
 <p><code>tests/manual/</code> 目录包含用于人工测试的脚本，这些测试无法通过 <code>cargo test</code> 自动化执行。请直接运行它们。特定通道的冒烟测试位于 <code>tests/manual/&lt;channel&gt;/</code> 下。</p>
 

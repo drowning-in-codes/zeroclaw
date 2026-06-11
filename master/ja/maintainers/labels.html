@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,9 +295,9 @@
                         <h1 id="ラベル"><a class="header" href="#ラベル">ラベル</a></h1>
 <p>PRやIssueで使用されるすべてのラベルの単一参照。信頼できる情報源：</p>
 <ul>
-<li><code>.github/labeler.yml</code> — <code>actions/labeler</code> が消費する path-label 設定</li>
-<li><code>.github/label-policy.json</code> — コントリビューターティアの閾値</li>
-<li>このページ — 定義、動作、自動化と手動の処理内容</li>
+<li><code>.github/labeler.yml</code>: path-label config consumed by <code>actions/labeler</code></li>
+<li><code>.github/label-policy.json</code>: contributor tier thresholds</li>
+<li>This page: definitions, behavior, and what’s automated vs manual</li>
 </ul>
 <p>定義が競合する場合は、まずソースファイルを更新し、その後このページを同期してください。</p>
 <h2 id="所有権の境界"><a class="header" href="#所有権の境界">所有権の境界</a></h2>
@@ -234,11 +310,16 @@
 <li>ネイティブの GitHub PR 状態は、変化の速いレビュー状態を管理します。レビュー判定、必須チェック、マージ可否、コンフリクト、古くなった承認などです。</li>
 </ul>
 <p>ボードはメンテナーの作業を軽減するべきです。あるフィールドが PR のプッシュやレビューのたびに手動でのメンテナンスを必要とする場合は、代わりにラベル、マイルストーン、またはネイティブの GitHub state を使用することを推奨します。</p>
-<p>Labels can suggest likely ownership, but they are not ownership. A <code>channel:*</code>, <code>provider:*</code>, <code>tool:*</code>, <code>security:*</code>, or <code>docs</code> label identifies the surface that probably needs attention. Contributor-visible owner-source rules live in the <a href="./pr-workflow.html#project-board-contract">Project board contract</a>.</p>
+<p>Labels can suggest likely ownership, but they are not ownership. A <code>channel:*</code>, <code>provider:*</code>, <code>tool:*</code>, <code>security</code>, or <code>docs</code> label identifies the surface that probably needs attention. Contributor-visible owner-source rules live in the <a href="./pr-workflow.html#project-board-contract">Project board contract</a>.</p>
 <p>Use assignees for active work. Use area stewardship for routing responsibility when nobody is implementing yet. The <a href="./pr-workflow.html#issue-ownership-path">Project board contract</a> defines the accepted owner sources and routing outcomes.</p>
 <h2 id="正規の表記"><a class="header" href="#正規の表記">正規の表記</a></h2>
-<p>スコープ付きモジュールラベルには、スペースなしのモジュール表記をそのまま使用してください: <code>provider:openai</code>、<code>channel:telegram</code>、<code>tool:shell</code>、<code>security:policy</code>、および同様のラベル。size および risk ファミリーは意図的にコロンの後にスペースを保持します: <code>size: XS</code>、<code>risk: low</code>、<code>risk: medium</code>、<code>risk: high</code>。</p>
-<p><code>provider: openai</code>、<code>channel: telegram</code>、<code>tool: shell</code> などの古い重複ラベルはクリーンアップの候補です。削除する前に、オープンな issue/PR を正規のスペースなし表記に移行してください。オープンな参照のあるラベルを削除したり、ラベルファミリーを一括でリネームしたり、そのクリーンアップバッチに関するメンテナーの判断なしに stale-policy ラベルを削除したりしないでください。</p>
+<p>Use the live no-space module spelling for scoped module labels: <code>provider:openai</code>, <code>channel:telegram</code>, <code>security:policy</code>, and similar labels. The size, risk, and most type families currently keep a space after the colon: <code>size: XS</code>, <code>risk: low</code>, <code>risk: medium</code>, <code>risk: high</code>, and <code>type: docs</code>.</p>
+<p>Legacy duplicate labels such as <code>provider: openai</code>, <code>channel: telegram</code>, or <code>tool: shell</code> are cleanup candidates. Future no-space spelling for size, risk, or type labels is also a migration question, not a casual rename. Migrate open issues/PRs to the canonical label before deletion. Do not delete labels with open references, broadly rename label families, or remove stale-policy labels without a maintainer decision for that cleanup batch.</p>
+<h2 id="automation-contract"><a class="header" href="#automation-contract">Automation contract</a></h2>
+<p>Live PR label automation is split by source. <code>pr-path-labeler.yml</code> runs <code>actions/labeler</code> from <code>.github/labeler.yml</code> on PR open, reopen, and every pushed update. Because that workflow uses <code>sync-labels: true</code>, labels owned by <code>.github/labeler.yml</code> are recalculated from the current PR file set: matching path labels are added, and path labels that no longer match are removed.</p>
+<p>Dependabot also seeds configured labels on its own PRs from <code>.github/dependabot.yml</code>: Cargo updates get <code>dependencies</code>; GitHub Actions and Docker updates get <code>ci</code> and <code>dependencies</code>. Those labels are initial Dependabot PR metadata, not the synchronized path-labeler contract.</p>
+<p>Today <code>.github/labeler.yml</code> owns only path and scope labels such as <code>docs</code>, <code>ci</code>, <code>channel</code>, <code>provider:openai</code>, and <code>tool:file</code>. It does not own <code>risk:*</code>, <code>size:*</code>, <code>type:*</code>, contributor-tier, status, resolution, stale, or pickup labels.</p>
+<p>If risk or size automation is added later, it should recalculate on every pushed PR update so the labels continue to describe the actual diff under review. Risk automation must honor <code>risk: manual</code> as an override that prevents future automated risk replacement for that PR until a maintainer removes the override.</p>
 <h2 id="クリーンアッププロトコル"><a class="header" href="#クリーンアッププロトコル">クリーンアッププロトコル</a></h2>
 <p>ラベルのクリーンアップはメンテナーが行う操作であり、通常のPRレビューの副次的な作用ではありません。</p>
 <p>このシーケンスを使用します:</p>
@@ -265,7 +346,7 @@
 </table>
 </div>
 <h2 id="パスラベル"><a class="header" href="#パスラベル">パスラベル</a></h2>
-<p><code>pr-path-labeler.yml</code> によって自動的に適用されます（現在有効な唯一のラベリング自動化です）。グロブは <code>.github/labeler.yml</code> に配置されています。</p>
+<p>Applied automatically by <code>pr-path-labeler.yml</code>. Globs live in <code>.github/labeler.yml</code>; when this page and the config disagree, treat <code>.github/labeler.yml</code> as the operational source and update this page.</p>
 <h3 id="基本スコープのラベル"><a class="header" href="#基本スコープのラベル">基本スコープのラベル</a></h3>
 <div class="table-wrapper">
 <table>
@@ -277,27 +358,27 @@
 <tr><td><code>dependencies</code></td><td><code>Cargo.toml</code>, <code>Cargo.lock</code>, <code>deny.toml</code>, <code>.github/dependabot.yml</code></td></tr>
 <tr><td><code>ci</code></td><td><code>.github/codeql/**</code>, <code>.github/workflows/**</code>, <code>.github/*.yaml</code>, <code>.github/*.yml</code>, <code>.github/*.json</code>, <code>.githooks/**</code></td></tr>
 <tr><td><code>core</code></td><td><code>src/*.rs</code></td></tr>
-<tr><td><code>agent</code></td><td><code>src/agent/**</code></td></tr>
-<tr><td><code>channel</code></td><td><code>src/channels/**</code></td></tr>
-<tr><td><code>gateway</code></td><td><code>src/gateway/**</code></td></tr>
-<tr><td><code>config</code></td><td><code>src/config/**</code></td></tr>
-<tr><td><code>cron</code></td><td><code>src/cron/**</code></td></tr>
-<tr><td><code>daemon</code></td><td><code>src/daemon/**</code></td></tr>
-<tr><td><code>doctor</code></td><td><code>src/doctor/**</code></td></tr>
-<tr><td><code>health</code></td><td><code>src/health/**</code></td></tr>
-<tr><td><code>heartbeat</code></td><td><code>src/heartbeat/**</code></td></tr>
-<tr><td><code>integration</code></td><td><code>src/integrations/**</code></td></tr>
-<tr><td><code>memory</code></td><td><code>src/memory/**</code></td></tr>
-<tr><td><code>security</code></td><td><code>src/security/**</code></td></tr>
-<tr><td><code>runtime</code></td><td><code>src/runtime/**</code></td></tr>
-<tr><td><code>onboard</code></td><td><code>src/onboard/**</code></td></tr>
-<tr><td><code>provider</code></td><td><code>src/providers/**</code></td></tr>
-<tr><td><code>service</code></td><td><code>src/service/**</code></td></tr>
-<tr><td><code>skillforge</code></td><td><code>src/skillforge/**</code></td></tr>
-<tr><td><code>skills</code></td><td><code>src/skills/**</code></td></tr>
-<tr><td><code>tool</code></td><td><code>src/tools/**</code></td></tr>
-<tr><td><code>tunnel</code></td><td><code>src/tunnel/**</code></td></tr>
-<tr><td><code>observability</code></td><td><code>src/observability/**</code></td></tr>
+<tr><td><code>agent</code></td><td><code>src/agent/**</code>, <code>crates/zeroclaw-runtime/src/agent/**</code></td></tr>
+<tr><td><code>channel</code></td><td><code>src/channels/**</code>, <code>crates/zeroclaw-channels/src/**</code></td></tr>
+<tr><td><code>gateway</code></td><td><code>src/gateway/**</code>, <code>crates/zeroclaw-gateway/src/**</code></td></tr>
+<tr><td><code>config</code></td><td><code>src/config/**</code>, <code>crates/zeroclaw-config/src/**</code></td></tr>
+<tr><td><code>cron</code></td><td><code>src/cron/**</code>, <code>crates/zeroclaw-runtime/src/cron/**</code></td></tr>
+<tr><td><code>daemon</code></td><td><code>src/daemon/**</code>, <code>crates/zeroclaw-runtime/src/daemon/**</code></td></tr>
+<tr><td><code>doctor</code></td><td><code>src/doctor/**</code>, <code>crates/zeroclaw-runtime/src/doctor/**</code></td></tr>
+<tr><td><code>health</code></td><td><code>src/health/**</code>, <code>crates/zeroclaw-runtime/src/health/**</code></td></tr>
+<tr><td><code>heartbeat</code></td><td><code>src/heartbeat/**</code>, <code>crates/zeroclaw-runtime/src/heartbeat/**</code></td></tr>
+<tr><td><code>integration</code></td><td><code>src/integrations/**</code>, <code>crates/zeroclaw-runtime/src/integrations/**</code></td></tr>
+<tr><td><code>memory</code></td><td><code>src/memory/**</code>, <code>crates/zeroclaw-memory/src/**</code></td></tr>
+<tr><td><code>security</code></td><td><code>src/security/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code></td></tr>
+<tr><td><code>runtime</code></td><td><code>src/runtime/**</code>, <code>crates/zeroclaw-runtime/src/**</code></td></tr>
+<tr><td><code>quickstart</code></td><td><code>crates/zeroclaw-runtime/src/quickstart/**</code>, <code>crates/zeroclaw-gateway/src/api_quickstart.rs</code>, <code>apps/zerocode/src/quickstart_pane.rs</code>, <code>web/src/pages/quickstart/**</code></td></tr>
+<tr><td><code>provider</code></td><td><code>src/providers/**</code>, <code>crates/zeroclaw-providers/src/**</code></td></tr>
+<tr><td><code>service</code></td><td><code>src/service/**</code>, <code>crates/zeroclaw-runtime/src/service/**</code></td></tr>
+<tr><td><code>skillforge</code></td><td><code>src/skillforge/**</code>, <code>crates/zeroclaw-runtime/src/skillforge/**</code></td></tr>
+<tr><td><code>skills</code></td><td><code>src/skills/**</code>, <code>crates/zeroclaw-runtime/src/skills/**</code></td></tr>
+<tr><td><code>tool</code></td><td><code>src/tools/**</code>, <code>crates/zeroclaw-tools/src/**</code></td></tr>
+<tr><td><code>tunnel</code></td><td><code>src/tunnel/**</code>, <code>crates/zeroclaw-runtime/src/tunnel/**</code></td></tr>
+<tr><td><code>observability</code></td><td><code>src/observability/**</code>, <code>crates/zeroclaw-runtime/src/observability/**</code></td></tr>
 <tr><td><code>tests</code></td><td><code>tests/**</code></td></tr>
 <tr><td><code>scripts</code></td><td><code>scripts/**</code></td></tr>
 <tr><td><code>dev</code></td><td><code>dev/**</code></td></tr>
@@ -317,7 +398,7 @@
 <tr><td><code>channel:clawdtalk</code></td><td><code>clawdtalk.rs</code></td></tr>
 <tr><td><code>channel:cli</code></td><td><code>cli.rs</code></td></tr>
 <tr><td><code>channel:dingtalk</code></td><td><code>dingtalk.rs</code></td></tr>
-<tr><td><code>channel:discord</code></td><td><code>discord.rs</code></td></tr>
+<tr><td><code>channel:discord</code></td><td><code>discord.rs</code>, <code>discord_history.rs</code></td></tr>
 <tr><td><code>channel:email</code></td><td><code>email_channel.rs</code>, <code>gmail_push.rs</code></td></tr>
 <tr><td><code>channel:imessage</code></td><td><code>imessage.rs</code></td></tr>
 <tr><td><code>channel:irc</code></td><td><code>irc.rs</code></td></tr>
@@ -338,7 +419,7 @@
 <tr><td><code>channel:twitter</code></td><td><code>twitter.rs</code></td></tr>
 <tr><td><code>channel:wati</code></td><td><code>wati.rs</code></td></tr>
 <tr><td><code>channel:webhook</code></td><td><code>webhook.rs</code></td></tr>
-<tr><td><code>channel:wecom</code></td><td><code>wecom.rs</code></td></tr>
+<tr><td><code>channel:wecom</code></td><td><code>wecom.rs</code>, <code>wecom_ws.rs</code></td></tr>
 <tr><td><code>channel:whatsapp</code></td><td><code>whatsapp.rs</code>, <code>whatsapp_storage.rs</code>, <code>whatsapp_web.rs</code></td></tr>
 </tbody>
 </table>
@@ -391,7 +472,7 @@
 </table>
 </div>
 <h2 id="サイズラベル"><a class="header" href="#サイズラベル">サイズラベル</a></h2>
-<p>ドキュメントのみやロックファイルが大量のPRに対して正規化された、変更行数に基づいています。現在、<strong>手動</strong>で適用されています。これらの値を計算していたサイズ自動化は、CIの簡素化に伴って削除されました。</p>
+<p>Based on effective changed line count, normalized for docs-only and lockfile-heavy PRs. Currently applied <strong>manually</strong>; the size automation that previously computed these was removed during CI simplification. Future size automation should follow the <a href="#automation-contract">automation contract</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -407,7 +488,7 @@
 </table>
 </div>
 <h2 id="リスクラベル"><a class="header" href="#リスクラベル">リスクラベル</a></h2>
-<p>PRの場合、リスクラベルはレビュー対象の実際の差分を表します。変更されたパス、動作の変更、セキュリティ境界の露出、ロールバックの難易度などです。issueの場合、リスクラベルは報告内容に基づいた修正の影響範囲を表し、レビュアーの精査の深さやコントリビューターの適性のトリアージに役立ちます。また、具体的なPRが実際の実装パスを示した時点で変更される可能性があります。現在は<strong>手動</strong>で適用されています。</p>
+<p>For PRs, risk labels describe the actual diff under review: touched paths, behavior change, security boundary exposure, and rollback difficulty. For issues, risk labels describe the likely fix blast radius based on the report, help triage reviewer depth and contributor fit, and may change once a concrete PR shows the actual implementation path. Currently applied <strong>manually</strong>. Future risk automation should follow the <a href="#automation-contract">automation contract</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -421,7 +502,7 @@
 </tbody>
 </table>
 </div>
-<p>高リスクパス: <code>crates/zeroclaw-runtime/src/**</code>, <code>crates/zeroclaw-gateway/src/**</code>, <code>crates/zeroclaw-tools/src/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code>, <code>.github/workflows/**</code></p>
+<p>High-risk paths (canonical set; other maintainer pages reference this list): <code>crates/zeroclaw-runtime/src/**</code>, <code>crates/zeroclaw-gateway/src/**</code>, <code>crates/zeroclaw-tools/src/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code>, <code>.github/workflows/**</code>.</p>
 <p>不明な場合は、より高いリスクとして扱ってください。</p>
 <h2 id="コントリビューターティアラベル"><a class="header" href="#コントリビューターティアラベル">コントリビューターティアラベル</a></h2>
 <p><code>.github/label-policy.json</code> で定義されています。GitHub API から取得した著者のマージ済みPR数に基づいています。現在、<strong>手動</strong>で適用されています。</p>
@@ -471,7 +552,7 @@
 <p>メンテナーが承認したラベル移行パケットによって、正確なリネーム、エイリアス、または削除計画が定義されるまでは、<code>status:wont-do</code> や <code>status:wont-fix</code> などの提案されたターミナルラベルを作成または適用しないでください。ボードレベルの「Won’t Do」概念に対する現在の有効なラベルは <code>wontfix</code> です。</p>
 <p>Superseding は置き換えプロセスであり、現在は有効なラベルではありません。後で承認された移行パケットが superseding ラベルを作成またはマッピングするまでは、置き換えルールと帰属要件については <a href="./superseding.html">Superseding PRs</a> を参照してください。</p>
 <h2 id="トリアージラベル"><a class="header" href="#トリアージラベル">トリアージラベル</a></h2>
-<p>手動で適用 — これらを処理していた自動応答自動化は、CIの簡素化の際に削除されました。</p>
+<p>Applied manually: the auto-response automation that used to handle these was removed during CI simplification.</p>
 <div class="table-wrapper">
 <table>
 <thead>

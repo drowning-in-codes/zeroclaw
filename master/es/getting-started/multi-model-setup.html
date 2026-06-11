@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -221,9 +297,9 @@
 <blockquote>
 <p>El <strong>material de referencia</strong> para el sistema del proveedor se encuentra en:</p>
 <ul>
-<li><a href="../providers/overview.html">Proveedores de modelos → Descripción general</a> — qué son los proveedores, forma de configuración</li>
-<li><a href="../providers/routing.html">Proveedores de modelos → Enrutamiento</a> — distribución por agente y OpenRouter</li>
-<li><a href="../providers/catalog.html">Proveedores de modelos → Catálogo</a> — la forma de configuración de cada proveedor</li>
+<li><a href="../providers/overview.html">Model Providers → Overview</a>: what providers are, configuration shape</li>
+<li><a href="../providers/routing.html">Model Providers → Routing</a>: per-agent dispatch and OpenRouter</li>
+<li><a href="../providers/catalog.html">Model Providers → Catalog</a>: every provider’s config shape</li>
 </ul>
 </blockquote>
 <h2 id="cuándo-usar-una-configuración-multimodelo"><a class="header" href="#cuándo-usar-una-configuración-multimodelo">Cuándo usar una configuración multimodelo</a></h2>
@@ -235,188 +311,20 @@
 <li><strong>Aislamiento por equipo</strong>: diferentes equipos usan diferentes agents con diferentes model_providers y credenciales</li>
 <li><strong>Manejo de límites de tasa</strong>: rota entre las claves de API en respuestas <code>429</code> (límite de tasa)</li>
 </ol>
-<h2 id="idea-central--despacho-por-agente"><a class="header" href="#idea-central--despacho-por-agente">Idea central — despacho por agente</a></h2>
+<h2 id="core-idea-per-agent-dispatch"><a class="header" href="#core-idea-per-agent-dispatch">Core idea: per-agent dispatch</a></h2>
 <p>Cada entrada <code>[agents.&lt;alias&gt;]</code> apunta exactamente a un <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code>. Si el modelo se cae, el agente se cae; el operador redirige los canales afectados a un agente diferente. Consulta <a href="../providers/routing.html">Routing</a> para ver el patrón completo.</p>
-<p>Para ejecutar varios modelos, ejecuta varios agentes:</p>
-<pre><code class="language-toml">[providers.models.anthropic.haiku]
-model   = "claude-haiku-4-5-20251001"
-api_key = "sk-ant-..."
-
-[providers.models.anthropic.sonnet]
-model   = "claude-sonnet-4-6"
-api_key = "sk-ant-..."
-
-[providers.models.deepseek.reasoner]
-model   = "deepseek-reasoner"
-api_key = "sk-..."
-
-[channels.telegram.home]
-bot_token = "..."
-
-[channels.slack.engineering]
-bot_token = "..."
-
-[channels.slack.research]
-bot_token = "..."
-
-[agents.fast]
-model_provider  = "anthropic.haiku"
-risk_profile    = "hardened"
-runtime_profile = "tight"            # menos iteraciones para respuestas públicas ágiles
-channels        = ["telegram.home"]
-
-[agents.deep]
-model_provider  = "anthropic.sonnet"
-risk_profile    = "hardened"
-runtime_profile = "deep"             # límite de iteraciones más alto para tareas de ingeniería
-channels        = ["slack.engineering"]
-
-[agents.reasoner]
-model_provider  = "deepseek.reasoner"
-risk_profile    = "hardened"
-runtime_profile = "deep"             # cadenas extendidas para prompts de tipo investigación
-channels        = ["slack.research"]
-
-# Postura `hardened` compartida entre los tres agentes de cara al público,
-# con perfiles de runtime `tight` / `deep` distintos según la intención
-# de rendimiento de cada agente. `risk_profile` y `runtime_profile` son mapas independientes.
-
-[risk_profiles.hardened]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-</code></pre>
-<p>Cada canal se vincula a un agente a la vez. Para mover un canal a un agente diferente, edita la lista <code>channels = [...]</code> en el agente que debe encargarse de él — <code>Config::validate()</code> se asegura de que las referencias se resuelvan al iniciar.</p>
-<h2 id="confiabilidad-entre-proveedores--usa-openrouter"><a class="header" href="#confiabilidad-entre-proveedores--usa-openrouter">Confiabilidad entre proveedores — usa OpenRouter</a></h2>
-<p>OpenRouter se trata como un único proveedor de primera clase. Gestiona la distribución entre proveedores y la disponibilidad detrás de un solo endpoint:</p>
-<pre><code class="language-toml">[providers.models.openrouter.home]
-model   = "anthropic/claude-sonnet-4-20250514"
-api_key = "sk-or-..."
-
-[agents.assistant]
-model_provider = "openrouter.home"
-risk_profile   = "hardened"
-# runtime_profile omitido — usa los valores predeterminados del runtime
-
-[risk_profiles.hardened]
-level = "supervised"
-</code></pre>
-<p>Si tu objetivo es “si un proveedor falla, usar automáticamente otro”, esa es la función de OpenRouter, no de ZeroClaw. El runtime ve un solo proveedor; OpenRouter realiza el trabajo entre distintos proveedores de forma ascendente.</p>
+<p>To run multiple models, run multiple agents, each binding to one model provider. Each channel binds to one agent at a time. To move a channel to a different agent, edit the <code>channels</code> list on the agent that should pick it up; <code>Config::validate()</code> makes sure references resolve at startup.</p>
+<h2 id="cross-vendor-reliability-use-openrouter"><a class="header" href="#cross-vendor-reliability-use-openrouter">Cross-vendor reliability: use OpenRouter</a></h2>
+<p>OpenRouter is treated as a single first-class provider. It handles vendor fan-out and uptime behind one endpoint. If your goal is “one provider goes down, automatically use another”, that’s OpenRouter’s job, not ZeroClaw’s. The runtime sees one provider; OpenRouter does the cross-vendor work upstream.</p>
 <h2 id="reintento-con-el-mismo-proveedor"><a class="header" href="#reintento-con-el-mismo-proveedor">Reintento con el mismo proveedor</a></h2>
-<p>Para errores transitorios (interrupción de red, 503, tiempo de espera agotado) contra el <em>mismo</em> proveedor, ZeroClaw reintenta con retroceso exponencial. Esto es configurable globalmente:</p>
-<pre><code class="language-toml">[reliability]
-provider_retries    = 2          # retries per provider attempt before bailing
-provider_backoff_ms = 500        # initial backoff; doubles per retry
-</code></pre>
-<p>Los valores predeterminados son 2 reintentos y 500 ms de retroceso inicial. Estos son reintentos dentro de un mismo proveedor.</p>
+<p>For transient errors (network blip, 503, timeout) against the <em>same</em> provider, ZeroClaw retries with exponential backoff, configurable globally under <code>reliability</code> (defaults: 2 retries, 500 ms initial backoff). These are inside-one-provider retries.</p>
 <h2 id="rotación-de-claves-api"><a class="header" href="#rotación-de-claves-api">Rotación de claves API</a></h2>
-<p>Para proveedores que frecuentemente alcanzan límites de tasa, proporciona claves API adicionales que ZeroClaw rotará en respuestas <code>429</code>:</p>
-<pre><code class="language-toml">[reliability]
-api_keys = ["sk-key-2", "sk-key-3", "sk-key-4"]
-</code></pre>
-<p>La <code>api_key</code> principal (configurada en la entrada del proveedor) siempre se intenta primero; estas claves adicionales se rotan ante errores de límite de tasa. Todas las claves deben pertenecer a la misma clase de cuenta del proveedor: esto es suavizado de límite de tasa, no malabarismo de claves multiinquilino.</p>
+<p>For providers that frequently encounter rate limits, supply additional API keys on the provider entry that ZeroClaw rotates through on <code>429</code> responses. The primary <code>api_key</code> is always tried first; extras are rotated on rate-limit errors. All keys must belong to the same provider account class; this is rate-limit smoothing, not multi-tenant key juggling.</p>
 <h2 id="desarrollo-local-con-alternativa-alojada"><a class="header" href="#desarrollo-local-con-alternativa-alojada">Desarrollo local con alternativa alojada</a></h2>
 <p>Ejecuta un agente con Ollama local y un agente con proveedor alojado en paralelo; enruta cada canal al que quieras que utilice.</p>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri   = "http://localhost:11434"
-model = "qwen3.6:35b-a3b"
-
-[providers.models.openrouter.home]
-model   = "anthropic/claude-haiku-4-5-20251001"
-api_key = "sk-or-..."
-
-[channels.telegram.production]
-bot_token = "..."
-
-[channels.slack.production]
-bot_token = "..."
-
-[agents.dev]
-model_provider  = "ollama.local"
-risk_profile    = "permissive"      # equipo de dev local — controles más flexibles
-runtime_profile = "deep"            # muchas iteraciones durante la iteración
-
-[agents.prod]
-model_provider  = "openrouter.home"
-risk_profile    = "hardened"        # canales públicos — controles estrictos
-runtime_profile = "tight"           # disciplina de producción — bucles cortos, bajo gasto
-channels        = ["telegram.production", "slack.production"]
-
-[risk_profiles.permissive]
-level          = "full"
-workspace_only = false
-
-[risk_profiles.hardened]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-</code></pre>
-<p>El agente <code>dev</code> se ejecuta desde la CLI (no requiere vinculación de canal; basta con <code>zeroclaw agent -a dev</code>). Cuando Ollama está caído, el agente dev falla rápidamente y muestra el error. Los canales de producción no se ven afectados.</p>
-<h2 id="escalado-de-costes--modelo-potente-cuando-es-necesario-modelo-rápido-en-caso-contrario"><a class="header" href="#escalado-de-costes--modelo-potente-cuando-es-necesario-modelo-rápido-en-caso-contrario">Escalado de costes — modelo potente cuando es necesario, modelo rápido en caso contrario</a></h2>
-<p>Ejecuta dos agentes y enruta los canales al nivel adecuado. La herramienta <code>delegate</code> permite que un agente delegue a otro en mitad de una conversación. La delegación está restringida: el perfil de riesgo del invocador debe establecer <code>delegation_policy mode = "allow"</code>, y <strong>ambos agentes deben compartir el mismo perfil de riesgo</strong> (la delegación no cruza niveles de confianza). Por lo tanto, los agentes de primera línea y pesados que se muestran a continuación se ejecutan en el <em>mismo</em> perfil de riesgo <code>trusted</code>: difieren en el modelo y el perfil de runtime (presupuesto de iteración), no en la superficie de confianza.</p>
-<pre><code class="language-toml">[providers.models.anthropic.opus]
-model   = "claude-opus-4-7"
-api_key = "sk-ant-..."
-# (sin temperature — claude-opus-4-7 rechaza cualquier ajuste de temperature)
-
-[providers.models.anthropic.haiku]
-model   = "claude-haiku-4-5-20251001"
-api_key = "sk-ant-..."
-
-[channels.telegram.home]
-bot_token = "..."
-
-[agents.frontline]
-model_provider  = "anthropic.haiku"
-risk_profile    = "trusted"      # nivel de confianza compartido (la delegación requiere una coincidencia)
-runtime_profile = "tight"        # límite de iteraciones bajo, respuesta rápida
-channels        = ["telegram.home"]
-
-[agents.heavy]
-model_provider  = "anthropic.opus"
-risk_profile    = "trusted"      # MISMO perfil que frontline — requerido para que sea delegable
-runtime_profile = "deep"         # límite de iteraciones alto para trabajo de cadena de pensamiento
-# Sin channels — invocado mediante la herramienta delegate desde frontline
-
-# runtime_profile referencia un mapa de alias independiente de risk_profile;
-# los dos agentes comparten un perfil de riesgo pero difieren en el perfil de runtime.
-
-[risk_profiles.trusted]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-# permite que los agentes de este perfil deleguen entre sí; sin esto,
-# la delegación está prohibida por defecto.
-delegation_policy                = { mode = "allow" }
-allowed_tools                    = ["shell", "file_read", "memory_recall", "delegate"]
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-</code></pre>
+<p>The <code>dev</code> agent runs from the CLI (no channel binding required, <code>zeroclaw agent -a dev</code> is enough). When Ollama is down, the dev agent fails fast and surfaces the error. The prod channels are unaffected.</p>
+<h2 id="cost-tiering-heavy-model-when-needed-fast-model-otherwise"><a class="header" href="#cost-tiering-heavy-model-when-needed-fast-model-otherwise">Cost tiering: heavy model when needed, fast model otherwise</a></h2>
+<p>Run two agents and route channels to the appropriate tier. The <code>delegate</code> tool lets one agent hand off to another mid-conversation. <a href="../agents/delegation.html">Delegation</a> is gated: the caller’s risk profile must set <code>delegation_policy mode = "allow"</code>, and <strong>both agents must share the same risk profile</strong> (delegation does not cross trust tiers). So the frontline and heavy agents below run on the <em>same</em> <code>trusted</code> risk profile, they differ in model and runtime profile (iteration budget), not in trust surface.</p>
 <p>El agente de primera línea gestiona todos los mensajes entrantes con Haiku. Cuando necesita un razonamiento más profundo, llama a la herramienta <code>delegate</code> con <code>agent = "heavy"</code>; dado que ambos agentes comparten el perfil de riesgo <code>trusted</code> y ese perfil permite la delegación, el agente más pesado retoma la subtarea con Opus.</p>
 <h2 id="manejo-de-errores"><a class="header" href="#manejo-de-errores">Manejo de errores</a></h2>
 <p>Los reintentos dentro de un mismo proveedor se activan en:</p>
@@ -432,23 +340,22 @@ max_actions_per_hour = 200
 <li><strong>Fallo de autenticación permanente</strong>: formato de clave de API no válido</li>
 <li><strong>Errores de salida del modelo</strong>: el modelo respondió pero devolvió una carga útil de error</li>
 </ol>
-<p>Cuando se agotan todos los reintentos en un único proveedor, el fallo se propaga al canal que realiza la llamada. No hay reintento automático entre proveedores: ese es el propósito de usar OpenRouter o de distribuir el tráfico entre varios agentes.</p>
+<p>When all retries are exhausted on a single provider, the failure surfaces to the calling channel. There is no automatic cross-provider retry, that’s the point of using OpenRouter or splitting traffic across multiple agents.</p>
 <h2 id="depuración"><a class="header" href="#depuración">Depuración</a></h2>
-<p>Los registros persistentes (<code>"rolling"</code> es el valor predeterminado) capturan el comportamiento de reintento y rotación de claves:</p>
-<pre><code class="language-toml">[observability]
-log_persistence = "rolling"
-log_persistence_path = "state/runtime-trace.jsonl"
-</code></pre>
-<p>Luego, consulta los rastros:</p>
-<pre><code class="language-bash">zeroclaw doctor traces --contains retry
+<p>Persisted logs (<code>"rolling"</code> is the default) capture retry and key-rotation behaviour. Then query traces:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw doctor traces --contains retry
 zeroclaw doctor traces --contains "429"
 zeroclaw doctor traces --contains "model_provider"
 </code></pre>
+</div>
+
 <h2 id="buenas-prácticas"><a class="header" href="#buenas-prácticas">Buenas prácticas</a></h2>
 <ol>
 <li><strong>Un agente por intención de enrutamiento.</strong> Si dos canales necesitan un comportamiento de modelo diferente, nombra dos agentes.</li>
 <li><strong>Usa OpenRouter para la fiabilidad entre proveedores.</strong> El enfoque entre proveedores de «si Claude falla, prueba OpenAI» es tarea de OpenRouter; configúralo como un único proveedor y deja que su endpoint gestione la distribución.</li>
-<li><strong>Mantén homogéneos los grupos de rotación de claves de API.</strong> Todas las claves en <code>[reliability] api_keys</code> deben pertenecer a la misma cuenta de proveedor: esto es suavizado de límites de tasa, no multi-tenencia.</li>
+<li><strong>Keep API key rotation pools homogeneous.</strong> All keys in <code>[reliability] api_keys</code> should be from the same provider account, this is rate-limit smoothing, not multi-tenancy.</li>
 <li><strong>Prueba de humo de cada agente de forma aislada.</strong> <code>zeroclaw agent -a &lt;alias&gt;</code> ejecuta un agente sin que la infraestructura de canales se interponga.</li>
 <li><strong>Documentar la intención del agente.</strong> Añade líneas <code># comment</code> que expliquen qué canales atiende cada agente y por qué.</li>
 <li><strong>Inyecta secretos mediante env, no en línea.</strong> <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> establece <code>api_key</code> al inicio; consulta <a href="../reference/env-vars.html">Variables de entorno</a>.</li>
@@ -459,10 +366,10 @@ zeroclaw doctor traces --contains "model_provider"
 <ol>
 <li><strong><code>api_key</code> en línea</strong> en la entrada del proveedor.</li>
 <li><strong>Almacén de secretos</strong> en <code>~/.zeroclaw/secrets</code>.</li>
-<li><strong>Sustitución de variable de entorno genérica</strong> — <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> al inicio. Consulta <a href="../reference/env-vars.html">Variables de entorno</a> para conocer la gramática completa.</li>
+<li><strong>Generic env override</strong>: <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> at startup. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</li>
 <li><strong>Variable de entorno por proveedor</strong> cuando la familia lo admite (p. ej. <code>ANTHROPIC_API_KEY</code> / <code>ANTHROPIC_OAUTH_TOKEN</code> para Anthropic; <code>OPENROUTER_API_KEY</code> para OpenRouter).</li>
 </ol>
-<p>Las credenciales no se comparten entre proveedores: configúralas por cada entrada de proveedor.</p>
+<p>Credentials are not shared between providers, set them per provider entry.</p>
 <h2 id="documentación-relacionada"><a class="header" href="#documentación-relacionada">Documentación relacionada</a></h2>
 <ul>
 <li><a href="../providers/overview.html">Proveedores de modelos → Descripción general</a></li>

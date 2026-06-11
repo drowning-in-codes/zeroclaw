@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,37 +296,9 @@
 <p>ZeroClaw 会将每一次计费的 API 调用记录到一个仅追加的账本中，将开销归因到发起调用的代理，强制执行每日／每月预算，并在仪表盘的 <code>Cost</code> 选项卡中展示汇总数据。计费规则保存在配置文件中，因此运维人员无需重新构建即可对其进行编辑。</p>
 <p>本页介绍 schema、查找流程以及操作接口。代码位于 <code>crates/zeroclaw-config/src/cost/</code> 和 <code>crates/zeroclaw-runtime/src/agent/cost.rs</code>。</p>
 <h2 id="配置模式"><a class="header" href="#配置模式">配置模式</a></h2>
-<p>拥有该界面的两个相关部分：</p>
-<pre><code class="language-toml">[cost]
-enabled            = true
-daily_limit_usd    = 10.0
-monthly_limit_usd  = 100.0
-warn_at_percent    = 80
-allow_override     = false
-track_per_agent    = true
-
-[cost.enforcement]
-mode               = "warn"   # "warn" | "block" | "route_down"
-route_down_model   = "claude-haiku-4-5"  # 与 route_down 配合使用
-reserve_percent    = 10
-
-[cost.rates.providers.models.anthropic."claude-opus-4-7"]
-input_per_mtok        = 15.0
-output_per_mtok       = 75.0
-cached_input_per_mtok = 1.5
-
-[cost.rates.providers.tts.openai."tts-1-hd"]
-per_mchar = 30.0
-
-[cost.rates.providers.transcription.openai.whisper-1]
-per_minute = 0.006
-
-[cost.rates.tools.web_search]
-per_call = 0.005
-</code></pre>
-<p><code>[cost]</code> 涵盖预算强制执行和记录行为。<code>[cost.rates.*]</code> 是由运维人员管理的费率表；每个子部分的点分路径都与对应的 <code>[providers.*]</code> 路径相匹配，只是将末尾的 <code>&lt;alias&gt;</code> 段替换为定价所针对的上游资源。</p>
+<p>Two related sections own the surface. <code>cost</code> covers budget enforcement and recording behavior. <code>cost.rates.*</code> is the operator-managed rate sheet; every subsection’s dotted path mirrors the matching <code>providers.*</code> path with the trailing <code>&lt;alias&gt;</code> segment replaced by the upstream resource being priced.</p>
 <h3 id="为什么键是资源-id而不是别名"><a class="header" href="#为什么键是资源-id而不是别名">为什么键是资源 ID，而不是别名</a></h3>
-<p><code>[providers.models.anthropic.&lt;alias&gt;]</code> 条目以运维人员选择的别名（<code>glados</code>、<code>production</code>）作为键，该别名需遵循别名验证规则：小写 ASCII 字符、单下划线、不含连字符。<code>[cost.rates.providers.models.anthropic.&lt;resource&gt;]</code> 条目则以使用情况遥测数据中显示的<strong>上游模型 id</strong>作为键（<code>claude-opus-4-7</code>、<code>gpt-4o-mini</code>、<code>whisper-1</code>）——这些 id 字符串来自提供方的命名空间，几乎总是包含连字符。</p>
+<p>A <code>[providers.models.anthropic.&lt;alias&gt;]</code> entry is keyed by an operator-chosen alias (<code>glados</code>, <code>production</code>) that follows the alias validator: lowercase ASCII, single underscores, no hyphens. A <code>[cost.rates.providers.models.anthropic.&lt;resource&gt;]</code> entry is keyed by the <strong>upstream model id</strong> as it appears in usage telemetry (<code>claude-opus-4-7</code>, <code>gpt-4o-mini</code>, <code>whisper-1</code>): those id strings come from the provider’s namespace and almost always contain hyphens.</p>
 <p>schema 会用 <code>#[resource_key]</code> 标记每一个费率表 HashMap（位于 <code>crates/zeroclaw-macros/src/lib.rs</code> 中）。该属性会使字段在 <code>create_map_key</code> / <code>rename_map_key</code> 中跳过 <code>validate_alias_key</code>，因此网关的 <code>POST /api/config/map-key</code> 能够接受带连字符的 id。如果没有该属性，<code>create_map_key</code> 会拒绝每一个实际可用的模型 id，费率表 UI 也将无法正常工作。别名和资源 id 共享相同的磁盘结构（<code>HashMap&lt;String, T&gt;</code>），但它们是采用不同验证器的不同命名系统。</p>
 <h3 id="槽位列表是唯一可信来源"><a class="header" href="#槽位列表是唯一可信来源">槽位列表是唯一可信来源</a></h3>
 <p><code>[cost.rates.providers.models.&lt;type&gt;]</code>、<code>[cost.rates.providers.tts.&lt;type&gt;]</code> 和 <code>[cost.rates.providers.transcription.&lt;type&gt;]</code> 下的每种 provider 类型的插槽，由驱动 <code>[providers.*]</code> 插槽包装器的相同宏展开而来：</p>
@@ -266,7 +314,7 @@ for_each_transcription_provider_slot!(emit_transcription_cost_rates_struct, supe
 <p>从 <code>[cost.rates.*]</code> 到记录的 <code>cost_usd</code> 值的流程如下：</p>
 <ol>
 <li>
-<p><strong>编排器启动时构建定价映射表。</strong> 当通道管理器为代理实例化运行时上下文时，它会遍历 <code>config.cost.rates.providers.models.iter_entries()</code>，并将费率合并到一个 <code>HashMap&lt;provider_type, HashMap&lt;key, f64&gt;&gt;</code> 中，其中 <code>key</code> 为 <code>"&lt;model_id&gt;.input"</code>、<code>"&lt;model_id&gt;.output"</code> 或 <code>"&lt;model_id&gt;.cached_input"</code>。旧版的按别名配置的 <code>[providers.models.&lt;type&gt;.&lt;alias&gt;].pricing</code> 表也会被合并进来；发生冲突时 <code>[cost.rates.*]</code> 优先，因为它是面向未来的接口。（参见 <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code> —— <code>cost_tracking: CostTracker::get_or_init_global(...).map(|tracker| ...)</code> 下的闭包。）</p>
+<p><strong>Orchestrator startup builds the pricing map.</strong> When the channels supervisor instantiates a runtime context for an agent it walks <code>config.cost.rates.providers.models.iter_entries()</code> and merges the rates into a <code>HashMap&lt;provider_type, HashMap&lt;key, f64&gt;&gt;</code> where <code>key</code> is <code>"&lt;model_id&gt;.input"</code>, <code>"&lt;model_id&gt;.output"</code>, or <code>"&lt;model_id&gt;.cached_input"</code>. The legacy per-alias <code>[providers.models.&lt;type&gt;.&lt;alias&gt;].pricing</code> table is merged in too; <code>[cost.rates.*]</code> wins on conflict because it’s the forward-looking surface. (See <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>, the closure under <code>cost_tracking: CostTracker::get_or_init_global(...).map(|tracker| ...)</code>.)</p>
 </li>
 <li>
 <p><strong>在 agent 循环内记录。</strong> 每次成功的 LLM 响应都会触发 <code>crates/zeroclaw-runtime/src/agent/cost.rs</code> 中的 <code>record_tool_loop_cost_usage(provider_name, model, usage)</code>。该函数会获取 <code>provider_name</code> 对应的定价映射槽位，调用 <code>resolve_rates(map, model)</code>，乘以 token 数量，并通过全局 <code>CostTracker</code> 存储 <code>CostRecord</code>。</p>
@@ -275,19 +323,19 @@ for_each_transcription_provider_slot!(emit_transcription_cost_rates_struct, supe
 <p><strong>resolve_rates</strong> 首先尝试模型 id，然后对 <code>provider/model</code> 字符串尝试路径后缀形式（因此如果操作员只存储了短格式，<code>anthropic/claude-opus-4-7</code> 会降级为 <code>claude-opus-4-7</code>）。未命中时返回 <code>(0.0, 0.0)</code>，并触发一次性的 <code>missing_pricing</code> 警告，以便在日志中显示静默的零成本记录。</p>
 </li>
 <li>
-<p><strong>CostTracker 是一个进程级全局单例</strong>（位于 <code>crates/zeroclaw-config/src/cost/tracker.rs</code> 中的 <code>OnceLock</code>）。其 <code>CostConfig</code> 在首次初始化时被冻结；如果运维人员之后切换了 <code>cost.enabled</code>，必须重启守护进程，跟踪器才会采用新值。相比之下，编排器的定价映射会在每次守护进程重新加载时从实时配置中重建——因此费率修改会在重新加载后的下一次请求时生效。</p>
+<p><strong>CostTracker is a process-global singleton</strong> (<code>OnceLock</code> in <code>crates/zeroclaw-config/src/cost/tracker.rs</code>). Its <code>CostConfig</code> is frozen at first init; if the operator flips <code>cost.enabled</code> after that, the daemon must restart for the tracker to honor the new value. The orchestrator’s pricing map, in contrast, is rebuilt on every daemon reload from the live config, so rate edits take effect on the next request after reload.</p>
 </li>
 </ol>
 <h2 id="持久化"><a class="header" href="#持久化">持久化</a></h2>
 <p><code>CostTracker::record_usage_with_agent</code> 会为每个计费响应向 <code>&lt;workspace&gt;/state/costs.jsonl</code> 追加一条 <code>CostRecord</code>，每行一个 JSON 对象。该文件在启动时被读取，用于初始化 <code>daily_records()</code>，从而使仪表盘的各 agent 汇总数据能在重启后保留。</p>
-<p><code>cost_usd</code> 是在记录时根据<strong>当下</strong>生效的费率表计算得出的。记录不可变——如果操作员在某些请求已被记录后才添加费率，那些已有记录将保持 <code>cost_usd = 0</code>。只有在费率配置完成（并重新加载守护进程以使编排器的定价映射重新构建）之后发起的请求，才会带有非零的成本。</p>
+<p><code>cost_usd</code> is computed at record time from the rate sheet in effect <strong>at that moment</strong>. Records are immutable: if the operator adds rates after some requests have already been recorded, those existing records keep <code>cost_usd = 0</code>. Only requests made after the rate is configured (and the daemon reloaded so the orchestrator’s pricing map rebuilds) carry a non-zero cost.</p>
 <p>首次启用费率表后，这是最常见的意外情况。解决办法是等待新的请求；不会对已有请求进行追溯重新定价。</p>
 <h2 id="预算执行"><a class="header" href="#预算执行">预算执行</a></h2>
 <p><code>CostConfig::enforcement.mode</code> 决定当预计成本会使 <code>daily_total</code> 或 <code>monthly_total</code> 超出配置的限额时的处理方式：</p>
 <ul>
-<li><code>warn</code> — 默认值；以 warn 级别日志记录该事件并放行请求。</li>
-<li><code>block</code> — 使用 <code>BudgetExceeded</code> 错误拒绝请求。</li>
-<li><code>route_down</code> — 使用 <code>route_down_model</code>（更经济的替代方案）替换原始模型。该替换在请求被分发之前完成。</li>
+<li><code>warn</code>: the default; record the event with a warn-level log and let the request through.</li>
+<li><code>block</code>: refuse the request with a <code>BudgetExceeded</code> error.</li>
+<li><code>route_down</code>: substitute <code>route_down_model</code> (a cheaper alternative) for the original model. The substitution happens before the request is dispatched.</li>
 </ul>
 <p><code>allow_override = true</code> 允许请求通过在 CLI 上传递覆盖令牌（<code>zeroclaw --override</code>）来绕过 <code>block</code>。默认为 <code>false</code>。<code>warn_at_percent</code> 控制网关在达到硬性限制前何时显示警告横幅；默认为 80%。</p>
 <h2 id="按代理归属"><a class="header" href="#按代理归属">按代理归属</a></h2>
@@ -295,25 +343,25 @@ for_each_transcription_provider_slot!(emit_transcription_cost_rates_struct, supe
 <h2 id="运算符表面"><a class="header" href="#运算符表面">运算符表面</a></h2>
 <h3 id="配置界面"><a class="header" href="#配置界面">配置界面</a></h3>
 <ul>
-<li><code>/config/cost</code> → <strong>Limits</strong> 选项卡：所有扁平化的 <code>[cost].*</code> 字段（enabled、limits、enforcement、track_per_agent）。费率表行不在此处编辑——它们绑定到拥有该模型的提供商，因此位于下一层级。</li>
+<li><code>/config/cost</code> → <strong>Limits</strong> tab: every flat <code>[cost].*</code> field (enabled, limits, enforcement, track_per_agent). Rate-sheet rows are not edited here, they’re tied to the provider that owns the model, so they live one tier down.</li>
 <li><code>/config/providers.&lt;category&gt;/&lt;type&gt;</code> → <strong>Costs</strong> 标签页：该提供商类型的费率表编辑器。<code>+ Add</code> 输入会从所有已配置别名的 <code>providers.&lt;category&gt;.&lt;type&gt;.*.model</code> 中推荐上游资源 id，因此操作员可以为他们实际绑定的每个模型一键添加一行费率。这是编辑 <code>[cost.rates.providers.&lt;category&gt;.&lt;type&gt;.*]</code> 的唯一入口。</li>
 </ul>
 <h3 id="仪表盘"><a class="header" href="#仪表盘">仪表盘</a></h3>
 <p>仪表盘的<strong>费用</strong>选项卡显示三个面板以及一个时间窗口选择器（今天／最近 7 天／最近 30 天／本月／全部时间）：</p>
 <ul>
-<li><strong>支出总额</strong> — 来自 <code>costs.jsonl</code> 的每日和每月总额。</li>
-<li><strong>Spend by agent · <code>&lt;window&gt;</code></strong> — per-agent rollup over the picked window. Visible when <code>track_per_agent</code> is true.</li>
-<li><strong>Spend by model · <code>&lt;window&gt;</code></strong> — per-model rollup. Each row’s model id is clickable; the click resolves the owning provider type from configured aliases and navigates to that provider’s Costs tab. When the model id isn’t bound to any configured provider the click is a no-op (there’s no qualified rate-sheet route for an orphan model).</li>
+<li><strong>Spend totals</strong>: daily and monthly totals from <code>costs.jsonl</code>.</li>
+<li><strong>Spend by agent · <code>&lt;window&gt;</code></strong>: per-agent rollup over the picked window. Visible when <code>track_per_agent</code> is true.</li>
+<li><strong>Spend by model · <code>&lt;window&gt;</code></strong>: per-model rollup. Each row’s model id is clickable; the click resolves the owning provider type from configured aliases and navigates to that provider’s Costs tab. When the model id isn’t bound to any configured provider the click is a no-op (there’s no qualified rate-sheet route for an orphan model).</li>
 </ul>
 <h3 id="网关"><a class="header" href="#网关">网关</a></h3>
 <ul>
-<li><code>GET /api/cost</code> — 当前的 <code>CostSummary</code>（与仪表盘的成本概览结构一致）。添加 <code>?agent=&lt;alias&gt;</code> 可查看单个 agent 的视图。</li>
-<li><code>GET /api/config/templates</code> — schema 注册的每个以 map 为键的部分，由 Rates 选项卡的类别 × 提供商类型下拉菜单使用。</li>
-<li><code>POST /api/config/map-key?path=cost.rates.providers.&lt;category&gt;.&lt;type&gt;&amp;key=&lt;resource&gt;</code> — 创建一个新的费率行。如果不存在此类映射区段，则该路径会被拒绝；资源键通过 <code>#[resource_key]</code> 而非 <code>validate_alias_key</code> 进行验证。</li>
+<li><code>GET /api/cost</code>: current <code>CostSummary</code> (matches the dashboard’s Cost overview shape). Add <code>?agent=&lt;alias&gt;</code> for a single-agent view.</li>
+<li><code>GET /api/config/templates</code>: every map-keyed section the schema registers, used by the Rates tab’s category × provider-type dropdowns.</li>
+<li><code>POST /api/config/map-key?path=cost.rates.providers.&lt;category&gt;.&lt;type&gt;&amp;key=&lt;resource&gt;</code> create a new rate row. The path is rejected if no such map section exists; the resource key passes <code>#[resource_key]</code> instead of <code>validate_alias_key</code>.</li>
 </ul>
 <h2 id="故障排除"><a class="header" href="#故障排除">故障排除</a></h2>
-<p><strong>配置费率后，仪表盘上所有 agent 都显示 $0.0000。</strong> 旧记录不可变更——它们在发生时由于未设置费率，被记录为 <code>cost_usd = 0</code>。在守护进程重新加载后发起一个新的聊天请求，然后查看 <strong>Cost overview &gt; Session</strong> 以及 <strong>Spend by model</strong>；两者都应针对新请求填充数据。</p>
-<p><strong>保存后检测到与 <code>cost.rates.*</code> 路径存在偏差。</strong> v0.8.0 之前的守护进程在脏保存路径中错误处理了带连字符的 HashMap 键，静默丢弃了对费率表的每一次写入。如果你在 v0.8.0+ 上看到此问题，那它就是一个真正的 bug —— 脏路径解析逻辑位于 <code>crates/zeroclaw-config/src/schema.rs::apply_dirty_path</code>；请提交 issue，并附上守护进程版本和发生偏差的路径。</p>
+<p><strong>Dashboard shows $0.0000 for all agents after configuring rates.</strong> Old records are immutable, they were recorded with <code>cost_usd = 0</code> because no rate was set when they happened. Make a new chat request after the daemon reload and check <strong>Cost overview &gt; Session</strong> plus <strong>Spend by model</strong>; both should populate for the new request.</p>
+<p><strong>Drift detected against <code>cost.rates.*</code> paths after save.</strong> A pre v0.8.0 daemon mangled hyphenated HashMap keys in the dirty-save path, silently dropping every write to the rate sheet. If you see this on v0.8.0+ it’s a real bug: the dirty-path resolution lives in <code>crates/zeroclaw-config/src/schema.rs::apply_dirty_path</code>; file an issue with the daemon version and the path that drifted.</p>
 <p><strong><code>missing_pricing</code> 警告刷屏日志。</strong> 当 <code>resolve_rates</code> 返回 <code>(0.0, 0.0)</code> 时，每个 <code>(provider_type, model)</code> 组合会触发一次该警告。可能是该模型未配置费率，也可能是上游返回的模型 id 与费率表中的不一致（某些供应商即使你配置的是 <code>claude-3-5-sonnet</code>，也会返回带版本号的 id，如 <code>claude-3-5-sonnet-20241022</code>）。请添加该警告所指明的确切 id，或者设置不带版本号的 id 并依赖 <code>resolve_rates</code> 的后缀匹配机制。</p>
 
                     </main>

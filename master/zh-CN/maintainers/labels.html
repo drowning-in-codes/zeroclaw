@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,9 +295,9 @@
                         <h1 id="标签"><a class="header" href="#标签">标签</a></h1>
 <p>每个在 PR 和 Issue 中使用的标签的单一参考来源。权威来源：</p>
 <ul>
-<li><code>.github/labeler.yml</code> — 由 <code>actions/labeler</code> 使用的路径标签配置</li>
-<li><code>.github/label-policy.json</code> — 贡献者层级阈值</li>
-<li>本页面——定义、行为以及自动化与手动操作的内容</li>
+<li><code>.github/labeler.yml</code>: path-label config consumed by <code>actions/labeler</code></li>
+<li><code>.github/label-policy.json</code>: contributor tier thresholds</li>
+<li>This page: definitions, behavior, and what’s automated vs manual</li>
 </ul>
 <p>当定义发生冲突时，请先更新源文件，然后同步此页面。</p>
 <h2 id="所有权边界"><a class="header" href="#所有权边界">所有权边界</a></h2>
@@ -234,11 +310,16 @@
 <li>GitHub PR 原生状态负责管理快速变化的审查状态：审查决定、必需的检查、可合并性、冲突以及过期的批准。</li>
 </ul>
 <p>看板应当减少维护者的工作量。如果某个字段在每次 PR 推送或审查后都需要手动维护，建议改用标签、里程碑或 GitHub 原生状态。</p>
-<p>Labels can suggest likely ownership, but they are not ownership. A <code>channel:*</code>, <code>provider:*</code>, <code>tool:*</code>, <code>security:*</code>, or <code>docs</code> label identifies the surface that probably needs attention. Contributor-visible owner-source rules live in the <a href="./pr-workflow.html#project-board-contract">Project board contract</a>.</p>
+<p>Labels can suggest likely ownership, but they are not ownership. A <code>channel:*</code>, <code>provider:*</code>, <code>tool:*</code>, <code>security</code>, or <code>docs</code> label identifies the surface that probably needs attention. Contributor-visible owner-source rules live in the <a href="./pr-workflow.html#project-board-contract">Project board contract</a>.</p>
 <p>Use assignees for active work. Use area stewardship for routing responsibility when nobody is implementing yet. The <a href="./pr-workflow.html#issue-ownership-path">Project board contract</a> defines the accepted owner sources and routing outcomes.</p>
 <h2 id="规范拼写"><a class="header" href="#规范拼写">规范拼写</a></h2>
-<p>对于作用域模块标签，请使用无空格的模块拼写形式：<code>provider:openai</code>、<code>channel:telegram</code>、<code>tool:shell</code>、<code>security:policy</code> 以及类似标签。size 和 risk 系列标签有意在冒号后保留空格：<code>size: XS</code>、<code>risk: low</code>、<code>risk: medium</code>、<code>risk: high</code>。</p>
-<p>诸如 <code>provider: openai</code>、<code>channel: telegram</code> 或 <code>tool: shell</code> 等遗留的重复标签属于清理候选项。在删除之前，请将未关闭的 issue/PR 迁移到规范的无空格写法。请勿删除存在未关闭引用的标签、大范围重命名标签族，或在未经维护者针对该清理批次做出决定的情况下移除过期策略标签。</p>
+<p>Use the live no-space module spelling for scoped module labels: <code>provider:openai</code>, <code>channel:telegram</code>, <code>security:policy</code>, and similar labels. The size, risk, and most type families currently keep a space after the colon: <code>size: XS</code>, <code>risk: low</code>, <code>risk: medium</code>, <code>risk: high</code>, and <code>type: docs</code>.</p>
+<p>Legacy duplicate labels such as <code>provider: openai</code>, <code>channel: telegram</code>, or <code>tool: shell</code> are cleanup candidates. Future no-space spelling for size, risk, or type labels is also a migration question, not a casual rename. Migrate open issues/PRs to the canonical label before deletion. Do not delete labels with open references, broadly rename label families, or remove stale-policy labels without a maintainer decision for that cleanup batch.</p>
+<h2 id="automation-contract"><a class="header" href="#automation-contract">Automation contract</a></h2>
+<p>Live PR label automation is split by source. <code>pr-path-labeler.yml</code> runs <code>actions/labeler</code> from <code>.github/labeler.yml</code> on PR open, reopen, and every pushed update. Because that workflow uses <code>sync-labels: true</code>, labels owned by <code>.github/labeler.yml</code> are recalculated from the current PR file set: matching path labels are added, and path labels that no longer match are removed.</p>
+<p>Dependabot also seeds configured labels on its own PRs from <code>.github/dependabot.yml</code>: Cargo updates get <code>dependencies</code>; GitHub Actions and Docker updates get <code>ci</code> and <code>dependencies</code>. Those labels are initial Dependabot PR metadata, not the synchronized path-labeler contract.</p>
+<p>Today <code>.github/labeler.yml</code> owns only path and scope labels such as <code>docs</code>, <code>ci</code>, <code>channel</code>, <code>provider:openai</code>, and <code>tool:file</code>. It does not own <code>risk:*</code>, <code>size:*</code>, <code>type:*</code>, contributor-tier, status, resolution, stale, or pickup labels.</p>
+<p>If risk or size automation is added later, it should recalculate on every pushed PR update so the labels continue to describe the actual diff under review. Risk automation must honor <code>risk: manual</code> as an override that prevents future automated risk replacement for that PR until a maintainer removes the override.</p>
 <h2 id="清理协议"><a class="header" href="#清理协议">清理协议</a></h2>
 <p>标签清理是维护者的操作，而非常规 PR 审查的附带结果。</p>
 <p>使用以下序列：</p>
@@ -265,7 +346,7 @@
 </table>
 </div>
 <h2 id="路径标签"><a class="header" href="#路径标签">路径标签</a></h2>
-<p>由 <code>pr-path-labeler.yml</code> 自动应用（目前唯一启用的标签自动化工具）。Globs 位于 <code>.github/labeler.yml</code> 中。</p>
+<p>Applied automatically by <code>pr-path-labeler.yml</code>. Globs live in <code>.github/labeler.yml</code>; when this page and the config disagree, treat <code>.github/labeler.yml</code> as the operational source and update this page.</p>
 <h3 id="基础作用域标签"><a class="header" href="#基础作用域标签">基础作用域标签</a></h3>
 <div class="table-wrapper">
 <table>
@@ -277,27 +358,27 @@
 <tr><td><code>dependencies</code></td><td><code>Cargo.toml</code>, <code>Cargo.lock</code>, <code>deny.toml</code>, <code>.github/dependabot.yml</code></td></tr>
 <tr><td><code>ci</code></td><td><code>.github/codeql/**</code>、<code>.github/workflows/**</code>、<code>.github/*.yaml</code>、<code>.github/*.yml</code>、<code>.github/*.json</code>、<code>.githooks/**</code></td></tr>
 <tr><td><code>核心</code></td><td><code>src/*.rs</code></td></tr>
-<tr><td><code>agent</code></td><td><code>src/agent/**</code></td></tr>
-<tr><td><code>channel</code></td><td><code>src/channels/**</code></td></tr>
-<tr><td><code>网关</code></td><td><code>src/gateway/**</code></td></tr>
-<tr><td><code>config</code></td><td><code>src/config/**</code></td></tr>
-<tr><td><code>cron</code></td><td><code>src/cron/**</code></td></tr>
-<tr><td><code>daemon</code></td><td><code>src/daemon/**</code></td></tr>
-<tr><td><code>doctor</code></td><td><code>src/doctor/**</code></td></tr>
-<tr><td><code>health</code></td><td><code>src/health/**</code></td></tr>
-<tr><td>心跳</td><td><code>src/heartbeat/**</code></td></tr>
-<tr><td><code>integration</code></td><td><code>src/integrations/**</code></td></tr>
-<tr><td><code>memory</code></td><td><code>src/memory/**</code></td></tr>
-<tr><td><code>security</code></td><td><code>src/security/**</code></td></tr>
-<tr><td><code>运行时</code></td><td><code>src/runtime/**</code></td></tr>
-<tr><td><code>onboard</code></td><td><code>src/onboard/**</code></td></tr>
-<tr><td><code>provider</code></td><td><code>src/providers/**</code></td></tr>
-<tr><td><code>服务</code></td><td><code>src/service/**</code></td></tr>
-<tr><td><code>skillforge</code></td><td><code>src/skillforge/**</code></td></tr>
-<tr><td><code>技能</code></td><td><code>src/skills/**</code></td></tr>
-<tr><td><code>工具</code></td><td><code>src/tools/**</code></td></tr>
-<tr><td>隧道</td><td><code>src/tunnel/**</code></td></tr>
-<tr><td>可观测性</td><td><code>src/observability/**</code></td></tr>
+<tr><td><code>agent</code></td><td><code>src/agent/**</code>, <code>crates/zeroclaw-runtime/src/agent/**</code></td></tr>
+<tr><td><code>channel</code></td><td><code>src/channels/**</code>, <code>crates/zeroclaw-channels/src/**</code></td></tr>
+<tr><td><code>网关</code></td><td><code>src/gateway/**</code>, <code>crates/zeroclaw-gateway/src/**</code></td></tr>
+<tr><td><code>config</code></td><td><code>src/config/**</code>, <code>crates/zeroclaw-config/src/**</code></td></tr>
+<tr><td><code>cron</code></td><td><code>src/cron/**</code>, <code>crates/zeroclaw-runtime/src/cron/**</code></td></tr>
+<tr><td><code>daemon</code></td><td><code>src/daemon/**</code>, <code>crates/zeroclaw-runtime/src/daemon/**</code></td></tr>
+<tr><td><code>doctor</code></td><td><code>src/doctor/**</code>, <code>crates/zeroclaw-runtime/src/doctor/**</code></td></tr>
+<tr><td><code>health</code></td><td><code>src/health/**</code>, <code>crates/zeroclaw-runtime/src/health/**</code></td></tr>
+<tr><td>心跳</td><td><code>src/heartbeat/**</code>, <code>crates/zeroclaw-runtime/src/heartbeat/**</code></td></tr>
+<tr><td><code>integration</code></td><td><code>src/integrations/**</code>, <code>crates/zeroclaw-runtime/src/integrations/**</code></td></tr>
+<tr><td><code>memory</code></td><td><code>src/memory/**</code>, <code>crates/zeroclaw-memory/src/**</code></td></tr>
+<tr><td><code>security</code></td><td><code>src/security/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code></td></tr>
+<tr><td><code>运行时</code></td><td><code>src/runtime/**</code>, <code>crates/zeroclaw-runtime/src/**</code></td></tr>
+<tr><td><code>quickstart</code></td><td><code>crates/zeroclaw-runtime/src/quickstart/**</code>, <code>crates/zeroclaw-gateway/src/api_quickstart.rs</code>, <code>apps/zerocode/src/quickstart_pane.rs</code>, <code>web/src/pages/quickstart/**</code></td></tr>
+<tr><td><code>provider</code></td><td><code>src/providers/**</code>, <code>crates/zeroclaw-providers/src/**</code></td></tr>
+<tr><td><code>服务</code></td><td><code>src/service/**</code>, <code>crates/zeroclaw-runtime/src/service/**</code></td></tr>
+<tr><td><code>skillforge</code></td><td><code>src/skillforge/**</code>, <code>crates/zeroclaw-runtime/src/skillforge/**</code></td></tr>
+<tr><td><code>技能</code></td><td><code>src/skills/**</code>, <code>crates/zeroclaw-runtime/src/skills/**</code></td></tr>
+<tr><td><code>工具</code></td><td><code>src/tools/**</code>, <code>crates/zeroclaw-tools/src/**</code></td></tr>
+<tr><td>隧道</td><td><code>src/tunnel/**</code>, <code>crates/zeroclaw-runtime/src/tunnel/**</code></td></tr>
+<tr><td>可观测性</td><td><code>src/observability/**</code>, <code>crates/zeroclaw-runtime/src/observability/**</code></td></tr>
 <tr><td><code>tests</code></td><td><code>tests/**</code></td></tr>
 <tr><td><code>scripts</code></td><td><code>scripts/**</code></td></tr>
 <tr><td><code>dev</code></td><td><code>dev/**</code></td></tr>
@@ -317,7 +398,7 @@
 <tr><td><code>channel:clawdtalk</code></td><td><code>clawdtalk.rs</code></td></tr>
 <tr><td><code>channel:cli</code></td><td><code>cli.rs</code></td></tr>
 <tr><td><code>channel:dingtalk</code></td><td><code>dingtalk.rs</code></td></tr>
-<tr><td><code>channel:discord</code></td><td><code>discord.rs</code></td></tr>
+<tr><td><code>channel:discord</code></td><td><code>discord.rs</code>, <code>discord_history.rs</code></td></tr>
 <tr><td><code>channel:email</code></td><td><code>email_channel.rs</code>, <code>gmail_push.rs</code></td></tr>
 <tr><td><code>channel:imessage</code></td><td><code>imessage.rs</code></td></tr>
 <tr><td><code>channel:irc</code></td><td><code>irc.rs</code></td></tr>
@@ -338,7 +419,7 @@
 <tr><td><code>channel:twitter</code></td><td><code>twitter.rs</code></td></tr>
 <tr><td><code>channel:wati</code></td><td><code>wati.rs</code></td></tr>
 <tr><td><code>channel:webhook</code></td><td><code>webhook.rs</code></td></tr>
-<tr><td><code>channel:wecom</code></td><td><code>wecom.rs</code></td></tr>
+<tr><td><code>channel:wecom</code></td><td><code>wecom.rs</code>, <code>wecom_ws.rs</code></td></tr>
 <tr><td><code>channel:whatsapp</code></td><td><code>whatsapp.rs</code>, <code>whatsapp_storage.rs</code>, <code>whatsapp_web.rs</code></td></tr>
 </tbody>
 </table>
@@ -391,7 +472,7 @@
 </table>
 </div>
 <h2 id="尺寸标签"><a class="header" href="#尺寸标签">尺寸标签</a></h2>
-<p>基于有效变更行数（针对仅涉及文档或大量锁文件的 PR 进行归一化处理）。目前<strong>手动</strong>应用——此前用于计算这些数据的规模自动化功能已在 CI 简化过程中被移除。</p>
+<p>Based on effective changed line count, normalized for docs-only and lockfile-heavy PRs. Currently applied <strong>manually</strong>; the size automation that previously computed these was removed during CI simplification. Future size automation should follow the <a href="#automation-contract">automation contract</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -407,7 +488,7 @@
 </table>
 </div>
 <h2 id="风险标签"><a class="header" href="#风险标签">风险标签</a></h2>
-<p>对于 PR，风险标签描述的是正在审查的实际差异：所触及的路径、行为变更、安全边界暴露以及回滚难度。对于 issue，风险标签描述的是根据报告推测的修复影响范围，有助于分级评估审查者的审查深度和贡献者的适配度，并且在具体的 PR 展示实际实现路径后可能会发生变化。目前为<strong>手动</strong>应用。</p>
+<p>For PRs, risk labels describe the actual diff under review: touched paths, behavior change, security boundary exposure, and rollback difficulty. For issues, risk labels describe the likely fix blast radius based on the report, help triage reviewer depth and contributor fit, and may change once a concrete PR shows the actual implementation path. Currently applied <strong>manually</strong>. Future risk automation should follow the <a href="#automation-contract">automation contract</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -421,7 +502,7 @@
 </tbody>
 </table>
 </div>
-<p>高风险路径：<code>crates/zeroclaw-runtime/src/**</code>、<code>crates/zeroclaw-gateway/src/**</code>、<code>crates/zeroclaw-tools/src/**</code>、<code>crates/zeroclaw-runtime/src/security/**</code>、<code>.github/workflows/**</code>。</p>
+<p>High-risk paths (canonical set; other maintainer pages reference this list): <code>crates/zeroclaw-runtime/src/**</code>, <code>crates/zeroclaw-gateway/src/**</code>, <code>crates/zeroclaw-tools/src/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code>, <code>.github/workflows/**</code>.</p>
 <p>当不确定时，视为高风险。</p>
 <h2 id="贡献者层级标签"><a class="header" href="#贡献者层级标签">贡献者层级标签</a></h2>
 <p>定义在 <code>.github/label-policy.json</code> 中。根据从 GitHub API 查询到的作者已合并的 PR 数量。目前<strong>手动</strong>应用。</p>
@@ -471,7 +552,7 @@
 <p>在维护者批准的标签迁移包明确定义具体的重命名、别名或删除计划之前，请勿创建或应用诸如 <code>status:wont-do</code> 或 <code>status:wont-fix</code> 之类的拟议终端标签。当前看板级“Won’t Do“概念使用的有效标签为 <code>wontfix</code>。</p>
 <p>取代（Superseding）是一种替换流程，目前并不是一个生效的标签。在后续批准的迁移数据包创建或映射取代标签之前，请使用 <a href="./superseding.html">Superseding PRs</a> 中的替换规则和归属要求。</p>
 <h2 id="分类标签"><a class="header" href="#分类标签">分类标签</a></h2>
-<p>已手动应用——此前用于处理这些问题的自动响应自动化功能在 CI 简化过程中已被移除。</p>
+<p>Applied manually: the auto-response automation that used to handle these was removed during CI simplification.</p>
 <div class="table-wrapper">
 <table>
 <thead>

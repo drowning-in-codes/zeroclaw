@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,7 +292,7 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="conception-de-périphériques-matériels--zeroclaw"><a class="header" href="#conception-de-périphériques-matériels--zeroclaw">Conception de périphériques matériels — ZeroClaw</a></h1>
+                        <h1 id="hardware-peripherals-design-zeroclaw"><a class="header" href="#hardware-peripherals-design-zeroclaw">Hardware Peripherals Design: ZeroClaw</a></h1>
 <p>ZeroClaw permet aux microcontrôleurs (MCU) et aux ordinateurs monocartes (SBC) d’<strong>interpréter dynamiquement des commandes en langage naturel</strong>, de générer du code spécifique au matériel et d’exécuter des interactions périphériques en temps réel.</p>
 <h2 id="1-vision"><a class="header" href="#1-vision">1. Vision</a></h2>
 <p><strong>Objectif :</strong> ZeroClaw agit comme un agent IA conscient du matériel qui :</p>
@@ -232,21 +308,18 @@
 <h3 id="mode-1--edge-native-autonome"><a class="header" href="#mode-1--edge-native-autonome">Mode 1 : Edge-Native (Autonome)</a></h3>
 <p><strong>Cible :</strong> Cartes avec Wi-Fi (ESP32, Raspberry Pi).</p>
 <p>ZeroClaw s’exécute <strong>directement sur l’appareil</strong>. La carte met en place un serveur gRPC/nanoRPC et communique avec les périphériques localement.</p>
-<pre><code>┌─────────────────────────────────────────────────────────────────────────────┐
-│  ZeroClaw on ESP32 / Raspberry Pi (Edge-Native)                             │
-│                                                                             │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────────────────────┐ │
-│  │ Channels    │───►│ Agent Loop   │───►│ RAG: datasheets, register maps  │ │
-│  │ WhatsApp    │    │ (LLM calls)  │    │ → LLM context                    │ │
-│  │ Telegram    │    └──────┬───────┘    └─────────────────────────────────┘ │
-│  └─────────────┘           │                                                 │
-│                            ▼                                                 │
-│  ┌─────────────────────────────────────────────────────────────────────────┐│
-│  │ Code synthesis → Wasm / dynamic exec → GPIO / I2C / SPI → persist       ││
-│  └─────────────────────────────────────────────────────────────────────────┘│
-│                                                                             │
-│  gRPC/nanoRPC server ◄──► Peripherals (GPIO, I2C, SPI, sensors, actuators)  │
-└─────────────────────────────────────────────────────────────────────────────┘
+<pre><code class="language-text">ZeroClaw on ESP32 / Raspberry Pi (Edge-Native)
+
+  Channels (WhatsApp, Telegram)
+        │
+        ▼
+  Agent Loop (LLM calls) ──► RAG: datasheets, register maps ──► LLM context
+        │
+        ▼
+  Code synthesis ──► Wasm / dynamic exec ──► GPIO / I2C / SPI ──► persist
+        │
+        ▼
+  gRPC/nanoRPC server ◄──► Peripherals (GPIO, I2C, SPI, sensors, actuators)
 </code></pre>
 <p><strong>Flux de travail :</strong></p>
 <ol>
@@ -261,14 +334,14 @@
 <h3 id="mode-2--hôte-médié-développement--débogage"><a class="header" href="#mode-2--hôte-médié-développement--débogage">Mode 2 : Hôte-médié (Développement / Débogage)</a></h3>
 <p><strong>Cible :</strong> Matériel connecté via USB / J-Link / Aardvark à un hôte (macOS, Linux).</p>
 <p>ZeroClaw s’exécute sur l’<strong>hôte</strong> et maintient un lien adapté au matériel avec la cible. Utilisé pour le développement, l’inspection et le flashage.</p>
-<pre><code>┌─────────────────────┐                    ┌──────────────────────────────────┐
-│  ZeroClaw on Mac    │   USB / J-Link /   │  STM32 Nucleo-F401RE              │
-│                     │   Aardvark         │  (or other MCU)                    │
-│  - Channels         │ ◄────────────────► │  - Memory map                     │
-│  - LLM              │                    │  - Peripherals (GPIO, ADC, I2C)    │
-│  - Hardware probe   │   VID/PID          │  - Flash / RAM                     │
-│  - Flash / debug    │   discovery        │                                    │
-└─────────────────────┘                    └──────────────────────────────────┘
+<pre><code class="language-text">  ZeroClaw on Mac (host)              STM32 Nucleo-F401RE (or other MCU)
+  ─────────────────────              ──────────────────────────────────
+  - Channels                         - Memory map
+  - LLM                              - Peripherals (GPIO, ADC, I2C)
+  - Hardware probe        ◄────────► - Flash / RAM
+  - Flash / debug
+                       USB / J-Link / Aardvark
+                       VID/PID discovery
 </code></pre>
 <p><strong>Flux de travail :</strong></p>
 <ol>
@@ -370,22 +443,55 @@ pub trait Peripheral: Send + Sync {
 <li><strong>Démarrage :</strong> ZeroClaw charge la configuration et détecte <code>peripherals.boards</code>.</li>
 <li><strong>Connecter :</strong> Pour chaque carte, créez une implémentation de <code>Peripheral</code> et appelez <code>connect()</code>.</li>
 <li><strong>Outils :</strong> Collecter les outils de tous les périphériques connectés ; les fusionner avec les outils par défaut.</li>
-<li><strong>Boucle de l’agent :</strong> L’agent peut appeler <code>gpio_write</code>, <code>sensor_read</code>, etc. — ces fonctions délèguent au périphérique.</li>
+<li><strong>Agent loop:</strong> Agent can call <code>gpio_write</code>, <code>sensor_read</code>, etc., these delegate to the peripheral.</li>
 <li><strong>Arrêt :</strong> Appelez <code>disconnect()</code> sur chaque périphérique.</li>
 </ol>
 <h3 id="prise-en-charge-de-la-carte"><a class="header" href="#prise-en-charge-de-la-carte">Prise en charge de la carte</a></h3>
+<p>Boards are identified by USB VID/PID in the canonical registry:</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Carte</th><th>Transport</th><th>Microprogramme / Pilote</th><th>Outils</th></tr>
+<tr><th>Carte</th><th>Architecture</th><th>USB VID:PID</th></tr>
 </thead>
 <tbody>
-<tr><td>nucleo-f401re</td><td>série</td><td>Zephyr / Embassy</td><td>gpio_read, gpio_write, adc_read</td></tr>
-<tr><td>rpi-gpio</td><td>natif</td><td>rppal ou sysfs</td><td>gpio_read, gpio_write</td></tr>
-<tr><td>esp32</td><td>serial/ws</td><td>ESP-IDF / Embassy</td><td>gpio, wifi, mqtt</td></tr>
+<tr><td><code>nucleo-f401re</code></td><td>ARM Cortex-M4</td><td><code>0x0483</code>:<code>0x374b</code></td></tr>
+<tr><td><code>nucleo-f411re</code></td><td>ARM Cortex-M4</td><td><code>0x0483</code>:<code>0x3748</code></td></tr>
+<tr><td><code>arduino-uno</code></td><td>AVR ATmega328P</td><td><code>0x2341</code>:<code>0x0043</code></td></tr>
+<tr><td><code>arduino-uno</code></td><td>Arduino Uno Q / ATmega328P</td><td><code>0x2341</code>:<code>0x0078</code></td></tr>
+<tr><td><code>arduino-mega</code></td><td>AVR ATmega2560</td><td><code>0x2341</code>:<code>0x0042</code></td></tr>
+<tr><td><code>cp2102</code></td><td>USB-UART bridge</td><td><code>0x10c4</code>:<code>0xea60</code></td></tr>
+<tr><td><code>cp2102n</code></td><td>USB-UART bridge</td><td><code>0x10c4</code>:<code>0xea70</code></td></tr>
+<tr><td><code>esp32</code></td><td>ESP32 (CH340)</td><td><code>0x1a86</code>:<code>0x7523</code></td></tr>
+<tr><td><code>esp32</code></td><td>ESP32 (CH340)</td><td><code>0x1a86</code>:<code>0x55d4</code></td></tr>
 </tbody>
 </table>
 </div>
+<p>Each connected board is driven over one of the subsystem transports:</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Transport</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>serial</code></td><td>Newline-delimited JSON over USB CDC serial</td></tr>
+<tr><td><code>swd</code></td><td>SWD debug probe (probe-rs)</td></tr>
+<tr><td><code>uf2</code></td><td>UF2 mass-storage firmware flashing</td></tr>
+<tr><td><code>native</code></td><td>Direct Linux GPIO/I2C/SPI (rppal, sysfs)</td></tr>
+<tr><td><code>aardvark</code></td><td>Total Phase Aardvark USB adapter (I2C/SPI/GPIO)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The base tools every board exposes, plus the Aardvark-conditional set, are listed in <a href="./subsystem.html#runtime-tools">Hardware subsystem → Runtime tools</a>.</p>
 <h2 id="7-protocoles-de-communication"><a class="header" href="#7-protocoles-de-communication">7. Protocoles de communication</a></h2>
 <h3 id="grpc--nanorpc-edge-native-host-mediated"><a class="header" href="#grpc--nanorpc-edge-native-host-mediated">gRPC / nanoRPC (Edge-Native, Host-Mediated)</a></h3>
 <p>Pour une RPC typée à faible latence entre ZeroClaw et les périphériques :</p>
@@ -404,58 +510,38 @@ pub trait Peripheral: Send + Sync {
 </code></pre>
 <h2 id="8-microprogramme-dépôt-ou-crate-séparé"><a class="header" href="#8-microprogramme-dépôt-ou-crate-séparé">8. Microprogramme (dépôt ou crate séparé)</a></h2>
 <ul>
-<li><strong>zeroclaw-firmware</strong> ou <strong>zeroclaw-peripheral</strong> — un crate/workspace séparé.</li>
+<li><strong>zeroclaw-firmware</strong> or <strong>zeroclaw-peripheral</strong>: a separate crate/workspace.</li>
 <li>Cibles : <code>thumbv7em-none-eabihf</code> (STM32), <code>armv7-unknown-linux-gnueabihf</code> (RPi), etc.</li>
 <li>Utilise <code>embassy</code> ou Zephyr pour STM32.</li>
 <li>Implémente le protocole ci-dessus.</li>
 <li>L’utilisateur flashe cette configuration sur la carte ; ZeroClaw se connecte et découvre les capacités.</li>
 </ul>
-<h2 id="9-phases-de-mise-en-œuvre"><a class="header" href="#9-phases-de-mise-en-œuvre">9. Phases de mise en œuvre</a></h2>
-<h3 id="phase-1--squelette--terminé"><a class="header" href="#phase-1--squelette--terminé">Phase 1 : Squelette ✅ (Terminé)</a></h3>
+<h2 id="9-capability-layers"><a class="header" href="#9-capability-layers">9. Capability Layers</a></h2>
+<p>The subsystem is built in layers; each is independently usable. Rather than tracking phase status here (which drifts as work lands), the layers are:</p>
 <ul>
-<li><input disabled="" type="checkbox" checked=""> Ajout du trait <code>Peripheral</code>, du schéma de configuration et de la CLI (<code>zeroclaw peripheral list/add</code>)</li>
-<li><input disabled="" type="checkbox" checked=""> Ajouter l’indicateur <code>--peripheral</code> à l’agent</li>
-<li><input disabled="" type="checkbox" checked=""> Document dans AGENTS.md</li>
-</ul>
-<h3 id="phase-2--hôte-médié--découverte-du-matériel--terminé"><a class="header" href="#phase-2--hôte-médié--découverte-du-matériel--terminé">Phase 2 : Hôte-Médié — Découverte du matériel ✅ (Terminé)</a></h3>
-<ul>
-<li><input disabled="" type="checkbox" checked=""> <code>zeroclaw hardware discover</code> : énumérer les périphériques USB (VID/PID)</li>
-<li><input disabled="" type="checkbox" checked=""> Registre des cartes : mappe VID/PID → architecture, nom (par ex. Nucleo-F401RE)</li>
-<li><input disabled="" type="checkbox" checked=""> <code>zeroclaw hardware introspect &lt;path&gt;</code> : carte mémoire, liste des périphériques</li>
-</ul>
-<h3 id="phase-3--hôte-médié--série--j-link"><a class="header" href="#phase-3--hôte-médié--série--j-link">Phase 3 : Hôte-Médié — Série / J-Link</a></h3>
-<ul>
-<li><input disabled="" type="checkbox" checked=""> <code>SerialPeripheral</code> pour STM32 via USB CDC</li>
-<li><input disabled="" type="checkbox"> Intégration de probe-rs ou OpenOCD pour le flashage et le débogage</li>
-<li><input disabled="" type="checkbox" checked=""> Outils : <code>gpio_read</code>, <code>gpio_write</code> (memory_read, flash_write à venir)</li>
-</ul>
-<h3 id="phase-4--pipeline-rag--terminé"><a class="header" href="#phase-4--pipeline-rag--terminé">Phase 4 : Pipeline RAG ✅ (Terminé)</a></h3>
-<ul>
-<li><input disabled="" type="checkbox" checked=""> Index de la fiche technique (markdown/texte → chunks)</li>
-<li><input disabled="" type="checkbox" checked=""> Récupérer et injecter dans le contexte du LLM pour les requêtes liées au matériel</li>
-<li><input disabled="" type="checkbox" checked=""> Augmentation de prompt spécifique au tableau</li>
-</ul>
+<li>
+<p><strong>Skeleton.</strong> The <code>Peripheral</code> trait, config schema, and <code>zeroclaw peripheral</code> CLI. The <code>--peripheral</code> flag wires a board into the agent.</p>
+</li>
+<li>
+<p><strong>Host-mediated discovery.</strong> <code>zeroclaw hardware discover</code> enumerates USB devices by VID/PID; the board registry maps them to architecture and name; <code>zeroclaw hardware introspect &lt;path&gt;</code> reports the memory map and peripheral list.</p>
+</li>
+<li>
+<p><strong>Serial / probe transport.</strong> <code>SerialPeripheral</code> carries the JSON protocol over USB CDC; the <code>probe</code> feature adds probe-rs SWD for flash, memory map, and memory read (see the <code>hardware_*</code> tools).</p>
+</li>
+<li>
+<p><strong>RAG pipeline.</strong> Datasheets are indexed and injected into LLM context on hardware queries.</p>
 <p><strong>Utilisation :</strong> <code>zeroclaw config set peripherals.datasheet-dir docs/datasheets</code>. Placez des fichiers <code>.md</code> ou <code>.txt</code> nommés par carte (par exemple <code>nucleo-f401re.md</code>, <code>rpi-gpio.md</code>). Les fichiers dans <code>_generic/</code> ou nommés <code>generic.md</code> s’appliquent à toutes les cartes. Les extraits sont récupérés par correspondance de mot-clé et injectés dans le contexte du message utilisateur.</p>
-<h3 id="phase-5--edge-native--rpi--terminé"><a class="header" href="#phase-5--edge-native--rpi--terminé">Phase 5 : Edge-Native — RPi ✅ (Terminé)</a></h3>
-<ul>
-<li><input disabled="" type="checkbox" checked=""> ZeroClaw sur Raspberry Pi (GPIO natif via rppal)</li>
-<li><input disabled="" type="checkbox"> Serveur gRPC/nanoRPC pour l’accès local aux périphériques</li>
-<li><input disabled="" type="checkbox"> Persistance du code (stockage des extraits synthétisés)</li>
-</ul>
-<h3 id="phase-6--edge-native--esp32"><a class="header" href="#phase-6--edge-native--esp32">Phase 6 : Edge-Native — ESP32</a></h3>
-<ul>
-<li><input disabled="" type="checkbox" checked=""> ESP32 médié par l’hôte (transport série) — même protocole JSON que STM32</li>
-<li><input disabled="" type="checkbox" checked=""> <code>esp32</code> crate de micrologiciel (<code>firmware/esp32</code>) — GPIO via UART</li>
-<li><input disabled="" type="checkbox" checked=""> ESP32 dans le registre matériel (VID/PID de CH340)</li>
-<li><input disabled="" type="checkbox"> ZeroClaw <em>sur</em> ESP32 (WiFi + LLM, natif en périphérie) — futur</li>
-<li><input disabled="" type="checkbox"> Exécution Wasm ou basée sur des modèles pour la logique générée par les LLM</li>
-</ul>
-<p><strong>Utilisation :</strong> Flasher <code>firmware/esp32</code> sur l’ESP32, ajouter <code>board = "esp32"</code>, <code>transport = "serial"</code>, <code>path = "/dev/ttyUSB0"</code> à la configuration.</p>
-<h3 id="phase-7--exécution-dynamique-code-généré-par-llm"><a class="header" href="#phase-7--exécution-dynamique-code-généré-par-llm">Phase 7 : Exécution dynamique (code généré par LLM)</a></h3>
-<ul>
-<li><input disabled="" type="checkbox"> Bibliothèque de modèles : extraits GPIO/I2C/SPI paramétrés</li>
-<li><input disabled="" type="checkbox"> Facultatif : Exécution Wasm pour la logique définie par l’utilisateur (isolée)</li>
-<li><input disabled="" type="checkbox"> <strong>Persister et réutiliser les chemins de code optimisés</strong></li>
+</li>
+<li>
+<p><strong>Edge-native (Raspberry Pi).</strong> ZeroClaw runs on the Pi with native GPIO via rppal (the <code>peripheral-rpi</code> feature).</p>
+</li>
+<li>
+<p><strong>ESP32.</strong> Host-mediated over the serial transport, same JSON protocol as STM32. ESP32 dev boards are in the registry by their CH340 USB VID/PID.</p>
+<p><strong>Usage:</strong> Flash <code>firmware/esp32</code> to the ESP32, add <code>board = "esp32"</code>, <code>transport = "serial"</code>, <code>path = "/dev/ttyUSB0"</code> to config.</p>
+</li>
+<li>
+<p><strong>Dynamic execution.</strong> LLM-generated logic runs through parameterized templates, with a sandboxed Wasm runtime as the longer-term direction for user-defined logic.</p>
+</li>
 </ul>
 <h2 id="10-considérations-de-sécurité"><a class="header" href="#10-considérations-de-sécurité">10. Considérations de sécurité</a></h2>
 <ul>
@@ -465,28 +551,28 @@ pub trait Peripheral: Send + Sync {
 </ul>
 <h2 id="11-objectifs-exclus-pour-linstant"><a class="header" href="#11-objectifs-exclus-pour-linstant">11. Objectifs exclus (pour l’instant)</a></h2>
 <ul>
-<li>Exécuter ZeroClaw en entier sur un STM32 nu (sans WiFi, RAM limitée) — utilisez plutôt l’approche Host-Mediated.</li>
-<li>Garanties en temps réel — les périphériques sont à meilleur effort</li>
-<li>Exécution arbitraire de code natif à partir d’un LLM — privilégiez Wasm ou les modèles</li>
+<li>Running full ZeroClaw <em>on</em> bare STM32 (no WiFi, limited RAM), use Host-Mediated instead</li>
+<li>Real-time guarantees: peripherals are best-effort</li>
+<li>Arbitrary native code execution from LLM: prefer Wasm or templates</li>
 </ul>
 <h2 id="12-documents-connexes"><a class="header" href="#12-documents-connexes">12. Documents connexes</a></h2>
 <ul>
-<li><a href="adding-boards-and-tools.html">adding-boards-and-tools.md</a> — Comment ajouter des cartes et des fiches techniques</li>
-<li><a href="../ops/network-deployment.html">network-deployment.md</a> — Déploiement RPi et réseau</li>
+<li><a href="adding-boards-and-tools.html">adding-boards-and-tools.md</a>: How to add boards and datasheets</li>
+<li><a href="../ops/network-deployment.html">network-deployment.md</a>: RPi and network deployment</li>
 </ul>
 <h2 id="13-références"><a class="header" href="#13-références">13. Références</a></h2>
 <ul>
 <li><a href="https://docs.zephyrproject.org/latest/develop/languages/rust/index.html">Prise en charge de Rust dans Zephyr RTOS</a></li>
-<li><a href="https://embassy.dev/">Embassy</a> — framework asynchrone pour l’embarqué</li>
-<li><a href="https://github.com/golemparts/rppal">rppal</a> — GPIO de Raspberry Pi en Rust</li>
+<li><a href="https://embassy.dev/">Embassy</a>: async embedded framework</li>
+<li><a href="https://github.com/golemparts/rppal">rppal</a>: Raspberry Pi GPIO in Rust</li>
 <li><a href="https://www.st.com/en/evaluation-tools/nucleo-f401re.html">STM32 Nucleo-F401RE</a></li>
-<li><a href="https://github.com/hyperium/tonic">tonic</a> — gRPC pour Rust</li>
-<li><a href="https://probe.rs/">probe-rs</a> — sonde de débogage ARM, accès à la mémoire flash et à la mémoire</li>
-<li><a href="https://github.com/nic-hartley/nusb">nusb</a> — énumération des périphériques USB (VID/PID)</li>
+<li><a href="https://github.com/hyperium/tonic">tonic</a>: gRPC for Rust</li>
+<li><a href="https://probe.rs/">probe-rs</a>: ARM debug probe, flash, memory access</li>
+<li><a href="https://github.com/nic-hartley/nusb">nusb</a>: USB device enumeration (VID/PID)</li>
 </ul>
 <h2 id="14-résumé-du-prompt-brut"><a class="header" href="#14-résumé-du-prompt-brut">14. Résumé du prompt brut</a></h2>
 <blockquote>
-<p>Des cartes comme ESP, Raspberry Pi, ou des cartes avec WiFi peuvent se connecter à un LLM (Gemini ou open-source). ZeroClaw s’exécute sur l’appareil, crée son propre gRPC, le lance, et communique avec les périphériques. L’utilisateur pose une question via WhatsApp : « déplace le bras X » ou « allume la LED ». ZeroClaw obtient une documentation précise, écrit le code, l’exécute, le stocke de manière optimale, l’exécute, et allume la LED — tout cela sur la carte de développement.</p>
+<p><em>“Boards like ESP, Raspberry Pi, or boards with WiFi can connect to an LLM (Gemini or open-source). ZeroClaw runs on the device, creates its own gRPC, spins it up, and communicates with peripherals. User asks via WhatsApp: ‘move X arm’ or ‘turn on LED’. ZeroClaw gets accurate documentation, writes code, executes it, stores it optimally, runs it, and turns on the LED, all on the development board.</em></p>
 <p><em>Pour une carte STM Nucleo connectée via USB/J-Link/Aardvark à mon Mac : ZeroClaw, depuis mon Mac, accède au matériel, installe ou écrit ce qu’il souhaite sur le dispositif, et renvoie le résultat. Exemple : « Hé ZeroClaw, quelles sont les adresses disponibles/lisibles sur ce dispositif USB ? » Il peut déterminer ce qui est connecté où et proposer des suggestions.</em></p>
 </blockquote>
 

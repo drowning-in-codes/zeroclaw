@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,65 +295,115 @@
                         <h1 id="dépannage"><a class="header" href="#dépannage">Dépannage</a></h1>
 <p>Modes de défaillance courants, dans l’ordre dans lequel vous êtes susceptible de les rencontrer.</p>
 <p>Première étape pour résoudre un problème :</p>
-<pre><code class="language-bash">zeroclaw doctor
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw doctor
 </code></pre>
+</div>
+
 <p>Exécute une série de vérifications et affiche un résumé. La plupart des éléments qui suivent constituent la version détaillée de ce que <code>doctor</code> signale.</p>
 <hr>
 <h2 id="pendant-linstallation"><a class="header" href="#pendant-linstallation">Pendant l’installation</a></h2>
 <h3 id="cargo-non-trouvé"><a class="header" href="#cargo-non-trouvé"><code>cargo</code> non trouvé</a></h3>
-<pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 </code></pre>
+</div>
+
 <p>Ou passez <code>--prebuilt</code> à <code>install.sh</code> / <code>setup.bat</code> pour ignorer Rust entièrement.</p>
 <h3 id="dépendances-de-construction-manquantes-linux"><a class="header" href="#dépendances-de-construction-manquantes-linux">Dépendances de construction manquantes (Linux)</a></h3>
 <p>Installez la chaîne d’outils de base pour votre distribution, puis relancez <code>./install.sh</code> :</p>
-<pre><code class="language-bash"># Debian / Ubuntu
-sudo apt install build-essential pkg-config
-
-# Fedora / RHEL
-sudo dnf group install development-tools &amp;&amp; sudo dnf install pkg-config
-
-# Arch
-sudo pacman -S base-devel
+<div class="os-tabs-src">
+<h4 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h4>
+<pre><code class="language-sh">sudo apt install build-essential pkg-config
 </code></pre>
+<h4 id="fedorarhel"><a class="header" href="#fedorarhel">Fedora/RHEL</a></h4>
+<pre><code class="language-sh">sudo dnf group install development-tools &amp;&amp; sudo dnf install pkg-config
+</code></pre>
+<h4 id="arch"><a class="header" href="#arch">Arch</a></h4>
+<pre><code class="language-sh">sudo pacman -S base-devel
+</code></pre>
+</div>
+
 <p>Liste complète par distribution : <a href="../setup/linux.html">Configuration → Linux</a>.</p>
 <h3 id="générer-des-oom-sur-des-hôtes-à-faible-ram"><a class="header" href="#générer-des-oom-sur-des-hôtes-à-faible-ram">Générer des OOM sur des hôtes à faible RAM</a></h3>
-<p>La compilation de ZeroClaw à partir du code source nécessite environ 2 Go de RAM en pic. Sur un Raspberry Pi de 512 Mo, vous rencontrerez un dépassement de mémoire (OOM).</p>
-<p>Options :</p>
+<p>Building ZeroClaw from source is memory-hungry, mostly during the final link. <code>install.sh</code> already adapts to this automatically when it builds from source:</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
+<p>When <code>install.sh</code> builds from source on Linux, it reads <code>MemTotal</code> from <code>/proc/meminfo</code> and, on hosts with <strong>under 12 GiB</strong> of RAM, exports <code>CARGO_PROFILE_RELEASE_LTO=thin</code> before building. Fat LTO (the <code>[profile.release]</code> default) can peak past 7 GB RSS during the cross-crate type pass and OOM a low-RAM board; thin LTO trades a small binary-size increase for a much lower build-time memory peak.</p>
+<p>The switch only applies when you have not already pinned the variable. Override either direction explicitly:</p>
+<pre><code class="language-sh"># Force fat LTO even on a low-RAM host (smaller binary, higher build RAM)
+export CARGO_PROFILE_RELEASE_LTO=fat
+
+# Force thin LTO on a high-RAM host (lower build RAM)
+export CARGO_PROFILE_RELEASE_LTO=thin
+</code></pre>
+<p>If you still run out of memory, or you are not building through <code>install.sh</code>:</p>
 <ol>
-<li><strong>Utiliser une version préconstruite</strong> — <code>./install.sh --prebuilt</code> ignore le toolchain et télécharge depuis les GitHub Releases</li>
-<li><strong>Compiler croisé sur une machine plus puissante et copier le binaire</strong></li>
-<li><strong>Sérialiser la construction</strong> — <code>CARGO_BUILD_JOBS=1 cargo build --release --locked</code></li>
-<li><strong>Ajouter un espace d’échange</strong> (fonctionne pour la RAM, coûte de l’espace disque — vérifiez que vous disposez des deux)</li>
+<li><strong>Use a prebuilt</strong>: <code>./install.sh --prebuilt</code> skips the toolchain and downloads from GitHub Releases.</li>
+<li><strong>Cross-compile on a bigger machine and copy the binary.</strong></li>
+<li><strong>Pick a lighter build profile</strong>: <code>cargo build --profile release-fast</code> (more codegen parallelism, lighter link) or <code>--profile ci</code> (thin LTO, fastest/lowest-memory).</li>
+<li><strong>Serialise the build</strong>: <code>CARGO_BUILD_JOBS=1 cargo build --release --locked</code>.</li>
+<li><strong>Add swap</strong> (works for RAM, costs disk, check you have both).</li>
 </ol>
+<p>For the Raspberry Pi specifics, see <a href="../hardware/raspberry-pi-setup.html#step-3-build">Raspberry Pi setup → build</a>.</p>
 <h3 id="la-construction-est-très-lente"><a class="header" href="#la-construction-est-très-lente">La construction est très lente.</a></h3>
 <p>La pile E2EE de Matrix (<code>matrix-sdk</code>, <code>ruma</code>, <code>vodozemac</code>) et les dépendances natives TLS/crypto (<code>aws-lc-sys</code>, <code>ring</code>) constituent le principal coût. Désactivez-les si vous n’en avez pas besoin :</p>
-<pre><code class="language-bash">cargo build --release --locked --no-default-features --features "défaut-lean"
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">cargo build --release --locked --no-default-features --features "défaut-lean"
 </code></pre>
+</div>
+
 <p>Ou vérifiez ce qui se passe :</p>
-<pre><code class="language-bash">cargo check --timings
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">cargo check --timings
 # rapport à target/cargo-timings/cargo-timing.html
 </code></pre>
+</div>
+
 <h3 id="zeroclaw--commande-introuvable-après-linstallation"><a class="header" href="#zeroclaw--commande-introuvable-après-linstallation"><code>zeroclaw : commande introuvable</code> après l’installation</a></h3>
 <p><code>cargo install</code> place les binaires dans <code>~/.cargo/bin/</code>. Ajoutez-le au PATH :</p>
-<pre><code class="language-bash">export PATH="$HOME/.cargo/bin:$PATH"
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">export PATH="$HOME/.cargo/bin:$PATH"
 </code></pre>
+</div>
+
 <p>Persistez dans votre profil de shell.</p>
 <hr>
 <h2 id="démarrage-rapide"><a class="header" href="#démarrage-rapide">Démarrage rapide</a></h2>
 <h3 id="quickstart-wont-overwrite-an-existing-config"><a class="header" href="#quickstart-wont-overwrite-an-existing-config">Quickstart won’t overwrite an existing config</a></h3>
-<p><code>zeroclaw quickstart</code> does not have a <code>--force</code> flag — it intentionally leaves an existing <code>~/.zeroclaw/config.toml</code> alone. To run a fresh quickstart on a stale install, delete the directory and start over:</p>
-<pre><code class="language-bash">rm -rf ~/.zeroclaw
+<p><code>zeroclaw quickstart</code> does not have a <code>--force</code> flag, it intentionally leaves an existing install alone. To run a fresh quickstart on a stale install, delete the directory and start over:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">rm -rf ~/.zeroclaw
 zeroclaw quickstart
 </code></pre>
+</div>
+
 <p>Or, to edit a single stale field instead of wiping everything, use <code>zeroclaw config set &lt;key&gt;=&lt;value&gt;</code> directly.</p>
 <h3 id="installation-homebrew--incohérence-du-chemin-de-configuration"><a class="header" href="#installation-homebrew--incohérence-du-chemin-de-configuration">Installation Homebrew : incohérence du chemin de configuration</a></h3>
 <p>Homebrew installs prefer <code>$HOMEBREW_PREFIX/var/zeroclaw/</code> (so <code>brew services</code> works) while the default config dir is <code>~/.zeroclaw/</code>. Set <code>ZEROCLAW_WORKSPACE</code> to the Homebrew path before running quickstart so the two paths line up:</p>
-<pre><code class="language-bash">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
 zeroclaw quickstart
 </code></pre>
+</div>
+
 <p>Ou créez un lien symbolique une fois manuellement :</p>
-<pre><code class="language-bash">ln -s "$HOMEBREW_PREFIX/var/zeroclaw" ~/.zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">ln -s "$HOMEBREW_PREFIX/var/zeroclaw" ~/.zeroclaw
 </code></pre>
+</div>
+
 <hr>
 <h2 id="exécution"><a class="header" href="#exécution">Exécution</a></h2>
 <h3 id="lauthentification-de-labonnement-openai-codex-avertit-à-propos-de-la-configuration-ou-du-streaming"><a class="header" href="#lauthentification-de-labonnement-openai-codex-avertit-à-propos-de-la-configuration-ou-du-streaming">L’authentification de l’abonnement OpenAI Codex avertit à propos de la configuration ou du streaming</a></h3>
@@ -288,38 +414,43 @@ zeroclaw quickstart
 <li>L’agent journalise <code>provider streaming failed, falling back to non-streaming chat</code></li>
 </ul>
 <p>Vérifications (remplacez <code>&lt;alias&gt;</code> par l’alias d’agent configuré dans <code>[agents.&lt;alias&gt;]</code>) :</p>
-<pre><code class="language-bash">zeroclaw auth status
-zeroclaw auth login --provider openai-codex --device-code
-zeroclaw agent -a &lt;alias&gt; -m "bonjour"
+<p>For an OpenAI Codex subscription, set <code>requires_openai_auth = true</code> on the provider alias and leave <code>api_key</code> unset; the runtime uses the stored Codex login. Get the subscription credential from the vendor’s own login flow. See <a href="../providers/configuration.html#oauth-and-subscription-auth">Provider Configuration → OAuth and subscription auth</a> for the full credential model. Then test:</p>
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">zeroclaw agent -a &lt;alias&gt; -m "bonjour"
 </code></pre>
-<p>Pour l’authentification par abonnement normal, l’entrée du fournisseur devrait ressembler à ceci (l’agent environnant + le profil de risque suivent l’<a href="../providers/configuration.html#minimal-working-example">Exemple de travail minimal</a> canonique) :</p>
-<pre><code class="language-toml">[providers.models.openai.coding]   # type = openai; alias = coding (vous choisissez)
-model = "gpt-5-codex"
-wire_api = "responses"
-requires_openai_auth = true
-</code></pre>
+</div>
+
 <p>Notes :</p>
 <ul>
-<li>L’authentification par abonnement utilise des profils d’authentification enregistrés — définissez <code>requires_openai_auth = true</code> sur l’alias et laissez <code>api_key</code> non défini.</li>
+<li><code>requires_openai_auth = true</code> on the alias (with <code>api_key</code> unset) selects the subscription path; surround it with the canonical agent + risk profile from the <a href="../providers/configuration.html#minimal-working-example">Minimal working example</a>.</li>
 <li><code>api_key</code> / <code>uri</code> dans l’entrée d’alias ne sont nécessaires que pour les passerelles personnalisées compatibles OpenAI ou pour d’autres substitutions explicites de point de terminaison.</li>
 <li>L’avertissement de streaming désactivé n’est pas en soi un échec d’authentification ; ZeroClaw réessaie la requête en mode non-streaming.</li>
 </ul>
 <h3 id="le-daemon-démarre-puis-se-termine-immédiatement"><a class="header" href="#le-daemon-démarre-puis-se-termine-immédiatement">Le daemon démarre, puis se termine immédiatement.</a></h3>
 <p>Vérifiez journald / les journaux de la plateforme (voir <a href="./observability.html">Logs et observabilité</a>) pour l’erreur réelle. Causes courantes :</p>
 <ul>
-<li><strong>Configuration invalide</strong> — <code>zeroclaw config list</code> pour afficher les valeurs résolues, <code>zeroclaw config schema</code> pour voir la structure attendue</li>
-<li><strong>Conflit de port</strong> — un autre processus utilise le port <code>42617</code> ; modifiez le paramètre <code>[gateway] port</code> ou libérez le port</li>
-<li><strong>Secrets manquants</strong> — le magasin de secrets chiffrés ne peut pas les déchiffrer car le fichier de clé a été supprimé ; restaurez à partir d’une sauvegarde ou relancez l’onboarding</li>
+<li><strong>Invalid config</strong>: <code>zeroclaw config list</code> to print resolved values, <code>zeroclaw config schema</code> to see the expected shape</li>
+<li><strong>Port conflict</strong>: another process on <code>42617</code>; change <code>[gateway] port</code> or free the port</li>
+<li><strong>Missing secrets</strong>: encrypted secrets store can’t decrypt because the key file is gone; restore from backup or re-run onboarding</li>
 </ul>
 <h3 id="le-daemon-redémarre-continuellement"><a class="header" href="#le-daemon-redémarre-continuellement">Le daemon redémarre continuellement</a></h3>
 <p><code>systemctl --user status zeroclaw</code> affiche le dernier code de sortie. S’il s’agit d’une erreur de configuration, le service a cessé de redémarrer (code de sortie 2) et vous devez corriger la configuration. S’il s’agit d’une panic, l’unité tente de redémarrer toutes les 10 secondes.</p>
 <p>Activer la journalisation de débogage et capturer la prochaine erreur :</p>
-<pre><code class="language-bash">zeroclaw service stop
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service stop
 RUST_LOG=débogage zeroclaw daemon
 </code></pre>
+</div>
+
 <h3 id="passerelle-inaccessible"><a class="header" href="#passerelle-inaccessible">Passerelle inaccessible</a></h3>
-<pre><code class="language-bash">curl -sv http://localhost:42617/health
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
+<pre><code class="language-sh">curl -sv http://localhost:42617/health
 </code></pre>
+</div>
+
 <p>Si la connexion est refusée : le daemon n’est pas en cours d’exécution, ou il est lié à une interface différente. Vérifiez l’hôte et le port <code>[gateway]</code> dans la configuration.</p>
 <p>Si 403 / 401 : l’appairage n’est pas terminé ou le jeton a expiré. Exécutez à nouveau le processus d’appairage.</p>
 <hr>
@@ -330,29 +461,41 @@ RUST_LOG=débogage zeroclaw daemon
 <h3 id="échecs-dauthentification-discord--slack"><a class="header" href="#échecs-dauthentification-discord--slack">Échecs d’authentification Discord / Slack</a></h3>
 <p>Les jetons Discord expirent si vous les régénérez dans le portail développeur. Les jetons de bot Slack n’expirent pas mais peuvent être révoqués. Vérifiez que le bot est toujours installé dans l’espace de travail/guild cible.</p>
 <p>Pour l’un ou l’autre :</p>
-<pre><code class="language-bash">zeroclaw channel doctor discord
+<div class="os-tabs-src">
+<h4 id="sh-11"><a class="header" href="#sh-11">sh</a></h4>
+<pre><code class="language-sh">zeroclaw channel doctor discord
 zeroclaw channel doctor slack
 </code></pre>
+</div>
+
 <h3 id="matrice---périphérique-inconnu-"><a class="header" href="#matrice---périphérique-inconnu-">Matrice : « périphérique inconnu »</a></h3>
 <p>Si vous vous êtes reconnecté sans conserver les clés de l’appareil, le serveur d’hébergement voit un nouvel appareil qui n’a pas été vérifié. Vérifiez-le à nouveau depuis un autre client connecté, ou réinitialisez le magasin de clés :</p>
-<pre><code class="language-bash">rm -rf ~/.zeroclaw/workspace/matrix-crypto
+<div class="os-tabs-src">
+<h4 id="sh-12"><a class="header" href="#sh-12">sh</a></h4>
+<pre><code class="language-sh">rm -rf ~/.zeroclaw/workspace/matrix-crypto
 # relancer le processus d'appariement au prochain démarrage de la chaîne
 </code></pre>
+</div>
+
 <h3 id="arrêt-du-sondage-imap"><a class="header" href="#arrêt-du-sondage-imap">Arrêt du sondage IMAP</a></h3>
-<p>Le plus souvent, il s’agit d’une erreur d’authentification — le fournisseur a modifié le mot de passe ou le mot de passe d’application a expiré. Vérifiez :</p>
-<pre><code class="language-bash">journalctl --user -u zeroclaw -n 200 | grep -i imap
+<p>Most often an auth failure, provider rotated the password or the app-password expired. Check:</p>
+<div class="os-tabs-src">
+<h4 id="sh-13"><a class="header" href="#sh-13">sh</a></h4>
+<pre><code class="language-sh">journalctl --user -u zeroclaw -n 200 | grep -i imap
 </code></pre>
+</div>
+
 <hr>
 <h2 id="fournisseurs"><a class="header" href="#fournisseurs">Fournisseurs</a></h2>
 <h3 id="la-connexion-a-expiré-vers-ollama"><a class="header" href="#la-connexion-a-expiré-vers-ollama">“La connexion a expiré” vers Ollama</a></h3>
 <ul>
 <li>Le démon Ollama n’est pas en cours d’exécution : <code>systemctl status ollama</code> (Linux), <code>brew services list</code> (macOS)</li>
-<li>URL incorrect dans la configuration — depuis l’intérieur d’un conteneur, <code>localhost:11434</code> ne permet pas d’accéder à l’hôte ; utilisez <code>host.docker.internal</code> ou l’adresse IP LAN de l’hôte.</li>
-<li>Pare-feu bloquant le port 11434 — rare en local, courant sur les LAN partagés</li>
+<li>Wrong URL in config, from inside a container, <code>localhost:11434</code> doesn’t reach the host; use <code>host.docker.internal</code> or the host’s LAN IP</li>
+<li>Firewall blocking port 11434, rare locally, common on shared LANs</li>
 </ul>
 <h3 id="anthropic--openai-401"><a class="header" href="#anthropic--openai-401">Anthropic / OpenAI 401</a></h3>
 <p>Clé API invalide ou expirée. Régénérez-la dans le tableau de bord du fournisseur, mettez-la à jour dans <code>[providers.models.&lt;name&gt;] api_key</code>, puis redémarrez le service.</p>
-<p>Si vous utilisez OAuth (<code>sk-ant-oat*</code>), le jeton OAuth a peut-être expiré — les jetons émis par OAuth sont plus durables mais pas infinis. Réauthentifiez-vous.</p>
+<p>If using OAuth (<code>sk-ant-oat*</code>), the OAuth token may have expired. OAuth-issued tokens are longer-lived but not infinite. Re-authenticate.</p>
 <hr>
 <h2 id="outils"><a class="header" href="#outils">Outils</a></h2>
 <h3 id="commandes-shell--bloquées-par-la-politique-"><a class="header" href="#commandes-shell--bloquées-par-la-politique-">Commandes shell « bloquées par la politique »</a></h3>
@@ -365,31 +508,43 @@ zeroclaw channel doctor slack
 <p>Voir <a href="../security/autonomy.html">Sécurité → Niveaux d’autonomie</a>.</p>
 <h3 id="les-appels-doutils-échouent-dans-le-bac-à-sable-docker"><a class="header" href="#les-appels-doutils-échouent-dans-le-bac-à-sable-docker">Les appels d’outils échouent dans le bac à sable Docker</a></h3>
 <ul>
-<li>L’image du conteneur n’est pas récupérée — exécutez <code>docker pull &lt;image&gt;</code> pour l’image configurée sous <code>[security.sandbox].image</code> (par défaut : <code>alpine:latest</code>)</li>
-<li>Le daemon Docker n’est pas accessible depuis l’utilisateur ZeroClaw — vérifiez <code>docker info</code></li>
-<li>L’outil nécessite un appareil qui n’est pas passé — étendez <code>allow_devices</code></li>
+<li>Container image isn’t pulled, run <code>docker pull &lt;image&gt;</code> for whatever you have configured under <code>[security.sandbox].image</code> (default: <code>alpine:latest</code>)</li>
+<li>Docker daemon not reachable from the ZeroClaw user, check <code>docker info</code></li>
+<li>Tool needs a device that’s not passed through, extend <code>allow_devices</code></li>
 </ul>
 <h3 id="loutil-du-navigateur-se-bloque-lors-de-la-première-utilisation"><a class="header" href="#loutil-du-navigateur-se-bloque-lors-de-la-première-utilisation">L’outil du navigateur se bloque lors de la première utilisation.</a></h3>
 <p>Playwright télécharge Chromium (~150 Mo) lors du premier lancement. Laissez-le terminer. S’il reste bloqué, vérifiez l’espace disque et la configuration du proxy.</p>
 <hr>
 <h2 id="mode-service"><a class="header" href="#mode-service">Mode service</a></h2>
 <h3 id="service-installé-mais-affiche--inactif-"><a class="header" href="#service-installé-mais-affiche--inactif-">Service installé mais affiche « inactif »</a></h3>
-<pre><code class="language-bash">zeroclaw service start
+<div class="os-tabs-src">
+<h4 id="sh-14"><a class="header" href="#sh-14">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service start
 zeroclaw service status
 </code></pre>
+</div>
+
 <p>Utilisez <code>zeroclaw service logs</code> pour suivre les journaux du service installé. Ajoutez <code>--follow</code> pour diffuser les nouvelles entrées ou <code>--lines &lt;count&gt;</code> pour modifier la quantité d’historique affichée. Si le wrapper n’est pas disponible ou si vous devez inspecter directement la plateforme, utilisez :</p>
 <ul>
 <li>Linux : <code>journalctl --user -u zeroclaw.service -f</code></li>
 <li>macOS : <code>log stream --predicate 'process == "zeroclaw"'</code></li>
 <li>Si vous exécutez <code>zeroclaw daemon</code> directement dans un terminal, utilisez cette sortie au premier plan plutôt que les commandes de journalisation du service.</li>
 </ul>
-<p>Si cela réussit en mode interactif mais que le service meurt en arrière-plan, c’est presque toujours un problème de configuration ou de permissions — lisez le journal :</p>
-<pre><code class="language-bash">journalctl --user -u zeroclaw --since Il y a 5 minutes
+<p>If that succeeds interactively but the service dies in the background, it’s almost always config or permissions, read the journal:</p>
+<div class="os-tabs-src">
+<h4 id="sh-15"><a class="header" href="#sh-15">sh</a></h4>
+<pre><code class="language-sh">journalctl --user -u zeroclaw --since Il y a 5 minutes
 </code></pre>
+</div>
+
 <h3 id="le-service-ne-peut-pas-trouver-la-configuration"><a class="header" href="#le-service-ne-peut-pas-trouver-la-configuration">Le service ne peut pas trouver la configuration</a></h3>
 <p>Le service et l’interface CLI peuvent résoudre la configuration différemment s’ils s’exécutent en tant qu’utilisateurs différents ou avec des variables d’environnement distinctes. Affichez de manière forcée le chemin que le démon voit :</p>
-<pre><code class="language-bash">zeroclaw config list
+<div class="os-tabs-src">
+<h4 id="sh-16"><a class="header" href="#sh-16">sh</a></h4>
+<pre><code class="language-sh">zeroclaw config list
 </code></pre>
+</div>
+
 <p>Si les chemins diffèrent entre <code>zeroclaw config list</code> (en tant que vous) et le service (en tant qu’utilisateur), soit :</p>
 <ul>
 <li>Définissez <code>ZEROCLAW_CONFIG_DIR</code> dans <code>Environment=</code> de l’unité de service.</li>
@@ -399,12 +554,16 @@ zeroclaw service status
 <hr>
 <h2 id="toujours-bloqué-"><a class="header" href="#toujours-bloqué-">Toujours bloqué ?</a></h2>
 <p>Collecter les diagnostics et ouvrir un ticket :</p>
-<pre><code class="language-bash">zeroclaw --version
+<div class="os-tabs-src">
+<h4 id="sh-17"><a class="header" href="#sh-17">sh</a></h4>
+<pre><code class="language-sh">zeroclaw --version
 zeroclaw doctor
 zeroclaw channel doctor
 journalctl --user -u zeroclaw --since Il y a 1 heure &gt; zeroclaw-log.txt
 </code></pre>
-<p>Nettoyez le fichier <code>zeroclaw-log.txt</code> (masquez les jetons de canal s’il en est passé — ils ne devraient pas l’être) et joignez-le à l’issue. Consultez <a href="../contributing/communication.html">Contribuer → Communication</a> pour savoir où.</p>
+</div>
+
+<p>Sanitise <code>zeroclaw-log.txt</code> (redact channel tokens if any slipped through, they shouldn’t) and attach it to the issue. See <a href="../contributing/communication.html">Contributing → Communication</a> for where.</p>
 <h2 id="voir-aussi"><a class="header" href="#voir-aussi">Voir aussi</a></h2>
 <ul>
 <li><a href="./observability.html">Journal et observabilité</a></li>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,15 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="building-the-web-dashboard"><a class="header" href="#building-the-web-dashboard">Building the web dashboard</a></h1>
-<p>The web dashboard at <code>web/</code> is a Vite + React + TypeScript app. Its TypeScript API client is generated from the gateway’s runtime OpenAPI spec, not hand-written. Both the spec snapshot and the generated client are derived artifacts — neither is committed.</p>
+<p>The web dashboard at <code>web/</code> is a Vite + React + TypeScript app. Its TypeScript API client is generated from the gateway’s runtime OpenAPI spec, not hand-written.</p>
 <h2 id="quickstart"><a class="header" href="#quickstart">Quickstart</a></h2>
-<pre><code class="language-bash">cargo web build         # production bundle into web/dist/
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo web build         # production bundle into web/dist/
 cargo web dev           # vite dev server with HMR
 cargo web check         # typecheck only (gen-api + tsc -b)
 cargo web gen-api       # regenerate web/src/lib/api-generated.ts
 cargo web install       # npm install in web/
 </code></pre>
-<p><code>cargo web</code> is an alias for <code>cargo run -p xtask --bin web --</code> (defined in <code>.cargo/config.toml</code>). Every subcommand auto-runs <code>npm install</code> if <code>web/node_modules/</code> is missing.</p>
+</div>
+
+<p><code>cargo web</code> is an alias for <code>cargo run -p xtask --bin web --</code> (defined in the cargo config). Every subcommand auto-runs <code>npm install</code> if <code>web/node_modules/</code> is missing.</p>
 <h2 id="what-gets-generated"><a class="header" href="#what-gets-generated">What gets generated</a></h2>
 <div class="table-wrapper">
 <table>
@@ -239,27 +319,23 @@ cargo web install       # npm install in web/
 </tbody>
 </table>
 </div>
-<p><code>cargo web gen-api</code> renders the OpenAPI spec in-process from <code>zeroclaw_gateway::openapi::build_spec()</code>, writes it to <code>target/openapi.json</code>, and feeds that file to <code>openapi-typescript</code>. The same <code>build_spec()</code> serves <code>/api/openapi.json</code> at runtime, so the spec on disk is never the source of truth — it is a transient handoff between Rust and the TS codegen.</p>
-<h2 id="why-nothing-is-committed"><a class="header" href="#why-nothing-is-committed">Why nothing is committed</a></h2>
-<p>The OpenAPI spec is ~10K lines of JSON. The generated TypeScript client is ~7800 lines. Both regenerate deterministically from the gateway’s <code>schemars</code>-derived types. Committing them would mean:</p>
-<ul>
-<li>~17K lines of churn on every PR that touches a gateway handler or request/response type</li>
-<li>A CI staleness check that catches drift but does not catch downstream type errors</li>
-<li>A second source of truth that can desync from the runtime spec</li>
-</ul>
-<p>Generating on demand keeps the runtime <code>build_spec()</code> as the single contract source.</p>
+<p><code>cargo web gen-api</code> renders the OpenAPI spec in-process from <code>zeroclaw_gateway::openapi::build_spec()</code>, writes it to <code>target/openapi.json</code>, and feeds that file to <code>openapi-typescript</code>. The same <code>build_spec()</code> serves <code>/api/openapi.json</code> at runtime, so <code>build_spec()</code> is the single contract source and the generated files are rebuilt on demand.</p>
 <h2 id="editing-flow"><a class="header" href="#editing-flow">Editing flow</a></h2>
 <ol>
 <li>Change a gateway handler or schema in <code>crates/zeroclaw-gateway/</code>.</li>
-<li>Run <code>cargo web check</code> — <code>gen-api</code> regenerates <code>api-generated.ts</code> from the new spec, then <code>tsc -b</code> typechecks the dashboard against it. Any consumer that relies on a now-removed field fails to compile.</li>
+<li>Run <code>cargo web check</code>: <code>gen-api</code> regenerates <code>api-generated.ts</code> from the new spec, then <code>tsc -b</code> typechecks the dashboard against it. Any consumer that relies on a now-removed field fails to compile.</li>
 <li>Update consumers in <code>web/src/</code> to match.</li>
 <li><code>cargo web build</code> for the final bundle.</li>
 </ol>
 <h2 id="ci-and-release-builds"><a class="header" href="#ci-and-release-builds">CI and release builds</a></h2>
-<p>CI does not run <code>cargo web build</code> — the lint/build/test jobs use a <code>web/dist/.gitkeep</code> placeholder so the gateway crate compiles without the bundle. Producing a release artifact that includes the dashboard is a separate step:</p>
-<pre><code class="language-bash">cargo web build
+<p>CI does not run <code>cargo web build</code>: the lint/build/test jobs use a <code>web/dist/.gitkeep</code> placeholder so the gateway crate compiles without the bundle. Producing a release artifact that includes the dashboard is a separate step:</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">cargo web build
 cargo build --release --features gateway
 </code></pre>
+</div>
+
 <p>The gateway loads <code>web/dist/</code> from the filesystem at runtime via <code>static_files.rs</code>, so the Rust compile and the web build are decoupled. Ship the populated <code>web/dist/</code> alongside the binary for installs that should serve the dashboard.</p>
 <h2 id="required-tools"><a class="header" href="#required-tools">Required tools</a></h2>
 <div class="table-wrapper">

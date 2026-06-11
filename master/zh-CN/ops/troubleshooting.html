@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,65 +295,115 @@
                         <h1 id="故障排除"><a class="header" href="#故障排除">故障排除</a></h1>
 <p>常见的故障模式，按你可能遇到的顺序排列。</p>
 <p>遇到任何问题时的第一步：</p>
-<pre><code class="language-bash">zeroclaw doctor
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw doctor
 </code></pre>
+</div>
+
 <p>运行一系列检查并打印摘要。以下内容大多是 <code>doctor</code> 标记的详细信息版本。</p>
 <hr>
 <h2 id="安装时"><a class="header" href="#安装时">安装时</a></h2>
 <h3 id="未找到-cargo"><a class="header" href="#未找到-cargo">未找到 <code>cargo</code></a></h3>
-<pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 </code></pre>
+</div>
+
 <p>或者向 <code>install.sh</code> / <code>setup.bat</code> 传递 <code>--prebuilt</code> 参数以完全跳过 Rust。</p>
 <h3 id="缺少构建依赖项linux"><a class="header" href="#缺少构建依赖项linux">缺少构建依赖项（Linux）</a></h3>
 <p>安装您发行版的基线工具链，然后重新运行 <code>./install.sh</code>：</p>
-<pre><code class="language-bash"># Debian / Ubuntu
-sudo apt install build-essential pkg-config
-
-# Fedora / RHEL
-sudo dnf group install development-tools &amp;&amp; sudo dnf install pkg-config
-
-# Arch
-sudo pacman -S base-devel
+<div class="os-tabs-src">
+<h4 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h4>
+<pre><code class="language-sh">sudo apt install build-essential pkg-config
 </code></pre>
+<h4 id="fedorarhel"><a class="header" href="#fedorarhel">Fedora/RHEL</a></h4>
+<pre><code class="language-sh">sudo dnf group install development-tools &amp;&amp; sudo dnf install pkg-config
+</code></pre>
+<h4 id="arch"><a class="header" href="#arch">Arch</a></h4>
+<pre><code class="language-sh">sudo pacman -S base-devel
+</code></pre>
+</div>
+
 <p>完整发行版列表：<a href="../setup/linux.html">设置 → Linux</a>。</p>
 <h3 id="在低内存主机上构建-oom"><a class="header" href="#在低内存主机上构建-oom">在低内存主机上构建 OOM</a></h3>
-<p>从源代码编译 ZeroClaw 在峰值时需要约 2 GB 的内存。在 512 MB 的 Raspberry Pi 上，你会遇到 OOM（内存不足）问题。</p>
-<p>选项：</p>
+<p>Building ZeroClaw from source is memory-hungry, mostly during the final link. <code>install.sh</code> already adapts to this automatically when it builds from source:</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
+<p>When <code>install.sh</code> builds from source on Linux, it reads <code>MemTotal</code> from <code>/proc/meminfo</code> and, on hosts with <strong>under 12 GiB</strong> of RAM, exports <code>CARGO_PROFILE_RELEASE_LTO=thin</code> before building. Fat LTO (the <code>[profile.release]</code> default) can peak past 7 GB RSS during the cross-crate type pass and OOM a low-RAM board; thin LTO trades a small binary-size increase for a much lower build-time memory peak.</p>
+<p>The switch only applies when you have not already pinned the variable. Override either direction explicitly:</p>
+<pre><code class="language-sh"># Force fat LTO even on a low-RAM host (smaller binary, higher build RAM)
+export CARGO_PROFILE_RELEASE_LTO=fat
+
+# Force thin LTO on a high-RAM host (lower build RAM)
+export CARGO_PROFILE_RELEASE_LTO=thin
+</code></pre>
+<p>If you still run out of memory, or you are not building through <code>install.sh</code>:</p>
 <ol>
-<li><strong>使用预构建版本</strong> — <code>./install.sh --prebuilt</code> 会跳过工具链，直接从 GitHub Releases 下载</li>
-<li><strong>在更大的机器上进行交叉编译，然后复制二进制文件</strong></li>
-<li><strong>串行化构建</strong> — <code>CARGO_BUILD_JOBS=1 cargo build --release --locked</code></li>
-<li><strong>添加交换空间</strong>（适用于 RAM，占用磁盘空间——请确保两者都可用）</li>
+<li><strong>Use a prebuilt</strong>: <code>./install.sh --prebuilt</code> skips the toolchain and downloads from GitHub Releases.</li>
+<li><strong>Cross-compile on a bigger machine and copy the binary.</strong></li>
+<li><strong>Pick a lighter build profile</strong>: <code>cargo build --profile release-fast</code> (more codegen parallelism, lighter link) or <code>--profile ci</code> (thin LTO, fastest/lowest-memory).</li>
+<li><strong>Serialise the build</strong>: <code>CARGO_BUILD_JOBS=1 cargo build --release --locked</code>.</li>
+<li><strong>Add swap</strong> (works for RAM, costs disk, check you have both).</li>
 </ol>
+<p>For the Raspberry Pi specifics, see <a href="../hardware/raspberry-pi-setup.html#step-3-build">Raspberry Pi setup → build</a>.</p>
 <h3 id="构建速度非常慢"><a class="header" href="#构建速度非常慢">构建速度非常慢</a></h3>
 <p>Matrix E2EE 堆栈（<code>matrix-sdk</code>、<code>ruma</code>、<code>vodozemac</code>）以及 TLS/crypto 原生依赖（<code>aws-lc-sys</code>、<code>ring</code>）是主要的成本来源。如果不需要它们，可以选择退出：</p>
-<pre><code class="language-bash">cargo build --release --locked --no-default-features --features "默认精简"
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">cargo build --release --locked --no-default-features --features "默认精简"
 </code></pre>
+</div>
+
 <p>或者检查正在发生的情况：</p>
-<pre><code class="language-bash">cargo check --timings
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">cargo check --timings
 # 在 target/cargo-timings/cargo-timing.html 处报告
 </code></pre>
+</div>
+
 <h3 id="安装后出现-zeroclaw-command-not-found"><a class="header" href="#安装后出现-zeroclaw-command-not-found">安装后出现 <code>zeroclaw: command not found</code></a></h3>
 <p><code>cargo install</code> 将可执行文件安装到 <code>~/.cargo/bin/</code>。将其添加到 PATH 中：</p>
-<pre><code class="language-bash">export PATH="$HOME/.cargo/bin:$PATH"
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">export PATH="$HOME/.cargo/bin:$PATH"
 </code></pre>
+</div>
+
 <p>将其持久化到 shell 配置文件中。</p>
 <hr>
 <h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
 <h3 id="quickstart-wont-overwrite-an-existing-config"><a class="header" href="#quickstart-wont-overwrite-an-existing-config">Quickstart won’t overwrite an existing config</a></h3>
-<p><code>zeroclaw quickstart</code> does not have a <code>--force</code> flag — it intentionally leaves an existing <code>~/.zeroclaw/config.toml</code> alone. To run a fresh quickstart on a stale install, delete the directory and start over:</p>
-<pre><code class="language-bash">rm -rf ~/.zeroclaw
+<p><code>zeroclaw quickstart</code> does not have a <code>--force</code> flag, it intentionally leaves an existing install alone. To run a fresh quickstart on a stale install, delete the directory and start over:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">rm -rf ~/.zeroclaw
 zeroclaw quickstart
 </code></pre>
+</div>
+
 <p>Or, to edit a single stale field instead of wiping everything, use <code>zeroclaw config set &lt;key&gt;=&lt;value&gt;</code> directly.</p>
 <h3 id="homebrew-安装配置路径不匹配"><a class="header" href="#homebrew-安装配置路径不匹配">Homebrew 安装：配置路径不匹配</a></h3>
 <p>Homebrew installs prefer <code>$HOMEBREW_PREFIX/var/zeroclaw/</code> (so <code>brew services</code> works) while the default config dir is <code>~/.zeroclaw/</code>. Set <code>ZEROCLAW_WORKSPACE</code> to the Homebrew path before running quickstart so the two paths line up:</p>
-<pre><code class="language-bash">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">export ZEROCLAW_WORKSPACE="$HOMEBREW_PREFIX/var/zeroclaw"
 zeroclaw quickstart
 </code></pre>
+</div>
+
 <p>或手动创建一次符号链接：</p>
-<pre><code class="language-bash">ln -s "$HOMEBREW_PREFIX/var/zeroclaw" ~/.zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">ln -s "$HOMEBREW_PREFIX/var/zeroclaw" ~/.zeroclaw
 </code></pre>
+</div>
+
 <hr>
 <h2 id="运行时"><a class="header" href="#运行时">运行时</a></h2>
 <h3 id="openai-codex-订阅认证会针对配置或流式传输发出警告"><a class="header" href="#openai-codex-订阅认证会针对配置或流式传输发出警告">OpenAI Codex 订阅认证会针对配置或流式传输发出警告</a></h3>
@@ -288,38 +414,43 @@ zeroclaw quickstart
 <li>智能体记录 <code>provider streaming failed, falling back to non-streaming chat</code></li>
 </ul>
 <p>检查项（请将 <code>&lt;alias&gt;</code> 替换为 <code>[agents.&lt;alias&gt;]</code> 中配置的智能体别名）：</p>
-<pre><code class="language-bash">zeroclaw auth status
-zeroclaw auth login --provider openai-codex --device-code
-zeroclaw agent -a &lt;alias&gt; -m hello
+<p>For an OpenAI Codex subscription, set <code>requires_openai_auth = true</code> on the provider alias and leave <code>api_key</code> unset; the runtime uses the stored Codex login. Get the subscription credential from the vendor’s own login flow. See <a href="../providers/configuration.html#oauth-and-subscription-auth">Provider Configuration → OAuth and subscription auth</a> for the full credential model. Then test:</p>
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">zeroclaw agent -a &lt;alias&gt; -m hello
 </code></pre>
-<p>对于普通的订阅认证，provider 条目应如下所示（外围的 agent + 风险配置遵循规范的<a href="../providers/configuration.html#minimal-working-example">最小可运行示例</a>）：</p>
-<pre><code class="language-toml">[providers.models.openai.coding]   # type = openai; alias = coding (你自己选择)
-model = "gpt-5-codex"
-wire_api = "responses"
-requires_openai_auth = true
-</code></pre>
+</div>
+
 <p>注意事项：</p>
 <ul>
-<li>订阅认证使用已存储的认证配置文件——在别名上设置 <code>requires_openai_auth = true</code>，并保持 <code>api_key</code> 未设置。</li>
+<li><code>requires_openai_auth = true</code> on the alias (with <code>api_key</code> unset) selects the subscription path; surround it with the canonical agent + risk profile from the <a href="../providers/configuration.html#minimal-working-example">Minimal working example</a>.</li>
 <li>别名条目中的 <code>api_key</code> / <code>uri</code> 仅在使用自定义的 OpenAI 兼容网关或其他显式端点覆盖时才需要。</li>
 <li>streaming-disabled 警告本身并不是身份验证失败；ZeroClaw 会以非流式模式重试该请求。</li>
 </ul>
 <h3 id="守护进程启动后立即退出"><a class="header" href="#守护进程启动后立即退出">守护进程启动后立即退出</a></h3>
 <p>检查 journald / 平台日志（参见 <a href="./observability.html">日志与可观测性</a>）以获取实际错误信息。常见原因：</p>
 <ul>
-<li><strong>配置无效</strong> — 使用 <code>zeroclaw config list</code> 打印已解析的值，使用 <code>zeroclaw config schema</code> 查看预期的结构</li>
-<li><strong>端口冲突</strong> — 另一个进程正在使用 <code>42617</code>；请更改 <code>[gateway] port</code> 或释放该端口</li>
-<li><strong>缺少密钥</strong> — 加密密钥存储无法解密，因为密钥文件已丢失；请从备份中恢复或重新运行引导流程</li>
+<li><strong>Invalid config</strong>: <code>zeroclaw config list</code> to print resolved values, <code>zeroclaw config schema</code> to see the expected shape</li>
+<li><strong>Port conflict</strong>: another process on <code>42617</code>; change <code>[gateway] port</code> or free the port</li>
+<li><strong>Missing secrets</strong>: encrypted secrets store can’t decrypt because the key file is gone; restore from backup or re-run onboarding</li>
 </ul>
 <h3 id="守护进程不断重启"><a class="header" href="#守护进程不断重启">守护进程不断重启</a></h3>
 <p><code>systemctl --user status zeroclaw</code> 显示最后一次退出的状态。如果是配置错误，服务会停止重启（退出码为 2），你需要修复配置文件。如果是 panic，该单元会每 10 秒重试一次。</p>
 <p>启用调试日志并捕获下一次失败：</p>
-<pre><code class="language-bash">zeroclaw service stop
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service stop
 RUST_LOG=调试 zeroclaw daemon
 </code></pre>
+</div>
+
 <h3 id="网关不可达"><a class="header" href="#网关不可达">网关不可达</a></h3>
-<pre><code class="language-bash">curl -sv http://localhost:42617/health
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
+<pre><code class="language-sh">curl -sv http://localhost:42617/health
 </code></pre>
+</div>
+
 <p>如果连接被拒绝：守护进程未运行，或绑定到了不同的接口。请检查配置文件中的 <code>[gateway] host</code> 和 <code>port</code>。</p>
 <p>如果返回 403 / 401：表示配对未完成或令牌已过期。请重新运行配对流程。</p>
 <hr>
@@ -330,29 +461,41 @@ RUST_LOG=调试 zeroclaw daemon
 <h3 id="discord--slack-身份验证失败"><a class="header" href="#discord--slack-身份验证失败">Discord / Slack 身份验证失败</a></h3>
 <p>在开发者门户中重新生成令牌会导致 Discord 令牌过期。Slack 机器人令牌不会过期，但可以被撤销。请检查机器人是否仍安装在目标工作区/服务器中。</p>
 <p>对于以下任一情况：</p>
-<pre><code class="language-bash">zeroclaw channel doctor discord
+<div class="os-tabs-src">
+<h4 id="sh-11"><a class="header" href="#sh-11">sh</a></h4>
+<pre><code class="language-sh">zeroclaw channel doctor discord
 zeroclaw channel doctor slack
 </code></pre>
+</div>
+
 <h3 id="矩阵未知设备"><a class="header" href="#矩阵未知设备">矩阵：“未知设备”</a></h3>
 <p>如果您在重新加入时未保留设备密钥，主服务器会看到一个尚未验证的新设备。请从另一个已登录的客户端重新验证，或重置密钥存储：</p>
-<pre><code class="language-bash">rm -rf ~/.zeroclaw/workspace/matrix-crypto
+<div class="os-tabs-src">
+<h4 id="sh-12"><a class="header" href="#sh-12">sh</a></h4>
+<pre><code class="language-sh">rm -rf ~/.zeroclaw/workspace/matrix-crypto
 # 在下一个通道启动时重新运行配对流程
 </code></pre>
+</div>
+
 <h3 id="imap-轮询已停止"><a class="header" href="#imap-轮询已停止">IMAP 轮询已停止</a></h3>
-<p>大多数情况下是身份验证失败——提供商更新了密码或应用密码已过期。请检查：</p>
-<pre><code class="language-bash">journalctl --user -u zeroclaw -n 200 | grep -i imap
+<p>Most often an auth failure, provider rotated the password or the app-password expired. Check:</p>
+<div class="os-tabs-src">
+<h4 id="sh-13"><a class="header" href="#sh-13">sh</a></h4>
+<pre><code class="language-sh">journalctl --user -u zeroclaw -n 200 | grep -i imap
 </code></pre>
+</div>
+
 <hr>
 <h2 id="提供者"><a class="header" href="#提供者">提供者</a></h2>
 <h3 id="与-ollama-的连接超时"><a class="header" href="#与-ollama-的连接超时">与 Ollama 的连接超时</a></h3>
 <ul>
 <li>Ollama 守护进程未运行：<code>systemctl status ollama</code>（Linux）、<code>brew services list</code>（macOS）</li>
-<li>配置中的 URL 错误——在容器内部，<code>localhost:11434</code> 无法访问宿主机；请使用 <code>host.docker.internal</code> 或宿主机的局域网 IP</li>
-<li>防火墙阻止了端口 11434 —— 在本地环境中较为罕见，在共享局域网中则较为常见</li>
+<li>Wrong URL in config, from inside a container, <code>localhost:11434</code> doesn’t reach the host; use <code>host.docker.internal</code> or the host’s LAN IP</li>
+<li>Firewall blocking port 11434, rare locally, common on shared LANs</li>
 </ul>
 <h3 id="anthropic--openai-401"><a class="header" href="#anthropic--openai-401">Anthropic / OpenAI 401</a></h3>
 <p>API 密钥无效或已过期。请在提供商的控制台重新生成，并更新到 <code>[providers.models.&lt;name&gt;] api_key</code>，然后重启服务。</p>
-<p>如果使用 OAuth（<code>sk-ant-oat*</code>），OAuth 令牌可能已过期——OAuth 颁发的令牌虽然有效期较长，但并非无限期。请重新进行身份验证。</p>
+<p>If using OAuth (<code>sk-ant-oat*</code>), the OAuth token may have expired. OAuth-issued tokens are longer-lived but not infinite. Re-authenticate.</p>
 <hr>
 <h2 id="工具"><a class="header" href="#工具">工具</a></h2>
 <h3 id="被策略阻止的-shell-命令"><a class="header" href="#被策略阻止的-shell-命令">“被策略阻止的 Shell 命令”</a></h3>
@@ -365,31 +508,43 @@ zeroclaw channel doctor slack
 <p>请参阅 <a href="../security/autonomy.html">安全 → 自主级别</a>。</p>
 <h3 id="在-docker-沙箱中工具调用失败"><a class="header" href="#在-docker-沙箱中工具调用失败">在 Docker 沙箱中工具调用失败</a></h3>
 <ul>
-<li>未拉取容器镜像 — 请对你在 <code>[security.sandbox].image</code> 下配置的镜像运行 <code>docker pull &lt;image&gt;</code>（默认值：<code>alpine:latest</code>）</li>
-<li>Docker 守护进程无法从 ZeroClaw 用户访问 — 请检查 <code>docker info</code></li>
-<li>工具需要一个未透传的设备——扩展 <code>allow_devices</code></li>
+<li>Container image isn’t pulled, run <code>docker pull &lt;image&gt;</code> for whatever you have configured under <code>[security.sandbox].image</code> (default: <code>alpine:latest</code>)</li>
+<li>Docker daemon not reachable from the ZeroClaw user, check <code>docker info</code></li>
+<li>Tool needs a device that’s not passed through, extend <code>allow_devices</code></li>
 </ul>
 <h3 id="浏览器工具在首次使用时挂起"><a class="header" href="#浏览器工具在首次使用时挂起">浏览器工具在首次使用时挂起</a></h3>
 <p>Playwright 在首次启动时会下载 Chromium（约 150 MB）。请等待其完成。如果一直卡住，请检查磁盘空间和代理配置。</p>
 <hr>
 <h2 id="服务模式"><a class="header" href="#服务模式">服务模式</a></h2>
 <h3 id="服务已安装但显示为未激活"><a class="header" href="#服务已安装但显示为未激活">服务已安装但显示为未激活</a></h3>
-<pre><code class="language-bash">zeroclaw service start
+<div class="os-tabs-src">
+<h4 id="sh-14"><a class="header" href="#sh-14">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service start
 zeroclaw service status
 </code></pre>
+</div>
+
 <p>使用 <code>zeroclaw service logs</code> 实时查看已安装服务的日志。添加 <code>--follow</code> 可流式输出新的日志条目，或使用 <code>--lines &lt;count&gt;</code> 更改显示的历史记录数量。如果该封装工具不可用，或者你需要直接检查平台，请使用：</p>
 <ul>
 <li>Linux：<code>journalctl --user -u zeroclaw.service -f</code></li>
 <li>macOS：<code>log stream --predicate 'process == "zeroclaw"'</code></li>
 <li>如果你直接在终端中运行 <code>zeroclaw daemon</code>，请使用该前台输出，而不是服务日志命令。</li>
 </ul>
-<p>如果该命令在交互式模式下成功执行，但服务在后台崩溃，则几乎总是配置或权限问题——请查看 journal：</p>
-<pre><code class="language-bash">journalctl --user -u zeroclaw --since 5 分钟前
+<p>If that succeeds interactively but the service dies in the background, it’s almost always config or permissions, read the journal:</p>
+<div class="os-tabs-src">
+<h4 id="sh-15"><a class="header" href="#sh-15">sh</a></h4>
+<pre><code class="language-sh">journalctl --user -u zeroclaw --since 5 分钟前
 </code></pre>
+</div>
+
 <h3 id="服务无法找到配置文件"><a class="header" href="#服务无法找到配置文件">服务无法找到配置文件</a></h3>
 <p>如果服务与 CLI 以不同的用户身份运行或使用了不同的环境变量，它们解析配置的方式可能会不同。强制打印守护进程所看到的路径：</p>
-<pre><code class="language-bash">zeroclaw config list
+<div class="os-tabs-src">
+<h4 id="sh-16"><a class="header" href="#sh-16">sh</a></h4>
+<pre><code class="language-sh">zeroclaw config list
 </code></pre>
+</div>
+
 <p>如果 <code>zeroclaw config list</code>（以你的用户身份）与服务（以其用户身份）之间的路径不同，请执行以下任一操作：</p>
 <ul>
 <li>在服务单元的 <code>Environment=</code> 中设置 <code>ZEROCLAW_CONFIG_DIR</code></li>
@@ -399,12 +554,16 @@ zeroclaw service status
 <hr>
 <h2 id="仍然遇到问题"><a class="header" href="#仍然遇到问题">仍然遇到问题？</a></h2>
 <p>收集诊断信息并提交问题：</p>
-<pre><code class="language-bash">zeroclaw --version
+<div class="os-tabs-src">
+<h4 id="sh-17"><a class="header" href="#sh-17">sh</a></h4>
+<pre><code class="language-sh">zeroclaw --version
 zeroclaw doctor
 zeroclaw channel doctor
 journalctl --user -u zeroclaw --since 1 小时前 &gt; zeroclaw-log.txt
 </code></pre>
-<p>清理 <code>zeroclaw-log.txt</code>（如果有任何频道令牌意外泄露，请将其脱敏处理——正常情况下不应出现这种情况），并将其附加到该 issue 中。具体位置请参考 <a href="../contributing/communication.html">贡献指南 → 通信</a>。</p>
+</div>
+
+<p>Sanitise <code>zeroclaw-log.txt</code> (redact channel tokens if any slipped through, they shouldn’t) and attach it to the issue. See <a href="../contributing/communication.html">Contributing → Communication</a> for where.</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
 <li><a href="./observability.html">日志与可观测性</a></li>

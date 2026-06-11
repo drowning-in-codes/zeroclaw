@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -226,7 +302,7 @@ If an example here conflicts with the trait file, the trait file wins.</p>
 </blockquote>
 <hr>
 <h2 id="tool-crateszeroclaw-apisrctoolrs"><a class="header" href="#tool-crateszeroclaw-apisrctoolrs">Tool (<code>crates/zeroclaw-api/src/tool.rs</code>)</a></h2>
-<p>Tools are the agent’s hands — they let it interact with the world.</p>
+<p>Tools are the agent’s hands: they let it interact with the world.</p>
 <p><strong>Required methods</strong>: <code>name()</code>, <code>description()</code>, <code>parameters_schema()</code>, <code>execute()</code>.
 The <code>spec()</code> method has a default implementation that composes the others.</p>
 <p>Register your tool in <code>crates/zeroclaw-tools/src/lib.rs</code> via <code>default_tools()</code>.</p>
@@ -603,7 +679,7 @@ impl Memory for InMemoryBackend {
 <p>A few invariants that hold across every extension. Breaking these tends to be the source of cross-cutting cleanup PRs later, so internalise them up front:</p>
 <ul>
 <li><strong>Extend by trait + factory wiring first.</strong> Adding a new provider/channel/tool/peripheral is implementing a trait and registering it in the relevant factory. Avoid cross-module rewrites for what should be an isolated feature.</li>
-<li><strong>Dependency direction goes inward to contracts.</strong> Concrete integrations depend on <code>zeroclaw-api</code> traits, <code>zeroclaw-config</code> schema, and <code>zeroclaw-infra</code> utilities — not on each other. Provider code does not import channel internals; tool code does not mutate gateway policy directly.</li>
+<li><strong>Dependency direction goes inward to contracts.</strong> Concrete integrations depend on <code>zeroclaw-api</code> traits, <code>zeroclaw-config</code> schema, and <code>zeroclaw-infra</code> utilities, not on each other. Provider code does not import channel internals; tool code does not mutate gateway policy directly.</li>
 <li><strong>Module responsibilities stay single-purpose.</strong> Orchestration in <code>zeroclaw-runtime/src/agent/</code>, transport in <code>zeroclaw-channels/</code>, model I/O in <code>zeroclaw-providers/</code>, policy in <code>zeroclaw-runtime/src/security/</code>, execution in <code>zeroclaw-tools/</code>.</li>
 <li><strong>Rule of three for shared abstractions.</strong> Introduce new shared types only after a third real caller materialises. Premature abstractions accrete weight that future contributors have to navigate around.</li>
 <li><strong>Config keys are public contract.</strong> Schema changes need defaults, compatibility impact, and a migration/rollback path documented in the PR.</li>
@@ -612,7 +688,7 @@ impl Memory for InMemoryBackend {
 <p>Any tool that owns long-lived shared state (rate limiters, connection pools, cached credentials, broadcast channels) follows a small contract that keeps the daemon’s per-client isolation guarantees intact:</p>
 <ul>
 <li><strong><code>Arc&lt;RwLock&lt;T&gt;&gt;</code> handle pattern.</strong> Accept handles at construction; do not create global or static mutable state inside a tool. Tests need to instantiate tools with isolated state, and the daemon needs to construct multiple instances for namespacing.</li>
-<li><strong><code>ClientId</code> is daemon-supplied.</strong> Use it to namespace per-client state. Never construct identity keys inside a tool — the daemon owns identity and the tool consumes it.</li>
+<li><strong><code>ClientId</code> is daemon-supplied.</strong> Use it to namespace per-client state. Never construct identity keys inside a tool; the daemon owns identity and the tool consumes it.</li>
 <li><strong>Security state isolates per client.</strong> Credentials, quotas, anything that can leak between sessions stays per-<code>ClientId</code>. Display/broadcast state is allowed to share, with optional namespace prefixing for trace clarity.</li>
 <li><strong>Cached validation invalidates on config change.</strong> Tools must re-validate before the next execution when the config-change signal fires. The daemon emits the signal; the tool subscribes.</li>
 </ul>

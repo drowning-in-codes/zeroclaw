@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,39 +298,39 @@
 <p><strong>Build note:</strong> Social channels are <strong>not included</strong> in the lean default build. To use them, build with <code>--features channels-full</code> (all channels) or the specific feature flag (e.g. <code>--features channel-twitter</code>). Prebuilt binaries do not include these channels by default. See <a href="./overview.html">Channels → Overview</a> for the full build-options table.</p>
 </blockquote>
 <h2 id="bluesky-protocolo-at"><a class="header" href="#bluesky-protocolo-at">Bluesky (Protocolo AT)</a></h2>
-<pre><code class="language-toml">[channels.bluesky]
-enabled = true
-handle = "you.bsky.social"
-app_password = "xxxx-xxxx-xxxx-xxxx"      # crear en bsky.app/settings/app-passwords
-</code></pre>
 <ul>
 <li><strong>Autenticación:</strong> Contraseña de aplicación de Bluesky (no tu contraseña real). Crea una en la configuración.</li>
 <li><strong>Saliente:</strong> publicaciones de 300 caracteres; las respuestas más largas se dividen automáticamente en hilos.</li>
 <li><strong>Protocol:</strong> AT Protocol mediante el crate <code>atrium-api</code>.</li>
 </ul>
 <h2 id="nostr"><a class="header" href="#nostr">Nostr</a></h2>
-<pre><code class="language-toml">[channels.nostr]
-enabled = true
-private_key = "..."                       # nsec bech32 o hex
-relays = [
-    "wss://relay.damus.io",
-    "wss://nos.lol",
-    "wss://relay.primal.net",
-]
-allowed_pubkeys = ["npub1..."]            # vacío = denegar todo, "*" = permitir todo
-</code></pre>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for nostr sets <code>channel</code> to <code>nostr</code>, lists the allowed senders in <code>external_peers</code> (for nostr, the sender’s hex public key; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
 <ul>
-<li><strong>Auth:</strong> clave privada en bruto (<code>nsec</code> bech32 o hex). Almacénala en el backend de secretos cifrado, nunca en una configuración incluida en el control de versiones.</li>
+<li><strong>Auth:</strong> raw private key (<code>nsec</code> bech32 or hex).</li>
 <li><strong>Entrante:</strong> kind-1 (texto), kind-4 (DM, NIP-04) y kind-1059 (gift-wrap, NIP-17).</li>
 <li><strong>Saliente:</strong> mismos tipos. El manejo de Zap es experimental.</li>
 <li><strong>Relays:</strong> el agente se conecta a todos los relays indicados; usa 3-5 para mayor fiabilidad. Si se omite <code>relays</code>, ZeroClaw se conecta a un conjunto integrado de relays públicos populares.</li>
 </ul>
 <h2 id="twitter--x"><a class="header" href="#twitter--x">Twitter / X</a></h2>
-<pre><code class="language-toml">[channels.twitter]
-enabled = true
-bearer_token = "..."                      # Token Bearer OAuth 2.0 de Twitter API v2
-allowed_users = ["singlerider"]           # nombres de usuario o IDs de usuario; vacío = denegar todo, "*" = permitir todo
-</code></pre>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for twitter sets <code>channel</code> to <code>twitter</code>, lists the allowed senders in <code>external_peers</code> (for twitter, the Twitter/X @username; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
 <ul>
 <li><strong>Autenticación:</strong> Solo Twitter API v2 OAuth 2.0 Bearer Token.</li>
 <li><strong>Entrante:</strong> menciones a través del punto final de la secuencia filtrada.</li>
@@ -262,24 +338,16 @@ allowed_users = ["singlerider"]           # nombres de usuario o IDs de usuario;
 <li><strong>Aviso:</strong> la capa gratuita está limitada por tasa hasta el punto de ser casi inútil. Presupueste en consecuencia.</li>
 </ul>
 <h2 id="reddit"><a class="header" href="#reddit">Reddit</a></h2>
-<pre><code class="language-toml">[channels.reddit]
-enabled = true
-client_id = "..."
-client_secret = "..."
-refresh_token = "..."                     # token de actualización OAuth 2.0 (requerido)
-username = "your-bot-username"            # sin el prefijo `u/`
-subreddit = "rust"                        # opcional: filtrar a un solo subreddit (sin el prefijo `r/`)
-</code></pre>
 <ul>
-<li><strong>Auth:</strong> OAuth 2.0 con un token de actualización. Genera uno con una aplicación de Reddit de tipo script y el flujo <code>password</code> o <code>code</code>, luego guarda aquí el token de actualización para tener acceso persistente.</li>
-<li><strong>Entrantes:</strong> nuevas publicaciones y comentarios en el subreddit configurado (o todos los subreddits a los que el bot tiene acceso cuando <code>subreddit</code> no está definido), además de las respuestas a las propias publicaciones del agente.</li>
+<li><strong>Auth:</strong> OAuth 2.0 with a refresh token. Generate one with a script-type Reddit app and the <code>password</code> or <code>code</code> flow.</li>
+<li><strong>Inbound:</strong> new posts and comments in the configured subreddits (or all subreddits the bot has access to when <code>subreddits</code> is empty), plus replies to the agent’s own posts.</li>
 <li><strong>Saliente:</strong> publicaciones, comentarios, mensajes privados.</li>
 </ul>
 <hr>
 <h2 id="operar-los-canales-sociales-de-forma-segura"><a class="header" href="#operar-los-canales-sociales-de-forma-segura">Operar los canales sociales de forma segura</a></h2>
 <p>Los bots en redes sociales públicas atraen entradas adversarias. Dos precauciones:</p>
 <ol>
-<li><strong>Restringe a quién responderá el agente.</strong> Usa <code>allowed_pubkeys</code> (Nostr) o <code>allowed_users</code> (Twitter) para incluir remitentes en la lista blanca. Bluesky no tiene un campo de lista de permitidos por canal — restringe en la capa de autonomía / herramientas en su lugar. El comportamiento predeterminado de lista vacía es <strong>denegar todo</strong> para los canales que tienen un campo de lista de permitidos.</li>
+<li><strong>Restrict who the agent will respond to.</strong> Gate inbound senders with a peer group (per channel, above): an empty peer set denies everyone, <code>["*"]</code> accepts anyone. Bluesky has no peer-group sender field; gate at the autonomy / tool layer instead.</li>
 <li><strong>Mantén el nivel de autonomía en <code>Supervised</code> o inferior.</strong> Un agente de cara al público en autonomía <code>Full</code> es efectivamente un shell público. Para canales de cara al público, restringe la superficie de herramientas en la configuración global de tool-policy en lugar de esperar un <code>tools_allow</code> por canal (no existe tal campo por canal).</li>
 </ol>
 <h2 id="límites-de-tasa-y-retroceso"><a class="header" href="#límites-de-tasa-y-retroceso">Límites de tasa y retroceso</a></h2>

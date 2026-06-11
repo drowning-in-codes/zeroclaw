@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,14 +292,19 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="通道--概述"><a class="header" href="#通道--概述">通道 — 概述</a></h1>
-<p><strong>通道</strong>是代理进行通信的消息界面。一个 ZeroClaw 实例可以同时绑定多个通道——同一个代理可以在 Discord、Telegram、电子邮件以及 REST 网关中回复，而无需你运行单独的程序。</p>
+                        <h1 id="channels-overview"><a class="header" href="#channels-overview">Channels: Overview</a></h1>
+<p>A <strong>channel</strong> is a messaging surface the agent talks through. One ZeroClaw instance can bind multiple channels simultaneously: the same agent can answer in Discord, Telegram, email, and over the REST gateway without you running separate processes.</p>
+<p>An agent lists the channels it answers on; see <a href="../agents/overview.html">Agents</a> for how channels attach to an agent (and how a <a href="./peer-groups.html">peer group</a> lets agents on a shared channel address each other).</p>
 <p>通道是 <code>zeroclaw-api</code> 中 <code>Channel</code>  trait 的实现。每个通道都在编译时通过特性进行门控，因此最小化构建仅包含你所需的通道。</p>
 <p>默认的 ZeroClaw 构建包含一个精简的通道捆绑包：ACP、webhook、email 和 Telegram。它们涵盖了本地/编辑器会话、网关入口以及常见的首次运行外部消息传递，而无需编译所有捆绑的平台集成。预构建的二进制文件使用此精简默认配置。对于需要历史上完整通道集的源码安装，请运行 <code>install.sh --source --preset full</code>，使用 <code>--features channels-full</code> 构建，或使用单独的 <code>channel-*</code> 功能进行选择性构建：</p>
-<pre><code class="language-bash">./install.sh --source --preset full
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">./install.sh --source --preset full
 cargo build --features channels-full
 cargo build --no-default-features --features agent-runtime,gateway,channel-discord
 </code></pre>
+</div>
+
 <h2 id="分类"><a class="header" href="#分类">分类</a></h2>
 <h3 id="聊天平台"><a class="header" href="#聊天平台">聊天平台</a></h3>
 <p>实时消息传递，代理可以保持对话，通过推送或长轮询接收新消息的通知，并以机器人用户的身份进行回复。</p>
@@ -240,7 +321,7 @@ cargo build --no-default-features --features agent-runtime,gateway,channel-disco
 <tr><td>信号</td><td><code>channel-signal</code></td><td><a href="./signal.html">Signal</a></td></tr>
 <tr><td>WhatsApp 云 API</td><td><code>channel-whatsapp-cloud</code></td><td><a href="./whatsapp.html">WhatsApp</a></td></tr>
 <tr><td>WhatsApp Web</td><td><code>whatsapp-web</code></td><td><a href="./whatsapp.html">WhatsApp</a></td></tr>
-<tr><td>Discord、Slack、Telegram、iMessage、企业微信机器人 Webhook、企业微信 AI 机器人长连接、微信个人 iLink 机器人、钉钉、飞书、QQ、IRC、Mochat、Notion</td><td>按通道</td><td><a href="./chat-others.html">其他聊天平台</a></td></tr>
+<tr><td>Discord, Slack, Telegram, iMessage, WeChat personal iLink Bot, DingTalk, Lark, QQ, IRC, Mochat, Notion</td><td>按通道</td><td><a href="./chat-others.html">其他聊天平台</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -268,7 +349,7 @@ cargo build --no-default-features --features agent-runtime,gateway,channel-disco
 </thead>
 <tbody>
 <tr><td>IMAP / SMTP</td><td><code>channel-email</code></td><td>经典的基于轮询的收件箱</td></tr>
-<tr><td>Gmail 推送</td><td><code>channel-email</code></td><td>Google Pub/Sub 推送通知 — 实时，无需轮询</td></tr>
+<tr><td>Gmail 推送</td><td><code>channel-email</code></td><td>Google Pub/Sub push notifications: real-time, no polling</td></tr>
 </tbody>
 </table>
 </div>
@@ -298,24 +379,21 @@ cargo build --no-default-features --features agent-runtime,gateway,channel-disco
 <tr><td>Webhook</td><td><code>channel-webhook</code></td><td>入站 HTTP → 代理</td></tr>
 <tr><td>命令行界面</td><td>始终开启</td><td>本地标准输入/标准输出</td></tr>
 <tr><td>网关 REST/WS</td><td>始终开启</td><td>HTTP + WebSocket</td></tr>
-<tr><td>ACP（代理客户端协议）</td><td><code>channel-acp-server</code></td><td>通过 stdio 的 JSON-RPC 2.0 — 编辑器/IDE 会话</td></tr>
+<tr><td>ACP（代理客户端协议）</td><td><code>channel-acp-server</code></td><td>JSON-RPC 2.0 over stdio: editor/IDE sessions</td></tr>
 </tbody>
 </table>
 </div>
 <p>请参阅 <a href="./webhook.html">Webhooks</a> 和 <a href="./acp.html">ACP</a>。</p>
 <h2 id="配置"><a class="header" href="#配置">配置</a></h2>
-<p>现代通道实例在 <code>[channels.&lt;type&gt;.&lt;alias&gt;]</code> 下配置，其中 <code>default</code> 是常用的首个别名：</p>
-<pre><code class="language-toml">[channels.discord.default]
-enabled = true
-bot_token = "..."
-allowed_users = ["123456789012345678"]
-reply_to_mentions_only = false
+<p>Modern channel instances are configured under <code>[channels.&lt;type&gt;.&lt;alias&gt;]</code>, with <code>default</code> as the common first alias. Set them through any config surface:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels"><code>/config/channels</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Channels</strong>.</p>
+</div>
 
-[agents.assistant]
-enabled = true
-channels = ["discord.default"]
-</code></pre>
-<p><code>channels</code> 条目将频道别名绑定到应当响应它的代理。一些较旧的单频道指南仍展示遗留的扁平示例；对于新配置，请优先使用上述别名结构。频道特定的选项位于同一代码块下。各频道通用的键：</p>
+<p>Secrets (bot tokens, API keys, passwords) are stored encrypted; set them through the gateway, zerocode, or <code>zeroclaw config set</code> (masked), never in plaintext. The <code>channels</code> entry on an agent binds a channel alias to that agent. Field names differ per channel; <code>zeroclaw config schema</code> is the authoritative list. Fields that recur across many channels:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -323,21 +401,19 @@ channels = ["discord.default"]
 </thead>
 <tbody>
 <tr><td><code>enabled</code></td><td>在不删除部分的情况下切换开/关</td></tr>
-<tr><td><code>allowed_users</code></td><td>白名单 — 为空表示允许所有</td></tr>
-<tr><td><code>allowed_destinations</code></td><td>限制机器人回答的房间/频道/线程</td></tr>
-<tr><td><code>reply_to_mentions_only</code></td><td>忽略未 @提及机器人的消息</td></tr>
-<tr><td><code>provider</code></td><td>覆盖此频道的默认模型</td></tr>
+<tr><td><code>mention_only</code></td><td>Ignore messages that don’t @-mention the bot (chat platforms)</td></tr>
+<tr><td><code>proxy_url</code></td><td>Per-channel proxy (http/https/socks5/socks5h); overrides global <code>[proxy]</code></td></tr>
+<tr><td><code>excluded_tools</code></td><td>Tools withheld from the model when answering on this channel</td></tr>
 <tr><td><code>draft_update_interval_ms</code></td><td>流式编辑频率（默认 500 毫秒）</td></tr>
+<tr><td><code>approval_timeout_secs</code></td><td>Seconds to wait for operator approval on <code>always_ask</code> tools before auto-denying</td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="配对"><a class="header" href="#配对">配对</a></h2>
-<p>Most channels require <strong>pairing</strong> — a one-time handshake that binds an incoming message source to the agent’s policy. Each channel’s setup guide (linked from the matrix above) walks through that channel’s pairing flow; <code>zeroclaw channel bind-telegram</code> handles Telegram-specific identities. Without pairing, the channel rejects everything.</p>
-<p>原因：一个拥有公开 Telegram 机器人令牌且未配对的代理是一个可公开访问的 shell。配对是访问的门槛。</p>
+<p>Inbound senders are gated through <a href="./peer-groups.html">peer groups</a>, not a per-channel field.</p>
 <h2 id="流媒体功能"><a class="header" href="#流媒体功能">流媒体功能</a></h2>
-<p>通道声明其支持的流式传输类型——有关功能矩阵以及 <code>supports_draft_updates</code> / <code>supports_multi_message_streaming</code> 的含义，请参阅 <a href="../providers/streaming.html">Providers → Streaming</a>。</p>
+<p>Channels declare what kind of streaming they support: see <a href="../providers/streaming.html">Providers → Streaming</a> for the capability matrix and what <code>supports_draft_updates</code> / <code>supports_multi_message_streaming</code> mean.</p>
 <h2 id="添加频道"><a class="header" href="#添加频道">添加频道</a></h2>
-<p>实现新频道意味着在 <code>crates/zeroclaw-channels/src/</code> 中添加一个实现 <code>Channel</code> 特征的文件。可以参考现有形状相似的频道：<code>discord.rs</code> 用于推送式，<code>email_channel.rs</code> 用于轮询式，<code>webhook.rs</code> 用于 HTTP 驱动式。</p>
+<p>Implementing a new channel means adding a file to <code>crates/zeroclaw-channels/src/</code> that implements the <code>Channel</code> trait. The canonical reference is any existing channel of similar shape: <code>discord.rs</code> for push-based, <code>email_channel.rs</code> for polling, <code>webhook.rs</code> for HTTP-driven.</p>
 
                     </main>
 
@@ -347,7 +423,7 @@ channels = ["discord.default"]
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../channels/matrix.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../channels/peer-groups.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -361,7 +437,7 @@ channels = ["discord.default"]
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../channels/matrix.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../channels/peer-groups.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

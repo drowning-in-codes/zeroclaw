@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,13 +293,15 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="acuerdo-de-licencia-de-colaborador"><a class="header" href="#acuerdo-de-licencia-de-colaborador">Acuerdo de Licencia de Colaborador</a></h1>
-<p><strong>Versión 1.0 — Febrero 2026 · ZeroClaw Labs</strong></p>
+<blockquote>
+<p>Version 1.0, February 2026 · ZeroClaw Labs</p>
+</blockquote>
 <p>Al enviar una contribución (solicitud de extracción, parche, problema con código o cualquier otra forma de envío de código) al repositorio de ZeroClaw, usted acepta los términos siguientes. No se requiere una firma separada para los contribuyentes individuales.</p>
 <h2 id="definiciones"><a class="header" href="#definiciones">Definiciones</a></h2>
 <ul>
-<li><strong>Contribución</strong> — cualquier obra original de autoría, incluidas las modificaciones o adiciones a trabajos existentes, presentada a ZeroClaw Labs para su inclusión en el proyecto ZeroClaw.</li>
-<li><strong>Tú</strong> — la persona física o jurídica que presenta una Contribución.</li>
-<li><strong>ZeroClaw Labs</strong> — los mantenedores y la organización responsables del proyecto ZeroClaw en <a href="https://github.com/zeroclaw-labs/zeroclaw">https://github.com/zeroclaw-labs/zeroclaw</a>.</li>
+<li><strong>Contribution</strong>: any original work of authorship, including modifications or additions to existing work, submitted to ZeroClaw Labs for inclusion in the ZeroClaw project.</li>
+<li><strong>You</strong>: the individual or legal entity submitting a Contribution.</li>
+<li><strong>ZeroClaw Labs</strong>: the maintainers and organization responsible for the ZeroClaw project at <a href="https://github.com/zeroclaw-labs/zeroclaw">https://github.com/zeroclaw-labs/zeroclaw</a>.</li>
 </ul>
 <h2 id="concesión-de-licencia-de-derechos-de-autor"><a class="header" href="#concesión-de-licencia-de-derechos-de-autor">Concesión de licencia de derechos de autor</a></h2>
 <p>Usted otorga a ZeroClaw Labs y a los destinatarios del software distribuido por ZeroClaw Labs una licencia perpetua, mundial, no exclusiva, gratuita, libre de regalías e irrevocable de derechos de autor para reproducir, preparar obras derivadas, exhibir públicamente, ejecutar públicamente, sublicenciar y distribuir sus Contribuciones y obras derivadas bajo <strong>tanto la Licencia MIT como la Licencia Apache 2.0</strong>.</p>
@@ -247,12 +325,12 @@
 <h2 id="compromiso-de-doble-licencia"><a class="header" href="#compromiso-de-doble-licencia">Compromiso de doble licencia</a></h2>
 <p>Todas las contribuciones aceptadas en el proyecto ZeroClaw están licenciadas bajo:</p>
 <ul>
-<li><strong>Licencia MIT</strong> — uso de código abierto permisivo</li>
-<li><strong>Licencia Apache 2.0</strong> — protección de patentes y garantías más sólidas de propiedad intelectual</li>
+<li><strong>MIT License</strong>: permissive open-source use</li>
+<li><strong>Apache License 2.0</strong>: patent protection and stronger IP guarantees</li>
 </ul>
 <p>Este modelo de doble licencia garantiza la máxima compatibilidad y protección para toda la comunidad de contribuyentes.</p>
 <h2 id="contribuidores-corporativos"><a class="header" href="#contribuidores-corporativos">Contribuidores corporativos</a></h2>
-<p>Para contribuciones en nombre de una empresa u organización, abre un problema titulado “Corporate CLA — [Nombre de la Empresa]” y un mantenedor se pondrá en contacto contigo.</p>
+<p>For contributions on behalf of a company or organization, open an issue titled “Corporate CLA, [Company Name]” and a maintainer will follow up.</p>
 <h2 id="preguntas"><a class="header" href="#preguntas">Preguntas</a></h2>
 <p>Abre un problema en <a href="https://github.com/zeroclaw-labs/zeroclaw/issues">https://github.com/zeroclaw-labs/zeroclaw/issues</a>.</p>
 <hr>

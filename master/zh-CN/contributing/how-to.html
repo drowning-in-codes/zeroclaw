@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,14 +293,14 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="如何贡献"><a class="header" href="#如何贡献">如何贡献</a></h1>
-<p>我们接受来自任何愿意清晰提交代码、文档、错误报告和反馈的贡献者。本页面涵盖相关机制——如何提交更改、我们在审查中关注的内容，以及你在提交 PR 后可能遇到的情况。</p>
+<p>We accept code, docs, bug reports, and feedback from anyone willing to file them clearly. This page covers the mechanics: how to get a change in, what we look for in review, and what to expect after you open a PR.</p>
 <p>有关非代码贡献（报告问题、提供反馈、获取帮助），请参阅 <a href="./communication.html">通信</a>。</p>
 <p>有关需要在实现之前进行设计讨论的重大变更，请参阅 <a href="./rfcs.html">RFC 流程</a>。</p>
 <h2 id="开始之前"><a class="header" href="#开始之前">开始之前</a></h2>
 <p>对于任何超出拼写错误修复的内容：</p>
 <ol>
 <li><strong>检查问题跟踪器。</strong> 可能有人已经在处理它或提交了相关讨论。</li>
-<li><strong>阅读 <code>AGENTS.md</code>。</strong> 仓库根目录下的 <code>AGENTS.md</code> 是约定俗成的权威来源——风险等级、PR 规范、反模式以及审查标准均在此定义。</li>
+<li><strong>Read <code>AGENTS.md</code>.</strong> The repo’s root <code>AGENTS.md</code> is the canonical source of convention: risk tiers, PR discipline, anti-patterns, and review standards live there.</li>
 <li><strong>任何涉及架构、配置、安全、工作流、治理、CI、发布行为或 AI 辅助贡献策略的内容，请使用<a href="./architecture-map.html">架构与贡献地图</a></strong>。</li>
 <li><strong>选择一个分支。</strong> PR 的目标分支是 <code>master</code>。请 Fork 仓库并基于该分支创建新分支；无需经过 <code>develop</code> 或 <code>integration</code> 分支。</li>
 </ol>
@@ -233,46 +309,46 @@
 </code></pre>
 <p>关键检查点：</p>
 <ul>
-<li><strong>PR 模板</strong> — <code>.github/pull_request_template.md</code>。请填写此模板。摘要、验证证据和兼容性部分为必填项。</li>
-<li><strong>CI</strong> — 在每次 PR 上运行。<code>ci.yml</code> 是组合门禁；所有阶段都必须通过。</li>
-<li><strong>标签</strong> — 维护者使用标签来确定审查的深入程度。在创建 PR 之前，你无需了解所有标签类别。如果标签明显有误而你又无法编辑它们，请在评论中指出这一不匹配；拥有标签权限的维护者或审查者可以直接纠正明显的不匹配问题。</li>
-<li><strong>审查路由</strong> — 清晰说明变更范围、关联问题、验证情况以及风险/回滚上下文，使审查者能够快速选择正确的审查路径。</li>
-<li><strong>审查</strong> — 维护者进行审查。审查意见采用 PR 审查分类标准：🔴 阻断、🟡 警告、🔵 建议、🟢 赞赏，以及 ✅ 已解决。必须处理阻断项；警告项应予以回应；建议项可选择性采纳。</li>
+<li><strong>PR template</strong>: <code>.github/pull_request_template.md</code>. Fill it out. The summary, validation evidence, and compatibility sections are non-negotiable.</li>
+<li><strong>CI</strong>: runs on every PR. <code>ci.yml</code> is the composite gate; all legs must pass.</li>
+<li><strong>Labels</strong>: maintainers use labels to route review depth. You do not need to know every label family before opening a PR. If labels look obviously wrong and you cannot edit them, flag the mismatch in a comment; maintainers or reviewers with label permissions can correct obvious mismatches directly.</li>
+<li><strong>Review routing</strong>: make the scope, linked issues, validation, and risk/rollback context clear enough that reviewers can choose the right review path quickly.</li>
+<li><strong>Review</strong>: maintainers review. Findings use the PR review taxonomy: 🔴 blocking, 🟡 warning, 🔵 suggestion, 🟢 praise, and ✅ resolved. Address blockers; warnings should get a response; suggestions are optional.</li>
 </ul>
 <h2 id="代码风格"><a class="header" href="#代码风格">代码风格</a></h2>
 <ul>
 <li><code>cargo fmt</code> 清理（在 CI 中检查）</li>
 <li><code>cargo clippy -D warnings</code> 清理（在 CI 中检查）</li>
-<li>不要保留未使用的生产代码——删除它、将其接入实际行为，或者跟踪一个后续问题。不要用下划线前缀或 <code>#[allow(dead_code)]</code> 来消除告警；下划线命名仅保留给那些必需但有意不使用的 API、trait 或回调参数。</li>
-<li>错误处理：在二进制边界使用 <code>anyhow::Result</code>，在库 crate 中使用类型化错误。生产代码路径中禁止使用 <code>unwrap()</code> / <code>expect()</code>——通过 <code>?</code> 传播错误，或记录使 panic 不可能发生的不变量。</li>
-<li>最小化依赖——每个依赖项都会增加二进制文件的大小；在添加之前请权衡利弊</li>
-<li>Trait-first —— 在 <code>zeroclaw-api</code> 中定义 trait，然后在正确的 edge crate 中实现</li>
-<li>默认安全——使用白名单而非黑名单。新的外部表面默认关闭</li>
-<li>内联单元测试 —— 在文件底部使用 <code>#[cfg(test)] mod tests {}</code> 或一个同级的 <code>tests.rs</code> 文件</li>
-<li>不要提交密钥、个人数据或真实用户身份——<a href="./privacy.html">隐私与 PII 规范</a> 页面是合并检查点</li>
+<li>No unused production code: delete it, wire it into behavior, or track a follow-up issue. Do not silence it with underscore prefixes or <code>#[allow(dead_code)]</code>; reserve underscore names for required but intentionally unused API, trait, or callback parameters.</li>
+<li>Error handling: <code>anyhow::Result</code> at binary boundaries, typed errors in library crates. No <code>unwrap()</code> / <code>expect()</code> in production code paths: propagate with <code>?</code> or document the invariant that makes panic impossible.</li>
+<li>Minimal dependencies: every dep adds to binary size; weigh the trade before adding one</li>
+<li>Trait-first: define the trait in <code>zeroclaw-api</code>, then implement in the right edge crate</li>
+<li>Security by default: allowlists, not blocklists. New external surface defaults closed</li>
+<li>Inline unit tests: <code>#[cfg(test)] mod tests {}</code> at the bottom of the file or a sibling <code>tests.rs</code></li>
+<li>Don’t commit secrets, personal data, or real-user identities: the <a href="./privacy.html">Privacy &amp; PII discipline</a> page is the merge gate</li>
 </ul>
 <h2 id="测试"><a class="header" href="#测试">测试</a></h2>
 <ul>
 <li>与代码共置的单元测试（<code>mod tests</code>）</li>
-<li><code>tests/</code> 中的集成测试和 crate 本地单元测试——通过 <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> 运行</li>
+<li>Integration tests in <code>tests/</code> and crate-local unit tests: run via <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
 <li>特性门控代码需要特性门控测试</li>
-<li>不要对涉及模式或 SQL 的测试进行数据库模拟——集成测试必须使用真实的 SQLite。</li>
+<li>Don’t mock the database for tests that exercise schema or SQL: integration tests must hit a real SQLite</li>
 </ul>
 <p>有关完整的五级分类体系（单元 / 组件 / 集成 / 系统 / 生产环境）、共享的模拟基础设施以及 JSON 追踪夹具格式，请参阅 <a href="./testing.html">Testing</a>。</p>
 <h2 id="文档更改"><a class="header" href="#文档更改">文档更改</a></h2>
 <ul>
 <li>文档中的文本更改请放在 <code>docs/book/src/**/*.md</code>（即本 mdBook）中。</li>
 <li>Rustdoc (<code>/ /</code>) 在部署时自动更新 API 参考</li>
-<li>参考页面（<code>docs/book/src/reference/cli.md</code>、<code>config.md</code>）是自动生成的——请勿手动编辑。请运行 <code>cargo mdbook refs</code> 并提交生成的输出。</li>
-<li>本地化 — 英文 markdown 是事实来源。常规的英文文档 PR 可能会省略大量生成的 <code>.po</code> 变更；请使用 <a href="../developing/building-docs.html">Building the docs locally</a> 中的标准 PR 正文说明。</li>
+<li>Reference pages (<code>docs/book/src/reference/cli.md</code>, <code>config.md</code>) are generated; don’t hand-edit. Run <code>cargo mdbook refs</code> and commit the output</li>
+<li>Localisation: English markdown is the source of truth. Routine English docs PRs may omit broad generated <code>.po</code> churn; use the standard PR-body note in <a href="../developing/building-docs.html">Building the docs locally</a>.</li>
 <li>翻译缓存 PR、发布翻译流程以及新增语言环境时，应运行 <code>cargo mdbook sync</code>，提交生成的 <code>.po</code> 文件，并使用 <code>cargo mdbook check</code> 进行校验</li>
 </ul>
 <h2 id="发布博客或网站元数据"><a class="header" href="#发布博客或网站元数据">发布博客或网站元数据</a></h2>
 <p>当你发布博客文章或以其他方式更新公开的博客元数据时，请在同一个 PR 中更新手动维护的订阅源时间戳：</p>
 <ul>
-<li>将 <code>web/public/blog/rss.xml</code> 中的 <code>&lt;lastBuildDate&gt;</code> 设置为最新文章发布时间，采用 RFC 2822 / GMT 格式</li>
-<li><code>web/public/blog/atom.xml</code> — 将 <code>&lt;updated&gt;</code> 设置为最新文章的发布时间，采用 ISO 8601 UTC 格式</li>
-<li><code>web/public/sitemap.xml</code> — 将 <code>/blog</code> 条目的 <code>&lt;lastmod&gt;</code> 设置为最新的发布日期</li>
+<li><code>web/public/blog/rss.xml</code>: set <code>&lt;lastBuildDate&gt;</code> to the latest post publish time in RFC 2822 / GMT format</li>
+<li><code>web/public/blog/atom.xml</code>: set <code>&lt;updated&gt;</code> to the latest post publish time in ISO 8601 UTC format</li>
+<li><code>web/public/sitemap.xml</code>: set the <code>/blog</code> entry’s <code>&lt;lastmod&gt;</code> to the latest publish date</li>
 </ul>
 <p>将订阅源发现保持在环境本地：</p>
 <ul>
@@ -292,15 +368,15 @@ chore: bump tokio to 1.43
 <p>标题与压缩提交（squash commit）一致：</p>
 <pre><code>feat(scope): short description
 </code></pre>
-<p>正文使用 PR 模板。<strong>validation-evidence 部分是必填项</strong>——请粘贴与本次变更匹配的检查结果。对于仅涉及文档的 PR，使用 <code>scripts/ci/docs_quality_gate.sh</code> 和 <code>scripts/ci/docs_links_gate.sh</code>，或说明为何链接检查没有可供检查的新增链接。对于 Rust/代码 PR，请包含 <code>cargo fmt --check</code>、<code>cargo clippy</code>、<code>cargo test</code>，以及你所做的任何手动验证。“在我的机器上能跑”不算证据。</p>
+<p>Body uses the PR template. <strong>The validation-evidence section is required</strong>: paste the checks that match the change. For docs-only PRs, use <code>scripts/ci/docs_quality_gate.sh</code> and <code>scripts/ci/docs_links_gate.sh</code> or explain why link checking had no added links to inspect. For Rust/code PRs, include <code>cargo fmt --check</code>, <code>cargo clippy</code>, <code>cargo test</code>, plus whatever manual verification you did. “It works on my machine” is not evidence.</p>
 <p>风险标签：</p>
 <ul>
-<li><code>risk: low</code> — 回滚即还原；无需用户操作</li>
-<li><code>risk: medium</code> — 用户可能需要更新配置/环境变量/CLI 用法；需要回滚方案</li>
-<li><code>risk: high</code> — 安全关键、架构变更、破坏性行为。需要回滚方案、功能开关以及可观测的故障表现</li>
+<li><code>risk: low</code>: rollback is a revert; no user action needed</li>
+<li><code>risk: medium</code>: users may need to update config / env / CLI usage; rollback plan required</li>
+<li><code>risk: high</code>: security-critical, schema changes, breaking behaviour. Rollback plan, feature flag, and observable failure symptoms required</li>
 </ul>
 <h2 id="在-pr-之后"><a class="header" href="#在-pr-之后">在 PR 之后</a></h2>
-<p><strong>合并策略：</strong> 使用 squash-merge（压缩合并），并在提交信息正文中保留完整的提交历史。具体格式请参阅 <code>.claude/skills/squash-merge/SKILL.md</code> — 简要说明：以 PR 标题 + <code>(#number)</code> 作为提交信息主题，原始提交列表作为正文。</p>
+<p><strong>Merge strategy:</strong> squash-merge with the full commit history preserved in the body. See <code>.claude/skills/squash-merge/SKILL.md</code> for the exact format: TL;DR: PR title + <code>(#number)</code> as the subject, bullet list of original commits as the body.</p>
 <p><strong>发布：</strong> 代码变更会合并到 <code>master</code> 分支；<code>master</code> 分支不会自动发布。当发布新版本时，维护者会更新版本号并打上 <code>vX.Y.Z</code> 标签。您可以在 CHANGELOG 中看到您的 PR。</p>
 <h2 id="需要帮助的区域"><a class="header" href="#需要帮助的区域">需要帮助的区域</a></h2>
 <div class="table-wrapper">
@@ -309,22 +385,22 @@ chore: bump tokio to 1.43
 <tr><th>区域</th><th>从哪里开始</th></tr>
 </thead>
 <tbody>
-<tr><td>新频道</td><td><code>crates/zeroclaw-channels/</code> — 复制一个具有相似结构的现有通道</td></tr>
-<tr><td>新的提供商</td><td><code>crates/zeroclaw-providers/</code> — <code>compatible.rs</code> 涵盖了大多数与 OpenAI 兼容的提供商</td></tr>
-<tr><td>文档</td><td><code>docs/book/src/</code> — 任何标记为过时或缺失的内容</td></tr>
-<tr><td>翻译</td><td><code>cargo fluent fill --locale &lt;code&gt;</code> — 请参阅 <a href="../maintainers/docs-and-translations.html">维护者 → 文档与翻译</a></td></tr>
-<tr><td>硬件</td><td><code>crates/zeroclaw-hardware/</code> — 新增主板支持，新增传感器驱动程序</td></tr>
+<tr><td>新频道</td><td><code>crates/zeroclaw-channels/</code>: copy an existing channel of similar shape</td></tr>
+<tr><td>新的提供商</td><td><code>crates/zeroclaw-providers/</code>: <code>compatible.rs</code> covers most OpenAI-like ones</td></tr>
+<tr><td>文档</td><td><code>docs/book/src/</code>: anything marked outdated or missing</td></tr>
+<tr><td>翻译</td><td><code>cargo fluent fill --locale &lt;code&gt;</code>: see <a href="../maintainers/docs-and-translations.html">Maintainers → Docs &amp; Translations</a></td></tr>
+<tr><td>硬件</td><td><code>crates/zeroclaw-hardware/</code>: new board support, new sensor drivers</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="行为准则"><a class="header" href="#行为准则">行为准则</a></h2>
-<p>不要做令人反感的事。对事不对人。接受维护者会关闭他们不想负责的问题——通常会附上解释，偶尔也不会。如果关闭看起来不合理，可以询问；如果询问没有结果，就继续前进。</p>
+<p>Don’t be a jerk. Disagree on ideas; not people. Accept that maintainers will close things they don’t want to own, usually with an explanation, occasionally without. If a close feels unjustified, ask; if the ask goes nowhere, move on.</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
-<li><a href="./rfcs.html">RFC 流程</a> — 适用于比补丁更大的改动</li>
-<li><a href="./architecture-map.html">架构与贡献导览</a> — 应优先阅读哪些架构、基础和工作流文档</li>
-<li><a href="./communication.html">通信</a> — 如何联系团队</li>
-<li><a href="../maintainers/index.html">维护者 → 概述</a> — 维护者的日常工作</li>
+<li><a href="./rfcs.html">RFC process</a>: for anything bigger than a patch</li>
+<li><a href="./architecture-map.html">Architecture and contribution map</a>: which architecture, foundation, and workflow docs to read first</li>
+<li><a href="./communication.html">Communication</a>: how to reach the team</li>
+<li><a href="../maintainers/index.html">Maintainers → Overview</a>: what maintainers do day-to-day</li>
 </ul>
 
                     </main>

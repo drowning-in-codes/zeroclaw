@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,18 +293,18 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="tool-receipts"><a class="header" href="#tool-receipts">Tool Receipts</a></h1>
-<p>Tool receipts are cryptographic proofs that a tool actually ran. Every tool invocation — approved, blocked, or auto-approved — produces an HMAC-SHA256 digest over the call and its result. The digest is appended to the tool-result text and passed back to the model as part of the conversation.</p>
+<p>Tool receipts are cryptographic proofs that a tool actually ran. Every tool invocation, approved, blocked, or auto-approved, produces an HMAC-SHA256 digest over the call and its result. The digest is appended to the tool-result text and passed back to the model as part of the conversation.</p>
 <p>The practical outcome: the model cannot claim to have run a tool it didn’t run, and it cannot fabricate a tool result. Both produce receipt mismatches the runtime detects.</p>
 <h2 id="the-threat-model"><a class="header" href="#the-threat-model">The threat model</a></h2>
-<p>An LLM is a string generator. By default, nothing prevents it from narrating a tool call it never made (“I ran <code>git log</code> and the latest commit is…”), or inventing a result for a tool call (“The weather API says 72°F” — when the call timed out). For an agent with autonomy, this is more than a correctness issue — it’s a deniability issue.</p>
+<p>An LLM is a string generator. By default, nothing prevents it from narrating a tool call it never made (“I ran <code>git log</code> and the latest commit is…”), or inventing a result for a tool call (“The weather API says 72°F”, when the call timed out). For an agent with autonomy, this is more than a correctness issue: it’s a deniability issue.</p>
 <p>Tool receipts close that gap with the cheapest possible construct: a symmetric MAC with an ephemeral process-lifetime key.</p>
 <blockquote>
-<p><strong>What “session” means here.</strong> The HMAC key is generated once when <code>start_channels</code> initialises the channel server and lives for the lifetime of that daemon process. Every channel, every conversation, every <code>delegate</code> hand-off, and every spawned <a href="../architecture/subagents.html">SubAgent</a> inside that process verifies against the same key. Restarting the daemon rotates it; there is no per-conversation or per-channel scoping. “Session” is used elsewhere in this document as shorthand for “this daemon process.”</p>
+<p><strong>What “session” means here.</strong> The HMAC key is generated once when <code>start_channels</code> initialises the channel server and lives for the lifetime of that daemon process. Every channel, every conversation, every <code>delegate</code> hand-off, and every spawned <a href="../agents/delegation.html">SubAgent</a> inside that process verifies against the same key. Restarting the daemon rotates it; there is no per-conversation or per-channel scoping. “Session” is used elsewhere in this document as shorthand for “this daemon process.”</p>
 </blockquote>
 <p>Based on: Basu, A. (2026). “Tool Receipts, Not Zero-Knowledge Proofs: Practical Hallucination Detection for AI Agents.” <a href="https://doi.org/10.48550/arXiv.2603.10060">arXiv:2603.10060</a>.</p>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
 <ol>
-<li>At channel-server startup, a 256-bit key is generated and held in <code>ChannelRuntimeContext</code> for the lifetime of the daemon process. It’s ephemeral — never written to disk, never sent to the model, never logged. A daemon restart rotates the key.</li>
+<li>At channel-server startup, a 256-bit key is generated and held in <code>ChannelRuntimeContext</code> for the lifetime of the daemon process. It’s ephemeral: never written to disk, never sent to the model, never logged. A daemon restart rotates the key.</li>
 <li>After each tool invocation, the runtime computes:
 <pre><code>receipt = HMAC-SHA256(key, tool_name || args || result || timestamp)
 </code></pre>
@@ -239,7 +315,7 @@
 </li>
 <li>The tool result (with the receipt) is fed back to the model.</li>
 </ol>
-<p>The model sees every receipt in its conversation history. It can echo them in text it produces to the user. But it cannot produce a <em>new</em> valid receipt — the HMAC requires the session key, which the model doesn’t have.</p>
+<p>The model sees every receipt in its conversation history. It can echo them in text it produces to the user. But it cannot produce a <em>new</em> valid receipt: the HMAC requires the session key, which the model doesn’t have.</p>
 <h3 id="receipt-shape"><a class="header" href="#receipt-shape">Receipt shape</a></h3>
 <pre><code>zc-receipt-1774608496-gzpEBuUIRYX1vd4fQl4oYkqhq4-GnoJDStmlYzvQiWA
           ^ epoch seconds     ^ base64url(HMAC-SHA256 digest)
@@ -252,7 +328,7 @@
 <tr><th>Scenario</th><th>Without receipts</th><th>With receipts</th></tr>
 </thead>
 <tbody>
-<tr><td>Model claims it ran a tool, didn’t</td><td>Undetectable</td><td>No receipt — fabrication visible</td></tr>
+<tr><td>Model claims it ran a tool, didn’t</td><td>Undetectable</td><td>No receipt: fabrication visible</td></tr>
 <tr><td>Model fabricates a result for a real call</td><td>Undetectable</td><td>HMAC mismatches on verification</td></tr>
 <tr><td>Model denies a call it did make</td><td>Unverifiable</td><td>Receipt in log proves it</td></tr>
 <tr><td>Model fabricates a plausible receipt string</td><td>Plausible</td><td>HMAC verification fails</td></tr>
@@ -269,8 +345,12 @@
 </ul>
 <h2 id="viewing-receipts"><a class="header" href="#viewing-receipts">Viewing receipts</a></h2>
 <h3 id="in-debug-logs"><a class="header" href="#in-debug-logs">In debug logs</a></h3>
-<pre><code class="language-bash">RUST_LOG=zeroclaw_runtime::agent=debug zeroclaw daemon
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">RUST_LOG=zeroclaw_runtime::agent=debug zeroclaw daemon
 </code></pre>
+</div>
+
 <p>Produces:</p>
 <pre><code>DEBUG Tool receipt generated tool=shell receipt=zc-receipt-1774604899-fVRG...
 </code></pre>
@@ -283,13 +363,8 @@ Tool receipts:
   weather: zc-receipt-1774608496-gzpEBuUIRYX1vd4fQl4oYkqhq4-GnoJDStmlYzvQiWA
 </code></pre>
 <h3 id="in-the-llms-own-output"><a class="header" href="#in-the-llms-own-output">In the LLM’s own output</a></h3>
-<p>Because the model sees receipts in its context, it may echo them when describing tool results. The leak detector is configured to pass <code>zc-receipt-*</code> tokens through unmodified so this echoing works. If both the runtime and the model include a receipts block, the user sees two — strip one via channel-specific formatting rules.</p>
+<p>Because the model sees receipts in its context, it may echo them when describing tool results. The leak detector is configured to pass <code>zc-receipt-*</code> tokens through unmodified so this echoing works. If both the runtime and the model include a receipts block, the user sees two: strip one via channel-specific formatting rules.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<pre><code class="language-toml">[agent.tool_receipts]
-enabled = true
-show_in_response = false    # append trailing "Tool receipts:" block
-inject_system_prompt = true # instruct the model to echo receipts verbatim
-</code></pre>
 <h2 id="security-properties"><a class="header" href="#security-properties">Security properties</a></h2>
 <ul>
 <li><strong>Ephemeral key per daemon process.</strong> Generated at <code>start_channels</code> time, held only in memory, rotated on every restart. Never persisted, never logged, never in the model’s context. Compromising long-term storage gains nothing.</li>
@@ -323,8 +398,8 @@ inject_system_prompt = true # instruct the model to echo receipts verbatim
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="./overview.html">Security → Overview</a></li>
-<li><a href="./autonomy.html">Autonomy levels</a> — the policy layer that decides whether a receipt-worthy call happens</li>
-<li><a href="../reference/config.html">Reference → Config</a> — generated config reference</li>
+<li><a href="./autonomy.html">Autonomy levels</a>: the policy layer that decides whether a receipt-worthy call happens</li>
+<li><a href="../reference/config.html">Reference → Config</a>: generated config reference</li>
 </ul>
 
                     </main>

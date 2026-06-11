@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,19 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="cycle-de-vie-de-la-requête"><a class="header" href="#cycle-de-vie-de-la-requête">Cycle de vie de la requête</a></h1>
-<p>Quel est le parcours complet, avec le streaming, les appels d’outils et les filtres de sécurité annotés, entre « l’utilisateur envoie un message » et « l’agent répond » ?</p>
+<p>What happens between “user sends a message” and “agent replies”: the full path, with streaming, tool calls, and security gates annotated.</p>
 <h2 id="entrant"><a class="header" href="#entrant">Entrant</a></h2>
 <pre class="mermaid">flowchart LR
     A[External event] --&gt;|webhook / push / poll / WS| B[Channel adapter]
     B --&gt;|decode, dedup, pair-check| C[Inbound envelope]
-    C --&gt;|workspace binding| D[Runtime: deliver_message]
+    C --&gt;|workspace binding| D[Runtime: process_message]
 </pre>
 
 <p>Un adaptateur de canal (par exemple <code>discord.rs</code>, <code>telegram.rs</code>, <code>email_channel.rs</code>) reçoit des événements natifs à la plateforme et les convertit en une enveloppe d’entrée uniforme. L’adaptateur gère :</p>
 <ul>
-<li><strong>Décodage</strong> — charge utile spécifique à la plateforme → format de message canonique</li>
-<li><strong>Déduplication</strong> — empêche de rejouer le même message deux fois (redémarrages, tentatives de reconnexion)</li>
-<li><strong>Vérification par paire</strong> — applique la politique <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM avant que l’événement n’atteigne le runtime</li>
+<li><strong>Decoding</strong>: platform-specific payload → canonical message format</li>
+<li><strong>Deduplication</strong>: prevents replaying the same message twice (restarts, retries)</li>
+<li><strong>Pair-check</strong>: enforces the <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM policy before the event reaches the runtime</li>
 </ul>
 <p>Si le canal n’est pas appairé ou si l’utilisateur n’est pas autorisé, l’événement est supprimé avant que le runtime ne le voie.</p>
 <h2 id="boucle-dagent"><a class="header" href="#boucle-dagent">Boucle d’agent</a></h2>
@@ -241,7 +317,7 @@
     participant PR as Provider
     participant TL as Tool
 
-    CH-&gt;&gt;RT: deliver_message(envelope)
+    CH-&gt;&gt;RT: process_message(envelope)
     RT-&gt;&gt;MEM: load_context(conversation_id)
     MEM--&gt;&gt;RT: prior messages + retrieved facts
     RT-&gt;&gt;PR: chat(system, history, tools)
@@ -250,7 +326,7 @@
         RT--&gt;&gt;CH: draft update (if channel supports it)
     end
     PR--&gt;&gt;RT: StreamEvent::ToolCall(args)
-    RT-&gt;&gt;SEC: validate_tool_call(name, args, risk)
+    RT-&gt;&gt;SEC: evaluate_tool_access(name, args, risk)
     alt Blocked
         SEC--&gt;&gt;RT: Err(reason)
         RT-&gt;&gt;PR: chat(..., + tool_error)
@@ -273,19 +349,19 @@
 <ul>
 <li><strong>Le streaming est de bout en bout.</strong> Le fournisseur diffuse des jetons. Si l’adaptateur de canal indique <code>supports_draft_updates()</code>, l’exécution modifie un message envoyé en place au fur et à mesure que le texte arrive. Discord, Slack et Telegram prennent en charge cette fonctionnalité.</li>
 <li><strong>Les appels d’outils sont en cours de flux.</strong> Le modèle peut émettre un appel d’outil tout en continuant à générer du texte. Le runtime met le flux en pause, valide, invoque, renvoie le résultat et reprend.</li>
-<li><strong>Chaque appel d’outil passe par des portes de sécurité.</strong> <code>validate_tool_call</code> consulte le <a href="../security/autonomy.html">niveau d’autonomie</a>, les listes d’autorisation et d’interdiction, ainsi que les limites de chemin. Les appels de risque moyen sous l’autonomie <code>Supervised</code> sont dirigés vers le chemin d’approbation par l’opérateur.</li>
-<li><strong>La mémoire est persistante.</strong> L’intégralité de la conversation, des appels d’outils, des résultats des outils et des reçus sont écrits dans le backend de mémoire.</li>
+<li><strong>Security gates every tool call.</strong> <code>evaluate_tool_access</code> consults the <a href="../security/autonomy.html">autonomy level</a>, allow/deny lists, and path boundaries. Medium-risk calls under <code>Supervised</code> autonomy go to the operator-approval path.</li>
+<li><strong>Memory is persistent.</strong> The conversation, tool calls, and tool results are written to the memory backend. (Receipts ride in-band in the conversation text rather than as a separate persisted artifact.)</li>
 </ul>
 <h2 id="reçus-doutils"><a class="header" href="#reçus-doutils">Reçus d’outils</a></h2>
-<p>Chaque invocation d’outil génère un reçu signé, écrit dans le journal des reçus d’outils. Consultez <a href="../security/tool-receipts.html">Reçus d’outils</a>. Les reçus sont chaînés — chacun inclut le hachage du précédent — de sorte que toute altération d’un reçu invalide le reste du journal.</p>
+<p>Every tool invocation produces an HMAC-SHA256 receipt that is appended to the tool-result text and passed back to the model in the conversation, proving the tool actually ran. The HMAC is keyed by a per-daemon-process key and computed over <code>tool_name || args || result || timestamp</code>. Receipts are not written to a separate on-disk log and are not chained; the model can echo them but cannot forge a new valid one without the key. See <a href="../security/tool-receipts.html">Tool receipts</a>.</p>
 <h2 id="sortant"><a class="header" href="#sortant">Sortant</a></h2>
 <p>Les messages sortants repassent par le même adaptateur de canal. Les adaptateurs prenant en charge les messages multiples (Discord, Slack) peuvent diffuser de longues réponses sous forme d’une séquence de messages ; les autres (email, SMS) sont vidés à la fin du flux.</p>
 <h2 id="où-il-se-trouve-dans-le-code"><a class="header" href="#où-il-se-trouve-dans-le-code">Où il se trouve dans le code</a></h2>
 <ul>
-<li>Boucle d’agent : <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code></li>
-<li>Validation des appels d’outil : <code>crates/zeroclaw-runtime/src/security/</code></li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Tool-call access checks: <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>Orchestration des canaux : <code>crates/zeroclaw-channels/src/orchestrator/</code></li>
-<li>Fournisseur de streaming : <code>crates/zeroclaw-providers/src/traits.rs</code> (énumération <code>StreamEvent</code>), <code>compatible.rs</code> (analyseur SSE)</li>
+<li>Provider streaming: <code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>StreamEvent</code> enum, re-exported from <code>zeroclaw-providers</code>), <code>compatible.rs</code> (SSE parser)</li>
 </ul>
 
                     </main>

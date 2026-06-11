@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,11 +292,11 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="zeroclaw-sur-arduino-q--guide-étape-par-étape"><a class="header" href="#zeroclaw-sur-arduino-q--guide-étape-par-étape">ZeroClaw sur Arduino Q — Guide étape par étape</a></h1>
+                        <h1 id="zeroclaw-on-arduino-uno-q-step-by-step-guide"><a class="header" href="#zeroclaw-on-arduino-uno-q-step-by-step-guide">ZeroClaw on Arduino Uno Q: Step-by-Step Guide</a></h1>
 <p>Exécutez ZeroClaw sur la partie Linux de l’Arduino Uno Q. Telegram fonctionne via WiFi ; le contrôle des GPIO utilise le pont (nécessite une application minimale d’App Lab).</p>
 <hr>
 <h2 id="ce-qui-est-inclus-aucun-changement-de-code-nécessaire"><a class="header" href="#ce-qui-est-inclus-aucun-changement-de-code-nécessaire">Ce qui est inclus (aucun changement de code nécessaire)</a></h2>
-<p>ZeroClaw inclut tout ce qui est nécessaire pour Arduino Uno Q. <strong>Clonez le dépôt et suivez ce guide — aucun patch ni code personnalisé requis.</strong></p>
+<p>ZeroClaw includes everything needed for Arduino Uno Q. <strong>Clone the repo and follow this guide, no patches or custom code required.</strong></p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -230,7 +306,7 @@
 <tr><td>Application de pont</td><td><code>firmware/uno-q-bridge/</code></td><td>Croquis MCU + serveur socket Python (port 9999) pour GPIO</td></tr>
 <tr><td>Outils de pont</td><td><code>crates/zeroclaw-hardware/src/peripherals/uno_q_bridge.rs</code></td><td>Outils <code>gpio_read</code> / <code>gpio_write</code> qui communiquent avec le pont via TCP</td></tr>
 <tr><td>Commande de configuration</td><td><code>crates/zeroclaw-hardware/src/peripherals/uno_q_setup.rs</code></td><td><code>zeroclaw peripheral setup-uno-q</code> déploie le pont via scp + arduino-app-cli</td></tr>
-<tr><td>Schéma de configuration</td><td><code>board = "arduino-uno-q"</code>, <code>transport = "bridge"</code></td><td>Pris en charge dans <code>config.toml</code></td></tr>
+<tr><td>Schéma de configuration</td><td><code>board = "arduino-uno-q"</code>, <code>transport = "bridge"</code></td><td>Configurable via the gateway, zerocode, or <code>zeroclaw config set</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -260,13 +336,19 @@
 <li>Notez l’adresse IP affichée (par exemple <code>arduino@192.168.1.42</code>) ou trouvez-la plus tard via <code>ip addr show</code> dans le terminal d’App Lab.</li>
 </ol>
 <h3 id="12-vérifier-laccès-ssh"><a class="header" href="#12-vérifier-laccès-ssh">1.2 Vérifier l’accès SSH</a></h3>
-<pre><code class="language-bash">ssh arduino@&lt;UNO_Q_IP&gt;
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">ssh arduino@&lt;UNO_Q_IP&gt;
 # Enter the password you set
 </code></pre>
+</div>
+
 <hr>
 <h2 id="phase-2--installer-zeroclaw-sur-uno-q"><a class="header" href="#phase-2--installer-zeroclaw-sur-uno-q">Phase 2 : Installer ZeroClaw sur Uno Q</a></h2>
-<h3 id="option-a--compiler-sur-lappareil-plus-simple-2040-min"><a class="header" href="#option-a--compiler-sur-lappareil-plus-simple-2040-min">Option A : Compiler sur l’appareil (Plus simple, ~20–40 min)</a></h3>
-<pre><code class="language-bash"># SSH vers Uno Q
+<h3 id="option-a-build-on-the-device-simpler"><a class="header" href="#option-a-build-on-the-device-simpler">Option A: Build on the Device (Simpler)</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh"># SSH vers Uno Q
 ssh arduino@&lt;UNO_Q_IP&gt;
 
 # Install Rust
@@ -281,15 +363,19 @@ sudo apt-get install -y pkg-config libssl-dev
 git clone https://github.com/zeroclaw-labs/zeroclaw.git
 cd zeroclaw
 
-# Build (prend environ 15–30 min sur Uno Q)
+# Build (on-device build is slow; cross-compile from a larger machine if build time matters)
 export CARGO_BUILD_JOBS=1 # la compilation sera arrêtée par l'OOM killer en pleine édition de liens sans ceci
 cargo build --release --features hardware
 
 # Installer
 sudo cp target/release/zeroclaw /usr/local/bin/
 </code></pre>
+</div>
+
 <h3 id="option-b--compilation-croisée-sur-mac-plus-rapide"><a class="header" href="#option-b--compilation-croisée-sur-mac-plus-rapide">Option B : Compilation croisée sur Mac (plus rapide)</a></h3>
-<pre><code class="language-bash"># Sur votre Mac — ajoutez la cible aarch64
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh"># Sur votre Mac — ajoutez la cible aarch64
 rustup target add aarch64-unknown-linux-gnu
 
 # Installer le compilateur croisé (macOS ; requis pour l’édition des liens)
@@ -303,45 +389,63 @@ CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc cargo build --release
 scp target/aarch64-unknown-linux-gnu/release/zeroclaw arduino@&lt;UNO_Q_IP&gt;:~/
 ssh arduino@&lt;UNO_Q_IP&gt; `sudo mv ~/zeroclaw /usr/local/bin/`
 </code></pre>
+</div>
+
 <p>Si la compilation croisée échoue, utilisez l’option A et compilez sur l’appareil.</p>
 <hr>
 <h2 id="phase-3--configurer-zeroclaw"><a class="header" href="#phase-3--configurer-zeroclaw">Phase 3 : Configurer ZeroClaw</a></h2>
 <h3 id="31-run-quickstart-or-create-config-manually"><a class="header" href="#31-run-quickstart-or-create-config-manually">3.1 Run Quickstart (or Create Config Manually)</a></h3>
-<pre><code class="language-bash">ssh arduino@&lt;UNO_Q_IP&gt;
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">ssh arduino@&lt;UNO_Q_IP&gt;
 
 # Quick config
 zeroclaw quickstart --api-key YOUR_OPENROUTER_KEY --model-provider openrouter
-
-# Ou créer la configuration manuellement
-mkdir -p ~/.zeroclaw/workspace
-nano ~/.zeroclaw/config.toml
 </code></pre>
+</div>
+
 <h3 id="32-configuration-minimale"><a class="header" href="#32-configuration-minimale">3.2 Configuration minimale</a></h3>
 <p>Au minimum, configurez une entrée <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> avec <code>api_key</code> / <code>model</code>, une entrée <code>[agents.&lt;alias&gt;]</code> qui la référence via <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code>, et une entrée <code>[channels.telegram.&lt;alias&gt;]</code> avec votre <code>bot_token</code>. Liez le canal à l’agent via <code>channels = ["telegram.&lt;alias&gt;"]</code> sur l’agent. Laissez <code>[peripherals]</code> désactivé jusqu’à la Phase 4 ci-dessous. Consultez la <a href="../reference/config.html">référence de configuration</a> pour tous les champs.</p>
 <hr>
 <h2 id="phase-4--exécuter-le-démon-zeroclaw"><a class="header" href="#phase-4--exécuter-le-démon-zeroclaw">Phase 4 : Exécuter le démon ZeroClaw</a></h2>
-<pre><code class="language-bash">ssh arduino@&lt;UNO_Q_IP&gt;
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">ssh arduino@&lt;UNO_Q_IP&gt;
 
 # Run daemon (Telegram polling works over WiFi)
 zeroclaw daemon --host 127.0.0.1 --port 42617
 </code></pre>
-<p><strong>À ce stade :</strong> Le chat Telegram fonctionne. Envoyez des messages à votre bot — ZeroClaw répond. Pas encore de GPIO.</p>
+</div>
+
+<p><strong>At this point:</strong> Telegram chat works. Send messages to your bot, ZeroClaw responds. No GPIO yet.</p>
 <hr>
 <h2 id="phase-5--gpio-via-pont-zeroclaw-sen-charge"><a class="header" href="#phase-5--gpio-via-pont-zeroclaw-sen-charge">Phase 5 : GPIO via pont (ZeroClaw s’en charge)</a></h2>
 <p>ZeroClaw inclut l’application Bridge et la commande de configuration.</p>
 <h3 id="51-déployer-lapplication-bridge"><a class="header" href="#51-déployer-lapplication-bridge">5.1 Déployer l’application Bridge</a></h3>
 <p><strong>Depuis votre ordinateur</strong> (avec le dépôt zeroclaw) :</p>
-<pre><code class="language-bash">zeroclaw peripheral setup-uno-q --host 192.168.0.48
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">zeroclaw peripheral setup-uno-q --host 192.168.0.48
 </code></pre>
+</div>
+
 <p><strong>Depuis Uno Q</strong> (connecté via SSH) :</p>
-<pre><code class="language-bash">zeroclaw peripheral setup-uno-q
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">zeroclaw peripheral setup-uno-q
 </code></pre>
+</div>
+
 <p>Cela copie l’application Bridge vers <code>~/ArduinoApps/uno-q-bridge</code> et la démarre.</p>
 <h3 id="52-ajouter-à-la-configuration"><a class="header" href="#52-ajouter-à-la-configuration">5.2 Ajouter à la configuration</a></h3>
 <p>Activez <code>[peripherals]</code> et ajoutez une entrée <code>[[peripherals.boards]]</code> avec <code>board = "arduino-uno-q"</code> et <code>transport = "bridge"</code>.</p>
 <h3 id="53-exécuter-zeroclaw"><a class="header" href="#53-exécuter-zeroclaw">5.3 Exécuter ZeroClaw</a></h3>
-<pre><code class="language-bash">zeroclaw daemon --host 127.0.0.1 --port 42617
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon --host 127.0.0.1 --port 42617
 </code></pre>
+</div>
+
 <p>Maintenant, lorsque vous envoyez un message à votre bot Telegram « Allumer la LED » ou « Définir la broche 13 à l’état haut », ZeroClaw utilise <code>gpio_write</code> via le pont.</p>
 <hr>
 <h2 id="résumé--des-commandes-au-démarrage-à-la-fin"><a class="header" href="#résumé--des-commandes-au-démarrage-à-la-fin">Résumé : Des commandes au démarrage à la fin</a></h2>
@@ -360,21 +464,21 @@ zeroclaw daemon --host 127.0.0.1 --port 42617
 <tr><td>7</td><td><code>zeroclaw quickstart --api-key KEY --model-provider openrouter</code></td></tr>
 <tr><td>8</td><td><code>zeroclaw config set channels.telegram.default.bot-token &lt;token&gt;</code></td></tr>
 <tr><td>9</td><td><code>zeroclaw daemon --host 127.0.0.1 --port 42617</code></td></tr>
-<tr><td>10</td><td>Envoyez un message à votre bot Telegram — il répond</td></tr>
+<tr><td>10</td><td>Message your Telegram bot: it responds</td></tr>
 <tr><td>11</td><td><code>zeroclaw peripheral setup-uno-q</code> (déploie Bridge)</td></tr>
-<tr><td>12</td><td>Ajoutez le bloc <code>[peripherals]</code> avec <code>board = "arduino-uno-q"</code> à <code>config.toml</code></td></tr>
-<tr><td>13</td><td>Redémarrer le démon (<code>zeroclaw daemon …</code>) — les commandes GPIO fonctionnent désormais</td></tr>
+<tr><td>12</td><td>Add a <code>peripherals</code> board with <code>board = "arduino-uno-q"</code> via the gateway, zerocode, or <code>zeroclaw config set</code></td></tr>
+<tr><td>13</td><td>Restart daemon (<code>zeroclaw daemon …</code>), GPIO commands now work</td></tr>
 </tbody>
 </table>
 </div>
 <hr>
 <h2 id="dépannage"><a class="header" href="#dépannage">Dépannage</a></h2>
 <ul>
-<li><strong>« commande introuvable : zeroclaw »</strong> — Utilisez le chemin complet : <code>/usr/local/bin/zeroclaw</code> ou assurez-vous que <code>~/.cargo/bin</code> est dans le PATH.</li>
-<li><strong>Telegram ne répond pas</strong> — Vérifiez le bot_token, les allowed_users, et que l’Uno Q a une connexion Internet (WiFi).</li>
-<li><strong>Manque de mémoire</strong> — Gardez les fonctionnalités minimales (<code>--features hardware</code> pour Uno Q) ; envisagez <code>compact_context = true</code>.</li>
-<li><strong>Les commandes GPIO sont ignorées</strong> — Assurez-vous que l’application Bridge est en cours d’exécution (<code>zeroclaw peripheral setup-uno-q</code> la déploie et la démarre). La configuration doit contenir <code>board = "arduino-uno-q"</code> et <code>transport = "bridge"</code>.</li>
-<li><strong>Fournisseur LLM (GLM/Zhipu)</strong> — Configurez <code>[providers.models.glm.&lt;alias&gt;]</code> avec <code>GLM_API_KEY</code> dans l’environnement ou la configuration (l’ancien synonyme <code>zhipu</code> est fusionné dans <code>glm</code>). ZeroClaw utilise le point de terminaison v4 approprié.</li>
+<li><strong>“command not found: zeroclaw”</strong>: Use full path: <code>/usr/local/bin/zeroclaw</code> or ensure <code>~/.cargo/bin</code> is in PATH.</li>
+<li><strong>Telegram not responding</strong>: Check bot_token, allowed_users, and that the Uno Q has internet (WiFi).</li>
+<li><strong>Out of memory</strong>: Keep features minimal (<code>--features hardware</code> for Uno Q); consider <code>compact_context = true</code>.</li>
+<li><strong>GPIO commands ignored</strong>: Ensure Bridge app is running (<code>zeroclaw peripheral setup-uno-q</code> deploys and starts it). Config must have <code>board = "arduino-uno-q"</code> and <code>transport = "bridge"</code>.</li>
+<li><strong>LLM provider (GLM/Zhipu)</strong>: Configure <code>[providers.models.glm.&lt;alias&gt;]</code> with <code>GLM_API_KEY</code> in env or config (the legacy <code>zhipu</code> synonym is collapsed onto <code>glm</code>). ZeroClaw uses the correct v4 endpoint.</li>
 </ul>
 
                     </main>

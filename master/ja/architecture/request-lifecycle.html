@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,19 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="リクエストのライフサイクル"><a class="header" href="#リクエストのライフサイクル">リクエストのライフサイクル</a></h1>
-<p>「ユーザーがメッセージを送信」してから「エージェントが返信する」までに起こること — ストリーミング、ツール呼び出し、セキュリティゲートを注釈付きで示す完全な経路。</p>
+<p>What happens between “user sends a message” and “agent replies”: the full path, with streaming, tool calls, and security gates annotated.</p>
 <h2 id="インバウンド"><a class="header" href="#インバウンド">インバウンド</a></h2>
 <pre class="mermaid">flowchart LR
     A[External event] --&gt;|webhook / push / poll / WS| B[Channel adapter]
     B --&gt;|decode, dedup, pair-check| C[Inbound envelope]
-    C --&gt;|workspace binding| D[Runtime: deliver_message]
+    C --&gt;|workspace binding| D[Runtime: process_message]
 </pre>
 
 <p>チャネルアダプター（例：<code>discord.rs</code>、<code>telegram.rs</code>、<code>email_channel.rs</code>）はプラットフォーム固有のイベントを受信し、それらを統一されたインバウンドエンベロープに変換します。アダプターは以下の処理を行います：</p>
 <ul>
-<li><strong>デコーディング</strong> — プラットフォーム固有のペイロードを正規のメッセージ形式に変換</li>
-<li><strong>重複排除</strong> — 同じメッセージを再実行しないようにします（再起動、リトライ）。</li>
-<li><strong>ペアチェック</strong> — イベントがランタイムに到達する前に、<code>[channels.&lt;name&gt;.allowed_users]</code> / IAM ポリシーを強制します</li>
+<li><strong>Decoding</strong>: platform-specific payload → canonical message format</li>
+<li><strong>Deduplication</strong>: prevents replaying the same message twice (restarts, retries)</li>
+<li><strong>Pair-check</strong>: enforces the <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM policy before the event reaches the runtime</li>
 </ul>
 <p>チャンネルがペアリングされていないか、ユーザーに許可がない場合、イベントはランタイムがそれを見る前にドロップされます。</p>
 <h2 id="エージェントループ"><a class="header" href="#エージェントループ">エージェントループ</a></h2>
@@ -241,7 +317,7 @@
     participant PR as Provider
     participant TL as Tool
 
-    CH-&gt;&gt;RT: deliver_message(envelope)
+    CH-&gt;&gt;RT: process_message(envelope)
     RT-&gt;&gt;MEM: load_context(conversation_id)
     MEM--&gt;&gt;RT: prior messages + retrieved facts
     RT-&gt;&gt;PR: chat(system, history, tools)
@@ -250,7 +326,7 @@
         RT--&gt;&gt;CH: draft update (if channel supports it)
     end
     PR--&gt;&gt;RT: StreamEvent::ToolCall(args)
-    RT-&gt;&gt;SEC: validate_tool_call(name, args, risk)
+    RT-&gt;&gt;SEC: evaluate_tool_access(name, args, risk)
     alt Blocked
         SEC--&gt;&gt;RT: Err(reason)
         RT-&gt;&gt;PR: chat(..., + tool_error)
@@ -273,19 +349,19 @@
 <ul>
 <li><strong>ストリーミングはエンドツーエンドです。</strong> プロバイダはトークンをストリーミングします。チャネルアダプタが <code>supports_draft_updates()</code> を報告する場合、ランタイムはテキストが到着するたびに送信済みメッセージをその場で編集します。Discord、Slack、Telegram はこれをサポートしています。</li>
 <li><strong>ツール呼び出しはストリーミングの途中で行われます。</strong> モデルはテキストを生成しながらツール呼び出しを出力できます。ランタイムはストリームを一時停止し、検証、呼び出し、結果のフィードバックを行い、その後再開します。</li>
-<li><strong>セキュリティゲートはすべてのツール呼び出しを保護します。</strong> <code>validate_tool_call</code> は <a href="../security/autonomy.html">自律レベル</a>、許可/拒否リスト、およびパス境界を参照します。<code>Supervised</code> 自律レベルの中等度のリスク呼び出しは、オペレーター承認パスに送られます。</li>
-<li><strong>メモリは永続的です。</strong> 会話全体、ツール呼び出し、ツール結果、およびレシートはメモリバックエンドに書き込まれます。</li>
+<li><strong>Security gates every tool call.</strong> <code>evaluate_tool_access</code> consults the <a href="../security/autonomy.html">autonomy level</a>, allow/deny lists, and path boundaries. Medium-risk calls under <code>Supervised</code> autonomy go to the operator-approval path.</li>
+<li><strong>Memory is persistent.</strong> The conversation, tool calls, and tool results are written to the memory backend. (Receipts ride in-band in the conversation text rather than as a separate persisted artifact.)</li>
 </ul>
 <h2 id="ツール実行レシート"><a class="header" href="#ツール実行レシート">ツール実行レシート</a></h2>
-<p>すべてのツール呼び出しは、ツールレシートログに署名付きレシートとして記録されます。<a href="../security/tool-receipts.html">ツールレシート</a> を参照してください。レシートはチェーン化されており、各レシートには前のレシートのハッシュが含まれているため、いずれかのレシートが改ざんされると、ログの残りの部分が無効になります。</p>
+<p>Every tool invocation produces an HMAC-SHA256 receipt that is appended to the tool-result text and passed back to the model in the conversation, proving the tool actually ran. The HMAC is keyed by a per-daemon-process key and computed over <code>tool_name || args || result || timestamp</code>. Receipts are not written to a separate on-disk log and are not chained; the model can echo them but cannot forge a new valid one without the key. See <a href="../security/tool-receipts.html">Tool receipts</a>.</p>
 <h2 id="アウトバウンド"><a class="header" href="#アウトバウンド">アウトバウンド</a></h2>
 <p>送信メッセージは同じチャネルアダプタを介して戻ります。マルチメッセージ対応のアダプタ（Discord、Slack）は、長い返信をメッセージのシーケンスとしてストリーミングできます。それ以外のアダプタ（メール、SMS）は、ストリームの完了時にフラッシュします。</p>
 <h2 id="コード内での場所"><a class="header" href="#コード内での場所">コード内での場所</a></h2>
 <ul>
-<li>エージェントループ: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code></li>
-<li>ツール呼び出しの検証: <code>crates/zeroclaw-runtime/src/security/</code></li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Tool-call access checks: <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>チャネルオーケストレーション: <code>crates/zeroclaw-channels/src/orchestrator/</code></li>
-<li>プロバイダーストリーミング: <code>crates/zeroclaw-providers/src/traits.rs</code> (<code>StreamEvent</code> 列挙型)、<code>compatible.rs</code> (SSE パーサ)</li>
+<li>Provider streaming: <code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>StreamEvent</code> enum, re-exported from <code>zeroclaw-providers</code>), <code>compatible.rs</code> (SSE parser)</li>
 </ul>
 
                     </main>

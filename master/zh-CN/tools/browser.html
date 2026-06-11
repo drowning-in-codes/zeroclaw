@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -234,33 +310,63 @@
 </div>
 <h2 id="快速入门无头自动化"><a class="header" href="#快速入门无头自动化">快速入门：无头自动化</a></h2>
 <h3 id="1-安装-agent-browser"><a class="header" href="#1-安装-agent-browser">1. 安装 agent-browser</a></h3>
-<pre><code class="language-bash"># 安装 CLI
+<div class="os-tabs-src">
+<h4 id="linux"><a class="header" href="#linux">Linux</a></h4>
+<pre><code class="language-sh"># 安装 CLI
+npm install -g agent-browser
+
+# Download Chrome for Testing (includes system deps)
+agent-browser install --with-deps
+</code></pre>
+<h4 id="macos--windows"><a class="header" href="#macos--windows">macOS / Windows</a></h4>
+<pre><code class="language-sh"># 安装 CLI
 npm install -g agent-browser
 
 # 下载 Chrome for Testing
-agent-browser install --with-deps  # Linux（包含系统依赖项）
-agent-browser install              # macOS/Windows
+agent-browser install
 </code></pre>
+</div>
+
 <h3 id="2-验证-zeroclaw-配置"><a class="header" href="#2-验证-zeroclaw-配置">2. 验证 ZeroClaw 配置</a></h3>
 <p>浏览器工具默认启用，并设置 <code>allowed_domains = ["*"]</code>。您可以通过 <code>zeroclaw config set</code> 限制域名或禁用该工具：</p>
-<pre><code class="language-bash">zeroclaw config set browser.allowed-domains '["example.com", "docs.example.com"]'
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw config set browser.allowed_domains '["example.com", "docs.example.com"]'
 zeroclaw config set browser.enabled false
 </code></pre>
+</div>
+
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/browser"><code>/config/browser</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Browser</strong>.</p>
+</div>
+
 <p>对于 <code>agent_browser</code> 后端，设置 <code>browser.headed = true</code> 可在有界面模式下启动浏览器，用于调试或首次登录设置；或设置 <code>browser.headed = false</code> 以强制使用无界面模式。当 <code>browser.headed</code> 未设置时，Zeroclaw 会保留继承的 <code>AGENT_BROWSER_HEADED</code> 环境行为。rust-native 后端仍使用 <code>browser.native_headless</code>。</p>
 <p>有关所有浏览器字段和默认值的详细信息，请参阅 <a href="../reference/config.html">配置参考</a>。</p>
 <h3 id="3-测试"><a class="header" href="#3-测试">3. 测试</a></h3>
-<pre><code class="language-bash">echo 打开 https://example.com 并告诉我它显示的内容 | zeroclaw agent -a assistant
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">echo 打开 https://example.com 并告诉我它显示的内容 | zeroclaw agent -a assistant
 </code></pre>
+</div>
+
 <h2 id="vnc-设置gui-访问"><a class="header" href="#vnc-设置gui-访问">VNC 设置（GUI 访问）</a></h2>
 <p>用于调试或需要浏览器可视化访问时：</p>
 <h3 id="安装依赖"><a class="header" href="#安装依赖">安装依赖</a></h3>
-<pre><code class="language-bash"># Ubuntu/Debian
-apt-get install -y xvfb x11vnc fluxbox novnc websockify
+<div class="os-tabs-src">
+<h4 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h4>
+<pre><code class="language-sh">apt-get install -y xvfb x11vnc fluxbox novnc websockify
 
 # 可选：Chrome 远程桌面的桌面环境
 apt-get install -y xfce4 xfce4-goodies
 </code></pre>
+</div>
+
 <h3 id="启动-vnc-服务器"><a class="header" href="#启动-vnc-服务器">启动 VNC 服务器</a></h3>
+<div class="os-tabs-src">
+<h4 id="bash"><a class="header" href="#bash">bash</a></h4>
 <pre><code class="language-bash">```bash
 #!/bin/bash
 ```
@@ -290,17 +396,25 @@ echo VNC 可用位置：
 echo VNC 客户端：localhost:$VNC_PORT
 echo Web 浏览器：http://localhost:$NOVNC_PORT/vnc.html
 </code></pre>
+</div>
+
 <h3 id="vnc-访问"><a class="header" href="#vnc-访问">VNC 访问</a></h3>
 <ul>
 <li><strong>VNC 客户端</strong>：连接到 <code>localhost:5900</code></li>
 <li><strong>Web 浏览器</strong>：打开 <code>http://localhost:6080/vnc.html</code></li>
 </ul>
 <h3 id="在-vnc-显示上启动浏览器"><a class="header" href="#在-vnc-显示上启动浏览器">在 VNC 显示上启动浏览器</a></h3>
-<pre><code class="language-bash">DISPLAY=:99 google-chrome --no-sandbox https://example.com &amp;
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">DISPLAY=:99 google-chrome --no-sandbox https://example.com &amp;
 </code></pre>
+</div>
+
 <h2 id="chrome-远程桌面"><a class="header" href="#chrome-远程桌面">Chrome 远程桌面</a></h2>
 <h3 id="安装"><a class="header" href="#安装">安装</a></h3>
-<pre><code class="language-bash"># 下载和安装
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh"># 下载和安装
 wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
 apt-get install -y ./chrome-remote-desktop_current_amd64.deb
 
@@ -308,6 +422,8 @@ apt-get install -y ./chrome-remote-desktop_current_amd64.deb
 echo "xfce4-session" &gt; ~/.chrome-remote-desktop-session
 chmod +x ~/.chrome-remote-desktop-session
 </code></pre>
+</div>
+
 <h3 id="设置"><a class="header" href="#设置">设置</a></h3>
 <ol>
 <li>访问 <a href="https://remotedesktop.google.com/headless">https://remotedesktop.google.com/headless</a></li>
@@ -319,7 +435,9 @@ chmod +x ~/.chrome-remote-desktop-session
 <p>从任何设备访问 <a href="https://remotedesktop.google.com/access">https://remotedesktop.google.com/access</a>。</p>
 <h2 id="测试"><a class="header" href="#测试">测试</a></h2>
 <h3 id="cli-测试"><a class="header" href="#cli-测试">CLI 测试</a></h3>
-<pre><code class="language-bash"># 基本打开和关闭
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh"># 基本打开和关闭
 agent-browser open https://example.com
 agent-browser get title
 agent-browser close
@@ -334,8 +452,12 @@ agent-browser open https://example.com
 agent-browser screenshot /tmp/test.png
 agent-browser close
 </code></pre>
+</div>
+
 <h3 id="zeroclaw-集成测试"><a class="header" href="#zeroclaw-集成测试">ZeroClaw 集成测试</a></h3>
-<pre><code class="language-bash"># 内容提取
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh"># 内容提取
 echo 打开 https://example.com 并对其进行总结 | zeroclaw agent -a assistant
 
 # 导航
@@ -344,26 +466,40 @@ echo 前往 https://github.com/trending 并列出前 3 个仓库 | zeroclaw agen
 # 表单交互
 echo 前往维基百科，搜索“Rust 编程语言”，并总结 | zeroclaw agent -a assistant
 </code></pre>
+</div>
+
 <h2 id="故障排除"><a class="header" href="#故障排除">故障排除</a></h2>
 <h3 id="未找到元素"><a class="header" href="#未找到元素">未找到元素</a></h3>
 <p>页面可能尚未完全加载。添加一个等待：</p>
-<pre><code class="language-bash">agent-browser open https://slow-site.com
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">agent-browser open https://slow-site.com
 agent-browser wait --load networkidle
 agent-browser snapshot -i
 </code></pre>
+</div>
+
 <h3 id="cookie-对话框阻止访问"><a class="header" href="#cookie-对话框阻止访问">Cookie 对话框阻止访问</a></h3>
 <p>首先处理 Cookie 同意设置：</p>
-<pre><code class="language-bash">agent-browser open https://site-with-cookies.com
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">agent-browser open https://site-with-cookies.com
 agent-browser snapshot -i
 agent-browser click @accept_cookies  # 点击接受按钮
 agent-browser snapshot -i  # 现在获取实际内容
 </code></pre>
+</div>
+
 <h3 id="docker-沙箱网络限制"><a class="header" href="#docker-沙箱网络限制">Docker 沙箱网络限制</a></h3>
 <p>如果 <code>web_fetch</code> 在 Docker 沙箱中失败，请改用 agent-browser：</p>
-<pre><code class="language-bash"># 不要使用 web_fetch，改用：
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh"># 不要使用 web_fetch，改用：
 agent-browser open https://example.com
 agent-browser get text body
 </code></pre>
+</div>
+
 <h2 id="安全说明"><a class="header" href="#安全说明">安全说明</a></h2>
 <ul>
 <li><code>agent-browser</code> 在无头模式下运行 Chrome，并启用沙箱机制</li>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="claude-code-技能"><a class="header" href="#claude-code-技能">Claude Code 技能</a></h1>
-<p>该仓库在 <code>.claude/skills/</code> 下提供了一组 <a href="https://docs.claude.com/en/docs/agents/skills">Claude Code 技能</a>，用于自动化维护者工作流程中的繁重部分——包括 PR 审查、问题分类、压缩合并、变更日志生成等。</p>
+<p>The repo ships a set of <a href="https://docs.claude.com/en/docs/agents/skills">Claude Code skills</a> under <code>.claude/skills/</code> that automate the heavier parts of the maintainer workflow: PR reviews, issue triage, squash-merging, changelog generation, and more.</p>
 <p>每个技能都位于其自己的目录中，并包含一个 <code>SKILL.md</code> 文件。当你打开仓库时，Claude Code 会自动加载它们；你可以通过用自然语言描述你的需求，或通过显式引用（例如 <code>/squash-merge 1234</code>）来调用它们。</p>
 <h2 id="可用技能"><a class="header" href="#可用技能">可用技能</a></h2>
 <div class="table-wrapper">
@@ -226,12 +302,12 @@
 <tr><th>技能</th><th>当需要</th></tr>
 </thead>
 <tbody>
-<tr><td><code>github-pr-review-session</code></td><td>审查特定的 PR 或处理审查队列——撰写审查内容，对照源代码进行交叉检查，并通过 <code>gh</code> 以 WareWolf-MoonWall 身份发布</td></tr>
+<tr><td><code>github-pr-review-session</code></td><td>Reviewing a specific PR or working through the review queue: drafts the review body, cross-checks against source, posts via <code>gh</code> under the active account holder’s identity</td></tr>
 <tr><td><code>github-issue-triage</code></td><td>执行积压任务清理，关闭过时/重复的问题，应用标签，执行 RFC 过时策略</td></tr>
 <tr><td><code>github-issue</code></td><td>提交结构化的问题（错误报告或功能请求）</td></tr>
 <tr><td><code>github-pr</code></td><td>使用完全填充的模板正文打开或更新 PR</td></tr>
 <tr><td><code>squash-merge</code></td><td>将已批准的 PR 合并到 <code>master</code> 分支，保留提交历史并显示紫色的 <strong>已合并</strong> 徽章</td></tr>
-<tr><td><code>changelog-generation</code></td><td>准备 <code>CHANGELOG-next.md</code> 以进行发布 —— 总结自上次标签以来的合并</td></tr>
+<tr><td><code>changelog-generation</code></td><td>Preparing <code>CHANGELOG-next.md</code> for a release: summarises merges since the last tag</td></tr>
 <tr><td><code>skill-creator</code></td><td>创建、编辑或基准测试技能本身</td></tr>
 <tr><td><code>zeroclaw</code></td><td>操作正在运行的 ZeroClaw 实例（CLI + 网关 API）</td></tr>
 </tbody>
@@ -243,13 +319,13 @@
 </code></pre>
 <p>该技能会读取 <code>AGENTS.md</code>、审查员手册以及 PR 的差异和提交记录，然后起草一份审查意见。它使用：</p>
 <ul>
-<li><strong>内联注释</strong>，用于每个 <code>[blocking]</code> / <code>[suggestion]</code> / <code>[question]</code> 发现</li>
-<li><strong>审查内容</strong> 仅针对总体结论和模板级别的问题</li>
-<li><strong>裸提交哈希</strong>（从不使用反引号包裹——GitHub 会自动将其链接）</li>
+<li><strong>Inline diff comments</strong> for every 🔴 blocking, 🟡 warning, or 🔵 suggestion finding tied to a specific line</li>
+<li><strong>Review body</strong> for overall verdict, comprehension summary, cross-references, and template-level issues not tied to a line</li>
+<li><strong>Bare commit hashes</strong> (never wrapped in backticks: GitHub auto-links them)</li>
 <li><strong>@-前缀的用户名</strong> 在所有评论内容中</li>
 </ul>
-<p>发现遵循房屋层级系统：<code>[blocking]</code> 表示阻止 PR，<code>[suggestion]</code> 表示可选建议，<code>[question]</code> 表示请求澄清。</p>
-<p>该技能在发布前始终会显示草稿以供审批。审核内容将以人类审核员的身份发布，而不是以机器人的身份发布。</p>
+<p>Findings follow the <a href="../contributing/pr-review-protocol.html#feedback-taxonomy">feedback taxonomy</a>: 🔴 [blocking] holds the PR, 🟡 [warning] should be addressed, 🔵 [suggestion] is optional, 🟢 [praise] names what works, and ✅ [resolved] acknowledges an addressed finding on re-review. The <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a> is canonical for the tiers and the review-body Markdown format.</p>
+<p>The skill always shows a draft for approval before posting. Reviews are posted under the human reviewer’s identity, not as a bot.</p>
 <p>更改后重新审查：</p>
 <pre><code>&gt; re-review 1234
 </code></pre>
@@ -257,15 +333,15 @@
 <pre><code>&gt; go through the queue
 </code></pre>
 <h2 id="问题分类工作流"><a class="header" href="#问题分类工作流">问题分类工作流</a></h2>
-<p><code>github-issue-triage</code> 技能在定义的权限范围内运行自主的积压任务扫描。模式：</p>
+<p>The <code>github-issue-triage</code> skill runs autonomous backlog sweeps within defined authority bounds. With no argument it runs an <strong>accounting</strong> pass (backlog state, then prompts for a mode); otherwise the modes are:</p>
 <ul>
-<li><strong>分类阶段</strong> — 添加标签、链接到相关 PR，并在适用时应用 <code>needs-author-action</code></li>
-<li><strong>过期处理</strong> — 关闭超过策略阈值的闲置问题</li>
-<li><strong>Wont-fix 阶段</strong> — 关闭不会被接受的问题，并附上简要理由</li>
-<li><strong>特定问题</strong> — 按编号处理单个问题</li>
+<li><strong>Triage</strong>: process issues with no triage labels: classify, apply labels, link to open PRs, flag thin bug reports, redirect security issues</li>
+<li><strong>Sweep</strong>: full backlog pass in priority order (fixed-by-merged-PR → duplicates → <code>r:support</code> → stale candidates)</li>
+<li><strong>Stale</strong>: RFC stale-policy enforcement (<code>status:stale</code> then close per the policy window and exclusion rules)</li>
+<li><strong>Won’t-fix</strong>: close issues that violate a named core engineering constraint, citing the constraint and its <code>AGENTS.md</code>/RFC reference</li>
+<li><strong>Single</strong>: handle one issue by number or URL</li>
 </ul>
-<p>标签定义请参阅 <a href="./labels.html">Labels</a>。陈旧处理流程位于 issue-triage skill 协议中，审查者侧的上下文请参阅 <a href="./reviewer-playbook.html#issue-triage">Reviewer playbook → Issue triage</a>。该 skill 在采取行动前会将存疑情况上报给用户。</p>
-<p>存在合并冲突的 PR 仅会收到 <code>needs-author-action</code> 标签——不会进行代码审查，也不会添加差异评论——依据 <code>feedback_conflicts_label_only</code> 配置。</p>
+<p>Label definitions live in <a href="./labels.html">Labels</a>; the triage labels the skill applies (<code>r:needs-repro</code>, <code>r:support</code>, <code>stale-candidate</code>, the <code>status:*</code> lifecycle labels, and the resolution labels) are all defined there. Stale procedure lives in the issue-triage skill protocol, with reviewer-side context in <a href="./reviewer-playbook.html#issue-triage">Reviewer playbook → Issue triage</a>. The skill escalates ambiguity to the user before acting.</p>
 <h2 id="压缩合并策略"><a class="header" href="#压缩合并策略">压缩合并策略</a></h2>
 <p>ZeroClaw 对所有 PR 使用 squash-merge。<code>squash-merge</code> 技能会生成紫色的 <strong>Merged</strong> 徽章，以及一个符合 conventional-commits 格式的 squash 消息，其中包含完整的提交历史。</p>
 <h3 id="为什么需要这个技能"><a class="header" href="#为什么需要这个技能">为什么需要这个技能</a></h3>
@@ -275,10 +351,10 @@
 <li>不一致地格式化正文</li>
 <li>不符合项目规范</li>
 </ul>
-<p>直接推送 squash 到 master 分支会绕过 PR 合并机制——PR 状态会显示为“已关闭”（没有紫色徽章，不会自动关闭关联的 issue，也没有合并关联）。该技能使用 <code>gh pr merge --subject --body</code> 来获取徽章以及正确格式的提交信息。</p>
+<p>Direct-pushing a squash to master bypasses the PR merge mechanism: the PR shows “Closed” instead of “Merged” (no purple badge, no linked issue auto-close, no merge association). The skill uses <code>gh pr merge --subject --body</code> to get both the badge and the correctly formatted commit.</p>
 <h3 id="格式"><a class="header" href="#格式">格式</a></h3>
 <ul>
-<li><strong>主题：</strong> <code>&lt;PR 标题&gt; (#&lt;编号&gt;)</code> — 必须遵循常规提交规范（<code>feat(scope): …</code>、<code>fix: …</code> 等）</li>
+<li><strong>Subject:</strong> <code>&lt;PR title&gt; (#&lt;number&gt;)</code>: must be conventional commits (<code>feat(scope): …</code>, <code>fix: …</code>, etc.)</li>
 <li><strong>正文（多提交 PR）：</strong> PR 分支中 <code>- &lt;短 SHA&gt; &lt;提交主题&gt;</code> 的无序列表</li>
 <li><strong>正文（单提交 PR）：</strong> 完整的提交正文，如果没有则为空</li>
 </ul>
@@ -302,7 +378,7 @@
 <h2 id="changelog-生成"><a class="header" href="#changelog-生成">Changelog 生成</a></h2>
 <p><code>changelog-generation</code> 通过查询 <code>gh</code> 自上一个标签以来合并的 PR，按 conventional-commits 前缀进行分组，并格式化为项目特定的 changelog 样式，从而为发布构建 <code>CHANGELOG-next.md</code>。请将其作为发布运行手册的一部分，在触发 <code>release-stable-manual.yml</code> 之前使用。</p>
 <h2 id="编辑技能"><a class="header" href="#编辑技能">编辑技能</a></h2>
-<p>技能是带有 YAML 前置元数据的纯 Markdown 文件。其 <code>description</code> 字段用于 Claude Code 判断何时触发该技能——请保持具体，并包含明确的触发短语（例如 <code>"review 1234"</code>、<code>"triage issues"</code> 等）。使用 <code>skill-creator</code> 来编辑它们；它会强制执行结构规范，并帮助运行评估以衡量触发准确性。</p>
+<p>Skills are plain Markdown with YAML frontmatter. Their <code>description</code> field is what Claude Code uses to decide when to trigger them: be specific and include concrete trigger phrases (<code>"review 1234"</code>, <code>"triage issues"</code>, etc.). Use <code>skill-creator</code> to edit them; it enforces the structure and helps run evals to measure trigger accuracy.</p>
 <p>当某个技能的行为与文档描述不符时（例如审查者手册发生变化），请同时更新该技能<strong>和</strong>所有引用它的文档。技能的 <code>SKILL.md</code> 是自动化的权威来源，而贡献文档则是面向人类的权威来源。</p>
 
                     </main>

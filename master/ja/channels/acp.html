@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,8 +292,8 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="acp--エージェントクライアントプロトコル"><a class="header" href="#acp--エージェントクライアントプロトコル">ACP — エージェントクライアントプロトコル</a></h1>
-<p><strong>ACP</strong> は、stdio 経由の JSON-RPC 2.0 プロトコルであり、エディターや IDE が実行中の ZeroClaw エージェントをセッションホストとして制御できるようにします。改行区切りの JSON は、軽量でストリーミング可能、サブプロセスへの接続も容易です。</p>
+                        <h1 id="acp-agent-client-protocol"><a class="header" href="#acp-agent-client-protocol">ACP: Agent Client Protocol</a></h1>
+<p><strong>ACP</strong> is a JSON-RPC 2.0 protocol over stdio that lets editors and IDEs drive a running ZeroClaw agent as a session host. Newline-delimited JSON, lightweight, streamable, easy to wire to a subprocess.</p>
 <p>これを「エージェント版LSP」と考えてください。エディターが<code>zeroclaw acp</code>を起動し、stdin経由でプロンプトを送信し、stdoutでセッションの更新を受信します。</p>
 <h2 id="使用用途"><a class="header" href="#使用用途">使用用途</a></h2>
 <ul>
@@ -226,7 +302,7 @@
 <li>エージェントをプログラムで操作するCIランナーで、完全なゲートウェイセットアップは不要</li>
 <li>HTTPを使用せず、ポートをバインドせずにエージェントセッションを必要とするもの</li>
 </ul>
-<h2 id="プロトコル形式--v1"><a class="header" href="#プロトコル形式--v1">プロトコル形式 — v1</a></h2>
+<h2 id="protocol-shape-v1"><a class="header" href="#protocol-shape-v1">Protocol shape: v1</a></h2>
 <p>すべてのメッセージは JSON-RPC 2.0（改行区切り）です。ZeroClaw は <strong>プロトコルバージョン 1</strong> を実装しています。</p>
 <h3 id="initialize"><a class="header" href="#initialize"><code>initialize</code></a></h3>
 <p>ハンドシェイク。サーバーの機能一覧を返します。</p>
@@ -256,11 +332,11 @@
 </code></pre>
 <p><code>loadSession: true</code> および <code>sessionCapabilities: {"resume": {}, "close": {}}</code> は、セッションの永続化が有効であることを示します。起動時に SQLite ストアを開けなかった場合、これら3つはすべて存在しないか false となり、<code>session/load</code>、<code>session/resume</code>、<code>session/close</code> は <code>SESSION_NOT_FOUND</code> エラーを返します。</p>
 <p><code>_meta.zeroclaw</code> には、ベースの ACP 仕様には含まれない ZeroClaw 固有の拡張フィールドが含まれます。ベース仕様のみを実装するクライアントは、このオブジェクトを無視できます。</p>
-<p>サーバーは常に <code>protocolVersion: 1</code> を返します。クライアント側から <code>protocolVersion: 0</code> を送信しても、返されるのは <code>1</code> のままです。v0 のクライアントでは、新しいメッセージ形式に対して解析エラーが発生します。詳しくは下記の<a href="#version-compatibility">バージョン互換性</a>を参照してください。</p>
+<p>The server always responds <code>protocolVersion: 1</code>. If you send a client-side <code>protocolVersion: 0</code>, you still get <code>1</code> back, v0 clients will see parse errors on the new message shapes; see <a href="#version-compatibility">version compatibility</a> below.</p>
 <h3 id="sessionnew"><a class="header" href="#sessionnew"><code>session/new</code></a></h3>
 <p>分離されたエージェントセッションを開く。</p>
 <p><strong><code>agentAlias</code></strong> は、使用する <code>[agents.&lt;alias&gt;]</code> エントリの設定名を指定します。複数のエージェントが設定されている場合は必須です。エージェントが1つだけの場合は自動的に選択され、このフィールドは省略できます。エイリアスは、キャメルケースの <code>agentAlias</code>、スネークケースの <code>agent_alias</code>、または短縮形の <code>agent</code> を受け付けます。</p>
-<p>オプションの <strong><code>cwd</code></strong> パラメーター（エイリアス: <code>workspaceDir</code>、<code>workspace_dir</code>）は、セッションごとのファイルアクセス境界を固定します。これは、すべてのファイルツールが適用する <code>SecurityPolicy</code> 内の <code>workspace_dir</code> になります。エージェントの永続データディレクトリ（メモリ、アイデンティティ、cron）は、設定によるデーモンレベルの <code>workspace_dir</code> のままです。</p>
+<p>The optional <strong><code>cwd</code></strong> parameter (aliases: <code>workspaceDir</code>, <code>workspace_dir</code>) pins the per-session file-access boundary, it becomes the <code>workspace_dir</code> inside the <code>SecurityPolicy</code> that all file tools enforce. The agent’s persistent data directory (memory, identity, cron) remains the daemon-level <code>workspace_dir</code> from config.</p>
 <pre><code class="language-json">→ {"jsonrpc":"2.0","id":2,「method」:"セッション/新規","params":{
     agentAlias: myagent,
     "現在の作業ディレクトリ": "/path/to/project"
@@ -270,7 +346,7 @@
     workspaceDir: "/path/to/project"
   }}
 </code></pre>
-<p><code>cwd</code>は受信時に正規化されます。<code>../</code>によるトラバーサルでは意図したルートを抜け出すことはできません。<code>cwd</code>が省略された場合、サーバーはデーモンの起動ディレクトリを使用します。</p>
+<p><code>cwd</code> is canonicalized on intake, <code>../</code> traversal cannot escape the intended root. If <code>cwd</code> is omitted, the server uses the daemon’s launch directory.</p>
 <h3 id="sessionprompt"><a class="header" href="#sessionprompt"><code>session/prompt</code></a></h3>
 <p>プロンプトを送信します。レスポンスは <code>session/update</code> 通知のシーケンスとしてストリーミングされ、<code>session/prompt</code> の結果で終了します。</p>
 <p><code>prompt</code>パラメータは、プレーン文字列またはコンテンツパーツの配列のいずれかを受け付けます:</p>
@@ -311,7 +387,7 @@
 </thead>
 <tbody>
 <tr><td><code>-32000</code> <code>SESSION_NOT_FOUND</code></td><td>指定された <code>sessionId</code> のアクティブなセッションがありません</td></tr>
-<tr><td><code>-32002</code> <code>SESSION_BUSY</code></td><td>このセッションではすでにプロンプトのターンが実行中です — 完了を待つか、先にキャンセルしてください</td></tr>
+<tr><td><code>-32002</code> <code>SESSION_BUSY</code></td><td>A prompt turn is already in flight for this session, wait for it to complete or cancel it first</td></tr>
 <tr><td><code>-32602</code> <code>INVALID_PARAMS</code></td><td><code>sessionId</code> / <code>prompt</code> が見つからないか、形式が正しくありません</td></tr>
 <tr><td><code>-32603</code> <code>INTERNAL_ERROR</code></td><td>エージェントタスクがパニックしたか、ターンが失敗しました</td></tr>
 </tbody>
@@ -332,7 +408,7 @@
 </tbody>
 </table>
 </div>
-<p><code>tool_call</code> と <code>tool_call_update</code> の <code>toolCallId</code> は安定しており、相関しています — 呼び出しを完了する更新は、それを開始したものと同じ <code>toolCallId</code> を持ちます。</p>
+<p><code>toolCallId</code> on <code>tool_call</code> and <code>tool_call_update</code> are stable and correlated, the update completing a call carries the same <code>toolCallId</code> as the one that opened it.</p>
 <p><code>tool_call_update</code> の <code>name</code> フィールドは ZeroClaw の拡張です（ベースの ACP 仕様では必須ではありません）。クライアントは表示用に使用できますが、無視しても問題ありません。</p>
 <h3 id="sessionrequest_permissionエージェント--クライアント送信リクエスト"><a class="header" href="#sessionrequest_permissionエージェント--クライアント送信リクエスト"><code>session/request_permission</code>（エージェント → クライアント、送信リクエスト）</a></h3>
 <p>ツールがユーザーの承認を必要とする場合（autonomy 設定の <code>always_ask</code> や、<code>ask_user</code>/<code>escalate_to_human</code> ツール経由）、ZeroClaw はエージェントからクライアントへ <strong>JSON-RPC リクエスト</strong> を発行します。クライアントはツール呼び出しが続行される前に結果を返信する必要があります。</p>
@@ -356,17 +432,17 @@
     アウトカム: {アウトカム: 選択済み, optionId: allow-once}
   }}
 </code></pre>
-<p>サーバーが発行する id（<code>"zc-out-N"</code>）は常に <code>zc-out-</code> で始まる文字列であり、クライアントが独自のリクエストで使用する整数または文字列の id とは重複しません。</p>
+<p>The server-issued id (<code>"zc-out-N"</code>) is always a string prefixed <code>zc-out-</code>, disjoint from any integer or string ids the client uses for its own requests.</p>
 <p>レスポンスの形式:</p>
 <ul>
-<li><code>{"outcome": {"outcome": "selected", "optionId": "&lt;id&gt;"}}</code> — ユーザーがオプションを選択しました</li>
-<li><code>{"outcome": {"outcome": "cancelled"}}</code> — ユーザーがプロンプトを閉じました</li>
+<li><code>{"outcome": {"outcome": "selected", "optionId": "&lt;id&gt;"}}</code>, user picked an option</li>
+<li><code>{"outcome": {"outcome": "cancelled"}}</code>, user dismissed the prompt</li>
 </ul>
 <p>クライアントが応答しない場合（クラッシュ、ネットワーク切断、ユーザーによるIDEの終了など）、リクエストは <code>sessionTimeoutSecs</code> 後にタイムアウトし、ツール呼び出しは拒否されます。</p>
 <p><code>ask_user</code> は同じ <code>session/request_permission</code> メカニズムを使用し、質問の <code>choices</code> を権限オプションにマッピングします。自由記述形式（選択肢なし）の <code>ask_user</code> は、<a href="https://github.com/zed-industries/agent-client-protocol/blob/main/docs/rfds/elicitation.mdx">ACP elicitation RFD</a> が導入されるまでサポートされません。ACP セッションで <code>choices</code> なしに <code>ask_user</code> を呼び出すと、明確なエラーで即座に失敗します。</p>
 <h3 id="sessioncancel-zeroclaw-拡張"><a class="header" href="#sessioncancel-zeroclaw-拡張"><code>session/cancel</code> <em>(ZeroClaw 拡張)</em></a></h3>
 <p>実行中の <code>session/prompt</code> ターンを中止します。このメソッドは ZeroClaw の拡張であり、基本の ACP 仕様には含まれません。今後 ACP が競合する <code>session/cancel</code> を標準化した場合、ZeroClaw はこの拡張を <code>_meta/session/cancel</code> に移行します。</p>
-<p><strong>Cancel と stop の違い:</strong> <code>session/cancel</code> は実行中のプロンプトターンを中断し、中断時点までに蓄積されたストリーミングテキストとともに <code>stopReason: "cancelled"</code> を返します。<code>session/stop</code> は現在のターンが完了した後にセッションを正常に終了します。ターンを中断するのではなく、ターンの完了を待機します。</p>
+<p><strong>Cancel vs. stop:</strong> <code>session/cancel</code> aborts an in-flight prompt turn and returns <code>stopReason: "cancelled"</code> with any streamed text accumulated up to the interrupt point. <code>session/stop</code> gracefully ends the session after the current turn completes, it waits for the turn to finish rather than interrupting it.</p>
 <p>正規のパラメーターは <code>sessionId</code> です。<code>session_id</code> は互換性のためのエイリアスとして受け付けられます。</p>
 <pre><code class="language-json">→ {"jsonrpc":"2.0",「method」:session/cancel,"params":{"sessionId":"s-ab12cd"}}
 ← {"jsonrpc":"2.0",「method」:"session/update","params":{
@@ -379,16 +455,16 @@
     "内容": "部分的...\n\n[ユーザーによって中断されました]"
   }}
 </code></pre>
-<p>セッションでアクティブなターンがない場合、キャンセルは noop となり、エラーなしで静かに成功します。これは ACP の通知セマンティクスに従っています。通知はエラーを発生させてはなりません。</p>
+<p>If no turn is active for the session, the cancel is a noop, it succeeds silently without error. This follows ACP notification semantics: notifications must not produce errors.</p>
 <h3 id="sessionstop-zeroclaw-拡張機能"><a class="header" href="#sessionstop-zeroclaw-拡張機能"><code>session/stop</code> <em>(ZeroClaw 拡張機能)</em></a></h3>
-<p>セッションを正常に終了します。基本のACP仕様には含まれていません。ZeroClaw固有の機能です。将来のACP仕様の改訂で異なるセマンティクスを持つ<code>session/stop</code>が追加された場合、これは<code>_meta/session/stop</code>に名前が変更されます。</p>
+<p>Cleanly end a session. Not in the base ACP spec: ZeroClaw-specific. If a future ACP spec revision adds <code>session/stop</code> with different semantics, this will be renamed <code>_meta/session/stop</code>.</p>
 <pre><code class="language-json">→ {"jsonrpc":"2.0","id":4,「method」:"セッションの停止","params":{"sessionId":"s-ab12cd"}}
 ← {"jsonrpc":"2.0","id":4,"result":{"sessionId": "s-ab12cd", 停止:true}}
 </code></pre>
 <h3 id="sessionupdateクライアント--サーバーzeroclaw-拡張"><a class="header" href="#sessionupdateクライアント--サーバーzeroclaw-拡張"><code>session/update</code>（クライアント → サーバー）<em>(ZeroClaw 拡張)</em></a></h3>
-<p>ZeroClawは、カスタムイベント挿入のために、クライアントからの受信<code>session/update</code>（およびレガシーの<code>session/event</code>エイリアス）通知も受け付けます。ベースのACP仕様には含まれていません — ZeroClaw固有のものです。ACP仕様が後に異なるセマンティクスを持つ受信<code>session/update</code>を定義した場合、これは<code>_meta/session/update</code>にリネームされます。</p>
+<p>ZeroClaw also accepts inbound <code>session/update</code> (and the legacy <code>session/event</code> alias) notifications from the client for custom event injection. Not in the base ACP spec: ZeroClaw-specific. If the ACP spec later defines an inbound <code>session/update</code> with different semantics, this will be renamed <code>_meta/session/update</code>.</p>
 <h2 id="セッションの永続化"><a class="header" href="#セッションの永続化">セッションの永続化</a></h2>
-<p>ZeroClaw は ACP セッションを SQLite に自動的に永続化します。設定は不要です。<code>zeroclaw acp</code> が起動するか、ゲートウェイの WebSocket ACP 接続が受け付けられると、ストアが <code>&lt;workspace_dir&gt;/sessions/acp-sessions.db</code> で開かれます。ファイルを作成できない場合（読み取り専用ファイルシステム、不適切な権限など）、サーバーはメモリ内のみのセッションにフォールバックし、<code>loadSession</code> は <code>initialize</code> レスポンスで <code>false</code> を報告します。</p>
+<p>ZeroClaw automatically persists ACP sessions to SQLite. No configuration is required, the store opens at <code>&lt;workspace_dir&gt;/sessions/acp-sessions.db</code> whenever <code>zeroclaw acp</code> starts or a gateway WebSocket ACP connection is accepted. If the file cannot be created (read-only filesystem, bad permissions), the server falls back to in-memory-only sessions and <code>loadSession</code> reports <code>false</code> in the <code>initialize</code> response.</p>
 <p>永続化される内容:</p>
 <ul>
 <li>セッションメタデータ: <code>sessionId</code>、<code>workspaceDir</code>、<code>created_at</code>、<code>last_activity</code></li>
@@ -417,7 +493,7 @@
 <tbody>
 <tr><td><code>-32000</code> <code>SESSION_NOT_FOUND</code></td><td>ストア内に指定された <code>sessionId</code> のレコードが存在しません</td></tr>
 <tr><td><code>-32001</code> <code>SESSION_LIMIT_REACHED</code></td><td><code>max_sessions</code> 個のアクティブなセッションがすでに実行中です</td></tr>
-<tr><td><code>-32602</code> <code>INVALID_PARAMS</code></td><td>セッションはすでにアクティブです — まず <code>session/close</code> を呼び出してください</td></tr>
+<tr><td><code>-32602</code> <code>INVALID_PARAMS</code></td><td>Session is already active, call <code>session/close</code> first</td></tr>
 <tr><td><code>-32603</code> <code>INTERNAL_ERROR</code></td><td>SQLite の読み取りに失敗しました</td></tr>
 </tbody>
 </table>
@@ -430,7 +506,7 @@
 <p><code>session/resume</code> が返ると、セッションがアクティブになり、<code>session/prompt</code> の呼び出しを受け付ける準備が整います。エラーは <code>session/load</code> と同じです。</p>
 <p><strong>ロードと再開の違い:</strong> 予期しない切断後に再接続し、クライアントが保存された履歴から UI を再構築する必要がある場合は <code>session/load</code> を使用します。クライアントがすでに履歴を持っている場合（例: ローカルに保存している場合）で、サーバー側のエージェント状態の復元のみが必要な場合は <code>session/resume</code> を使用します。</p>
 <h3 id="sessionclose-zeroclaw-拡張"><a class="header" href="#sessionclose-zeroclaw-拡張"><code>session/close</code> <em>(ZeroClaw 拡張)</em></a></h3>
-<p>アクティブなセッションを非アクティブ化します: 実行中のターンをキャンセルし、メモリ内のアクティブセットからセッションを削除し、ACP バックチャネルの登録を解除します。SQLite ストア内のセッションレコードは<strong>削除されません</strong> — セッションは後で <code>session/load</code> または <code>session/resume</code> で復元できます。</p>
+<p>Deactivate an active session: cancels any in-flight turn, removes the session from the in-memory active set, and unregisters the ACP back-channel. The session record in the SQLite store is <strong>not deleted</strong>, the session can still be restored with <code>session/load</code> or <code>session/resume</code> later.</p>
 <pre><code class="language-json">→ {"jsonrpc":"2.0","id":6,「method」:session/close,"params":{"sessionId":"s-ab12cd"}}
 ← {"jsonrpc":"2.0","id":6,"result":{}}
 </code></pre>
@@ -438,42 +514,106 @@
 <p>セッションが現在アクティブでない場合（ストアにはまだ存在している可能性があります）、<code>SESSION_NOT_FOUND</code>（<code>-32000</code>）を返します。</p>
 <p><strong>Close と stop の違い:</strong> <code>session/close</code> はセッションを非アクティブ化しつつ、後で再読み込みできるよう永続レコードを保持します。<code>session/stop</code> もセッションをメモリから削除しますが、ストアに対しては同じ効果があります。どちらも SQLite レコードを削除しません。</p>
 <h2 id="設定"><a class="header" href="#設定">設定</a></h2>
-<pre><code class="language-toml">[acp]
-# session/new で agentAlias を省略した場合に使用するエージェント。
-# エージェントが正確に1つだけ設定されている場合は、自動選択にフォールバックします。
-default_agent = "myagent"
-
-max_sessions = 10
-session_timeout_secs = 3600       # アイドル状態のセッションは1時間後に終了されます
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>default_agent</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Agent alias to use when <code>session/new</code> omits <code>agentAlias</code> and more than one agent is configured. When exactly one agent exists it is auto-selected regardless of this field.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> and set the <code>acp.default_agent</code> field.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>acp.default_agent</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set acp.default_agent &lt;value&gt;
 </code></pre>
-<p>3 つのフィールドはすべて省略可能です。<code>default_agent</code> は、<code>session/new</code> が <code>agentAlias</code> を省略し、かつ複数のエージェントが設定されている場合に参照されます。これが指定されておらず、<code>[agents.&lt;alias&gt;]</code> エントリがちょうど 1 つだけ存在する場合は、そのエージェントが自動的に選択されます。</p>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_acp__default_agent=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>max_sessions</code> <span class="cfg-field-meta"><code>integer</code> · default <code>10</code></span></summary>
+<p>Maximum number of concurrent ACP sessions. Default: <code>10</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> and set the <code>acp.max_sessions</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>acp.max_sessions</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set acp.max_sessions &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_acp__max_sessions=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>session_timeout_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>3600</code></span></summary>
+<p>Idle session timeout in seconds. Sessions with no activity for this duration are eligible for eviction. Default: <code>3600</code> (1 hour).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> and set the <code>acp.session_timeout_secs</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>acp.session_timeout_secs</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set acp.session_timeout_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_acp__session_timeout_secs=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<p><code>default_agent</code> is consulted when <code>session/new</code> omits <code>agentAlias</code> and more than one agent is configured; if it is absent and exactly one <code>[agents.&lt;alias&gt;]</code> entry exists, that agent is auto-selected.</p>
 <p><code>zeroclaw acp</code> をサブプロセスとして実行すると、コマンドは無条件でサーバーを起動します。デーモンとして実行すると、ゲートウェイは追加の設定なしで <code>/acp</code> の WebSocket 経由で ACP を公開します。</p>
 <h2 id="実行中"><a class="header" href="#実行中">実行中</a></h2>
 <p><strong>サブプロセスとして（一般的なIDE統合）：</strong></p>
-<pre><code class="language-bash">zeroclaw acp
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw acp
 </code></pre>
+</div>
+
 <p>このバイナリは標準入力を読み取り、標準出力に書き出し、EOF で終了します。</p>
 <p><strong>デーモンゲートウェイ経由（リモートまたは同一ホスト）：</strong></p>
-<p>デーモンを通常どおり起動します。ゲートウェイは常に <code>/acp</code> で WebSocket 経由の ACP を公開します。追加の設定フラグは不要です。クライアントは直接接続するか、stdio ACP プロトコルをゲートウェイの WebSocket にブリッジする <code>zeroclaw-acp-bridge</code> を介して接続します:</p>
-<pre><code class="language-bash">zeroclaw-acp-bridge
+<p>Start the daemon normally. The gateway always exposes ACP over WebSocket at <code>/acp</code>, no extra config flag is required. Clients connect directly, or through <code>zeroclaw-acp-bridge</code>, which bridges the stdio ACP protocol to the gateway WebSocket:</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">zeroclaw-acp-bridge
 </code></pre>
-<p>ブリッジは、デーモンと同じ <code>config.toml</code> からゲートウェイアドレスと認証トークンを読み込みます。デーモンが非デフォルトの設定ディレクトリ（例: <code>--config-dir /tmp/zeroclaw</code>）で実行されている場合は、ブリッジを同じディレクトリに向けてください:</p>
-<pre><code class="language-bash">zeroclaw-acp-bridge --config-dir /tmp/zeroclaw
+</div>
+
+<p>The bridge reads the gateway address and auth token from the same config as the daemon. When the daemon runs with a non-default config directory (e.g. <code>--config-dir /tmp/zeroclaw</code>), point the bridge at the same directory:</p>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">zeroclaw-acp-bridge --config-dir /tmp/zeroclaw
 # または同等の表記：
 zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 </code></pre>
+</div>
+
 <p>キャッシュされたトークンファイルに依存したくない場合は、<code>ZEROCLAW_ACP_BRIDGE_TOKEN</code> を介して直接ベアラートークンを指定することもできます。</p>
 <h2 id="バージョン互換性"><a class="header" href="#バージョン互換性">バージョン互換性</a></h2>
 <p>ACP v0 クライアント（フラットな <code>{streaming, maxSessions, ...}</code> initialize レスポンスと <code>kind: "text"|"tool_call"</code> の session/update 形式を使用）は、v1 サーバーへの接続時にデシリアライズエラーが発生します。判別子（discriminant）とエンベロープ形式が破壊的な方法で変更されました。アップグレード手順:</p>
 <ul>
 <li><code>session/update</code> 通知を判別するには、<code>kind</code> ではなく <code>sessionUpdate</code> を使用してください。</li>
 <li><code>session/prompt</code> の結果を <code>{finished, usage}</code> ではなく <code>{sessionId, stopReason, content}</code> として解析します。</li>
-<li><code>session/request_permission</code> レスポンス処理を実装する — 承認メカニズムがサーバー通知からクライアント応答型 RPC に変更されました。</li>
-<li><code>session/new</code> から <code>systemPrompt</code> パラメータを削除します — 読み取られていません。</li>
+<li>Implement <code>session/request_permission</code> response handling: the approval mechanism moved from a server notification to a client-answered RPC.</li>
+<li>Drop the <code>systemPrompt</code> param from <code>session/new</code>, it is not read.</li>
 </ul>
 <h2 id="セキュリティ"><a class="header" href="#セキュリティ">セキュリティ</a></h2>
-<p>ACP は実行中の設定の自律性レベルを継承します。<code>[autonomy] level = "supervised"</code> の場合、中リスクのツール呼び出しは ACP のバックチャネル経由で承認を要求します — クライアントが確認応答する必要がある <code>session/request_permission</code> のアウトバウンドリクエストです。<code>full</code> モードでは、ツール呼び出しは承認なしで実行され、<code>workspace_only</code> は暗黙的に無効化されます（エージェントはセッションの cwd 外のパスにアクセスできます）。<code>forbidden_paths</code> は引き続き適用されます。</p>
-<p><code>session/new</code> の <code>cwd</code> は、そのセッションのすべてのファイルツールおよびシェルツールで使用される <code>SecurityPolicy</code> のワークスペース境界になります。注意: エージェントのシステムプロンプトは現在、セッションの <code>cwd</code> ではなくデーモンのグローバルな <code>workspace_dir</code> を反映しています。これは適用に影響を与えるものではなく、モデルが作業していると認識するディレクトリにのみ影響します。</p>
+<p>ACP inherits the running config’s autonomy level. When <code>[autonomy] level = "supervised"</code>, medium-risk tool calls trigger approval via the ACP back-channel, a <code>session/request_permission</code> outbound request the client must acknowledge. In <code>full</code> mode, tool calls execute without approval and <code>workspace_only</code> is implicitly disabled (the agent can reach paths outside the session cwd); <code>forbidden_paths</code> still apply.</p>
+<p>The <code>cwd</code> from <code>session/new</code> becomes the <code>SecurityPolicy</code> workspace boundary used by all file and shell tools for that session. Note: the agent’s system prompt currently reflects the daemon’s global <code>workspace_dir</code> rather than the session <code>cwd</code>, this does not affect enforcement, only the directory the model believes it is working in.</p>
 <h2 id="メモリ"><a class="header" href="#メモリ">メモリ</a></h2>
 <p>ACP セッションはエージェントの永続的メモリシステムと連携しません。これは意図的な設計上の選択です。ACP は IDE 主導のコーディングタスク向けであり、長期的な関係構築を目的としたものではありません。</p>
 <p><strong>ACPセッションが継承する内容</strong>（エージェント設定から）：パーソナリティ、スキル、リスクプロファイル、ランタイムプロファイル、モデルプロバイダー、およびすべての非メモリツール。</p>
@@ -483,7 +623,7 @@ zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 <li>自動メモリ呼び出し（各ターンで長期メモリから構築されるコンテキストプリアンブル）が無効になっています</li>
 <li>エージェントのメモリストアへの会話の自動保存が無効になっています</li>
 </ul>
-<p><strong>セッションコンテキスト</strong>は、<code>acp-sessions.db</code>に永続化された会話履歴から取得されます。セッションは永続的で、再開可能、削除可能です。セッション履歴はエージェントの長期メモリではなく、作業コンテキストとして機能します。</p>
+<p><strong>Session context</strong> comes from the persisted conversation history in <code>acp-sessions.db</code>. Sessions are persistent, resumable, and deleteable, the session history serves as the working context, not the agent’s long-term memory.</p>
 <p>この分離により、一時的なコーディング支援の会話がエージェントの長期記憶を汚染することがなくなり、またチャットチャンネルからの無関係な知識がACPセッションに混入することもなくなります。</p>
 <h2 id="コードリファレンス"><a class="header" href="#コードリファレンス">コードリファレンス</a></h2>
 <ul>
@@ -497,7 +637,7 @@ zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 <h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
 <ul>
 <li><a href="./overview.html">チャンネル → 概要</a></li>
-<li><a href="../tools/mcp.html">ツール → MCP</a> — エージェントにツールを提供するクライアント。ACP はその逆</li>
+<li><a href="../tools/mcp.html">Tools → MCP</a>: clients providing tools to the agent; ACP is the inverse</li>
 <li><a href="../security/autonomy.html">セキュリティ → 自律性</a></li>
 <li><a href="../security/overview.html">セキュリティ → 概要</a></li>
 </ul>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,40 +296,10 @@
 <p>每个 ZeroClaw 发出的事件都流经一个 crate：<code>zeroclaw-log</code>。该 crate 拥有磁盘上的 JSONL schema、仪表板读取的进程内广播流、连接到类型化 <code>Observer</code>（Prometheus / OTel）的桥接，以及子系统调用的宏（<code>record!</code>、<code>scope!</code>、<code>spawn!</code>）。</p>
 <p>本页介绍运维人员所需的内容：配置、日志位置、事件结构以及如何查询它们。</p>
 <h2 id="配置observability"><a class="header" href="#配置observability">配置（<code>[observability]</code>）</a></h2>
-<pre><code class="language-toml">[observability]
-# JSONL 日志的存储策略。
-# "none"    — 仅进程内广播（不写入磁盘）。
-# "rolling" — 追加写入，一旦超过 `log_persistence_max_entries` 即进行裁剪。
-# "full"    — 永久追加，由操作员管理轮转。
-log_persistence = "rolling"
-
-# 相对于工作区的路径（或绝对路径）。
-log_persistence_path = "state/runtime-trace.jsonl"
-
-# "rolling" 模式的上限。
-log_persistence_max_entries = 200
-
-# 工具输入/输出捕获策略。
-# "off"      — 仅记录工具名 + 结果 + 耗时；不记录 I/O 主体。
-# "redacted" — 主体经泄露扫描，并在 `log_tool_io_truncate_bytes` 处截断。
-# "full"     — 主体经泄露扫描；不截断。
-log_tool_io = "redacted"
-log_tool_io_truncate_bytes = 8192
-
-# 无论 `log_tool_io` 如何设置，以下工具的 I/O 都仅持久化为
-# 名称 + 结果 + 耗时。适用于 I/O 本身具有敏感性的工具。
-log_tool_io_denylist = []
-
-# OTel / Prometheus 后端（独立于 JSONL 日志）。
-backend = "none"            # "none" | "log" | "verbose" | "prometheus" | "otel"
-otel_endpoint = "http://localhost:4318"
-otel_service_name = "zeroclaw"
-# otel_headers = { Authorization = "Bearer …" }
-</code></pre>
-<p>默认值：<code>log_persistence = "rolling"</code>、<code>log_persistence_max_entries = 200</code>、<code>log_tool_io = "redacted"</code>、<code>log_tool_io_truncate_bytes = 8192</code>。全新安装会在 <code>~/.zeroclaw/state/runtime-trace.jsonl</code> 生成一个 200 条事件的滚动 JSONL 文件，且仪表盘的 Logs 页面无需进一步配置即可使用。</p>
+<p>Defaults: <code>log_persistence = "rolling"</code>, <code>log_persistence_max_entries = 200</code>, <code>log_tool_io = "redacted"</code>, <code>log_tool_io_truncate_bytes = 40960</code>. A fresh install produces a 200-event rolling JSONL at <code>~/.zeroclaw/data/state/runtime-trace.jsonl</code>, and the dashboard’s Logs page works without further configuration.</p>
 <p><code>log_persistence = "none"</code> 会完全禁用持久化。广播流（仪表盘 SSE）和类型化的 <code>Observer</code> 桥接仍会接收事件；仅 JSONL 写入器会被限制。</p>
 <h2 id="磁盘存储格式"><a class="header" href="#磁盘存储格式">磁盘存储格式</a></h2>
-<p>JSONL：每行一个事件，UTF-8 编码，在 Unix 上使用 <code>0o600</code> 权限。每行写入后都会执行 <code>sync_data</code> —— 在发出事件的代码返回之前，该行已持久化。</p>
+<p>JSONL: one event per line, UTF-8, <code>0o600</code> permissions on Unix. Every line is <code>sync_data</code>’d after write, the line is durable before the emitting code returns.</p>
 <p>行结构镜像 <code>zeroclaw_log::event::LogEvent</code>。顶层键：</p>
 <div class="table-wrapper">
 <table>
@@ -282,15 +328,17 @@ otel_service_name = "zeroclaw"
 <h3 id="zeroclaw-归属"><a class="header" href="#zeroclaw-归属"><code>zeroclaw.*</code> 归属</a></h3>
 <p>Rust 的事实来源是 <code>crates/zeroclaw-log/src/event.rs</code> 中的 <code>ATTRIBUTION_FIELDS</code> + <code>COMPOSITE_PREFIXES</code>。<code>/api/logs</code> 响应以 <code>attribution_keys</code> 形式携带规范列表；请获取它，而不要硬编码。</p>
 <p>普通字段（<code>ATTRIBUTION_FIELDS</code>）各自携带一个字符串。复合前缀会获得三个键：<code>&lt;prefix&gt;</code>、<code>&lt;prefix&gt;_type</code>、<code>&lt;prefix&gt;_alias</code>（例如 <code>channel = "discord.glados"</code>、<code>channel_type = "discord"</code>、<code>channel_alias = "glados"</code>）。过滤器可以进行粗略匹配或精确匹配。</p>
-<p>当某个跟踪调用将复合前缀字段设置为裸类型（不含 <code>.</code>）时，仅填充 <code>_type</code> 槽位——这样一来，在某个已携带完整 <code>&lt;type&gt;.&lt;alias&gt;</code> 复合值的 span 内部进行 <code>tracing::*!(model_provider = name, …)</code> 调用时，就不会在叶→根合并过程中将其覆盖。</p>
+<p>When a tracing call sets a composite-prefix field to a bare type (no <code>.</code>), only the <code>_type</code> slot is populated, that way a <code>tracing::*!(model_provider = name, …)</code> call inside a span that already carries the full <code>&lt;type&gt;.&lt;alias&gt;</code> composite doesn’t clobber it on the leaf→root merge.</p>
 <h2 id="查询中"><a class="header" href="#查询中">查询中</a></h2>
 <p>仪表板的日志页面是主要界面。在其下方：</p>
 <pre><code>GET /api/logs
 </code></pre>
 <p>顶级筛选器（查询参数）：<code>since_ts</code>、<code>until_ts</code>、<code>until_id</code>、<code>action</code>、<code>category</code>、<code>outcome</code>、<code>severity_min</code>、<code>trace_id</code>、<code>q</code>（对 <code>message</code> + <code>attributes</code> 进行子串匹配）、<code>hide_internal</code>（剔除 <code>event.category = "internal"</code>）、<code>limit</code>。</p>
-<p>每个 <code>?&lt;key&gt;=&lt;value&gt;</code> 都被视为针对该归因的相等性过滤器——网关会根据 <code>is_attribution_field</code> 校验该键，并对未知键返回 <code>400</code> 拒绝请求。响应中包含 <code>attribution_keys: string[]</code>，因此调用方无需自行猜测。</p>
+<p>Every other <code>?&lt;key&gt;=&lt;value&gt;</code> is treated as a per-attribution equality filter, the gateway validates the key against <code>is_attribution_field</code> and rejects unknowns with <code>400</code>. The response includes <code>attribution_keys: string[]</code>, so callers don’t have to guess.</p>
 <p>示例：</p>
-<pre><code class="language-bash"># 自守护进程启动以来的所有 WARN+ 级别事件。
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh"># 自守护进程启动以来的所有 WARN+ 级别事件。
 curl "$ZEROCLAW_GATEWAY/api/logs?severity_min=13"
 
 # 特定代理的事件：
@@ -302,6 +350,8 @@ curl "$ZEROCLAW_GATEWAY/api/logs?channel=discord.glados"
 # 单个智能体回合：
 curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 </code></pre>
+</div>
+
 <p>分页采用反向游标方式。响应中包含 <code>next_cursor: [timestamp, id] | null</code>；将其作为 <code>until_ts</code> + <code>until_id</code> 回传以加载更早的内容。<code>at_end: true</code> 表示读取器已针对当前过滤条件扫描了整个文件。</p>
 <p><code>/api/status</code> 响应中包含 <code>daemon_started_at: string</code>（RFC 3339），因此仪表板无需额外往返请求即可默认显示“自守护进程启动以来“的状态。</p>
 <h2 id="外部日志查看器"><a class="header" href="#外部日志查看器">外部日志查看器</a></h2>
@@ -355,22 +405,22 @@ curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 </ul>
 <p>跨度链如下：<code>channel_listener{channel=discord.glados}: …</code>。跨度字段内联可见。</p>
 <h2 id="架构迁移"><a class="header" href="#架构迁移">架构迁移</a></h2>
-<p>启动时，如果启用了 <code>log_persistence</code> 且文件已存在，写入器会在首次追加之前将所有 schema-1 行通过原地迁移转换为 schema-2。这是纯流式处理——无论文件大小如何，内存占用都限定在单行的分配范围内。迁移后的文件会被原子化地重命名到位。已为 v2 的文件保持不变。</p>
+<p>On startup, if <code>log_persistence</code> is enabled and the file exists, the writer streams any schema-1 rows through an in-place migration to schema-2 before the first append. Pure streaming, bounded by a single line’s allocation regardless of file size. The migrated file is atomically renamed into place. Files already at v2 are left untouched.</p>
 <p>如果迁移失败，守护进程会记录一条 <code>warn</code> 日志并继续写入 v2 追加数据；旧的 v1 行仍可被理解 v1 的工具读取，但无法通过 v2 读取器的反序列化器。</p>
 <h2 id="什么是-internal"><a class="header" href="#什么是-internal">什么是 <code>internal</code>？</a></h2>
 <p><code>event.category = "internal"</code> 用于归集运维噪声，即操作员默认无需在仪表板上看到的事件：心跳信号、空闲广播、有损同步重试等。仪表板的“隐藏内部事件“开关（默认开启）会过滤掉这些事件。</p>
 <p>当某个高频事件的出现对取证分析很重要，但其缺失才是正常状态时，使用它。不要将它用作真正错误的流量调节器。</p>
 <h2 id="相关文件"><a class="header" href="#相关文件">相关文件</a></h2>
 <ul>
-<li><code>crates/zeroclaw-log/src/event.rs</code> — <code>LogEvent</code> 的规范结构。</li>
-<li><code>crates/zeroclaw-log/src/layer.rs</code> —捕获每个 <code>tracing::*</code> 调用并将其送入管道的 <code>tracing-subscriber</code> Layer。</li>
-<li><code>crates/zeroclaw-log/src/macro.rs</code> — <code>record!</code>、<code>scope!</code>、<code>spawn!</code>。</li>
-<li><code>crates/zeroclaw-log/src/writer.rs</code> — 追加写入 + 滚动裁剪。</li>
-<li><code>crates/zeroclaw-log/src/reader.rs</code> — <code>/api/logs</code> 读取器。</li>
-<li><code>crates/zeroclaw-log/src/config.rs</code> — <code>StoragePolicy</code>、<code>ToolIoPolicy</code>、<code>ResolvedPolicy</code>。</li>
-<li><code>crates/zeroclaw-log/src/migrate.rs</code> — schema-1 → schema-2 流式迁移。</li>
-<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code> — 面向 Prometheus / OTel 消费者的类型化 <code>Observer</code> 投影。</li>
-<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code> — HTTP 适配器。</li>
+<li><code>crates/zeroclaw-log/src/event.rs</code>: the canonical <code>LogEvent</code> shape.</li>
+<li><code>crates/zeroclaw-log/src/layer.rs</code>: the <code>tracing-subscriber</code> Layer that captures every <code>tracing::*</code> call and feeds the pipeline.</li>
+<li><code>crates/zeroclaw-log/src/macro.rs</code>: <code>record!</code>, <code>scope!</code>, <code>spawn!</code>.</li>
+<li><code>crates/zeroclaw-log/src/writer.rs</code>: append + rolling trim.</li>
+<li><code>crates/zeroclaw-log/src/reader.rs</code>: <code>/api/logs</code> reader.</li>
+<li><code>crates/zeroclaw-log/src/config.rs</code>: <code>StoragePolicy</code>, <code>ToolIoPolicy</code>, <code>ResolvedPolicy</code>.</li>
+<li><code>crates/zeroclaw-log/src/migrate.rs</code>: schema-1 → schema-2 streaming migration.</li>
+<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code>: typed <code>Observer</code> projection for Prometheus / OTel consumers.</li>
+<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code>: the HTTP adapter.</li>
 </ul>
 <p>在信任本页文字之前，请先查阅源代码。</p>
 

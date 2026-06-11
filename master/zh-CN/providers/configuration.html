@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,164 +293,65 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="提供程序配置"><a class="header" href="#提供程序配置">提供程序配置</a></h1>
-<p>每个模型提供方都位于 <code>~/.zeroclaw/config.toml</code> 中的 <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code>。<code>&lt;type&gt;</code> 是规范的家族槽位（<code>anthropic</code>、<code>openai</code>、<code>azure</code>、<code>gemini</code>、<code>groq</code>、<code>moonshot</code>……）。<code>&lt;alias&gt;</code> 是你为实例指定的运维名称——可任选一个具有描述性的名称（<code>home</code>、<code>work</code>、<code>cn</code>、<code>gpt5</code>……）。</p>
+<p>Every model provider lives at <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code>. <code>&lt;type&gt;</code> is a canonical family slot (see the <a href="./catalog.html#all-slots">Catalog</a> for every slot with its endpoint). <code>&lt;alias&gt;</code> is your operator-assigned instance name, pick any descriptive name (<code>home</code>, <code>work</code>, <code>cn</code>, <code>gpt5</code>, …).</p>
 <h2 id="最小可运行示例"><a class="header" href="#最小可运行示例">最小可运行示例</a></h2>
-<p>加载无误的最小配置包含四个节标题——一个提供方条目、一个引用它的代理，以及该代理据以进行门控的风险配置文件：</p>
-<pre><code class="language-toml">schema_version = 3
-
-# 提供商条目。节标题为 `[providers.models.&lt;type&gt;.&lt;alias&gt;]`：
-#   `anthropic` = type（固定的提供商系列名称）
-#   `home`      = alias（任意名称，由你指定）
-[providers.models.anthropic.home]
-model = "claude-sonnet-4-6"
-temperature = 0.7            # 完全省略此行即可不发送 temperature 覆盖值
-                             # （claude-opus-4-7 必须省略——见下文）
-api_key = "sk-ant-..."
-
-# 代理。节标题为 `[agents.&lt;alias&gt;]`：
-#   `assistant` = alias（任意名称，由你指定）
-[agents.assistant]
-model_provider = "anthropic.home"   # 对上述条目的 `&lt;type&gt;.&lt;alias&gt;` 引用
-risk_profile   = "assistant"        # 对下面节的 alias 引用
-
-# 风险配置。节标题为 `[risk_profiles.&lt;alias&gt;]`：
-#   `assistant` = 必须与 agents.assistant.risk_profile 匹配
-[risk_profiles.assistant]
-level = "supervised"
-
-# --- 备用提供商条目：claude-opus-4-7 会拒绝任何 temperature
-# 设置，因此其 `[providers.models.anthropic.&lt;alias&gt;]` 块必须完全省略
-# `temperature` 行。要将代理切换到此条目，
-# 请设置 `agents.assistant.model_provider = "anthropic.opus"`。
-# [providers.models.anthropic.opus]
-# model = "claude-opus-4-7"
-# api_key = "sk-ant-..."
-</code></pre>
-<p>上面的别名（<code>home</code>、<code>assistant</code>）只是示例名称——请替换为适合你安装环境的任何名称。</p>
-<h2 id="字段参考--提供商条目"><a class="header" href="#字段参考--提供商条目">字段参考 — 提供商条目</a></h2>
-<pre><code class="language-toml">[providers.models.&lt;type&gt;.&lt;alias&gt;]
-model = "&lt;model-id&gt;"        # 作为模型选择器传递给提供商
-</code></pre>
+<p>The smallest config that loads clean has four section headers: a provider entry, an agent that references it, and a risk profile the agent gates against. Configure them through the gateway, zerocode, or <code>zeroclaw config set</code>; the <a href="../reference/config.html#providers">config reference</a> has the full field index.</p>
+<h2 id="field-reference-provider-entry"><a class="header" href="#field-reference-provider-entry">Field reference: provider entry</a></h2>
 <p>几乎每个家庭还会服用：</p>
-<pre><code class="language-toml">api_key = "..."             # 或使用密钥存储，或特定于提供方的环境变量
-uri     = "https://..."     # 可选的运维方覆盖；否则由该系列的类型化端点枚举提供 URL
-</code></pre>
 <h2 id="字段解析顺序"><a class="header" href="#字段解析顺序">字段解析顺序</a></h2>
 <p>对于每个系列，URL 按以下顺序解析：</p>
 <ol>
-<li><strong>操作员覆盖</strong> — 别名条目上的 <code>uri</code> 字段（如果已设置）。</li>
-<li><strong>Family 端点</strong> — 该 family 的 <code>*Endpoint</code> 枚举提供 URL（例如 <code>OpenAIEndpoint::Default</code> -&gt; <code>https://api.openai.com/v1</code>）。多区域 family 在别名条目上有一个 <code>endpoint</code> 字段用于选择变体（例如 Moonshot 的 <code>endpoint = "cn"</code>）。</li>
-<li><strong>模板化系列</strong> — Azure 和 Bedrock 接受类型化输入（Azure 的 <code>resource</code>、<code>deployment</code>、<code>api_version</code>；Bedrock 的 <code>region</code>），并将其替换到该系列的 URI 模板中。缺少字段时会在运行时显式报错。</li>
+<li><strong>Operator override</strong>: <code>uri</code> field on the alias entry, if set.</li>
+<li><strong>Family endpoint</strong>: the family’s <code>*Endpoint</code> enum supplies the URL (e.g. <code>OpenAIEndpoint::Default</code> -&gt; <code>https://api.openai.com/v1</code>). Multi-region families have an <code>endpoint</code> field on the alias entry that picks the variant (e.g. <code>endpoint = "cn"</code> for Moonshot).</li>
+<li><strong>Templated families</strong>: Azure and Bedrock take typed inputs (<code>resource</code>, <code>deployment</code>, <code>api_version</code> for Azure; <code>region</code> for Bedrock) and substitute them into the family’s URI template. Missing fields fail loud at runtime.</li>
 </ol>
 <h2 id="家庭席位"><a class="header" href="#家庭席位">家庭席位</a></h2>
-<p>运行 <code>cargo doc --open -p zeroclaw-config</code>（或阅读 <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/crates/zeroclaw-config/src/providers.rs"><code>crates/zeroclaw-config/src/providers.rs</code></a>）以查看完整列表。重点内容：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Slot</th><th>备注</th></tr>
-</thead>
-<tbody>
-<tr><td><code>anthropic</code></td><td>API 密钥或 OAuth（<code>sk-ant-oat-*</code>）</td></tr>
-<tr><td><code>openai</code></td><td>GPT、o 系列；OpenAI Codex 订阅版为 <code>providers.models.openai.&lt;alias&gt;</code>，需设置 <code>wire_api = "responses"</code> 和 <code>requires_openai_auth = true</code></td></tr>
-<tr><td><code>azure</code></td><td>已输入：<code>resource</code>、<code>deployment</code>、<code>api_version</code> — 均在别名条目中设置</td></tr>
-<tr><td><code>gemini</code></td><td>Google 的 API；<code>gemini_cli</code> 是通过 CLI 外部调用的变体</td></tr>
-<tr><td><code>bedrock</code></td><td>AWS 凭证链，区域模板</td></tr>
-<tr><td><code>ollama</code></td><td>本地推理；<code>uri</code> 默认为 <code>http://localhost:11434</code></td></tr>
-<tr><td><code>openrouter</code></td><td>多供应商路由层（视为单个提供商；参见<a href="./routing.html">路由</a>）</td></tr>
-<tr><td><code>groq</code>、<code>mistral</code>、<code>xai</code>、<code>deepseek</code>、…</td><td>OpenAI 兼容端点，每个端点都有自己的规范槽位</td></tr>
-<tr><td><code>moonshot</code>、<code>qwen</code>、<code>glm</code>、<code>minimax</code>、<code>zai</code>、<code>doubao</code>……</td><td>多区域系列；通过别名条目上的 <code>endpoint = "&lt;variant&gt;"</code> 选择区域</td></tr>
-<tr><td><code>lmstudio</code>、<code>llamacpp</code>、<code>sglang</code>、<code>vllm</code>、<code>osaurus</code>、<code>litellm</code></td><td>本地服务器默认值（<code>http://localhost:&lt;port&gt;/v1</code>）</td></tr>
-<tr><td><code>custom</code></td><td>适用于上述未涵盖的 OpenAI 兼容端点的通用配置；<code>uri</code> 为必填项</td></tr>
-</tbody>
-</table>
-</div>
-<p>每个供应商只有一个规范键名——没有同义词。</p>
+<p>Every slot, its default endpoint, and whether it runs locally is in the <a href="./catalog.html#all-slots">Catalog</a>. There is one canonical key per vendor: no synonyms.</p>
 <h2 id="凭证"><a class="header" href="#凭证">凭证</a></h2>
 <p>三种提供凭据的方式，按解析顺序如下：</p>
 <ol>
 <li><strong>内联 <code>api_key = "..."</code></strong>，置于别名条目中（开发时尚可，但对于提交到版本库的配置存在风险）。</li>
-<li><strong>配置级密钥存储</strong> — 通过本地密钥文件在 <code>~/.zeroclaw/secrets</code> 中加密。</li>
-<li><strong>通用环境变量覆盖</strong> —— <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> 会在启动时设置 <code>providers.models.&lt;type&gt;.&lt;alias&gt;.api_key</code>。完整语法请参阅<a href="../reference/env-vars.html">环境变量</a>。</li>
+<li><strong>Config-level secrets store</strong>: encrypted at <code>~/.zeroclaw/secrets</code> via a local key file.</li>
+<li><strong>Generic env override</strong>: <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> sets <code>providers.models.&lt;type&gt;.&lt;alias&gt;.api_key</code> at startup. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</li>
 </ol>
 <p><code>zeroclaw quickstart</code> writes credentials to the secrets store by default. Configs you commit should not contain inline keys. For ecosystem-default names you already export in your shell (<code>$ANTHROPIC_API_KEY</code>, <code>$OPENROUTER_API_KEY</code>, …), the <a href="../reference/env-vars.html#bridging-ecosystem-default-env-vars">env-vars reference</a> shows the one-line bash expansions that point a schema-mirror name at the existing value.</p>
 <h2 id="oauth-和订阅认证"><a class="header" href="#oauth-和订阅认证">OAuth 和订阅认证</a></h2>
 <p>一些提供商接受 OAuth 或订阅式令牌，而非原始 API 密钥。请从供应商自己的仪表板或 CLI 流程中获取令牌，然后像填写 API 密钥那样将其填入别名条目：</p>
 <ul>
-<li><strong>Anthropic</strong> — <code>sk-ant-oat-*</code> OAuth 令牌（来自 Claude Pro/Team）填入 <code>[providers.models.anthropic.&lt;alias&gt;]</code> 的 <code>api_key</code> 中。</li>
-<li><strong>OpenAI Codex 订阅</strong> — 设置 <code>requires_openai_auth = true</code>，并在 <code>[providers.models.openai.&lt;alias&gt;]</code> 中不设置 <code>api_key</code>；运行时会读取已存储的 Codex 登录信息。</li>
-<li><strong>Gemini CLI</strong> — <code>[providers.models.gemini_cli.&lt;alias&gt;]</code> 调用 <code>gemini</code> CLI；使用该 CLI 自身的身份验证流程。</li>
-<li><strong>Qwen / MiniMax</strong> — 在别名条目上设置 <code>auth_mode = "oauth"</code>，并配置相关的 <code>oauth_*</code> 字段（参见 <a href="../reference/env-vars.html#oauth-and-cli-path-fields">env-vars → OAuth and CLI-path fields</a>）。</li>
+<li><strong>Anthropic</strong>: <code>sk-ant-oat-*</code> OAuth tokens (from Claude Pro/Team) go in <code>api_key</code> on <code>[providers.models.anthropic.&lt;alias&gt;]</code>.</li>
+<li><strong>OpenAI Codex subscription</strong>: set <code>requires_openai_auth = true</code> and leave <code>api_key</code> unset on <code>[providers.models.openai.&lt;alias&gt;]</code>; the runtime reads the stored Codex login.</li>
+<li><strong>Gemini CLI</strong>: <code>[providers.models.gemini_cli.&lt;alias&gt;]</code> shells out to the <code>gemini</code> CLI; use the CLI’s own auth flow.</li>
+<li><strong>Qwen / MiniMax</strong>: set <code>auth_mode = "oauth"</code> on the alias entry plus the relevant <code>oauth_*</code> fields (see <a href="../reference/env-vars.html#oauth-and-cli-path-fields">env-vars → OAuth and CLI-path fields</a>).</li>
 </ul>
 <h2 id="容器友好的覆盖"><a class="header" href="#容器友好的覆盖">容器友好的覆盖</a></h2>
-<p>当 ZeroClaw 在容器内运行而提供方位于主机上（例如 Ollama）时，请将 <code>uri</code> 设置为主机可访问的地址：</p>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri   = "http://host.docker.internal:11434"
-model = "qwen3.6:35b-a3b"
+<p>When ZeroClaw runs inside a container and a provider is on the host (e.g. Ollama), set <code>uri</code> to a host-reachable address. The generic env-override mechanism (<code>ZEROCLAW_&lt;dotted_path_with_double_underscores&gt;=&lt;value&gt;</code>) can set the same field at runtime without editing config:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">ZEROCLAW_providers__models__ollama__home__uri=http://ollama:11434 zeroclaw agent -a assistant
 </code></pre>
-<p>通用的环境变量覆盖机制（<code>ZEROCLAW_&lt;dotted_path_with_double_underscores&gt;=&lt;value&gt;</code>）可以在运行时设置相同的字段，而无需编辑 <code>config.toml</code>：</p>
-<pre><code class="language-bash">ZEROCLAW_providers__models__ollama__home__uri=http://ollama:11434 zeroclaw agent -a assistant
-</code></pre>
-<p><code>__</code> 是路径分隔符；上面的示例设置了 <code>providers.models.ollama.home.uri</code>。完整语法请参阅<a href="../reference/env-vars.html">环境变量</a>。</p>
-<h2 id="各系列调节项实战示例"><a class="header" href="#各系列调节项实战示例">各系列调节项——实战示例</a></h2>
-<h3 id="ollama"><a class="header" href="#ollama">Ollama</a></h3>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri              = "http://localhost:11434"
-model            = "qwen3.6:35b-a3b"
-think            = false                    # 禁用推理模式以加快输出速度
-reasoning_effort = "none"                   # 意图相同，作为顶层字段传递
-options          = { temperature = 0, num_ctx = 32768 }
-</code></pre>
-<h3 id="azure-openai"><a class="header" href="#azure-openai">Azure OpenAI</a></h3>
-<pre><code class="language-toml">[providers.models.azure.work]
-resource    = "my-resource"                 # 模板变量：https://{resource}.openai.azure.com/...
-deployment  = "gpt-4o"
-api_version = "2024-10-01-preview"
-api_key     = "..."
-</code></pre>
-<p><code>resource</code>、<code>deployment</code> 和 <code>api_version</code> 的值存储在此类型化配置中——它们不是从环境变量中读取的。</p>
-<h3 id="多区域moonshot--qwen--glm--minimax--"><a class="header" href="#多区域moonshot--qwen--glm--minimax--">多区域（Moonshot / Qwen / GLM / MiniMax / …）</a></h3>
-<p>在别名条目上选取带有指定 <code>endpoint</code> 字段的区域：</p>
-<pre><code class="language-toml">[providers.models.moonshot.cn]
-api_key  = "..."
-endpoint = "cn"                             # MoonshotEndpoint::Cn -&gt; https://api.moonshot.cn/v1
+</div>
 
-[providers.models.moonshot.intl]
-api_key  = "..."
-endpoint = "intl"                           # MoonshotEndpoint::Intl -&gt; https://api.moonshot.ai/v1
-</code></pre>
-<p>每个系列一种类型；区域通过别名条目上的 <code>endpoint</code> 字段选择。</p>
+<p><code>__</code> 是路径分隔符；上面的示例设置了 <code>providers.models.ollama.home.uri</code>。完整语法请参阅<a href="../reference/env-vars.html">环境变量</a>。</p>
+<h2 id="per-family-knobs-worked-examples"><a class="header" href="#per-family-knobs-worked-examples">Per-family knobs: worked examples</a></h2>
+<h3 id="ollama"><a class="header" href="#ollama">Ollama</a></h3>
+<h3 id="azure-openai"><a class="header" href="#azure-openai">Azure OpenAI</a></h3>
+<p>The <code>resource</code>, <code>deployment</code>, and <code>api_version</code> values live in this typed config, they are not read from environment variables.</p>
+<h3 id="多区域moonshot--qwen--glm--minimax--"><a class="header" href="#多区域moonshot--qwen--glm--minimax--">多区域（Moonshot / Qwen / GLM / MiniMax / …）</a></h3>
+<p>One type per family; pick the region via the typed <code>endpoint</code> field on the alias entry.</p>
 <h3 id="自定义-openai-兼容端点"><a class="header" href="#自定义-openai-兼容端点">自定义 OpenAI 兼容端点</a></h3>
-<pre><code class="language-toml">[providers.models.custom.gateway]
-uri     = "https://my-gateway.example.com/v1"
-model   = "my-model-id"
-api_key = "..."
-</code></pre>
 <p><code>custom</code> 插槽需要 <code>uri</code>。请参阅<a href="./custom.html">自定义提供程序</a>。</p>
 <h2 id="为代理选择使用哪个提供商"><a class="header" href="#为代理选择使用哪个提供商">为代理选择使用哪个提供商</a></h2>
 <p>智能体通过点分隔的别名引用提供方。提供方条目本身不会执行任何操作。</p>
-<pre><code class="language-toml">[agents.assistant]
-model_provider  = "anthropic.home"   # 以 `&lt;type&gt;.&lt;alias&gt;` 形式引用 providers.models
-risk_profile    = "hardened"         # 引用 risk_profiles.&lt;alias&gt;
-runtime_profile = "deep"             # 引用 runtime_profiles.&lt;alias&gt;；与 risk_profile 相互独立
-</code></pre>
 <p><code>risk_profile</code> 和 <code>runtime_profile</code> 引用各自独立的别名映射，因此它们的名称不必匹配（<code>runtime_profile</code> 同样是可选的）。如果 <code>model_provider</code> 无法解析到已配置的 <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> 条目，或者 <code>risk_profile</code> 无法解析到已配置的 <code>[risk_profiles.&lt;alias&gt;]</code> 条目，<code>Config::validate()</code> 会在启动时直接报错失败。</p>
 <p>关于将多个 agent 指向不同提供方的方法，请参阅 <a href="./routing.html">Routing</a>。</p>
 <h2 id="fallback-on-failure"><a class="header" href="#fallback-on-failure">Fallback on failure</a></h2>
 <p>When a request to a provider fails after exhausting its retries (provider down, key rate-limited, model unavailable), the alias can fall over to alternatives you declare on the alias entry. Two independent, ordered axes:</p>
-<pre><code class="language-toml">[providers.models.anthropic.prod]
-model           = "claude-sonnet-4-5"
-fallback_models = ["claude-haiku-4-5"]   # same provider, alternate models
-fallback        = ["openai.backup"]      # other aliases, each with its own key/endpoint
-
-[providers.models.openai.backup]
-model = "gpt-4.1"
-</code></pre>
 <ul>
-<li><strong><code>fallback_models</code></strong> — alternate model IDs tried on <em>this</em> provider, using the same endpoint, key, and headers. Only the model identifier changes. Use it when a provider serves a backup model (a smaller or older variant) that should be tried before leaving the provider entirely.</li>
-<li><strong><code>fallback</code></strong> — an ordered list of <em>other</em> provider aliases (dotted <code>&lt;type&gt;.&lt;alias&gt;</code> references into <code>[providers.models]</code>). Each fallback alias resolves with <strong>its own</strong> credentials, endpoint, and model — a fallback never inherits the failing alias’s key.</li>
+<li><strong><code>fallback_models</code></strong>: alternate model IDs tried on <em>this</em> provider, using the same endpoint, key, and headers. Only the model identifier changes. Use it when a provider serves a backup model (a smaller or older variant) that should be tried before leaving the provider entirely.</li>
+<li><strong><code>fallback</code></strong>: an ordered list of <em>other</em> provider aliases (dotted <code>&lt;type&gt;.&lt;alias&gt;</code> references into <code>[providers.models]</code>). Each fallback alias resolves with <strong>its own</strong> credentials, endpoint, and model, a fallback never inherits the failing alias’s key.</li>
 </ul>
 <h3 id="order-of-attempts"><a class="header" href="#order-of-attempts">Order of attempts</a></h3>
-<p>The walk is depth-first: an alias’s entire model list is exhausted before leaving it, then each <code>fallback</code> alias is descended in turn, applying that alias’s own <code>fallback_models</code> and <code>fallback</code> recursively. For the example above:</p>
+<p>The walk is depth-first: an alias’s entire model list is exhausted before leaving it, then each <code>fallback</code> alias is descended in turn, applying that alias’s own <code>fallback_models</code> and <code>fallback</code> recursively. Suppose <code>anthropic.prod</code> serves <code>claude-sonnet-4-5</code>, lists <code>claude-haiku-4-5</code> in its <code>fallback_models</code>, and names <code>openai.backup</code> (serving <code>gpt-4.1</code>) in its <code>fallback</code>. The attempt order is then:</p>
 <pre><code>anthropic.prod/claude-sonnet-4-5
   -&gt; anthropic.prod/claude-haiku-4-5
   -&gt; openai.backup/gpt-4.1
@@ -382,11 +359,11 @@ model = "gpt-4.1"
 </code></pre>
 <p>Fallback aliases can themselves declare <code>fallback</code>, so the chain is as long as your config makes it, up to a maximum depth of <strong>3 aliases</strong>. A chain that loops back on itself (<code>a</code> -&gt; <code>b</code> -&gt; <code>a</code>) is detected and the cycle edge is pruned, and an acyclic chain deeper than the limit has its remaining links pruned; neither ever loops, hangs, or overflows the stack.</p>
 <h3 id="misconfiguration"><a class="header" href="#misconfiguration">Misconfiguration</a></h3>
-<p>A <code>fallback</code> entry that names an alias which is not configured, one that closes a cycle, or a chain that exceeds the maximum depth is <strong>non-fatal</strong>: <code>Config::validate()</code> still succeeds, the offending edge is skipped at runtime, and the issue is surfaced as a validation warning (<code>dangling_fallback_ref</code> / <code>fallback_cycle</code> / <code>max_fallback_depth_exceeded</code>) on the CLI and in the dashboard. A <code>fallback_models</code> entry that is blank or duplicates the alias’s primary <code>model</code> is likewise skipped at runtime and surfaced (<code>empty_fallback_model</code> / <code>fallback_model_duplicates_primary</code>). A bad fallback link degrades gracefully — it never prevents the agent from running.</p>
+<p>A <code>fallback</code> entry that names an alias which is not configured, one that closes a cycle, or a chain that exceeds the maximum depth is <strong>non-fatal</strong>: <code>Config::validate()</code> still succeeds, the offending edge is skipped at runtime, and the issue is surfaced as a validation warning (<code>dangling_fallback_ref</code> / <code>fallback_cycle</code> / <code>max_fallback_depth_exceeded</code>) on the CLI and in the dashboard. A <code>fallback_models</code> entry that is blank or duplicates the alias’s primary <code>model</code> is likewise skipped at runtime and surfaced (<code>empty_fallback_model</code> / <code>fallback_model_duplicates_primary</code>). A bad fallback link degrades gracefully, it never prevents the agent from running.</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
 <li><a href="./overview.html">概述</a></li>
-<li><a href="./catalog.html">提供方目录</a> — 每个系列的具体配置示例</li>
+<li><a href="./catalog.html">Provider catalog</a>: concrete config example for every family</li>
 <li><a href="./streaming.html">流式传输</a></li>
 <li><a href="./routing.html">路由</a></li>
 <li><a href="./custom.html">自定义提供程序</a></li>
@@ -396,7 +373,7 @@ model = "gpt-4.1"
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../providers/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../providers/catalog.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -410,7 +387,7 @@ model = "gpt-4.1"
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../providers/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../providers/catalog.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

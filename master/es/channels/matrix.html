@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,6 +294,17 @@
                     <main>
                         <h1 id="matriz"><a class="header" href="#matriz">Matriz</a></h1>
 <p>Ejecuta ZeroClaw en salas de Matrix, incluidas las salas con cifrado de extremo a extremo (E2EE).</p>
+<h2 id="who-can-talk-to-the-agent"><a class="header" href="#who-can-talk-to-the-agent">Who can talk to the agent</a></h2>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for matrix sets <code>channel</code> to <code>matrix</code>, lists the allowed senders in <code>external_peers</code> (for matrix, the full Matrix user ID, <code>@user:server.tld</code>; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
 <p>Modo de fallo común que este guía aborda:</p>
 <blockquote>
 <p>La matriz está configurada correctamente, las verificaciones pasan, pero el bot no responde.</p>
@@ -225,75 +312,470 @@
 <h2 id="preguntas-frecuentes-rápidas"><a class="header" href="#preguntas-frecuentes-rápidas">Preguntas frecuentes rápidas</a></h2>
 <p>Si Matrix aparece conectado pero no hay respuesta, valida primero lo siguiente:</p>
 <ol>
-<li>El remitente está permitido por <code>allowed_users</code> (para pruebas: <code>["*"]</code>).</li>
+<li>Sender is in the agent’s peer set (for testing: <code>external_peers = ["*"]</code>).</li>
 <li>La cuenta del bot se ha unido a la sala objetivo exacta.</li>
-<li>El token pertenece a la misma cuenta de bot (verificación <code>whoami</code> — consulta §5C).</li>
-<li>La sala cifrada tiene una identidad de dispositivo utilizable (<code>device_id</code>) y compartición de claves.</li>
+<li>Credentials belong to the bot account (<code>whoami</code> check on the token path, see <a href="#c-token-and-identity">§5C</a>).</li>
+<li>Encrypted room can be decrypted: <code>recovery_key</code> set (recommended) or keys shared to the bot device.</li>
 <li>El demonio se reinició después de los cambios en la configuración.</li>
 </ol>
 <h2 id="1-requisitos"><a class="header" href="#1-requisitos">1. Requisitos</a></h2>
 <p>Antes de probar el flujo de mensajes:</p>
 <ol>
 <li>La cuenta del bot está unida a la sala objetivo.</li>
-<li>El token de acceso pertenece a la misma cuenta de bot.</li>
-<li><code>allowed_rooms</code> incluye la sala de destino (o está vacío para permitir todas las salas a las que el bot se ha unido). Cada entrada es un ID de sala canónico (<code>!room:server</code>) o un alias (<code>#alias:server</code>); ZeroClaw resuelve los alias.</li>
-<li><code>allowed_users</code> permite al remitente (<code>["*"]</code> para pruebas abiertas).</li>
-<li>Para las salas con cifrado de extremo a extremo (E2EE), el dispositivo del bot ha recibido las claves de cifrado de la sala.</li>
+<li>Credentials authenticate the bot account: either <code>user_id</code> + <code>password</code> (recommended, see <a href="#2-configuration">§2</a>) or an <code>access_token</code> (token path, <a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a>).</li>
+<li><code>allowed_rooms</code> includes the target room (or is empty to allow all rooms the bot has joined). Entries are matched literally against the canonical room ID (<code>!room:server</code>) of each incoming message, so list canonical room IDs here: ZeroClaw does <strong>not</strong> resolve a <code>#alias:server</code> entry for this allowlist. (Aliases are resolved only for outbound delivery targets such as cron <code>delivery.to</code>.) Find a room’s canonical ID in its client (in Element: Room settings → Advanced → Internal room ID).</li>
+<li>A peer group authorizes the sender (<code>external_peers = ["*"]</code> for open testing, see <a href="#b-sender-allowlist-peer-groups">§6</a>).</li>
+<li>For E2EE rooms, the bot can decrypt: a <code>recovery_key</code> (recommended) restores keys automatically, or keys are shared to the bot device manually.</li>
 </ol>
 <h2 id="2-configuración"><a class="header" href="#2-configuración">2. Configuración</a></h2>
-<p>All config management goes through <code>zeroclaw config</code>. Do not hand-edit <code>~/.zeroclaw/config.toml</code>.</p>
-<p>Easiest: set each Matrix field with <code>zeroclaw config set</code> (see below). For the fastest one-shot bring-up, the most ergonomic path is to set the required fields back-to-back:</p>
-<pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
-zeroclaw config set channels.matrix.access-token   # prompts, entrada enmascarada
-zeroclaw config set channels.matrix.allowed-users '["*"]'
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>access_token</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Matrix access token for the bot account. When unset, the channel falls back to password login using <code>user_id</code> + <code>password</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.access_token</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.access_token</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.access_token    # masked input, stored encrypted
 </code></pre>
-<p>Or set individual fields directly:</p>
-<pre><code class="language-bash">zeroclaw config set channels.matrix.homeserver https://matrix.example.com
-zeroclaw config set channels.matrix.access-token           # prompts, entrada enmascarada
-zeroclaw config set channels.matrix.user-id @bot:matrix.example.com
-zeroclaw config set channels.matrix.device-id ABCDEF1234
-zeroclaw config set channels.matrix.allowed-users '["*"]'   # abierto para pruebas
-zeroclaw config set channels.matrix.allowed-rooms '["!room:matrix.example.com"]'  # lista vacía = permitir todas las salas unidas
-zeroclaw config set channels.matrix.ack-reactions true       # default: true (👀 → ✅)
-zeroclaw config set channels.matrix.reply-in-thread true     # default: true
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__access_token=
 </code></pre>
-<p>Obligatorios: <code>homeserver</code>, <code>access-token</code>, <code>allowed-users</code>. Muy recomendados para E2EE: <code>user-id</code> y <code>device-id</code>. <code>allowed-rooms</code> es opcional — déjalo vacío para permitir todas las salas a las que se ha unido el bot, o enumera IDs/alias explícitos para restringir. Para el índice completo de campos, consulta la <a href="../reference/config.html">referencia de configuración</a>.</p>
-<blockquote>
-<p><strong>¿Aún no tienes un <code>access-token</code>?</strong> Consulta la §3 a continuación: explica paso a paso la llamada a la API de inicio de sesión con contraseña de Matrix que genera un token junto con un <code>device_id</code> estable en una sola operación. Si solo necesitas buscar el <code>device_id</code> de un token que ya tienes, consulta la §5H.</p>
-</blockquote>
-<h3 id="acerca-de-user-id-y-device-id"><a class="header" href="#acerca-de-user-id-y-device-id">Acerca de <code>user-id</code> y <code>device-id</code></a></h3>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>ack_reactions</code> <span class="cfg-field-meta"><code>bool?</code> · default <code>null</code></span></summary>
+<p>Override for the top-level <code>[channels].ack_reactions</code>. When <code>None</code>, falls back to the channels-wide default. When set explicitly (<code>true</code>/<code>false</code>), takes precedence for this Matrix instance only.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.ack_reactions</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.ack_reactions</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.ack_reactions &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__ack_reactions=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>allowed_rooms</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Allowed Matrix room IDs. Empty = allow all rooms the bot has joined. Entries are matched literally against the canonical room ID (<code>!abc:server</code>) of each incoming message; <code>#room:server</code> aliases are not resolved for this allowlist (they are resolved only for outbound delivery targets such as cron <code>delivery.to</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.allowed_rooms</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.allowed_rooms</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.allowed_rooms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__allowed_rooms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>approval_timeout_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>300</code></span></summary>
+<p>Seconds to wait for operator approval on <code>always_ask</code> tools before auto-denying.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.approval_timeout_secs</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.approval_timeout_secs</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.approval_timeout_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__approval_timeout_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>device_id</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Optional Matrix device ID.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.device_id</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.device_id</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.device_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__device_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>draft_update_interval_ms</code> <span class="cfg-field-meta"><code>integer</code> · default <code>1500</code></span></summary>
+<p>Minimum interval (ms) between draft message edits in Partial mode.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.draft_update_interval_ms</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.draft_update_interval_ms</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.draft_update_interval_ms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__draft_update_interval_ms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>homeserver</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p>Matrix homeserver URL (e.g. <code>"https://matrix.org"</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.homeserver</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.homeserver</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.homeserver &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__homeserver=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>interrupt_on_new_message</code> <span class="cfg-field-meta"><code>bool</code> · default <code>false</code></span></summary>
+<p>Whether to interrupt an in-flight agent response when a new message arrives.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.interrupt_on_new_message</code> field.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.interrupt_on_new_message</code> field.</p>
+<h4 id="zeroclaw-config-8"><a class="header" href="#zeroclaw-config-8">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.interrupt_on_new_message &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-8"><a class="header" href="#environment-variable-8">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__interrupt_on_new_message=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>mention_only</code> <span class="cfg-field-meta"><code>bool</code> · default <code>false</code></span></summary>
+<p>When true, only respond to messages that @-mention the bot in groups. Direct messages are always processed.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-10"><a class="header" href="#gateway-dashboard-10">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.mention_only</code> field.</p>
+<h4 id="zerocode-10"><a class="header" href="#zerocode-10">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.mention_only</code> field.</p>
+<h4 id="zeroclaw-config-9"><a class="header" href="#zeroclaw-config-9">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.mention_only &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-9"><a class="header" href="#environment-variable-9">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__mention_only=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>multi_message_delay_ms</code> <span class="cfg-field-meta"><code>integer</code> · default <code>800</code></span></summary>
+<p>Delay (ms) between sending each paragraph in MultiMessage mode.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-11"><a class="header" href="#gateway-dashboard-11">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.multi_message_delay_ms</code> field.</p>
+<h4 id="zerocode-11"><a class="header" href="#zerocode-11">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.multi_message_delay_ms</code> field.</p>
+<h4 id="zeroclaw-config-10"><a class="header" href="#zeroclaw-config-10">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.multi_message_delay_ms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-10"><a class="header" href="#environment-variable-10">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__multi_message_delay_ms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>password</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Optional login password for Matrix account (used for initial login flow).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-12"><a class="header" href="#gateway-dashboard-12">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.password</code> field.</p>
+<h4 id="zerocode-12"><a class="header" href="#zerocode-12">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.password</code> field.</p>
+<h4 id="zeroclaw-config-11"><a class="header" href="#zeroclaw-config-11">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.password    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-11"><a class="header" href="#environment-variable-11">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__password=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>recovery_key</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Optional Matrix recovery key for automatic E2EE key backup restore. When set, ZeroClaw recovers room keys and cross-signing secrets on startup.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-13"><a class="header" href="#gateway-dashboard-13">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.recovery_key</code> field.</p>
+<h4 id="zerocode-13"><a class="header" href="#zerocode-13">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.recovery_key</code> field.</p>
+<h4 id="zeroclaw-config-12"><a class="header" href="#zeroclaw-config-12">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.recovery_key    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-12"><a class="header" href="#environment-variable-12">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__recovery_key=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_in_thread</code> <span class="cfg-field-meta"><code>bool</code> · default <code>true</code></span></summary>
+<p>When true (default), replies are sent as thread replies. Starts a new thread from the incoming message when none exists. When false, only continues existing threads.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-14"><a class="header" href="#gateway-dashboard-14">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.reply_in_thread</code> field.</p>
+<h4 id="zerocode-14"><a class="header" href="#zerocode-14">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.reply_in_thread</code> field.</p>
+<h4 id="zeroclaw-config-13"><a class="header" href="#zeroclaw-config-13">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.reply_in_thread &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-13"><a class="header" href="#environment-variable-13">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__reply_in_thread=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_min_interval_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing floor in seconds. Range: <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code> (0 disables).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-15"><a class="header" href="#gateway-dashboard-15">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zerocode-15"><a class="header" href="#zerocode-15">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zeroclaw-config-14"><a class="header" href="#zeroclaw-config-14">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.reply_min_interval_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-14"><a class="header" href="#environment-variable-14">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__reply_min_interval_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_queue_depth_max</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing queue depth. Range: <code>0..=REPLY_QUEUE_DEPTH_CEILING</code>. When <code>reply_min_interval_secs &gt; 0</code> and this value is <code>0</code>, the pacing wrapper substitutes <code>DEFAULT_REPLY_QUEUE_DEPTH</code> (16). When the queue is full, the newest send is dropped and a <code>WARN</code> is logged.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-16"><a class="header" href="#gateway-dashboard-16">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zerocode-16"><a class="header" href="#zerocode-16">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zeroclaw-config-15"><a class="header" href="#zeroclaw-config-15">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.reply_queue_depth_max &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-15"><a class="header" href="#environment-variable-15">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__reply_queue_depth_max=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>stream_mode</code> <span class="cfg-field-meta"><code>StreamMode</code> · default <code>"off"</code></span></summary>
+<p>Streaming mode for progressive response delivery. <code>"off"</code> (default): single message. <code>"partial"</code>: edit-in-place draft. <code>"multi_message"</code>: paragraph-split delivery.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-17"><a class="header" href="#gateway-dashboard-17">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.stream_mode</code> field.</p>
+<h4 id="zerocode-17"><a class="header" href="#zerocode-17">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.stream_mode</code> field.</p>
+<h4 id="zeroclaw-config-16"><a class="header" href="#zeroclaw-config-16">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.stream_mode &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-16"><a class="header" href="#environment-variable-16">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__stream_mode=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>user_id</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Optional Matrix user ID (e.g. <code>"@bot:matrix.org"</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-18"><a class="header" href="#gateway-dashboard-18">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.user_id</code> field.</p>
+<h4 id="zerocode-18"><a class="header" href="#zerocode-18">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.user_id</code> field.</p>
+<h4 id="zeroclaw-config-17"><a class="header" href="#zeroclaw-config-17">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.user_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-17"><a class="header" href="#environment-variable-17">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__matrix__&lt;alias&gt;__user_id=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<p>Matrix is configured as a <code>[channels.matrix.&lt;alias&gt;]</code> block. Set it through any of these surfaces:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-19"><a class="header" href="#gateway-dashboard-19">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> in the web dashboard.</p>
+<h4 id="zerocode-19"><a class="header" href="#zerocode-19">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Channels</strong>.</p>
+</div>
+
+<h3 id="recommended-setup-password--recovery-key"><a class="header" href="#recommended-setup-password--recovery-key">Recommended setup: password + recovery key</a></h3>
+<p>The official, lowest-friction way to run Matrix is to let ZeroClaw log in fresh and manage its own device identity:</p>
 <ul>
-<li>ZeroClaw intenta leer la identidad desde Matrix <code>/_matrix/client/v3/account/whoami</code>.</li>
-<li>Si <code>whoami</code> no devuelve <code>device_id</code>, establece <code>device-id</code> manualmente — fundamental para la restauración de sesiones E2EE.</li>
+<li><strong>Omit <code>device_id</code>.</strong> Let the homeserver assign one at login. ZeroClaw saves the assigned id to <code>session.json</code> and reuses it on every restart, so there is no value for you to look up, copy, or keep in sync. Pinning a <code>device_id</code> by hand is the single most common source of broken key sharing.</li>
+<li><strong>Omit <code>access_token</code>.</strong> When it is unset, ZeroClaw falls back to password login. A fresh login is also what the auto-recovery path (<a href="#8-auto-recovery-from-corrupted-local-state">§8</a>) uses, so the bot self-heals from corrupted local state without operator action.</li>
+<li><strong>Set <code>password</code>.</strong> With <code>access_token</code> absent, <code>user_id</code> + <code>password</code> perform the login.</li>
+<li><strong>Set <code>recovery_key</code>.</strong> This restores room keys from server-side backup and cross-signs the freshly registered device automatically on every startup: no emoji verification, no manual key sharing, no bootstrap. See <a href="#i-recovery-key-recommended-for-e2ee">§5I</a> for how to get it from Element.</li>
 </ul>
-<h2 id="3-obtención-de-access-token-y-device-id"><a class="header" href="#3-obtención-de-access-token-y-device-id">3. Obtención de <code>access-token</code> y <code>device-id</code></a></h2>
-<p>Las cuentas de bot nuevas necesitan un token de acceso de Matrix antes de que ZeroClaw pueda conectarse. Element no expone el token directamente, por lo que la ruta canónica es una llamada única a la API de inicio de sesión con contraseña que devuelve tanto el token de acceso como un device ID estable.</p>
-<p>Si tu cuenta de operador ya tiene un token (por ejemplo, lo copiaste de otra implementación), salta a §4. Si solo necesitas buscar el <code>device_id</code> de un token existente, consulta la opción 1 de §5H (<code>whoami</code>) o la opción 2 (Element).</p>
-<h3 id="paso-1--genera-un-token-mediante-inicio-de-sesión-con-contraseña"><a class="header" href="#paso-1--genera-un-token-mediante-inicio-de-sesión-con-contraseña">Paso 1 — Genera un token mediante inicio de sesión con contraseña</a></h3>
-<p>Ejecuta esto una vez. Reemplaza <code>your.homeserver</code>, el nombre de usuario del bot, la contraseña, y elige cualquier cadena <code>device_id</code> corta (alfanumérica, sin espacios — esta es la etiqueta de dispositivo del <em>lado del servidor</em> que ZeroClaw reutilizará en cada reinicio):</p>
-<pre><code class="language-bash">curl -sS -X POST https://your.homeserver/_matrix/client/v3/login \
+<p>So a complete recommended block sets <code>homeserver</code>, <code>user_id</code>, <code>password</code>, and <code>recovery_key</code>, and leaves <code>access_token</code> and <code>device_id</code> unset.</p>
+<p>The <code>access_token</code> + <code>device_id</code> path (<a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a>) still works and is documented in full for operators who must reuse a pre-existing token, but it requires you to keep a stable <code>device_id</code> yourself, so prefer password + recovery key unless you have a specific reason not to.</p>
+<blockquote>
+<p><strong><code>channels.matrix.&lt;alias&gt;.password</code> is a secret.</strong> Stored encrypted, never in plain <code>config.toml</code>. Set it through one of these, which encrypt on write:</p>
+</blockquote>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-20"><a class="header" href="#gateway-dashboard-20">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.password</code> field there.</p>
+<h4 id="zerocode-20"><a class="header" href="#zerocode-20">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.password</code> field (input is masked).</p>
+<h4 id="zeroclaw-config-18"><a class="header" href="#zeroclaw-config-18">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.password    # prompts for masked input, stores encrypted
+</code></pre>
+</div>
+
+<blockquote>
+<p><strong><code>channels.matrix.&lt;alias&gt;.access_token</code> is a secret.</strong> Stored encrypted, never in plain <code>config.toml</code>. Set it through one of these, which encrypt on write:</p>
+</blockquote>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-21"><a class="header" href="#gateway-dashboard-21">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.access_token</code> field there.</p>
+<h4 id="zerocode-21"><a class="header" href="#zerocode-21">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.access_token</code> field (input is masked).</p>
+<h4 id="zeroclaw-config-19"><a class="header" href="#zeroclaw-config-19">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.access_token    # prompts for masked input, stores encrypted
+</code></pre>
+</div>
+
+<p><code>homeserver</code> is required. For the recommended setup, also set <code>user_id</code>, <code>password</code>, and <code>recovery_key</code>. <code>access_token</code> and <code>device_id</code> are only needed for the token-based path in <a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a>; <code>allowed_rooms</code> optionally restricts which rooms the bot answers in. Authorize senders with a <a href="#who-can-talk-to-the-agent">peer group</a>. Full field index: <a href="../reference/config.html#channels">config reference</a>.</p>
+<blockquote>
+<p><strong>Don’t have a <code>recovery_key</code> yet?</strong> See <a href="#i-recovery-key-recommended-for-e2ee">§5I</a>: it walks through generating one in Element. Going the token route instead? See <a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a> for the password-login API call that mints an <code>access_token</code> plus a stable <code>device_id</code> in one shot. To look up <code>device_id</code> for a token you already have, see <a href="#h-finding-device_id-for-an-existing-token">§5H</a>.</p>
+</blockquote>
+<h3 id="about-user_id-and-device_id"><a class="header" href="#about-user_id-and-device_id">About <code>user_id</code> and <code>device_id</code></a></h3>
+<ul>
+<li>For the recommended password + recovery-key setup, set <code>user_id</code> and leave <code>device_id</code> unset: the homeserver assigns and ZeroClaw persists it.</li>
+<li>ZeroClaw reads identity from Matrix <code>/_matrix/client/v3/account/whoami</code>.</li>
+<li>Only on the <code>access_token</code> path do you set <code>device_id</code> manually: a token login carries a device the server already minted, and ZeroClaw needs that exact id for E2EE session restore (see <a href="#h-finding-device_id-for-an-existing-token">§5H</a> to find it).</li>
+</ul>
+<h3 id="threads-and-context"><a class="header" href="#threads-and-context">Threads and context</a></h3>
+<p>When a Matrix conversation happens in a thread, that thread is its own conversation. ZeroClaw derives a distinct session key per thread, so every thread carries an independent context window and history: messages in one thread never bleed into another, and the agent does not see a sibling thread’s earlier turns. For Matrix this is controlled by <code>reply_in_thread</code>: when it is on, top-level messages open a thread and each thread is a separate conversation; when off, replies post at the channel root and history is keyed by sender and target instead of by thread.</p>
+<ul>
+<li><strong>Isolation is the point.</strong> Each thread’s context is self-contained: it does not leak outside the thread, and nothing from outside the thread leaks in. Parallel threads hold separate conversational state, so unrelated tasks never contaminate each other.</li>
+<li><strong>Long threads grow context.</strong> A thread accumulates history while it stays active, so a very long thread eventually fills the model’s context window like any other long conversation. Start a new thread to reset.</li>
+<li><strong>In-flight work is scoped per thread.</strong> A new message in one thread does not cancel an in-flight response in another; each thread’s task stands alone.</li>
+</ul>
+<p>Set the thread behavior on any surface:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-22"><a class="header" href="#gateway-dashboard-22">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and toggle the <code>channels.matrix.&lt;alias&gt;.reply_in_thread</code> field.</p>
+<h4 id="zerocode-22"><a class="header" href="#zerocode-22">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.reply_in_thread</code> field.</p>
+<h4 id="zeroclaw-config-20"><a class="header" href="#zeroclaw-config-20">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.reply_in_thread true     # thread replies on
+zeroclaw config set channels.matrix.&lt;alias&gt;.reply_in_thread false    # replies at the channel root
+</code></pre>
+</div>
+
+<h2 id="3-token-path-alternative-obtaining-access_token-and-device_id"><a class="header" href="#3-token-path-alternative-obtaining-access_token-and-device_id">3. Token path (alternative): obtaining <code>access_token</code> and <code>device_id</code></a></h2>
+<blockquote>
+<p>[!IMPORTANT] This section is for the <code>access_token</code> path only. If you followed the recommended password + recovery-key setup in <a href="#2-configuration">§2</a>, you can skip it: you do not need an access token or a hand-managed <code>device_id</code>.</p>
+</blockquote>
+<p>Use this path when you must reuse a pre-existing token (for example one copied from another deployment). Element doesn’t expose the token directly, so the canonical way to mint one is a one-shot password-login API call that returns both the access token and a stable device ID together. The token login carries a device, so on this path <code>device_id</code> is required and must stay stable.</p>
+<p>If your operator account already has a token, skip to <a href="#4-quick-validation">§4</a>. If you only need to look up the <code>device_id</code> for an existing token, see <a href="#h-finding-device_id-for-an-existing-token">§5H</a> Option 1 (<code>whoami</code>) or Option 2 (Element).</p>
+<h3 id="step-1-mint-a-token-via-password-login"><a class="header" href="#step-1-mint-a-token-via-password-login">Step 1: Mint a token via password login</a></h3>
+<p>Run this once. Replace <code>your.homeserver</code>, the bot username, password, and pick any short <code>device_id</code> string (alphanumeric, no spaces; this is the <em>server-side</em> device label that ZeroClaw will reuse on every restart):</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">curl -sS -X POST https://your.homeserver/_matrix/client/v3/login \
   -H "Content-Type: application/json" \
   -d '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"YOUR_BOT_USERNAME"},"password":"YOUR_PASSWORD","device_id":"NEW_DEVICE_ID"}'
 </code></pre>
+</div>
+
 <p>Respuesta:</p>
 <pre><code class="language-json">{`user_id`: "@bot:example.com", "access_token": "syt_...", `device_id`: "NUEVODISPOSITIVO"}
 </code></pre>
-<h3 id="paso-2-aplicar-ambos-valores-a-zeroclaw"><a class="header" href="#paso-2-aplicar-ambos-valores-a-zeroclaw">Paso 2: Aplicar ambos valores a ZeroClaw</a></h3>
-<pre><code class="language-bash">zeroclaw config set channels.matrix.access-token    # pega el access_token (la entrada está oculta)
-zeroclaw config set channels.matrix.device-id NEWDEVICE
-zeroclaw config set channels.matrix.user-id @bot:example.com
-</code></pre>
-<p>Reinicia para que los nuevos valores surtan efecto: <code>zeroclaw service restart</code>.</p>
-<p>Each of the three <code>zeroclaw config set</code> calls above can be re-run any time to update an individual field.</p>
+<h3 id="step-2-apply-both-values-to-zeroclaw"><a class="header" href="#step-2-apply-both-values-to-zeroclaw">Step 2: Apply both values to ZeroClaw</a></h3>
+<p>Put <code>access_token</code>, <code>device_id</code>, and <code>user_id</code> from the response into your <code>[channels.matrix.&lt;alias&gt;]</code> block (see <a href="#2-configuration">§2</a> for where to set them), then restart: <code>zeroclaw service restart</code>.</p>
 <h3 id="notas"><a class="header" href="#notas">Notas</a></h3>
 <ul>
-<li><strong>Conserva una copia del token</strong> cuando lo pegues por primera vez. Los secretos se cifran en reposo y <code>zeroclaw config get</code> mostrará <code>[masked]</code> en el campo del token; no podrás recuperarlo más adelante. Guárdalo en una nota temporal si lo necesitarás para los fragmentos de validación con curl en §5C.</li>
-<li><strong>Reutiliza el mismo <code>device_id</code> en cada reinicio</strong>: cambiarlo fuerza un nuevo registro de dispositivo en el servidor, lo que rompe el uso compartido de claves y la verificación en salas cifradas. La ruta de recuperación automática en §8 gestiona los raros casos en los que borrar todo es realmente la opción correcta.</li>
-<li><strong>Rotar el token de acceso más tarde</strong> sin volver a ejecutar el asistente: ejecuta <code>zeroclaw config set channels.matrix.access-token</code> (solicita la entrada, enmascarada), luego <code>zeroclaw service restart</code>.</li>
+<li><strong>Keep a copy of the token</strong> when you first paste it. Secrets are encrypted at rest and <code>zeroclaw config get</code> will print <code>[masked]</code> for the token field; you can’t retrieve it later. Stash it in a scratch note if you’ll need it for the curl validation snippets in <a href="#c-token-and-identity">§5C</a>.</li>
+<li><strong>Reuse the same <code>device_id</code> on every restart</strong>: changing it forces a new server-side device registration, which breaks key sharing and verification in encrypted rooms. The auto-recovery path in <a href="#8-auto-recovery-from-corrupted-local-state">§8</a> handles the rare cases where wiping is genuinely the right call.</li>
+<li><strong>Rotating the access token later</strong> without re-running the wizard: update the <code>access_token</code> field in your config (see <a href="#2-configuration">§2</a>), then <code>zeroclaw service restart</code>.</li>
 <li><strong>El token aparece como expirado o no válido</strong> al iniciar: genera uno nuevo con el mismo curl, repite el Paso 2.</li>
 </ul>
 <h2 id="4-validación-rápida"><a class="header" href="#4-validación-rápida">4. Validación rápida</a></h2>
-<p>Apply the field set in §2 if you haven’t yet, then restart with <code>zeroclaw service restart</code> (background) or <code>zeroclaw daemon</code> (foreground). Send a plain-text message in the configured Matrix room. Confirm:</p>
+<p>Apply the field set in <a href="#2-configuration">§2</a> if you haven’t yet, then restart with <code>zeroclaw service restart</code> (background) or <code>zeroclaw daemon</code> (foreground). Send a plain-text message in the configured Matrix room. Confirm:</p>
 <ul>
 <li>Los registros de ZeroClaw muestran que el oyente de Matrix se inicia sin errores repetidos de sincronización o autenticación.</li>
 <li>En una sala cifrada, el bot puede leer y responder a mensajes cifrados de usuarios permitidos.</li>
@@ -303,47 +785,41 @@ zeroclaw config set channels.matrix.user-id @bot:example.com
 <h3 id="a-sala-y-membresía"><a class="header" href="#a-sala-y-membresía">A. Sala y membresía</a></h3>
 <ul>
 <li>Confirma que la cuenta del bot se haya unido a la sala.</li>
-<li>Si estás utilizando un alias (<code>#...</code>), verifica que se resuelva a la sala canónica esperada.</li>
+<li>If you put a room in <code>allowed_rooms</code>, it must be the <strong>canonical</strong> room ID (<code>!room:server</code>), not a <code>#alias:server</code>. Aliases are not resolved for the allowlist, so an alias entry silently matches nothing. Find the canonical ID in Element via Room settings → Advanced → Internal room ID.</li>
 </ul>
-<h3 id="b-lista-de-remitentes-permitidos"><a class="header" href="#b-lista-de-remitentes-permitidos">B. Lista de remitentes permitidos</a></h3>
-<ul>
-<li>Si <code>allowed_users = []</code>, todos los mensajes entrantes serán denegados.</li>
-<li>Para diagnóstico, ábrelo temporalmente: ejecuta <code>zeroclaw config set channels.matrix.allowed-users '["*"]'</code> y luego <code>zeroclaw service restart</code>.</li>
-<li>Ajustar a IDs de usuario explícitos una vez que el flujo funcione.</li>
-</ul>
+<h3 id="b-sender-allowlist-peer-groups"><a class="header" href="#b-sender-allowlist-peer-groups">B. Sender allowlist (peer groups)</a></h3>
+<p>The sender must be in the agent’s peer set, see <a href="#who-can-talk-to-the-agent">Who can talk to the agent</a> at the top of this page. For diagnosis, temporarily set <code>external_peers = ["*"]</code> and restart the daemon.</p>
 <h3 id="c-token-e-identidad"><a class="header" href="#c-token-e-identidad">C. Token e identidad</a></h3>
-<blockquote>
-<p><strong>Acerca de <code>$MATRIX_TOKEN</code> en los fragmentos de código siguientes.</strong> Los secretos en ZeroClaw están cifrados en reposo y, por diseño, <strong>no</strong> son recuperables mediante <code>zeroclaw config get</code>, que imprime <code>[masked]</code> para cualquier campo de secreto. Tienes dos opciones:</p>
-<ol>
-<li><strong>Obtén un token nuevo</strong> volviendo a ejecutar el curl de inicio de sesión con contraseña de §3 Paso 1. Exporta el <code>access_token</code> que devuelve. Útil para rutas de validación y recuperación: no afecta a lo que hay en tu config.</li>
-<li><strong>Keep a copy</strong> of the token when you first paste it into <code>zeroclaw config set channels.matrix.access-token</code>. A one-time side-effect — write it to a scratch note if you want to run these curl checks later.</li>
-</ol>
-<p>Los campos no secretos <strong>sí</strong> son recuperables:</p>
-<pre><code class="language-bash">MATRIX_HOMESERVER=`$(zeroclaw config get channels.matrix.homeserver)`
-MATRIX_USER=$(zeroclaw config get channels.matrix.user-id)
+<p>Secrets are encrypted at rest and not retrievable: <code>zeroclaw config get</code> prints <code>[masked]</code> for any secret field. To run the checks below, use the access token you minted in <a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a> (or mint a fresh one) and your own homeserver URL.</p>
+<p>Validate the token server-side:</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">curl -sS -H "Authorization: Bearer &lt;access_token&gt;" \
+  "https://your.homeserver/_matrix/client/v3/account/whoami"
 </code></pre>
-</blockquote>
-<p>Con <code>MATRIX_TOKEN</code> configurado, valida el token en el lado del servidor:</p>
-<pre><code class="language-bash">curl -sS -H `Authorization: Bearer $MATRIX_TOKEN` \
-  "$MATRIX_HOMESERVER/_matrix/client/v3/account/whoami"
-</code></pre>
+</div>
+
 <ul>
 <li>El <code>user_id</code> devuelto debe coincidir con la cuenta del bot.</li>
-<li>Si falta <code>device_id</code> en la respuesta, configúralo manualmente (consulta §5H).</li>
-<li>Rotate the access token: <code>zeroclaw config set channels.matrix.access-token</code> (prompts, masked), then <code>zeroclaw service restart</code>.</li>
+<li>If <code>device_id</code> is missing from the response, set it manually (see <a href="#h-finding-device_id-for-an-existing-token">§5H</a>).</li>
+<li>Rotate the access token: update the <code>access_token</code> field in your config (see <a href="#2-configuration">§2</a>), then <code>zeroclaw service restart</code>.</li>
 </ul>
 <h3 id="d-verificaciones-específicas-de-e2ee"><a class="header" href="#d-verificaciones-específicas-de-e2ee">D. Verificaciones específicas de E2EE</a></h3>
 <ul>
 <li>El dispositivo del bot debe haber recibido las claves de sala desde dispositivos de confianza.</li>
 <li>Si las claves no se han compartido con este dispositivo, los eventos cifrados no se pueden descifrar.</li>
 <li>Verifica la confianza del dispositivo y el intercambio de claves desde una sesión de Matrix de confianza.</li>
-<li><code>matrix_sdk_crypto::backups: Trying to backup room keys but no backup key was found</code> — la recuperación de copia de seguridad de claves aún no está habilitada en este dispositivo. No es grave para el flujo de mensajes; aun así conviene completarlo (consulta §5I).</li>
-<li>Si los destinatarios ven los mensajes del bot como “no verificados”, verifica/firma el dispositivo del bot desde una sesión de Matrix de confianza y mantén el <code>device-id</code> estable entre reinicios.</li>
+<li><code>matrix_sdk_crypto::backups: Trying to backup room keys but no backup key was found</code>: key backup recovery isn’t enabled on this device yet. Non-fatal for message flow; still worth completing (see <a href="#i-recovery-key-recommended-for-e2ee">§5I</a>).</li>
+<li>If recipients see bot messages as “unverified”, verify/sign the bot device from a trusted Matrix session and keep <code>device_id</code> stable across restarts.</li>
 </ul>
 <h3 id="e-niveles-de-registro"><a class="header" href="#e-niveles-de-registro">E. Niveles de registro</a></h3>
-<p>ZeroClaw suprime <code>matrix_sdk</code>, <code>matrix_sdk_base</code> y <code>matrix_sdk_crypto</code> a <code>warn</code> de forma predeterminada; son ruidosos en <code>info</code>. Restablece la salida del SDK para la depuración:</p>
-<pre><code class="language-bash">RUST_LOG=info,matrix_sdk=info,matrix_sdk_base=info,matrix_sdk_crypto=info zeroclaw daemon
+<p>ZeroClaw suppresses <code>matrix_sdk</code>, <code>matrix_sdk_base</code>, and <code>matrix_sdk_crypto</code> to <code>warn</code> by default; they’re noisy at <code>info</code>. Restore SDK output for debugging:</p>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">RUST_LOG=info,matrix_sdk=info,matrix_sdk_base=info,matrix_sdk_crypto=info zeroclaw daemon
 </code></pre>
+</div>
+
 <h3 id="f-formato-de-mensajes-markdown"><a class="header" href="#f-formato-de-mensajes-markdown">F. Formato de mensajes (Markdown)</a></h3>
 <ul>
 <li>ZeroClaw envía respuestas de Matrix como contenido de texto <code>m.room.message</code> con capacidad de markdown.</li>
@@ -353,96 +829,131 @@ MATRIX_USER=$(zeroclaw config get channels.matrix.user-id)
 <h3 id="g-prueba-de-reinicio"><a class="header" href="#g-prueba-de-reinicio">G. Prueba de reinicio</a></h3>
 <p>Después de realizar cambios en la configuración, reinicia el daemon y envía un nuevo mensaje. El historial de la línea de tiempo anterior no se volverá a reproducir.</p>
 <h3 id="h-buscar-device_id-para-un-token-existente"><a class="header" href="#h-buscar-device_id-para-un-token-existente">H. Buscar <code>device_id</code> para un token existente</a></h3>
-<p>Usa esto cuando ya tienes un token de acceso (p. ej. heredado de otro despliegue) y necesitas buscar su <code>device_id</code>. Para bots completamente nuevos, consulta §3: el flujo de inicio de sesión con contraseña que allí se describe devuelve ambos valores juntos.</p>
-<p>ZeroClaw necesita un <code>device_id</code> estable para restaurar la sesión de E2EE. Sin él, se registra un nuevo dispositivo en cada reinicio, lo que interrumpe el intercambio de claves y la verificación del dispositivo.</p>
-<h4 id="opción-1--whoami-la-más-fácil"><a class="header" href="#opción-1--whoami-la-más-fácil">Opción 1 — <code>whoami</code> (la más fácil)</a></h4>
-<pre><code class="language-bash">curl -sS -H `Authorization: Bearer $MATRIX_TOKEN` \
+<p>You only need this on the <code>access_token</code> path (<a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a>). The recommended password + recovery-key setup omits <code>device_id</code> entirely: the homeserver assigns one and ZeroClaw persists it, so there is nothing to look up. If you have switched to the recommended setup, skip this section.</p>
+<p>If you really must pin a <code>device_id</code> (because you are reusing an existing access token rather than logging in with a password), use this to find the one bound to that token. For brand-new bots on the token path, see <a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a>: the password-login flow there returns both values together.</p>
+<p>ZeroClaw needs a stable <code>device_id</code> for E2EE session restore on the token path. Without it, a new device is registered every restart, breaking key sharing and device verification.</p>
+<h4 id="option-1-whoami-easiest"><a class="header" href="#option-1-whoami-easiest">Option 1: <code>whoami</code> (easiest)</a></h4>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">curl -sS -H "Authorization: Bearer &lt;access_token&gt;" \
   "https://your.homeserver/_matrix/client/v3/account/whoami"
 </code></pre>
+</div>
+
 <p>La respuesta incluye <code>device_id</code> si el token está vinculado a una sesión de dispositivo:</p>
 <pre><code class="language-json">{`user_id`: "@bot:example.com", `device_id`: "ABCDEF1234"}
 </code></pre>
-<p>Si falta <code>device_id</code>, el token se creó sin un inicio de sesión de dispositivo (p. ej. mediante la API de administración). Genera un nuevo token + device_id juntos mediante §3.</p>
-<h4 id="opción-2-desde-element-u-otro-cliente-de-matrix"><a class="header" href="#opción-2-desde-element-u-otro-cliente-de-matrix">Opción 2: desde Element u otro cliente de Matrix</a></h4>
+<p>If <code>device_id</code> is missing, the token was created without a device login (e.g. via the admin API). Mint a new token + device_id together via <a href="#3-token-path-alternative-obtaining-access_token-and-device_id">§3</a>.</p>
+<h4 id="option-2-from-element-or-another-matrix-client"><a class="header" href="#option-2-from-element-or-another-matrix-client">Option 2: From Element or another Matrix client</a></h4>
 <ol>
 <li>Iniciar sesión como la cuenta del bot en Element.</li>
 <li>Configuración → Sesiones.</li>
 <li>Copia el ID del dispositivo para la sesión activa.</li>
-<li>Aplicar:</li>
+<li>Set <code>device_id</code> in your config (see <a href="#2-configuration">§2</a>), then <code>zeroclaw service restart</code>. Keep <code>device_id</code> stable: changing it forces a new device registration, which breaks existing key sharing and verification.</li>
 </ol>
-<pre><code class="language-bash">zeroclaw config set channels.matrix.device-id ABCDEF1234
-</code></pre>
-<p>Luego <code>zeroclaw service restart</code>. Mantén <code>device-id</code> estable; cambiarlo fuerza un nuevo registro de dispositivo, lo que rompe el uso compartido de claves y la verificación existentes.</p>
 <h3 id="h-continuación-recuperación-de-la-eliminación-de-la-tienda-de-criptografía"><a class="header" href="#h-continuación-recuperación-de-la-eliminación-de-la-tienda-de-criptografía">H (continuación). Recuperación de la eliminación de la tienda de criptografía</a></h3>
 <p><strong>Síntoma:</strong> <code>Se ha detectado un conflicto en la carga de la clave de un solo uso de Matrix; se detiene la sincronización para evitar un bucle infinito de reintento</code> y el canal queda no disponible.</p>
 <p><strong>Causa:</strong> El almacén de criptografía local se eliminó mientras el dispositivo antiguo aún tenía claves de un solo uso registradas en el servidor. El SDK no puede cargar nuevas claves porque las claves antiguas aún existen en el servidor, lo que provoca un bucle infinito de conflicto de claves de un solo uso (OTK).</p>
-<h4 id="corregir--inicio-de-sesión-nuevo"><a class="header" href="#corregir--inicio-de-sesión-nuevo">Corregir — inicio de sesión nuevo</a></h4>
+<h4 id="fix-fresh-login"><a class="header" href="#fix-fresh-login">Fix: fresh login</a></h4>
 <p>Un inicio de sesión nuevo crea un nuevo dispositivo con un <code>device_id</code> nuevo, evitando por completo el conflicto de OTK (no se requiere eliminación de dispositivos con UIA).</p>
 <ol>
 <li>
 <p>Detener ZeroClaw.</p>
-<pre><code class="language-bash">zeroclaw service stop
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service stop
 </code></pre>
+</div>
+
 </li>
 <li>
 <p>Obtén un nuevo token de acceso y <code>device_id</code>:</p>
-<pre><code class="language-bash">curl -sS -X POST "https://matrix.org/_matrix/client/v3/login" \
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">curl -sS -X POST "https://matrix.org/_matrix/client/v3/login" \
   -H "Content-Type: application/json" \
   -d '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"YOUR_BOT_USERNAME"},"password":"YOUR_PASSWORD","device_id":"NEW_DEVICE_ID"}'
 </code></pre>
+</div>
+
 <p>Guarde el <code>access_token</code> y el <code>device_id</code> devueltos.</p>
 </li>
 <li>
 <p>Eliminar la tienda de criptografía local:</p>
-<pre><code class="language-bash">rm -rf ~/.zeroclaw/state/matrix/
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">rm -rf ~/.zeroclaw/state/matrix/
 </code></pre>
+</div>
+
 </li>
 <li>
-<p>Aplicar las nuevas credenciales:</p>
-<pre><code class="language-bash">zeroclaw config set channels.matrix.access-token &lt;new_token&gt;
-zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
-</code></pre>
+<p>Apply the new credentials: set <code>access_token</code> (secret, see <a href="#2-configuration">§2</a>) and <code>device_id</code> in your config.</p>
 </li>
 <li>
 <p>Reiniciar:</p>
-<pre><code class="language-bash">zeroclaw service start
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service start
 </code></pre>
+</div>
+
 </li>
 </ol>
 <h4 id="qué-esperar-en-el-primer-reinicio"><a class="header" href="#qué-esperar-en-el-primer-reinicio">Qué esperar en el primer reinicio</a></h4>
 <ul>
-<li><code>Nuestro propio dispositivo podría haber sido eliminado</code> — inofensivo; el dispositivo antiguo ya no existe.</li>
-<li><code>No se pudo descifrar un evento de sala</code> — mensajes antiguos anteriores al restablecimiento; no se pueden recuperar.</li>
-<li><code>Matrix E2EE recovery successful</code> — claves de sala restauradas desde la copia de seguridad del servidor (solo si <code>recovery_key</code> está configurado; ver §5I).</li>
+<li><code>Our own device might have been deleted</code>: harmless; old device is gone.</li>
+<li><code>Failed to decrypt a room event</code>: old messages from before the reset; unrecoverable.</li>
+<li><code>Matrix E2EE recovery successful</code>: room keys restored from server backup (only if <code>recovery_key</code> is set; see <a href="#i-recovery-key-recommended-for-e2ee">§5I</a>).</li>
 <li>Los nuevos mensajes se descifran y funcionan normalmente.</li>
 </ul>
 <p><strong>Prevención:</strong> No elimine el directorio de estado local sin planificar un nuevo inicio de sesión. Si necesita un reinicio completo, obtenga nuevas credenciales primero, luego elimine el almacén y, por último, actualice la configuración.</p>
 <h3 id="i-clave-de-recuperación-recomendada-para-e2ee"><a class="header" href="#i-clave-de-recuperación-recomendada-para-e2ee">I. Clave de recuperación (recomendada para E2EE)</a></h3>
-<p>Una clave de recuperación permite que ZeroClaw restaure automáticamente las claves de sala y los secretos de firma cruzada desde la copia de seguridad en el servidor. Los reinicios de dispositivo, las eliminaciones del almacén de criptografía y las instalaciones nuevas se recuperan automáticamente, sin necesidad de verificación con emojis ni de compartir claves manualmente.</p>
-<h4 id="paso-1--obtén-tu-clave-de-recuperación-de-element"><a class="header" href="#paso-1--obtén-tu-clave-de-recuperación-de-element">Paso 1 — Obtén tu clave de recuperación de Element</a></h4>
+<p>A recovery key lets ZeroClaw automatically restore room keys and cross-signing secrets from server-side backup. Device resets, crypto-store deletions, and fresh installs all recover automatically: no emoji verification, no manual key sharing.</p>
+<h4 id="step-1-get-your-recovery-key-from-element"><a class="header" href="#step-1-get-your-recovery-key-from-element">Step 1: Get your recovery key from Element</a></h4>
 <ol>
 <li>Inicia sesión en la cuenta del bot en Element (web o escritorio).</li>
 <li>Configuración → Seguridad y privacidad → Cifrado → Copia de seguridad segura.</li>
 <li>Si la copia de seguridad ya está configurada, tu clave de recuperación se mostró cuando la habilitaste por primera vez. Si la guardaste, úsala.</li>
-<li>Si la copia de seguridad no está configurada, haz clic en “Configurar copia de seguridad segura” → “Generar una clave de seguridad”. Guarda la clave; se verá como <code>EsTj 3yST y93F SLpB ...</code>.</li>
-<li>Cerrar sesión en Element.</li>
+<li>If backup isn’t set up, click “Set up Secure Backup” → “Generate a Security Key”. Element shows the key (it looks like <code>EsTj 3yST y93F SLpB ...</code>); copy it somewhere safe.</li>
+<li>Continue past the key display: Element then asks you to <strong>re-enter the key</strong> in a confirmation box to prove you saved it. Paste it and continue to finish setup. This is the same value you put in <code>recovery_key</code>.</li>
+<li>(Optional) Log out of the bot’s Element session once the key is saved: click the account menu → <strong>All settings</strong> → Account, then <strong>Remove this device</strong>. Leaving it logged in is fine; removing it just keeps the device list tidy.</li>
 </ol>
-<h4 id="paso-2-agrega-la-clave-de-recuperación-a-zeroclaw"><a class="header" href="#paso-2-agrega-la-clave-de-recuperación-a-zeroclaw">Paso 2: Agrega la clave de recuperación a ZeroClaw</a></h4>
+<h4 id="step-2-add-the-recovery-key-to-zeroclaw"><a class="header" href="#step-2-add-the-recovery-key-to-zeroclaw">Step 2: Add the recovery key to ZeroClaw</a></h4>
 <p>Apply the recovery key to ZeroClaw:</p>
-<pre><code class="language-bash">zeroclaw config set channels.matrix.recovery-key    # entrada enmascarada
+<blockquote>
+<p><strong><code>channels.matrix.&lt;alias&gt;.recovery_key</code> is a secret.</strong> Stored encrypted, never in plain <code>config.toml</code>. Set it through one of these, which encrypt on write:</p>
+</blockquote>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-23"><a class="header" href="#gateway-dashboard-23">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.recovery_key</code> field there.</p>
+<h4 id="zerocode-23"><a class="header" href="#zerocode-23">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.recovery_key</code> field (input is masked).</p>
+<h4 id="zeroclaw-config-21"><a class="header" href="#zeroclaw-config-21">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.recovery_key    # prompts for masked input, stores encrypted
 </code></pre>
+</div>
+
 <p>Luego <code>zeroclaw service restart</code>. La clave de recuperación se cifra en reposo inmediatamente.</p>
-<h4 id="paso-3--reiniciar"><a class="header" href="#paso-3--reiniciar">Paso 3 — Reiniciar</a></h4>
-<pre><code class="language-bash">zeroclaw service restart
+<h4 id="step-3-restart"><a class="header" href="#step-3-restart">Step 3: Restart</a></h4>
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service restart
 </code></pre>
+</div>
+
 <p>Al iniciar, deberías ver:</p>
 <pre><code>Matrix E2EE recovery successful — room keys and cross-signing secrets restored from server backup.
 </code></pre>
 <p>A partir de ahora, incluso si se elimina la tienda de criptografía local, ZeroClaw se recupera automáticamente en el próximo inicio.</p>
 <h2 id="6-registro-de-depuración"><a class="header" href="#6-registro-de-depuración">6. Registro de depuración</a></h2>
 <p>Diagnósticos específicos del canal de Matrix:</p>
-<pre><code class="language-bash">RUST_LOG=zeroclaw::channels::matrix=debug zeroclaw daemon
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
+<pre><code class="language-sh">RUST_LOG=zeroclaw::channels::matrix=debug zeroclaw daemon
 </code></pre>
+</div>
+
 <p>Superficies:</p>
 <ul>
 <li>Confirmación de restauración de sesión</li>
@@ -452,44 +963,60 @@ zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
 <li>Clasificación de errores de sincronización transitorios frente a errores fatales</li>
 </ul>
 <p>Para detalles a nivel de SDK:</p>
-<pre><code class="language-bash">RUST_LOG=zeroclaw::channels::matrix=debug,matrix_sdk_crypto=debug zeroclaw daemon
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
+<pre><code class="language-sh">RUST_LOG=zeroclaw::channels::matrix=debug,matrix_sdk_crypto=debug zeroclaw daemon
 </code></pre>
+</div>
+
 <h2 id="7-notas-operativas"><a class="header" href="#7-notas-operativas">7. Notas operativas</a></h2>
 <ul>
 <li>Mantén los tokens de Matrix fuera de los registros y capturas de pantalla.</li>
-<li>Comienza con <code>allowed_users</code> permisivo y ajusta a IDs de usuario explícitos una vez verificados.</li>
-<li>En producción, se recomienda usar identificadores de sala canónicos para evitar la deriva de alias.</li>
-<li><strong>Subprocesos:</strong> cuando <code>channels.matrix.reply-in-thread</code> es <code>true</code> (predeterminado), cada respuesta del bot se ubica en un subproceso cuya raíz es el mensaje del usuario. Los mensajes de usuario de nivel superior abren un nuevo subproceso; los subprocesos existentes se continúan. La línea de tiempo principal de la sala solo contiene los mensajes iniciados por el usuario.</li>
-<li><strong>Contexto raíz del hilo:</strong> el primer mensaje entrante que ZeroClaw ve en un hilo determinado lleva el prefijo <code>[Thread root from @sender]: &lt;root body&gt;</code> para que el agente disponga de la conversación que desencadenó la respuesta. Los hilos iniciados por el propio bot omiten el preámbulo. El seguimiento se realiza únicamente en memoria: tras reiniciar el daemon, el siguiente mensaje de cada hilo activo vuelve a inyectar el preámbulo exactamente una vez.</li>
-<li><strong>Multimedia en respuestas en línea:</strong> <code>channels.matrix.mention-only = true</code> hace que el bot ignore las cargas de multimedia sin texto (no hay cuerpo de texto al que mencionar). Cuando el usuario responde en línea a uno de estos eventos descartados con una pregunta (<code>@bot can you see this?</code>), ZeroClaw recorre el <code>m.relates_to.m.in_reply_to.event_id</code> de la respuesta, obtiene el evento principal y extrae su multimedia hacia el mensaje actual: la canalización de visión del agente ve la imagen aunque la carga original se haya filtrado.</li>
+<li>Start with permissive <code>external_peers = ["*"]</code>, tighten to explicit user IDs once verified.</li>
+<li>Always use canonical room IDs in <code>allowed_rooms</code>: aliases are not resolved for the inbound allowlist (they are resolved only for outbound <code>delivery.to</code>).</li>
+<li><strong>Threading:</strong> when <code>channels.matrix.reply_in_thread</code> is <code>true</code> (default), every bot reply lives in a thread rooted at the user’s message. Top-level user messages open a fresh thread; existing threads are continued. The main room timeline only carries the user-initiated messages.</li>
+<li><strong>Thread root context:</strong> the first inbound message ZeroClaw sees in any given thread is prefixed with <code>[Thread root from @sender]: &lt;root body&gt;</code> so the agent has the conversation that triggered the reply. Threads the bot itself started skip the preamble. Tracking is in-memory only; after a daemon restart, the next message in each active thread re-injects the preamble exactly once.</li>
+<li><strong>Inline-reply media:</strong> <code>channels.matrix.mention_only = true</code> makes the bot ignore naked media uploads (no text body to mention against). When the user inline-replies to such a dropped event with a question (<code>@bot can you see this?</code>), ZeroClaw walks the reply’s <code>m.relates_to.m.in_reply_to.event_id</code>, fetches the parent event, and pulls its media into the current message: the agent’s vision pipeline sees the image even though the original upload was filtered out.</li>
 <li><strong>Los archivos adjuntos se encadenan junto al texto:</strong> las llamadas a <code>room.send_attachment</code> incluyen un <code>AttachmentConfig::reply(...)</code> con <code>EnforceThread::Threaded</code> cuando hay un ancla de hilo presente, de modo que los PDF, las imágenes y las notas de voz aterrizan dentro del hilo del bot en lugar de en la línea de tiempo principal.</li>
 <li><strong>Marcadores de medios salientes:</strong> el agente emite <code>[image:url|path]</code>, <code>[file:url|path]</code>, <code>[voice:url|path]</code>, <code>[video:...]</code>, <code>[audio:...]</code> (y alias en mayúsculas / <code>[document:...]</code>) dentro del texto de su respuesta; ZeroClaw obtiene los bytes (HTTP para <code>http(s)://</code>, lectura local en caso contrario) y los sube como el evento de mensaje de Matrix correspondiente. <strong>Los destinos ausentes o ilegibles no son fatales:</strong> el canal registra una advertencia, descarta únicamente ese marcador y añade una línea <code>(note: I couldn't deliver the file at &lt;path&gt;.)</code> para que el operador vea lo que se intentó en lugar de una respuesta descartada silenciosamente.</li>
-<li><strong>Mensajes de voz</strong> (MSC3245): los eventos <code>m.audio</code> entrantes que llevan el campo <code>org.matrix.msc3245.voice</code> se guardan en <code>{workspace_dir}/matrix_files/</code> y se procesan a través de <code>[transcription]</code>, de modo que el agente obtiene tanto el texto de la transcripción como la ruta de origen. Las notas de voz salientes usan el marcador <code>[voice:&lt;url|path&gt;]</code>; ZeroClaw las sube como <code>m.audio</code> con el indicador de voz + waveform en cero, para que Element renderice la burbuja como una nota de voz. El proveedor de transcripción predeterminado es la API de Whisper alojada de Groq — configura <code>transcription.default-provider = "local_whisper"</code> y <code>transcription.local-whisper.url</code> para una transcripción totalmente en el dispositivo.</li>
-<li><strong>Reacciones de confirmación:</strong> controladas por <code>channels.matrix.ack-reactions</code> (valor predeterminado <code>true</code>). Cuando está activado, el bot reacciona con 👀 mientras procesa y con ✅ cuando termina. Establece el valor en <code>false</code> para mantener las salas libres de reacciones.</li>
-<li><strong>Modos de streaming</strong> (<code>channels.matrix.stream-mode</code>):
+<li><strong>Voice messages</strong> (MSC3245): inbound <code>m.audio</code> events carrying the <code>org.matrix.msc3245.voice</code> field are saved to <code>{workspace_dir}/matrix_files/</code> and run through the agent’s configured transcription provider so the agent gets both the transcript text and the source path. Outbound voice notes use the <code>[voice:&lt;url|path&gt;]</code> marker; ZeroClaw uploads as <code>m.audio</code> with the voice flag + zero-waveform set so Element renders the bubble as a voice note. See <a href="../providers/overview.html">Model Providers</a> for transcription provider setup.</li>
+<li><strong>Acknowledgement reactions:</strong> controlled by <code>channels.matrix.ack_reactions</code> (default <code>true</code>). When on, the bot reacts with 👀 while processing and ✅ when done. Set to <code>false</code> to keep rooms reaction-free.</li>
+<li><strong>Persistent sessions:</strong> on first successful login, ZeroClaw writes <code>~/.zeroclaw/state/matrix/session.json</code> (user_id + device_id + access_token + optional refresh_token). Subsequent restarts call <code>restore_session()</code> from that blob: no re-login. The matrix-rust-sdk SQLite crypto store lives alongside it at <code>~/.zeroclaw/state/matrix/store/</code>. <strong>Once <code>session.json</code> exists, rotating <code>access_token</code> in config has no effect until the file is deleted</strong>: the saved token wins. Delete <code>session.json</code> to force a re-login from config values.</li>
+<li><strong>Cross-signing:</strong> when <code>recovery_key</code> matches what is sealed in your account’s server-side secret storage, ZeroClaw runs <code>recovery().recover(key)</code> on every startup, the SDK imports your existing master / self-signing / user-signing keys, and the freshly registered device is automatically signed. <strong>No bootstrap, no UIA, no key rotation.</strong> If your account doesn’t yet have cross-signing set up, generate the recovery key in Element (Settings → Security &amp; Privacy → Secure Backup) before configuring <code>recovery_key</code>.</li>
+<li><strong>Cron delivery:</strong> <code>delivery.to</code> should be a plain room id (<code>!abc:server</code>) or alias (<code>#room:server</code>). Older configs that wrote <code>&lt;sender&gt;||&lt;room&gt;</code> are tolerated: ZeroClaw extracts the last <code>!</code>/<code>#</code>-prefixed segment and warns about the malformed value.</li>
+</ul>
+<h3 id="transmisión"><a class="header" href="#transmisión">Transmisión</a></h3>
+<p>Matrix streams replies via the <code>stream_mode</code> setting:</p>
 <ul>
-<li><code>off</code> (predeterminado): la respuesta se publica como un solo mensaje cuando el agente termina.</li>
-<li><code>partial</code> — borrador inicial publicado inmediatamente, editado en su lugar cada <code>draft-update-interval-ms</code> a medida que el agente genera la salida. El estado de ejecución de herramientas se muestra mediante la misma canalización de edición.</li>
-<li><code>multi_message</code> — sin borrador inicial. Cada párrafo delimitado por <code>\n\n</code> se publica como su propio mensaje en el hilo, separado por <code>multi-message-delay-ms</code>. Reconoce bloques de código: las líneas en blanco dentro de bloques <code>fenced</code> no se tratan como saltos de párrafo.</li>
+<li><strong><code>off</code></strong> (default): the whole reply posts as one message once the agent finishes. Simplest, and it never shows a half-written answer.</li>
+<li><strong><code>partial</code></strong>: the bot posts a draft immediately and edits it in place as the answer streams in. <code>draft_update_interval_ms</code> paces the edits; raise it if Matrix rate-limits them.</li>
+<li><strong><code>multi_message</code></strong>: each paragraph posts as its own message, separated by <code>multi_message_delay_ms</code>. Good for long answers that would otherwise be one wall of text.</li>
 </ul>
-</li>
-<li><strong>Sesiones persistentes:</strong> en el primer inicio de sesión exitoso, ZeroClaw escribe <code>~/.zeroclaw/state/matrix/session.json</code> (user_id + device_id + access_token + refresh_token opcional). Los reinicios posteriores llaman a <code>restore_session()</code> desde ese blob, sin volver a iniciar sesión. El almacén criptográfico SQLite de matrix-rust-sdk reside junto a él en <code>~/.zeroclaw/state/matrix/store/</code>. <strong>Una vez que existe <code>session.json</code>, rotar <code>access-token</code> en la configuración no tiene efecto hasta que se elimine el archivo</strong>: el token guardado prevalece. Elimina <code>session.json</code> para forzar un nuevo inicio de sesión a partir de los valores de configuración.</li>
-<li><strong>Firma cruzada:</strong> cuando <code>recovery-key</code> coincide con lo que está sellado en el almacenamiento de secretos del lado del servidor de tu cuenta, ZeroClaw ejecuta <code>recovery().recover(key)</code> en cada inicio, el SDK importa tus claves maestra / de autofirma / de firma de usuario existentes, y el dispositivo recién registrado se firma automáticamente. <strong>Sin bootstrap, sin UIA, sin rotación de claves.</strong> Si tu cuenta aún no tiene la firma cruzada configurada, genera la clave de recuperación en Element (Settings → Security &amp; Privacy → Secure Backup) antes de configurar <code>recovery-key</code>.</li>
-<li><strong>Entrega Cron:</strong> <code>delivery.to</code> debe ser un id de sala simple (<code>!abc:server</code>) o un alias (<code>#room:server</code>). Se toleran configuraciones más antiguas que escribían <code>&lt;sender&gt;||&lt;room&gt;</code>: ZeroClaw extrae el último segmento con prefijo <code>!</code>/<code>#</code> y advierte sobre el valor mal formado.</li>
-</ul>
+<p>Set it on any surface:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-24"><a class="header" href="#gateway-dashboard-24">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/matrix"><code>/config/channels/matrix</code></a> and set the <code>channels.matrix.&lt;alias&gt;.stream_mode</code> field.</p>
+<h4 id="zerocode-24"><a class="header" href="#zerocode-24">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.matrix.&lt;alias&gt;.stream_mode</code> field.</p>
+<h4 id="zeroclaw-config-22"><a class="header" href="#zeroclaw-config-22">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.matrix.&lt;alias&gt;.stream_mode &lt;value&gt;
+</code></pre>
+</div>
+
+<p>Matrix specifics: in <code>partial</code> mode, tool-execution status is shown through the same edit pipeline. In <code>multi_message</code> mode each paragraph posts as its own threaded message, and the split is code-fence-aware, so blank lines inside fenced blocks don’t break a code block across messages.</p>
 <h2 id="8-recuperación-automática-desde-un-estado-local-dañado"><a class="header" href="#8-recuperación-automática-desde-un-estado-local-dañado">8. Recuperación automática desde un estado local dañado</a></h2>
-<p>El almacén SQLite predeterminado de matrix-rust-sdk es de un solo dispositivo y asume que la vista local se mantiene sincronizada con el homeserver. Dos modos de fallo rompen esa suposición de forma irrecuperable; ZeroClaw detecta cada uno al iniciar y (cuando <code>password</code> + <code>user-id</code> están ambos configurados) borra automáticamente <code>~/.zeroclaw/state/matrix/</code> y vuelve a autenticarse para que se cree un dispositivo nuevo en el lado del servidor.</p>
+<p>The matrix-rust-sdk default SQLite store is single-device and assumes the local view stays in sync with the homeserver. Two failure modes break that assumption irrecoverably; ZeroClaw detects each at startup and (when <code>password</code> + <code>user_id</code> are both configured) auto-wipes <code>~/.zeroclaw/state/matrix/</code> and re-authenticates so a fresh device is created server-side.</p>
 <ul>
 <li><strong>Estado de cifrado huérfano.</strong> Existe un directorio <code>store/</code> pero <code>session.json</code> no (limpieza manual, instalación previa interrumpida, etc.). Iniciar sesión desde cero sobre un estado de cifrado huérfano reproduce conflictos <code>Duplicate one-time keys</code> / <code>SigningKeyChanged</code> que no se reparan automáticamente.</li>
 <li><strong>Indicador <code>StateStoreDataKey::OneTimeKeyAlreadyUploaded</code> activado.</strong> El SDK persiste esta clave en el almacén de estado la primera vez que detecta una carga de OTK duplicada (según el propio comentario del SDK: “we forgot about some of our one-time keys. This will lead to UTDs.”). Sobrevive a los reinicios; la única solución es borrar y volver a registrar.</li>
 </ul>
-<p><strong>Se detecta una discrepancia en <code>device-id</code>, pero se tolera, no se elimina.</strong> Si <code>channels.matrix.device-id</code> difiere del id de dispositivo almacenado en <code>session.json</code>, el canal registra una advertencia y respeta el id guardado (que es el valor que el homeserver asignó realmente al iniciar sesión). Eliminar los datos ante una discrepancia crearía un bucle de recuperación porque la recuperación automática genera por sí misma un id nuevo, dejando la configuración y la sesión permanentemente desincronizadas.</p>
-<p>Cuando <strong><code>recover()</code> falla por sí mismo</strong> (normalmente <code>MAC check for the secret storage key failed</code>), el canal registra el id de clave de almacenamiento secreto predeterminado del homeserver, si el evento de clave tiene información de passphrase, la longitud de la entrada sin espacios en blanco y la cadena completa de errores — estos indican <em>qué</em> capa rechazó la clave de recuperación sin filtrar el valor. Los fallos de recuperación son <strong>no fatales</strong> (no activan el borrado automático); el bot continúa, simplemente el nuevo dispositivo no obtendrá la firma cruzada.</p>
-<p>Si no se configuran <code>password</code> + <code>user-id</code>, la recuperación automática no puede ejecutarse: el canal se detiene con un error procesable que señala las dos opciones: configurarlos o ejecutar <code>rm -rf ~/.zeroclaw/state/matrix/</code> manualmente.</p>
+<p><strong><code>device_id</code> drift is detected but tolerated, not wiped.</strong> If <code>channels.matrix.device_id</code> differs from the device id stored in <code>session.json</code>, the channel logs a warning and honors the saved id (which is the value the homeserver actually assigned at login). Wiping on drift would create a recovery loop because auto-recovery itself generates a new id, leaving config and session permanently out of sync.</p>
+<p>When <strong><code>recover()</code> itself fails</strong> (typically <code>MAC check for the secret storage key failed</code>), the channel logs the homeserver’s default secret-storage key id, whether the key event has passphrase info, the whitespace-stripped input length, and the full error chain: these point at <em>which</em> layer rejected the recovery key without leaking the value. Recovery failures are <strong>non-fatal</strong> (they don’t trigger auto-wipe); the bot continues, the new device just won’t be cross-signed.</p>
+<p>If <code>password</code> + <code>user_id</code> aren’t configured, auto-recovery can’t run: the channel bails with an actionable error pointing at the two choices: configure them, or <code>rm -rf ~/.zeroclaw/state/matrix/</code> manually.</p>
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
 <li><a href="../ops/network-deployment.html">Despliegue de red</a></li>
-<li><a href="../reference/config.html">Referencia de configuración</a> — generada a partir del esquema en vivo</li>
+<li><a href="../reference/config.html">Config reference</a>: generated from the live schema</li>
 <li><a href="./overview.html">Visión general de los canales</a></li>
 </ul>
 
@@ -497,11 +1024,11 @@ zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../channels/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../channels/peer-groups.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../channels/mattermost.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../channels/discord.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -511,11 +1038,11 @@ zeroclaw config set channels.matrix.device-id &lt;new_device_id&gt;
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../channels/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../channels/peer-groups.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../channels/mattermost.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../channels/discord.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

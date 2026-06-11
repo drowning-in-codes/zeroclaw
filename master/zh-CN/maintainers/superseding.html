@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,7 +298,7 @@
 <p>Superseding 是最重的选项。在打开它之前，请按以下顺序尝试：</p>
 <ol>
 <li>
-<p><strong>将修复提交推送到贡献者的分支。</strong> 如果 PR 具有 <code>maintainerCanModify: true</code>（来自个人 fork 的 PR 的默认值 — 可通过 <code>gh pr view &lt;number&gt; --json maintainerCanModify</code> 确认），则直接推送你的修复提交并合并贡献者的 PR。<code>git log</code>、<code>git blame</code> 以及贡献者的 GitHub 个人资料中的署名将保持清晰。如果你的修复并非微不足道，请先与贡献者协调 — 在他们有未推送的更改时推送会导致他们需要解决的冲突。</p>
+<p><strong>Push fixups to the contributor’s branch.</strong> If the PR has <code>maintainerCanModify: true</code> (the default for PRs from personal forks; confirm with <code>gh pr view &lt;number&gt; --json maintainerCanModify</code>), push your fixups directly and merge the contributor’s PR. Attribution stays clean in <code>git log</code>, <code>git blame</code>, and the contributor’s GitHub profile. Coordinate with the contributor first if your fix isn’t trivial; pushing while they have unpushed work creates conflicts they have to resolve.</p>
 </li>
 <li>
 <p><strong>提出包含具体所需更改的审查意见。</strong> 如果贡献者响应积极，且修复内容在其原始范围内（例如 clippy 警告、边界情况、测试用例添加），请提出更改请求，并让他们推送修复提交。单行修复几乎总是比覆盖提交更适合作为更改请求。</p>
@@ -241,10 +317,10 @@
 <h2 id="归属规则"><a class="header" href="#归属规则">归属规则</a></h2>
 <p>当你进行替代（supersede）并延续实质性的代码或设计决策时，请明确保留作者信息：</p>
 <ul>
-<li>为每个其工作被实质性合并的已替代贡献者添加一个 <code>Co-authored-by: Name &lt;email&gt;</code> 尾注。使用 GitHub 认可的邮箱——可以是贡献者的 <code>&lt;login@users.noreply.github.com&gt;</code> 格式，也可以是他们的已验证提交邮箱。</li>
+<li>Add one <code>Co-authored-by: Name &lt;email&gt;</code> trailer per superseded contributor whose work was materially incorporated. Use a GitHub-recognized email: either the contributor’s <code>&lt;login@users.noreply.github.com&gt;</code> form or their verified commit email.</li>
 <li>trailers 应位于提交消息末尾的空白行之后的单独行上。切勿将其编码为转义的 <code>\n</code> 文本。</li>
 <li>在 PR 正文中，列出被取代的 PR 链接，并简要说明从每个 PR 中合并了哪些内容。</li>
-<li>如果没有实际代码或设计被纳入（仅作为灵感），请勿使用 <code>Co-authored-by</code>，而是在 PR 备注部分给予致谢。</li>
+<li>If no actual code or design was incorporated (only inspiration), don’t use <code>Co-authored-by</code>, give credit in the PR notes section instead.</li>
 </ul>
 <p>这些 trailer 能正确路由 GitHub 的贡献者识别信息。如果没有它们，原始作者在其 PR 上会显示为“已关闭”，且没有保留后续贡献的记录。</p>
 <h2 id="pr-标题和正文模板"><a class="header" href="#pr-标题和正文模板">PR 标题和正文模板</a></h2>

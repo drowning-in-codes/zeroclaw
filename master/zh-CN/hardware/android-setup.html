@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,17 +295,24 @@
                         <h1 id="android-设置"><a class="header" href="#android-设置">Android 设置</a></h1>
 <p>ZeroClaw 为 Android 设备提供了预构建的二进制文件。</p>
 <h2 id="支持的架构"><a class="header" href="#支持的架构">支持的架构</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>目标</th><th>Android 版本</th><th>设备</th></tr>
-</thead>
-<tbody>
-<tr><td><code>armv7-linux-androideabi</code></td><td>Android 4.1+（API 16+）</td><td>较旧的 32 位手机（如 Galaxy S3 等）</td></tr>
-<tr><td><code>aarch64-linux-android</code></td><td>Android 5.0+（API 21+）</td><td>现代 64 位手机</td></tr>
-</tbody>
-</table>
-</div>
+<p>ZeroClaw publishes a prebuilt <code>aarch64-linux-android</code> binary for modern 64-bit Android devices. The full set of prebuilt release targets (derived from the release workflow) is:</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
+<ul>
+<li><code>aarch64-apple-darwin</code></li>
+<li><code>aarch64-linux-android</code></li>
+<li><code>aarch64-unknown-linux-gnu</code></li>
+<li><code>aarch64-unknown-linux-musl</code></li>
+<li><code>arm-unknown-linux-gnueabihf</code></li>
+<li><code>armv7-unknown-linux-gnueabihf</code></li>
+<li><code>x86_64-pc-windows-msvc</code></li>
+<li><code>x86_64-unknown-linux-gnu</code></li>
+<li><code>x86_64-unknown-linux-musl</code></li>
+</ul>
+<p>Only <code>aarch64-linux-android</code> targets Android directly. 32-bit Android (<code>armv7-linux-androideabi</code>) is not currently published as a prebuilt binary; on a 32-bit device, build from source (see below).</p>
 <h2 id="通过-termux-安装"><a class="header" href="#通过-termux-安装">通过 Termux 安装</a></h2>
 <p>在 Android 上运行 ZeroClaw 的最简单方法是通过 <a href="https://termux.dev/">Termux</a>。</p>
 <h3 id="1-安装-termux"><a class="header" href="#1-安装-termux">1. 安装 Termux</a></h3>
@@ -238,21 +321,23 @@
 <p>⚠️ <strong>注意：</strong> Play Store 版本已过时且不再受支持。</p>
 </blockquote>
 <h3 id="2-下载-zeroclaw"><a class="header" href="#2-下载-zeroclaw">2. 下载 ZeroClaw</a></h3>
-<pre><code class="language-bash"># 检查您的架构
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh"># 检查您的架构
 uname -m
-# aarch64 = 64 位，armv7l/armv8l = 32 位
+# aarch64 = 64-bit (prebuilt binary available)
+# armv7l/armv8l = 32-bit (build from source — no prebuilt binary)
 
-# 下载合适的二进制文件
-# For 64-bit (aarch64):
+# Download the prebuilt 64-bit (aarch64) binary
 curl -LO https://github.com/zeroclaw-labs/zeroclaw/releases/latest/download/zeroclaw-aarch64-linux-android.tar.gz
 tar xzf zeroclaw-aarch64-linux-android.tar.gz
-
-# 适用于 32 位 (armv7)：
-curl -LO https://github.com/zeroclaw-labs/zeroclaw/releases/latest/download/zeroclaw-armv7-linux-androideabi.tar.gz
-tar xzf zeroclaw-armv7-linux-androideabi.tar.gz
 </code></pre>
+</div>
+
 <h3 id="3-安装和运行"><a class="header" href="#3-安装和运行">3. 安装和运行</a></h3>
-<pre><code class="language-bash">chmod +x zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">chmod +x zeroclaw
 mv zeroclaw $PREFIX/bin/
 
 # 验证安装
@@ -261,13 +346,19 @@ zeroclaw --version
 # 运行安装
 zeroclaw quickstart
 </code></pre>
+</div>
+
 <h2 id="通过-adb-直接安装"><a class="header" href="#通过-adb-直接安装">通过 ADB 直接安装</a></h2>
 <p>对于希望在 Termux 之外运行 ZeroClaw 的高级用户：</p>
-<pre><code class="language-bash"># 从你的电脑通过 ADB
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh"># 从你的电脑通过 ADB
 adb push zeroclaw /data/local/tmp/
 adb shell chmod +x /data/local/tmp/zeroclaw
 adb shell /data/local/tmp/zeroclaw --version
 </code></pre>
+</div>
+
 <blockquote>
 <p>⚠️ 在 Termux 外部运行需要已 root 的设备或特定权限才能实现完整功能。</p>
 </blockquote>
@@ -279,7 +370,9 @@ adb shell /data/local/tmp/zeroclaw --version
 </ul>
 <h2 id="从源代码构建"><a class="header" href="#从源代码构建">从源代码构建</a></h2>
 <p>若要自行构建 Android 版本：</p>
-<pre><code class="language-bash"># 安装 Android NDK
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh"># 安装 Android NDK
 # Add targets
 rustup target add armv7-linux-androideabi aarch64-linux-android
 
@@ -291,14 +384,20 @@ export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 cargo build --release --target armv7-linux-androideabi
 cargo build --release --target aarch64-linux-android
 </code></pre>
+</div>
+
 <h2 id="故障排除"><a class="header" href="#故障排除">故障排除</a></h2>
 <h3 id="权限被拒绝"><a class="header" href="#权限被拒绝">“权限被拒绝”</a></h3>
-<pre><code class="language-bash">chmod +x zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">chmod +x zeroclaw
 </code></pre>
+</div>
+
 <h3 id="未找到或链接器错误"><a class="header" href="#未找到或链接器错误">“未找到”或链接器错误</a></h3>
 <p>确保您为您的设备下载了正确的架构。</p>
-<h3 id="旧版-android4x"><a class="header" href="#旧版-android4x">旧版 Android（4.x）</a></h3>
-<p>使用 <code>armv7-linux-androideabi</code> 构建，API 级别为 16 及以上。</p>
+<h3 id="old--32-bit-android"><a class="header" href="#old--32-bit-android">Old / 32-bit Android</a></h3>
+<p>There is no prebuilt 32-bit Android binary. On a 32-bit device, add the <code>armv7-linux-androideabi</code> target and build from source as shown above.</p>
 
                     </main>
 

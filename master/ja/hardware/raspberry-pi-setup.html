@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,37 +293,53 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="raspberry-pi-のセットアップ"><a class="header" href="#raspberry-pi-のセットアップ">Raspberry Pi のセットアップ</a></h1>
-<p>このガイドでは、Raspberry Pi（Pi 3、Pi 4、Pi 5、Pi Zero 2 W）への ZeroClaw のインストールと実行について説明します。</p>
-<p>READMEの「&lt;$10のハードウェアで&lt;5 MBのRAMで動作する」という主張は、<strong>ランタイム</strong>については正しいです。ビルド時の話は別です——Rustのコンパイラとリンカは、生成されるバイナリよりもはるかに多くのRAMを必要とするため、オンデバイスのビルドパスでは、リンク中のOOM-killを回避するためにswapとチューニングされたプロファイルが必要です。</p>
-<p>ほとんどの Pi ユーザーにとって、<strong>ビルド済みバイナリが最も手間のかからない方法</strong>です。</p>
+<p>This guide covers installing and running ZeroClaw on Raspberry Pi.</p>
+<p>The runtime is small enough to run comfortably on any Pi. The only constraint is <strong>building from source on the device</strong>: Rust’s linker is memory-hungry (fat LTO can OOM a low-RAM board), so the on-device build path needs swap and a lighter profile. Most users should take the <strong>pre-built binary</strong> and skip all of that.</p>
 <h2 id="ハードウェア互換性"><a class="header" href="#ハードウェア互換性">ハードウェア互換性</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>モデル</th><th>RAM</th><th>ビルド済みバイナリ</th><th>ソースからビルドする</th></tr>
-</thead>
-<tbody>
-<tr><td>Pi 5 (16 GB)</td><td>16 GB</td><td>✅</td><td>✅ 快適</td></tr>
-<tr><td>Pi 5 (8 GB)</td><td>8 GB</td><td>✅</td><td>✅ swap または <code>release-fast</code> プロファイルを使用</td></tr>
-<tr><td>Pi 5 (4 GB)</td><td>4 GB</td><td>✅</td><td>✅ swap + <code>release-fast</code> プロファイル使用</td></tr>
-<tr><td>Pi 4 (8 GB)</td><td>8 GB</td><td>✅</td><td>✅ <code>release-fast</code> プロファイル使用</td></tr>
-<tr><td>Pi 4 (4 GB)</td><td>4 GB</td><td>✅</td><td>✅ swap + <code>release-fast</code> プロファイル使用</td></tr>
-<tr><td>Pi 4 (2 GB)</td><td>2 GB</td><td>✅</td><td>限界 — スワップが必要、低速</td></tr>
-<tr><td>Pi 3 (1 GB)</td><td>1 GB</td><td>✅</td><td>❌ 非推奨</td></tr>
-<tr><td>Pi Zero 2 W</td><td>512 MB</td><td>✅</td><td>❌</td></tr>
-</tbody>
-</table>
-</div>
-<p><strong>ランタイムのメモリ使用量は最小限です。</strong> Pi Zero 2 W であっても、コアエージェントは起動後 5 MB RSS を大きく下回る範囲で動作します。上記のハードウェア段階は、デバイス上でコンパイルできるかどうかに関するものであり、ZeroClaw がそのデバイス上で動作できるかどうかではありません。</p>
+<p>Any Pi that can run a 64-bit (<code>aarch64</code>) or 32-bit (<code>armv7</code>) Raspberry Pi OS runs the pre-built binary; there is no meaningful memory floor for the runtime. The prebuilt Pi binaries come from these release targets (64-bit <code>aarch64</code> for 64-bit Raspberry Pi OS, 32-bit <code>armv7</code>/<code>arm</code> for 32-bit OS):</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
+<ul>
+<li><code>aarch64-unknown-linux-gnu</code> (64-bit)</li>
+<li><code>arm-unknown-linux-gnueabihf</code> (32-bit)</li>
+<li><code>armv7-unknown-linux-gnueabihf</code> (32-bit)</li>
+</ul>
 <h2 id="オプション1-ビルド済みバイナリ推奨"><a class="header" href="#オプション1-ビルド済みバイナリ推奨">オプション1: ビルド済みバイナリ（推奨）</a></h2>
 <p>最速の方法です。コンパイラ不要、スワップ不要、OOMのリスクもありません。</p>
 <h3 id="インストールスクリプトの使用"><a class="header" href="#インストールスクリプトの使用">インストールスクリプトの使用</a></h3>
-<pre><code class="language-bash">curl -LsSf https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | sh
+<h3 id="linux"><a class="header" href="#linux">Linux</a></h3>
+<p><strong>One-liner (<code>install.sh</code> via curl):</strong></p>
+<pre><code class="language-sh">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | sh
 </code></pre>
-<p>スクリプトはアーキテクチャ（<code>aarch64</code> または <code>armv7</code>）を自動検出し、対応するリリースバイナリを <code>$CARGO_HOME/bin/zeroclaw</code>（デフォルトは <code>~/.cargo/bin/zeroclaw</code>）にインストールします。そのディレクトリが <code>PATH</code> に含まれていることを確認してください。</p>
+<p><strong>From a clone:</strong></p>
+<pre><code class="language-sh">./install.sh
+</code></pre>
+<p><strong>Homebrew (Linuxbrew):</strong></p>
+<pre><code class="language-sh">brew install zeroclaw
+</code></pre>
+<p>The script auto-detects your architecture (<code>aarch64</code>, <code>armv7</code>, or <code>armv6</code>) and installs the matching release binary into <code>$CARGO_HOME/bin/zeroclaw</code> (defaulting to <code>~/.cargo/bin/zeroclaw</code>). Make sure that directory is on your <code>PATH</code>.</p>
+<p>When the script builds from source instead of taking a prebuilt binary, it also adapts the build to the board’s available memory:</p>
+<!--
+  GENERATED by `cargo xtask mdbook` from canonical hardware source
+  (registry.rs, transport.rs, catalog.rs, release workflow). Derived +
+  gitignored: do not edit, do not commit. Regenerated on every docs build.
+-->
+<p>When <code>install.sh</code> builds from source on Linux, it reads <code>MemTotal</code> from <code>/proc/meminfo</code> and, on hosts with <strong>under 12 GiB</strong> of RAM, exports <code>CARGO_PROFILE_RELEASE_LTO=thin</code> before building. Fat LTO (the <code>[profile.release]</code> default) can peak past 7 GB RSS during the cross-crate type pass and OOM a low-RAM board; thin LTO trades a small binary-size increase for a much lower build-time memory peak.</p>
+<p>The switch only applies when you have not already pinned the variable. Override either direction explicitly:</p>
+<pre><code class="language-sh"># Force fat LTO even on a low-RAM host (smaller binary, higher build RAM)
+export CARGO_PROFILE_RELEASE_LTO=fat
+
+# Force thin LTO on a high-RAM host (lower build RAM)
+export CARGO_PROFILE_RELEASE_LTO=thin
+</code></pre>
 <h3 id="手動ダウンロード"><a class="header" href="#手動ダウンロード">手動ダウンロード</a></h3>
 <p><a href="https://github.com/zeroclaw-labs/zeroclaw/releases/latest">最新リリース</a>から該当する tarball を選択してください。</p>
-<pre><code class="language-bash"># 64ビット（64ビット版Raspberry Pi OSを使用したPi 4/5）
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh"># 64ビット（64ビット版Raspberry Pi OSを使用したPi 4/5）
 curl -LO https://github.com/zeroclaw-labs/zeroclaw/releases/latest/download/zeroclaw-aarch64-unknown-linux-gnu.tar.gz
 tar xzf zeroclaw-aarch64-unknown-linux-gnu.tar.gz
 sudo install -m 0755 zeroclaw /usr/local/bin/
@@ -257,16 +349,23 @@ curl -LO https://github.com/zeroclaw-labs/zeroclaw/releases/latest/download/zero
 tar xzf zeroclaw-armv7-unknown-linux-gnueabihf.tar.gz
 sudo install -m 0755 zeroclaw /usr/local/bin/
 </code></pre>
+</div>
+
 <h3 id="アーキテクチャを確認してください"><a class="header" href="#アーキテクチャを確認してください">アーキテクチャを確認してください</a></h3>
-<pre><code class="language-bash">uname -m
-# aarch64 → 64-bit（aarch64 バイナリを使用）
-# armv7l  → 32-bit (use the armv7 binary)
-# armv6l → Pi 1 / Zero（現在サポートされていません。#4623 を参照）
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">uname -m
+# aarch64 → 64-bit (use the aarch64-unknown-linux-gnu binary)
+# armv7l  → 32-bit (use the armv7-unknown-linux-gnueabihf binary)
+# armv6l  → Pi 1 / Zero / Zero W (use the arm-unknown-linux-gnueabihf binary)
 </code></pre>
+</div>
+
 <h2 id="オプション-2-別のマシンからクロスコンパイルする"><a class="header" href="#オプション-2-別のマシンからクロスコンパイルする">オプション 2: 別のマシンからクロスコンパイルする</a></h2>
 <p>より高性能なマシンをすでにお持ちの場合、クロスコンパイルはPi上でビルドするよりも高速です。</p>
-<h3 id="macos-からapple-silicon-または-intel"><a class="header" href="#macos-からapple-silicon-または-intel">macOS から（Apple Silicon または Intel）</a></h3>
-<pre><code class="language-bash"># クロスコンパイルターゲットをインストールする
+<div class="os-tabs-src">
+<h4 id="macos-apple-silicon-or-intel"><a class="header" href="#macos-apple-silicon-or-intel">macOS (Apple Silicon or Intel)</a></h4>
+<pre><code class="language-sh"># クロスコンパイルターゲットをインストールする
 rustup target add aarch64-unknown-linux-gnu
 
 # Linux GNU クロスツールチェーンをインストールする — Arduino Uno Q ガイドで使用されているのと同じパターン
@@ -282,16 +381,16 @@ cargo build --release --target aarch64-unknown-linux-gnu
 scp target/aarch64-unknown-linux-gnu/release/zeroclaw pi@raspberrypi:~/
 </code></pre>
 <blockquote>
-<p><strong>注意:</strong> 本ガイドの以前の草稿では、Homebrew の <code>aarch64-elf-gcc</code> を提案していました。このツールチェーンはベアメタルの ELF バイナリを生成し、glibc ではなく newlib にリンクするため、動作する Raspberry Pi OS バイナリは生成されません。上記の <code>messense/macos-cross-toolchains</code> tap（本物の Linux GNU/glibc ツールチェーン）を使用するか、Option 3（Pi 上でビルドする）にフォールバックしてください。</p>
+<p><strong>Note:</strong> earlier drafts of this guide suggested <code>aarch64-elf-gcc</code> from Homebrew. That toolchain produces bare-metal ELF binaries and links against newlib, not glibc. It will not produce a working Raspberry Pi OS binary. Use the <code>messense/macos-cross-toolchains</code> tap above (a real Linux GNU/glibc toolchain), or fall back to Option 3 (build on the Pi).</p>
 </blockquote>
-<h3 id="linux-x86_64-から"><a class="header" href="#linux-x86_64-から">Linux x86_64 から</a></h3>
-<pre><code class="language-bash"># クロスコンパイルツールチェーンをインストールする
+<h4 id="linux-x86_64"><a class="header" href="#linux-x86_64">Linux x86_64</a></h4>
+<pre><code class="language-sh"># クロスコンパイルツールチェーンをインストールする
 sudo apt-get install -y gcc-aarch64-linux-gnu
 
 # ターゲットを追加
 rustup target add aarch64-unknown-linux-gnu
 
-# リンカーの設定 (~/.cargo/config.toml)
+# Configure linker
 # [target.aarch64-unknown-linux-gnu]
 # linker = "aarch64-linux-gnu-gcc"
 
@@ -301,15 +400,23 @@ cargo build --release --target aarch64-unknown-linux-gnu
 # Pi にコピー
 scp target/aarch64-unknown-linux-gnu/release/zeroclaw pi@raspberrypi:~/
 </code></pre>
+</div>
+
 <h2 id="オプション3-piでビルドする"><a class="header" href="#オプション3-piでビルドする">オプション3: Piでビルドする</a></h2>
-<p>swapを設定し、適切なプロファイルを選択すれば、Pi 4/5でも可能です。Pi 5（8 GB）では20～40分、Pi 4ではさらに時間がかかると見込んでください。</p>
+<p>The agent compiling itself on the device. Works on any Pi with swap and the right build profile; slower on lower-RAM boards.</p>
 <h3 id="ステップ-1-rust-ツールチェインをインストールする"><a class="header" href="#ステップ-1-rust-ツールチェインをインストールする">ステップ 1: Rust ツールチェインをインストールする</a></h3>
-<pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 </code></pre>
-<h3 id="ステップ2-スワップの追加8-gb以下のpi-5やすべてのpi-4で必須"><a class="header" href="#ステップ2-スワップの追加8-gb以下のpi-5やすべてのpi-4で必須">ステップ2: スワップの追加（8 GB以下のPi 5やすべてのPi 4で必須）</a></h3>
-<p>デフォルトの <code>release</code> プロファイルでは、fat LTO リンク中に RSS が 8〜10 GB 前後でピークに達します。スワップがない場合、リンクの途中で OOM-killer が発動します。</p>
-<pre><code class="language-bash"># 4 GB のスワップファイルを作成する
+</div>
+
+<h3 id="step-2-add-swap"><a class="header" href="#step-2-add-swap">Step 2: Add swap</a></h3>
+<p>Fat LTO peaks during the final link; without swap, a low-RAM board OOM-kills mid-link.</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh"># 4 GB のスワップファイルを作成する
 sudo fallocate -l 4G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
@@ -321,61 +428,50 @@ free -h
 # 再起動後も永続化する
 echo /swapfile none swap sw 0 0 | sudo tee -a /etc/fstab
 </code></pre>
-<h3 id="ステップ3-ビルドプロファイルを選択する"><a class="header" href="#ステップ3-ビルドプロファイルを選択する">ステップ3: ビルドプロファイルを選択する</a></h3>
-<p>デフォルトの <code>release</code> プロファイルは <code>lto = "fat"</code> と <code>codegen-units = 1</code> を使用します — ランタイムパフォーマンスは最高ですが、ビルド時のメモリ使用量は最悪です。<code>release-fast</code> プロファイル（<code>codegen-units = 8</code>、<code>lto = "thin"</code>）はピーク時のRAM使用量を約半分に削減し、ランタイムへの影響はわずかです。</p>
-<pre><code class="language-bash">git clone https://github.com/zeroclaw-labs/zeroclaw.git
+</div>
+
+<h3 id="step-3-build"><a class="header" href="#step-3-build">Step 3: Build</a></h3>
+<p>Pick a profile by available RAM. <code>release</code> is fat LTO (best binary, heaviest link); <code>release-fast</code> raises codegen-units for a lighter link; <code>ci</code> uses thin LTO for the lowest-memory link. (<code>install.sh</code> picks this automatically; see <a href="#using-the-install-script">Using the install script</a>.)</p>
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">git clone https://github.com/zeroclaw-labs/zeroclaw.git
 cd zeroclaw
 
-# Pi 5（8 GB、スワップあり）: デフォルトリリースが動作する
-cargo build --release
+cargo build --release           # higher-RAM board
+cargo build --profile release-fast   # mid-RAM board
+cargo build --profile ci        # low-RAM / constrained board
 
-# Pi 4（4 GB、swap あり）: release-fast を使用
-cargo build --profile release-fast
-
-# Pi 4 (2 GB) または制約のある環境: ci プロファイルを使用 (デバッグ情報を除去、高速リンク)
-cargo build --profile ci
-</code></pre>
-<h3 id="ステップ4-バイナリをインストールする"><a class="header" href="#ステップ4-バイナリをインストールする">ステップ4: バイナリをインストールする</a></h3>
-<pre><code class="language-bash"># 使用したビルドプロファイルから:
+# Install the binary you built:
 sudo install -m 0755 target/release/zeroclaw /usr/local/bin/
-# または target/release-fast/zeroclaw、あるいは target/ci/zeroclaw
+# (or target/release-fast/zeroclaw, or target/ci/zeroclaw)
 </code></pre>
-<h3 id="gpio-サポートを使ったビルド"><a class="header" href="#gpio-サポートを使ったビルド">GPIO サポートを使ったビルド</a></h3>
-<p>スキルから Pi GPIO ペリフェラルを使用したい場合は、関連する機能フラグを有効にしてください（<code>peripherals</code> クレートを参照）。ほとんどのユーザーは一般的なエージェントのワークロードでこれを必要としません。これは接続されたハードウェアと通信するスキルを記述する場合にのみ関係します。</p>
-<h2 id="コンテナ化されたデプロイdockerよりpodmanを推奨"><a class="header" href="#コンテナ化されたデプロイdockerよりpodmanを推奨">コンテナ化されたデプロイ（DockerよりPodmanを推奨）</a></h2>
-<p><strong>Pi はメモリに制約があり、それがこのセクションを書く上での運用上の前提となります。</strong> 2 GB の Pi 4 が本ガイドの最低基準テストユニットです。2 GB のマシンで余裕が残らないセットアップは、私たちが推奨するセットアップではありません。ZeroClaw 自体は実行時に 5 MB の RSS を大きく下回って動作しますが、その横に積み重ねるすべて（チャネルトランスポート、ブラウザ制御、MCP サーバー、隣接するエージェントの 1 つや 2 つ、それに OS）が同じ固定プールを奪い合います。コンテナインフラに費やさなかったメモリは、ZeroClaw とそのツールが使えるメモリになります。</p>
-<p>Raspberry Pi OS Bookworm/Trixie をヘッドレスで実行している 2 GB の Pi 4 における具体的なバジェット:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>コンポーネント</th><th>おおよそのRSS</th></tr>
-</thead>
-<tbody>
-<tr><td>カーネル + ベースユーザースペース + sshd</td><td>~150-250 MB</td></tr>
-<tr><td><code>dockerd</code>（アイドル状態、コンテナなし）</td><td>~150-200 MB</td></tr>
-<tr><td>ZeroClaw ランタイム (ゲートウェイのみ)</td><td>~5 MB</td></tr>
-<tr><td>1 つのエージェントコンテナ（例: ghcr.io/zeroclaw-labs/zeroclaw）</td><td>~30〜80 MB</td></tr>
-<tr><td><strong>Docker で利用可能</strong></td><td>~1.3-1.5 GB</td></tr>
-<tr><td><strong>Podman で利用可能（デーモン不要）</strong></td><td>~1.5-1.7 GB</td></tr>
-</tbody>
-</table>
 </div>
-<p>Podman の削減幅は解放されるメモリが ~150-200 MB 程度 — 絶対値では小さいものの、OS が自身の取り分を確保した後に残る容量に対する割合としては大きい。2 GB のユニットでは、これが ZeroClaw + 重量級のチャネルトランスポート（メディア付きの Matrix、ブラウザ自動化スキル）を余裕を持って動かせるか、負荷時に OOM-kill されるかの分かれ目になる。</p>
-<p><strong>Pi 上で Docker よりも Podman が適している 3 つの理由:</strong></p>
+
+<h3 id="gpio-support"><a class="header" href="#gpio-support">GPIO support</a></h3>
+<p>To drive Pi GPIO from skills, build with the relevant <code>peripherals</code> feature flag. Most agent workloads don’t need it; see <a href="./hardware-peripherals-design.html">Peripherals design</a>.</p>
+<h2 id="コンテナ化されたデプロイdockerよりpodmanを推奨"><a class="header" href="#コンテナ化されたデプロイdockerよりpodmanを推奨">コンテナ化されたデプロイ（DockerよりPodmanを推奨）</a></h2>
+<p>On a memory-constrained Pi, container runtime choice matters: everything you stack alongside ZeroClaw competes for the same fixed pool, so memory not spent on container infrastructure is memory the agent gets.</p>
+<p><strong>Why Podman over Docker on a Pi:</strong></p>
 <ol>
-<li><strong>デフォルトでrootless → セキュリティの余裕。</strong> Podmanはrootデーモンを必要とせず、コンテナは自分のユーザーとして実行されます。公開されたエッジデバイスでは、開発者のノートPCよりもこれが重要になります。</li>
-<li><strong>Quadlets による systemd ネイティブ化 → 運用のシンプル化。</strong> Podman は systemd が直接管理する <code>.container</code> ユニットファイルを提供します — 他のユニットと同じライフサイクル、ロギング、依存関係モデルです。世話を焼くべき個別の <code>docker.service</code> も、個別のロギングレイヤーも不要です。</li>
-<li><strong>デーモンの常駐 RSS なし → メモリの余裕。</strong> <code>dockerd</code> が常駐させる約 150〜200 MB を省けることが、分離性を犠牲にせず 2 GB の Pi で回せる最大の調整ポイントです。</li>
+<li><strong>Rootless by default.</strong> No root daemon; containers run as your user, which matters on an exposed edge device.</li>
+<li><strong>systemd-native via Quadlets.</strong> <code>.container</code> unit files systemd manages directly, with no separate <code>docker.service</code> or logging layer.</li>
+<li><strong>No persistent daemon.</strong> Docker keeps <code>dockerd</code> resident; Podman does not, freeing the largest single chunk of memory without losing isolation.</li>
 </ol>
-<p>トレードオフは次のとおりです。Podman のルートレスネットワークモデルは slirp4netns（新しいバージョンでは pasta）を使用しており、これは Docker のデーモンがセットアップするブリッジよりも遅くなります。同じ Pi 上のコンテナ間で大量の HTTP トラフィックをやり取りするワークロードでは、これは測定する価値があります。ZeroClaw の典型的な「1 つか 2 つの長時間稼働するエージェントコンテナ」というパターンでは、その差は無視できる程度であり、メモリに制約のあるハードウェアでは、いずれにせよデーモンの RSS 削減が計算上の優位を占めます。</p>
+<p>The trade-off: Podman’s rootless network (slirp4netns/pasta) is slower than Docker’s bridge. For ZeroClaw’s “one or two long-running agent containers” pattern that’s negligible, and the daemon savings dominate on constrained hardware.</p>
 <h3 id="クイックインストールraspberry-pi-os-bookwormtrixie"><a class="header" href="#クイックインストールraspberry-pi-os-bookwormtrixie">クイックインストール（Raspberry Pi OS Bookworm/Trixie）</a></h3>
-<pre><code class="language-bash">sudo apt-get install -y podman
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">sudo apt-get install -y podman
 # オプション: 短いエイリアス — 多くの docker-compose フローは podman-compose でそのまま動作します
 sudo apt-get install -y podman-compose
 </code></pre>
+</div>
+
 <h3 id="podman-での-zeroclaw-の実行"><a class="header" href="#podman-での-zeroclaw-の実行">Podman での ZeroClaw の実行</a></h3>
 <p>公開されている OCI イメージは、変更なしで Podman 上で動作します:</p>
-<pre><code class="language-bash">podman pull ghcr.io/zeroclaw-labs/zeroclaw:latest
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">podman pull ghcr.io/zeroclaw-labs/zeroclaw:latest
 
 podman run --rm -d \
   --name zeroclaw \
@@ -384,6 +480,8 @@ podman run --rm -d \
   ghcr.io/zeroclaw-labs/zeroclaw:latest \
   daemon --host 0.0.0.0 --port 42617
 </code></pre>
+</div>
+
 <blockquote>
 <p><strong>バインドの落とし穴:</strong> ZeroClaw はゲートウェイのデフォルトを <code>127.0.0.1</code> にします。コンテナ内ではこれはホストからゲートウェイに到達できないことを意味します。コンテナ内で実行する場合は、必ず <code>--host 0.0.0.0</code> を渡してください（または <code>ZEROCLAW_BIND=0.0.0.0</code> を設定してください）。</p>
 </blockquote>
@@ -410,31 +508,51 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target default.target
 </code></pre>
-<pre><code class="language-bash">systemctl --user daemon-reload
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">systemctl --user daemon-reload
 systemctl --user start zeroclaw.service
 </code></pre>
+</div>
+
 <p>ルートレス構成の場合は、ログイン前にサービスが起動するように <code>loginctl enable-linger $USER</code> も実行してください。</p>
 <h2 id="インストール後-ネイティブ非コンテナセットアップ"><a class="header" href="#インストール後-ネイティブ非コンテナセットアップ">インストール後: ネイティブ（非コンテナ）セットアップ</a></h2>
 <h3 id="1-zeroclaw-を初期化する"><a class="header" href="#1-zeroclaw-を初期化する">1. ZeroClaw を初期化する</a></h3>
-<pre><code class="language-bash">zeroclaw quickstart
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">zeroclaw quickstart
 </code></pre>
-<p>これは、プロバイダー認証、ゲートウェイ設定の手順を案内し、<code>~/.zeroclaw/config.toml</code> を作成します。</p>
+</div>
+
+<p>This walks you through provider auth, gateway config, and creates your ZeroClaw config.</p>
 <h3 id="2-動作することを確認する"><a class="header" href="#2-動作することを確認する">2. 動作することを確認する</a></h3>
-<pre><code class="language-bash">zeroclaw doctor
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
+<pre><code class="language-sh">zeroclaw doctor
 zeroclaw agent -a assistant -m 2+2は何ですか？
 </code></pre>
+</div>
+
 <h3 id="3-永続的なサービスとして実行する"><a class="header" href="#3-永続的なサービスとして実行する">3. 永続的なサービスとして実行する</a></h3>
-<pre><code class="language-bash"># systemd ユーザーサービスのインストールと起動
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
+<pre><code class="language-sh"># systemd ユーザーサービスのインストールと起動
 zeroclaw service install
 systemctl --user enable --now zeroclaw
 
 # ログアウト／再起動後も維持されるように:
 loginctl enable-linger $USER
 </code></pre>
+</div>
+
 <h3 id="4-フォアグラウンドデーモンとして実行する"><a class="header" href="#4-フォアグラウンドデーモンとして実行する">4. フォアグラウンドデーモンとして実行する</a></h3>
 <p>開発／デバッグ用：</p>
-<pre><code class="language-bash">zeroclaw daemon --host 0.0.0.0 --port 42617
+<div class="os-tabs-src">
+<h4 id="sh-11"><a class="header" href="#sh-11">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon --host 0.0.0.0 --port 42617
 </code></pre>
+</div>
+
 <h3 id="5-チャンネルを有効にする"><a class="header" href="#5-チャンネルを有効にする">5. チャンネルを有効にする</a></h3>
 <p>ZeroClawはチャットプラットフォーム（Matrix、Mattermost、Discord、Telegramなど）に接続できます。<a href="../channels/overview.html">チャンネル → 概要</a>を参照してください。ほとんどのチャンネルトランスポートはPi上で問題なく動作します。最も負荷が高いのは一部のボイスチャンネルで使用されるWebRTCスタックで、通話のセットアップ中にCPU使用率が急上昇する可能性があります。</p>
 <h2 id="gpioとハードウェア周辺機器"><a class="header" href="#gpioとハードウェア周辺機器">GPIOとハードウェア周辺機器</a></h2>
@@ -442,50 +560,40 @@ loginctl enable-linger $USER
 <ol>
 <li>
 <p>ユーザーを <code>gpio</code> グループに追加します:</p>
-<pre><code class="language-bash">sudo usermod -aG gpio $USER
+<div class="os-tabs-src">
+<h4 id="sh-12"><a class="header" href="#sh-12">sh</a></h4>
+<pre><code class="language-sh">sudo usermod -aG gpio $USER
 グループの変更を有効にするには、一度ログアウトして再度ログインしてください
 </code></pre>
+</div>
+
 </li>
 <li>
 <p>スキルの <code>peripherals</code> クレートの GPIO バインディングを使用します。抽象化モデルについては <a href="./hardware-peripherals-design.html">Hardware → Peripherals design</a> を参照してください。</p>
 </li>
 </ol>
 <h2 id="トラブルシューティング"><a class="header" href="#トラブルシューティング">トラブルシューティング</a></h2>
-<h3 id="ビルド中に-oom-で強制終了されました"><a class="header" href="#ビルド中に-oom-で強制終了されました">ビルド中に OOM で強制終了されました</a></h3>
-<p><code>release</code> プロファイルは、最終リンク時に RSS が最大で約 8〜10 GB に達します。次のいずれかを行ってください:</p>
 <ul>
-<li><code>cargo build --profile release-fast</code> に切り替えてください（ピーク使用量が約4〜6 GBに下がります）。</li>
-<li>スワップファイルを4 GB追加します（上記の手順2）。</li>
-<li>より高性能なマシンでクロスコンパイルする（オプション2）。</li>
+<li><strong>OOM-killed during build:</strong> add swap (Option 3 Step 2), drop to a lighter profile (<code>release-fast</code> or <code>ci</code>), or use the pre-built binary / cross-compile.</li>
+<li><strong>Build extremely slow:</strong> expected on lower-RAM boards; cross-compile (Option 2) if it matters.</li>
+<li><strong>Pre-built binary “Exec format error”:</strong> architecture mismatch. <code>uname -m</code> and grab the matching binary (<code>aarch64</code> = 64-bit, <code>armv7l</code> = 32-bit).</li>
+<li><strong>GPIO permission denied:</strong> you are not in the <code>gpio</code> group; <code>sudo usermod -aG gpio $USER</code>, then re-login.</li>
+<li><strong>Service won’t start after reboot:</strong> <code>loginctl enable-linger $USER</code> so the user service survives logout.</li>
+<li><strong>Container can’t reach gateway from host:</strong> the gateway binds <code>127.0.0.1</code>; pass <code>--host 0.0.0.0</code> (or <code>ZEROCLAW_BIND=0.0.0.0</code>).</li>
 </ul>
-<p><code>release-fast</code>を使用していてもPi 4（2 GB）でOOMが発生する場合は、<code>--profile ci</code>に切り替えるか、ビルド済みバイナリを使用してください。</p>
-<h3 id="ビルドが極端に遅い"><a class="header" href="#ビルドが極端に遅い">ビルドが極端に遅い</a></h3>
-<p>Pi 4 では想定どおりです。クリーンなリリースビルドには 30〜60 分かかりますが、インクリメンタルビルドは妥当な時間です。ビルド時間が重要な場合はクロスコンパイル（オプション 2）を使用してください。</p>
-<h3 id="ビルド済みバイナリ-exec-format-error"><a class="header" href="#ビルド済みバイナリ-exec-format-error">ビルド済みバイナリ: “Exec format error”</a></h3>
-<p>アーキテクチャの不一致です。<code>uname -m</code> を確認し、一致するバイナリをダウンロードしてください。<code>aarch64</code> は64ビット（64ビット版 Raspberry Pi OS を使用している多くの Pi 4/5）、<code>armv7l</code> は32ビットです。</p>
-<h3 id="gpio-のアクセス許可が拒否されました"><a class="header" href="#gpio-のアクセス許可が拒否されました">GPIO のアクセス許可が拒否されました</a></h3>
-<pre><code class="language-bash">sudo usermod -aG gpio $USER
-# ログアウトして再度ログイン
-</code></pre>
-<h3 id="再起動後にサービスが起動しない"><a class="header" href="#再起動後にサービスが起動しない">再起動後にサービスが起動しない</a></h3>
-<p>ログアウト後もユーザーレベルの systemd が維持されるようにします:</p>
-<pre><code class="language-bash">loginctl enable-linger $USER
-</code></pre>
-<h3 id="コンテナがホストからゲートウェイに到達できません"><a class="header" href="#コンテナがホストからゲートウェイに到達できません">コンテナがホストからゲートウェイに到達できません</a></h3>
-<p>ZeroClaw はデフォルトで <code>127.0.0.1</code> にバインドします。コンテナ内ではこれはコンテナ自身の localhost を意味します。Podman/Docker で実行する場合は <code>--host 0.0.0.0</code>（または <code>ZEROCLAW_BIND=0.0.0.0</code>）を指定してください。</p>
 <h2 id="パフォーマンスのヒント"><a class="header" href="#パフォーマンスのヒント">パフォーマンスのヒント</a></h2>
 <ul>
-<li><strong>SSD または高速 SD カードを使用してください。</strong> コンパイルは I/O バウンドの負荷が大きいため、Pi 4/5 で USB 3.0 SSD を使用するとビルド時間が大幅に短縮されます。</li>
-<li><strong>ヘッドレスで実行する。</strong> 不要であればデスクトップ環境を停止します: <code>sudo systemctl set-default multi-user.target</code>。</li>
-<li><strong>ビルド成果物用の tmpfs</strong>（RAM + swap に余裕がある場合）: <code>export CARGO_TARGET_DIR=/tmp/zeroclaw-target</code>。</li>
-<li>カスタムイメージを使用している場合は、カーネルの cmdline に <strong><code>clk_ignore_unused</code> が設定されていないことを確認してください</strong> — このフラグ（ベンダー BSP でまれに見られます）はクロックゲーティングを抑制し、アイドル時の消費電力を増加させます。標準の Raspberry Pi OS にはこのフラグは含まれていません。</li>
+<li><strong>Use an SSD or fast SD card.</strong> Compilation is I/O-bound; a USB 3.0 SSD on a Pi 4/5 cuts build time significantly.</li>
+<li><strong>Run headless:</strong> <code>sudo systemctl set-default multi-user.target</code>.</li>
+<li><strong>tmpfs for build artifacts</strong> (with RAM + swap headroom): <code>export CARGO_TARGET_DIR=/tmp/zeroclaw-target</code>.</li>
+<li><strong>Check <code>clk_ignore_unused</code></strong> isn’t on the kernel cmdline if you use a custom image; it inhibits clock gating and raises idle power. Stock Raspberry Pi OS doesn’t set it.</li>
 </ul>
 <h2 id="関連"><a class="header" href="#関連">関連</a></h2>
 <ul>
-<li><a href="../setup/linux.html">Linux のセットアップ</a> — Pi 固有ではない Linux のセットアップで、バイナリのインストール後はここでも適用できます</li>
-<li><a href="../setup/service.html">サービス管理</a> — systemd のパターン、上記より詳細な内容</li>
-<li><a href="./hardware-peripherals-design.html">ハードウェア → 周辺機器の設計</a> — GPIO と peripherals クレート</li>
-<li><a href="./adding-boards-and-tools.html">ハードウェア → ボードとツールの追加</a> — ハードウェアサポートの拡張</li>
+<li><a href="../setup/linux.html">Linux setup</a>: non-Pi-specific Linux setup, applicable here too once the binary’s installed</li>
+<li><a href="../setup/service.html">Service management</a>: systemd patterns, deeper than what’s above</li>
+<li><a href="./hardware-peripherals-design.html">Hardware → Peripherals design</a>: GPIO and the peripherals crate</li>
+<li><a href="./adding-boards-and-tools.html">Hardware → Adding boards &amp; tools</a>: extending hardware support</li>
 </ul>
 
                     </main>

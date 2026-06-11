@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -221,24 +297,50 @@
 <h2 id="公式イメージ"><a class="header" href="#公式イメージ">公式イメージ</a></h2>
 <p>GitHub Container Registry（<code>ghcr.io</code>）に安定版リリースのたびにプッシュされます:</p>
 <ul>
-<li><code>ghcr.io/zeroclaw-labs/zeroclaw:latest</code> — 最新の安定版</li>
-<li><code>ghcr.io/zeroclaw-labs/zeroclaw:v0.7.5</code> — 固定済み</li>
-<li><code>ghcr.io/zeroclaw-labs/zeroclaw:debian</code> — Debian ベースのイメージ（サイズは大きいが、より広範な glibc サポート）</li>
+<li><code>ghcr.io/zeroclaw-labs/zeroclaw:latest</code>: latest stable</li>
+<li><code>ghcr.io/zeroclaw-labs/zeroclaw:v0.7.5</code>: pinned</li>
+<li><code>ghcr.io/zeroclaw-labs/zeroclaw:debian</code>: Debian-based image (larger, broader glibc support)</li>
 </ul>
 <p>マルチアーキテクチャ: <code>linux/amd64</code>, <code>linux/arm64</code>。</p>
 <blockquote>
 <p><strong>シェルアクセスに関する注意:</strong> デフォルトの <code>latest</code> イメージは意図的に distroless であり、<code>sh</code>、<code>ash</code>、<code>bash</code> を含んでいません。コンテナ内でシェルが必要な場合（例えば、デバッグのために <code>docker exec</code> を実行する場合）は、<code>debian</code> タグを使用してください。</p>
 </blockquote>
 <h2 id="最小実行"><a class="header" href="#最小実行">最小実行</a></h2>
-<pre><code class="language-bash">docker run -d \
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">docker run -d \
   --name zeroclaw \
   -v zeroclaw-data:/zeroclaw-data \
   -p 42617:42617 \
   ghcr.io/zeroclaw-labs/zeroclaw:latest
 </code></pre>
-<p>The image expects persistent state at <code>/zeroclaw-data</code>. On first run, it bootstraps a default config — you still need to run quickstart before it’s useful:</p>
-<pre><code class="language-bash">docker exec -it zeroclaw zeroclaw quickstart
+</div>
+
+<p>The official image already binds <code>[::]</code> with <code>allow_public_bind = true</code> and <code>require_pairing = false</code> baked into its default config, so the published port is reachable out of the box. The <code>ZEROCLAW_gateway__allow_public_bind</code> override below only matters if you bind-mount your own config (which replaces the baked one) that defaults to localhost.</p>
+<p>The image expects persistent state at <code>/zeroclaw-data</code>. On first run, it bootstraps a default config: you still need to run quickstart before it’s useful:</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">docker exec -it zeroclaw zeroclaw quickstart
 </code></pre>
+</div>
+
+<h2 id="running-zerocode-the-tui"><a class="header" href="#running-zerocode-the-tui">Running zerocode (the TUI)</a></h2>
+<p>The image ships the <a href="../zerocode/overview.html">zerocode</a> terminal interface alongside the <code>zeroclaw</code> binary. The default entrypoint is <code>zeroclaw</code>, so launch zerocode by overriding it with <code>--entrypoint zerocode</code> and an interactive TTY (<code>-it</code>). Both image variants carry it:</p>
+<div class="os-tabs-src">
+<h4 id="distroless-latest"><a class="header" href="#distroless-latest">distroless (<code>:latest</code>)</a></h4>
+<pre><code class="language-sh">docker run -it --entrypoint zerocode ghcr.io/zeroclaw-labs/zeroclaw:latest
+</code></pre>
+<h4 id="debian"><a class="header" href="#debian">debian</a></h4>
+<pre><code class="language-sh">docker run -it --entrypoint zerocode ghcr.io/zeroclaw-labs/zeroclaw:debian
+</code></pre>
+</div>
+
+<p>zerocode connects to a running ZeroClaw daemon, so point it at one:</p>
+<ul>
+<li><strong>Same container’s daemon:</strong> run it against the container that already runs the daemon (<code>docker exec -it zeroclaw zerocode</code>), which reaches the daemon over the local IPC socket.</li>
+<li><strong>A remote daemon:</strong> connect over WebSocket Secure with <code>zerocode --connect wss://&lt;host&gt;:&lt;port&gt;</code>; see <a href="../zerocode/remote.html">Remote setup (WSS)</a>. This is the portable way to drive a containerized or remote daemon from your own terminal.</li>
+</ul>
+<p>Persist <code>/zeroclaw-data</code> (as in <a href="#minimum-run">Minimum run</a>) so the config and identity zerocode reads are the same ones the daemon uses.</p>
 <h2 id="作成"><a class="header" href="#作成">作成</a></h2>
 <p>最小限の <code>docker-compose.yml</code>:</p>
 <pre><code class="language-yaml">サービス:
@@ -249,15 +351,19 @@
       - "42617:42617"      # ゲートウェイ
     ボリューム:
       - ./data:/zeroclaw-data
-    環境:
-      ZEROCLAW_ALLOW_PUBLIC_BIND: "1"   # ゲートウェイが LAN 上で到達可能である場合にのみ
+    # The official image already enables public bind; only add an `environment:`
+    # block with the override above if you bind-mount a localhost-default config.
 </code></pre>
 <p>After the container starts, run quickstart:</p>
-<pre><code class="language-bash">docker compose exec zeroclaw zeroclaw quickstart
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">docker compose exec zeroclaw zeroclaw quickstart
 </code></pre>
-<p>ローカルアクセスのみが必要な場合は、<code>ZEROCLAW_ALLOW_PUBLIC_BIND</code> を削除してください。</p>
-<h2 id="macos--orbstack-vs-colima"><a class="header" href="#macos--orbstack-vs-colima">macOS — OrbStack vs Colima</a></h2>
-<p>macOS has no native Linux kernel, so every option (Docker Desktop, Podman, OrbStack, Colima) runs the container inside a lightweight Linux VM. For a Mac dev box, the two mac-native VMs worth comparing are OrbStack and Colima — both run the container with the same <code>docker run</code>/Compose commands above.</p>
+</div>
+
+<p>With the official image you can omit the <code>ZEROCLAW_gateway__allow_public_bind</code> override entirely; it is already enabled in the baked config.</p>
+<h2 id="macos-orbstack-vs-colima"><a class="header" href="#macos-orbstack-vs-colima">macOS: OrbStack vs Colima</a></h2>
+<p>macOS has no native Linux kernel, so every option (Docker Desktop, Podman, OrbStack, Colima) runs the container inside a lightweight Linux VM. For a Mac dev box, the two mac-native VMs worth comparing are OrbStack and Colima, both run the container with the same <code>docker run</code>/Compose commands above.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -271,17 +377,22 @@
 </tbody>
 </table>
 </div>
-<pre><code class="language-bash"># OrbStack — provides the docker CLI:
+<div class="os-tabs-src">
+<h4 id="orbstack"><a class="header" href="#orbstack">OrbStack</a></h4>
+<pre><code class="language-sh"># Provides the docker CLI:
 brew install --cask orbstack
-
-# Colima — docker CLI talks to colima's VM:
+</code></pre>
+<h4 id="colima"><a class="header" href="#colima">Colima</a></h4>
+<pre><code class="language-sh"># docker CLI talks to colima's VM:
 brew install colima docker docker-compose   # docker-compose = the Compose v2 plugin; install if you need `docker compose`
 colima start --cpu 4 --memory 8   # add --network-address to expose the VM IP to macOS
 </code></pre>
-<p>Performance is comparable for typical dev workloads; the real differentiators are licensing (commercial vs OSS) and UX preference, not raw speed — benchmark both on your own machine if idle RAM or build throughput matters. Either way you drive the engine inside the VM with <code>docker</code>; systemd quadlets (below) are a Linux-host feature and don’t apply on macOS.</p>
+</div>
+
+<p>Performance is comparable for typical dev workloads; the real differentiators are licensing (commercial vs OSS) and UX preference, not raw speed; benchmark both on your own machine if idle RAM or build throughput matters. Either way you drive the engine inside the VM with <code>docker</code>; systemd quadlets (below) are a Linux-host feature and don’t apply on macOS.</p>
 <h2 id="podman--systemd-quadlets"><a class="header" href="#podman--systemd-quadlets">Podman &amp; systemd quadlets</a></h2>
-<p>On a Linux server, the cleanest way to run the container long-term is a Podman <strong>quadlet</strong> — a declarative unit file that systemd turns into a real service. You get <code>systemctl</code> lifecycle, journald logs, auto-restart, and boot ordering with no daemon and no <code>--restart</code> hack, and the unit file is config you commit to git. This is the recommended server pattern; <code>docker run</code>/Compose are fine for a laptop.</p>
-<p>A quadlet is a <code>*.container</code> file (siblings: <code>.pod</code>, <code>.volume</code>, <code>.network</code>, <code>.kube</code>, <code>.build</code>, <code>.image</code>). Podman’s systemd generator reads it on every <code>daemon-reload</code> and writes a transient <code>.service</code> — you never author the <code>.service</code> yourself.</p>
+<p>On a Linux server, the cleanest way to run the container long-term is a Podman <strong>quadlet</strong>: a declarative unit file that systemd turns into a real service. You get <code>systemctl</code> lifecycle, journald logs, auto-restart, and boot ordering with no daemon and no <code>--restart</code> hack, and the unit file is config you commit to git. This is the recommended server pattern; <code>docker run</code>/Compose are fine for a laptop.</p>
+<p>A quadlet is a <code>*.container</code> file (siblings: <code>.pod</code>, <code>.volume</code>, <code>.network</code>, <code>.kube</code>, <code>.build</code>, <code>.image</code>). Podman’s systemd generator reads it on every <code>daemon-reload</code> and writes a transient <code>.service</code>; you never author the <code>.service</code> yourself.</p>
 <p>Rootful units live in <code>/etc/containers/systemd/</code>; rootless in <code>~/.config/containers/systemd/</code>.</p>
 <p><code>/etc/containers/systemd/zeroclaw.container</code>:</p>
 <pre><code class="language-ini">[Unit]
@@ -295,8 +406,8 @@ Image=ghcr.io/zeroclaw-labs/zeroclaw:latest
 ContainerName=zeroclaw
 PublishPort=42617:42617
 Volume=zeroclaw-data:/zeroclaw-data
-# Only if the gateway must be reachable off-localhost (LAN):
-Environment=ZEROCLAW_ALLOW_PUBLIC_BIND=1
+# The official image already binds publicly; add an `Environment=` line with the
+# allow-public-bind override only if you mount a localhost-default config.
 # Optional rolling-upgrade path — re-pull a newer image on (re)start and opt into `podman auto-update`:
 Pull=newer
 AutoUpdate=registry
@@ -307,40 +418,59 @@ Restart=always
 [Install]
 WantedBy=multi-user.target default.target
 </code></pre>
-<p>Deploy (idempotent — safe to re-run; re-applying converges the running container, never duplicates it):</p>
-<pre><code class="language-bash">sudo cp zeroclaw.container /etc/containers/systemd/
+<p>Deploy (idempotent, safe to re-run; re-applying converges the running container, never duplicates it):</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">sudo cp zeroclaw.container /etc/containers/systemd/
 sudo systemctl daemon-reload      # generator turns .container into zeroclaw.service
 sudo systemctl restart zeroclaw
 </code></pre>
+</div>
+
 <p>Then onboard once, and manage it like any service:</p>
-<pre><code class="language-bash">sudo podman exec -it zeroclaw zeroclaw onboard
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">sudo podman exec -it zeroclaw zeroclaw quickstart
 systemctl status zeroclaw
 journalctl -u zeroclaw -f
 </code></pre>
-<p>There is no <code>systemctl enable</code> step for generated units — the <code>[Install] WantedBy=</code> line is what brings it up on boot.</p>
+</div>
+
+<p>There is no <code>systemctl enable</code> step for generated units: the <code>[Install] WantedBy=</code> line is what brings it up on boot.</p>
 <ul>
-<li><strong>Version pinning vs <code>:latest</code>.</strong> Pin a tag or digest (<code>Image=ghcr.io/zeroclaw-labs/zeroclaw:v0.7.5</code> or <code>...@sha256:...</code>) for reproducible, auditable deploys — upgrading is then a reviewable tag bump in the committed <code>.container</code> file. <code>Pull=newer</code> + <code>AutoUpdate=registry</code> instead give rolling upgrades, driven by <code>podman-auto-update.timer</code> (<code>sudo systemctl enable --now podman-auto-update.timer</code>). Pick reproducibility or currency; the deploy loop is the same either way.</li>
+<li><strong>Version pinning vs <code>:latest</code>.</strong> Pin a tag or digest (<code>Image=ghcr.io/zeroclaw-labs/zeroclaw:v0.7.5</code> or <code>...@sha256:...</code>) for reproducible, auditable deploys; upgrading is then a reviewable tag bump in the committed <code>.container</code> file. <code>Pull=newer</code> + <code>AutoUpdate=registry</code> instead give rolling upgrades, driven by <code>podman-auto-update.timer</code> (<code>sudo systemctl enable --now podman-auto-update.timer</code>). Pick reproducibility or currency; the deploy loop is the same either way.</li>
 <li><strong>Rootless variant.</strong> Drop the file in <code>~/.config/containers/systemd/</code>, use <code>systemctl --user daemon-reload &amp;&amp; systemctl --user restart zeroclaw</code>, and run <code>loginctl enable-linger $USER</code> so it survives logout (same lingering note as <a href="../ops/service.html">Service &amp; daemon</a>).</li>
-<li><strong>WSL2.</strong> Modern WSL2 runs systemd (<code>[boot] systemd=true</code> in <code>/etc/wsl.conf</code>, then <code>wsl --shutdown</code>), so this exact quadlet pattern works inside a WSL distro — no Windows-specific dialect.</li>
+<li><strong>WSL2.</strong> Modern WSL2 runs systemd (<code>[boot] systemd=true</code> in <code>/etc/wsl.conf</code>, then <code>wsl --shutdown</code>), so this exact quadlet pattern works inside a WSL distro: no Windows-specific dialect.</li>
 </ul>
 <h2 id="コンテナ内の設定"><a class="header" href="#コンテナ内の設定">コンテナ内の設定</a></h2>
-<p>画像は <code>/zeroclaw-data/.zeroclaw/config.toml</code> に設定ファイルが存在することを前提としています。ローカルの設定ファイルを以下にマウントしてください：</p>
-<pre><code class="language-bash">docker run -d --name zeroclaw \
+<p>The image expects config under <code>/zeroclaw-data/.zeroclaw/</code>. Mount your local config in:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">docker run -d --name zeroclaw \
   -v $(pwd)/my-config.toml:/zeroclaw-data/.zeroclaw/config.toml:ro \
   -v zeroclaw-state:/zeroclaw-data/workspace \
   -p 42617:42617 \
   ghcr.io/zeroclaw-labs/zeroclaw:latest
 </code></pre>
-<p>コンテナワークロードの場合、各 <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> の <code>uri</code> をコンテナから到達可能なアドレス（例: Docker Desktop ホスト上の Ollama サーバーに対する <code>http://host.docker.internal:11434</code>）に設定します。<code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__uri=...</code> 環境変数オーバーライドを使えば、<code>config.toml</code> を編集せずに実行時に同じことができます。</p>
-<h2 id="ポーリングするチャネルtelegramメール-動作します"><a class="header" href="#ポーリングするチャネルtelegramメール-動作します">ポーリングするチャネル（Telegram、メール）— 動作します</a></h2>
-<p>外部から開始されるチャネルには、特別なコンテナ設定は必要ありません。Telegram ポーリング、IMAP、MQTT、Nostr リレー — すべてプル方式であり、コンテナには出口（egress）のみが必要です。</p>
-<h2 id="webhookを受信するチャネルにはイングレスが必要です"><a class="header" href="#webhookを受信するチャネルにはイングレスが必要です">Webhookを受信するチャネルには、イングレスが必要です。</a></h2>
+</div>
+
+<p>For container workloads, set <code>uri</code> on each <code>providers.models.&lt;type&gt;.&lt;alias&gt;</code> to a container-reachable address (e.g. <code>http://host.docker.internal:11434</code> for an Ollama server on the Docker Desktop host). The generic env-override mechanism can set the same field at runtime without editing the config:</p>
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">ZEROCLAW_providers__models__ollama__home__uri=http://ollama:11434 zeroclaw agent -a assistant
+</code></pre>
+</div>
+
+<p>See <a href="../providers/configuration.html#container-friendly-overrides">Providers → Container-friendly overrides</a> for the grammar.</p>
+<h2 id="channels-that-poll-telegram-email-just-work"><a class="header" href="#channels-that-poll-telegram-email-just-work">Channels that poll (Telegram, email): just work</a></h2>
+<p>Outbound-initiated channels don’t need any special container configuration. Telegram polling, IMAP, MQTT, Nostr relays: all pull; the container only needs egress.</p>
+<h2 id="channels-that-receive-webhooks-need-ingress"><a class="header" href="#channels-that-receive-webhooks-need-ingress">Channels that receive webhooks: need ingress</a></h2>
 <p>Discord、Slack、GitHub、およびほとんどのWebhookチャネルでは、受信HTTPが必要です。2つのオプションがあります：</p>
 <ol>
-<li><strong>ゲートウェイを公開する</strong> — <code>-p 42617:42617</code> + TLS付きリバースプロキシを前面に配置し、Webhook URLを公開アドレスに設定</li>
-<li><strong>トンネルを使用する</strong> — ngrok、Cloudflare Tunnel、または Tailscale Funnel を使用し、トンネルの URL をウェブフックのターゲットとして設定します。</li>
+<li><strong>Expose the gateway</strong>: <code>-p 42617:42617</code> + reverse proxy with TLS in front, point the webhook URL at the public address</li>
+<li><strong>Use a tunnel</strong>: ngrok, Cloudflare Tunnel, or Tailscale Funnel; set the tunnel URL as the webhook target</li>
 </ol>
-<p>Configure a tunnel via <code>zeroclaw config set gateway.tunnel.provider=&lt;ngrok|cloudflare&gt;</code> and the related <code>gateway.tunnel.*</code> fields (see the <a href="../reference/config.html">Config reference</a>); the resulting public URL is what you point your webhook senders at.</p>
+<p>Configure a tunnel by setting the top-level <code>[tunnel]</code> <code>tunnel_provider</code> (override env var: <code>ZEROCLAW_tunnel__tunnel_provider</code>) to one of the supported providers and filling the matching <code>tunnel.*</code> block; the full provider list and per-provider fields are in the <a href="../reference/config.html#tunnel">Config reference</a>. The resulting public URL is what you point your webhook senders at.</p>
 <h2 id="kubernetes"><a class="header" href="#kubernetes">Kubernetes</a></h2>
 <p>Helm chartテンプレートは<a href="https://github.com/zeroclaw-labs/zeroclaw-templates">zeroclaw-templates</a>リポジトリに公開されています。一般的なマニフェストの断片：</p>
 <pre><code class="language-yaml">apiVersion: apps/v1
@@ -361,41 +491,48 @@ journalctl -u zeroclaw -f
           volumeMounts:
             - 名前: データ
               マウントパス: /zeroclaw-data
-          環境:
-            - 名前: ZEROCLAW_ALLOW_PUBLIC_BIND
-              値: "1"
-      ボリューム:
+          # The official image already binds publicly; add an `env:` entry for the
+          # allow-public-bind override only if you mount a localhost-default config.
+      volumes:
         - 名前: データ
           persistentVolumeClaim:
             claimName: zeroclaw-data
 </code></pre>
-<p><strong>スケーリング:</strong> ZeroClawはワークスペースごとに1つのライターのみをサポートしています。水平方向にはスケーリングしないでください。エージェントごとに1つのインスタンスを実行してください。</p>
+<p><strong>Scaling:</strong> ZeroClaw is single-writer per workspace. Don’t scale horizontally; run one instance per agent.</p>
 <h2 id="ログアウト後の再認証"><a class="header" href="#ログアウト後の再認証">ログアウト後の再認証</a></h2>
 <p>コンテナ内で実行中にweb UIからログアウトすると、既存のpaircodeは無効になります。再度ログインするには、新しいものを生成してください：</p>
-<pre><code class="language-bash">docker exec -it zeroclaw zeroclaw gateway get-paircode --new
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">docker exec -it zeroclaw zeroclaw gateway get-paircode --new
 </code></pre>
+</div>
+
 <p>Compose デプロイメントの場合は、代わりに <code>docker compose exec</code> を使用します:</p>
-<pre><code class="language-bash">docker compose exec zeroclaw zeroclaw gateway get-paircode --new
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh">docker compose exec zeroclaw zeroclaw gateway get-paircode --new
 </code></pre>
+</div>
+
 <h2 id="注意点"><a class="header" href="#注意点">注意点</a></h2>
 <ul>
-<li><strong>macOS のホスト名に関する注意点（Docker Desktop、colima、Rancher Desktop）</strong><br><strong>Docker Desktop</strong> for macOS では、<code>host.docker.internal</code> はそのまま利用可能です。<strong>colima</strong> では、<code>colima start --network-address</code> を指定してインストールした場合にのみ到達可能です（指定しない場合、コンテナからはホストが見えません — VM のゲートウェイ IP（通常は <code>192.168.5.2</code>）経由で接続するか、共有ネットワークをトンネリングしてください）。<strong>Rancher Desktop</strong> は最近のバージョンでは Docker Desktop と同様に動作しますが、古いリリースでは <code>host.docker.internal</code> の解決に失敗することがありました。<code>host.docker.internal</code> への接続が <code>connection refused</code> で失敗する場合は、<code>docker run --rm alpine getent hosts host.docker.internal</code> で確認してください。出力が空の場合は、ホスト名が解決できないため、明示的な IP を指定する必要があります。</li>
+<li><strong>macOS hostname quirks (Docker Desktop, colima, Rancher Desktop).</strong> <code>host.docker.internal</code> works out of the box on <strong>Docker Desktop</strong> for macOS. On <strong>colima</strong>, it is only reachable if you installed with <code>colima start --network-address</code> (otherwise the container can’t see the host at all; connect via the VM’s gateway IP, usually <code>192.168.5.2</code>, or tunnel through a shared network). <strong>Rancher Desktop</strong> behaves like Docker Desktop for recent versions but has had <code>host.docker.internal</code> resolve-failures on older releases. If provider calls fail with <code>connection refused</code> to <code>host.docker.internal</code>, verify with <code>docker run --rm alpine getent hosts host.docker.internal</code>: empty output means the hostname isn’t resolvable and you need an explicit IP.</li>
 <li><strong>ホスト側サービス。</strong> プロバイダーがホスト上の Ollama の場合、<code>uri = "http://host.docker.internal:11434"</code>（<code>[providers.models.ollama.&lt;alias&gt;]</code> の下）は Docker Desktop で動作します。Linux Docker では <code>--add-host=host.docker.internal:host-gateway</code> が必要になる場合があります。</li>
-<li><strong>メモリ永続化。</strong> SQLiteのメモリファイルは <code>/zeroclaw-data/workspace/</code> 内に配置されます。このボリュームをマウントしない場合、再起動ごとに会話履歴が失われます。</li>
-<li><strong><code>/zeroclaw-data</code> のバインドマウント。</strong> <code>/zeroclaw-data</code> へのホストバインドマウントは、デフォルトの <code>config.toml</code> や（以前は）ダッシュボードバンドルを含む、イメージディレクトリ全体を置き換えます。ダッシュボードは現在 <code>/usr/share/zeroclawlabs/web/dist</code>（マウント外）にインストールされるため、バインドマウントによって隠されることはなくなりました。初回実行時は、空のホストディレクトリをマウントすると、コンテナが新しい設定をブートストラップします。ゲートウェイはイメージパスからダッシュボードを自動検出します。</li>
+<li><strong>Memory persistence.</strong> Agent memory (the SQLite <code>brain.db</code>) lives under the config directory at <code>/zeroclaw-data/.zeroclaw/agents/&lt;alias&gt;/workspace/memory/</code>, with shared instance databases under <code>/zeroclaw-data/data/</code>. Mounting <code>/zeroclaw-data</code> persists all of it; skip the volume and every restart loses conversation history.</li>
+<li><strong>Bind-mounting <code>/zeroclaw-data</code>.</strong> A host bind mount on <code>/zeroclaw-data</code> replaces the entire image directory, including the default config and (previously) the dashboard bundle. The dashboard is now installed at <code>/usr/share/zeroclawlabs/web/dist</code>, outside the mount, so a bind mount no longer hides it. On first run, mount an empty host directory and the container bootstraps a fresh config; the gateway auto-detects the dashboard from its image path.</li>
 <li><strong>デフォルトではハードウェアパススルーは行われません。</strong> GPIO / USB には明示的な <code>--device</code> フラグ（<code>--device /dev/ttyUSB0</code>）が必要であり、コンテナのユーザーは <code>dialout</code>/<code>gpio</code> グループに対応する GID を持つ必要があります。</li>
 </ul>
 <h2 id="次へ"><a class="header" href="#次へ">次へ</a></h2>
 <ul>
 <li><a href="./service.html">サービス管理</a></li>
-<li><a href="../ops/network-deployment.html">操作 → ネットワークデプロイメント</a> — トンネル、リバースプロキシ</li>
+<li><a href="../ops/network-deployment.html">Operations → Network deployment</a>: tunnels, reverse proxies</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../setup/freebsd.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../setup/nixos.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -409,7 +546,7 @@ journalctl -u zeroclaw -f
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../setup/freebsd.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../setup/nixos.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

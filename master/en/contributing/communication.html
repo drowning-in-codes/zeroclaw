@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,24 +295,24 @@
                         <h1 id="communication"><a class="header" href="#communication">Communication</a></h1>
 <p>Where to ask questions, file bugs, propose features, and reach the team.</p>
 <p><strong>If you just want to talk to us, Discord is the answer.</strong> For anything that needs a durable record (bugs, feature requests, design discussion, RFCs), GitHub.</p>
-<h2 id="discord--best-place-to-reach-the-team"><a class="header" href="#discord--best-place-to-reach-the-team">Discord — best place to reach the team</a></h2>
+<h2 id="discord-best-place-to-reach-the-team"><a class="header" href="#discord-best-place-to-reach-the-team">Discord: best place to reach the team</a></h2>
 <p>Real-time chat. This is where the maintainers live day-to-day; the fastest path to a human response.</p>
 <p>Channels:</p>
 <ul>
-<li><code>#general</code> — the default room</li>
-<li><code>#help</code> — “I can’t get X working” threads; the fastest way to unblock</li>
-<li><code>#dev</code> — in-flight development discussion</li>
-<li><code>#releases</code> — announcements, release notes, breaking-change pre-warnings</li>
+<li><code>#general</code>: the default room</li>
+<li><code>#help</code>: “I can’t get X working” threads; the fastest way to unblock</li>
+<li><code>#dev</code>: in-flight development discussion</li>
+<li><code>#releases</code>: announcements, release notes, breaking-change pre-warnings</li>
 </ul>
 <p><a href="https://github.com/zeroclaw-labs/zeroclaw">Invite link in the repo README.</a></p>
-<p><strong>Discord is ephemeral</strong> — if the conversation leads to a bug or a feature idea, capture it as a GitHub issue afterwards so the record persists. Discord is for conversation; GitHub is for memory.</p>
+<p><strong>Discord is ephemeral</strong>: if the conversation leads to a bug or a feature idea, capture it as a GitHub issue afterwards so the record persists. Discord is for conversation; GitHub is for memory.</p>
 <p>Use a GitHub handoff when Discord produces something the project must remember. Create or update an issue, discussion, PR comment, or maintainer doc when the thread produces a reproducible bug, concrete feature scope, architecture or governance decision, maintainer commitment, owner assignment, milestone decision, blocker, workaround, validation evidence, release-impact note, or stale-exemption reason. The handoff only needs the decision, evidence, owner when one exists, and enough context for another maintainer to continue without rereading chat.</p>
 <h2 id="github-issues"><a class="header" href="#github-issues">GitHub issues</a></h2>
 <p>For bugs, feature requests, and anything that needs to be tracked.</p>
 <ul>
-<li><strong>Bug reports</strong> — use the bug template (<code>.github/ISSUE_TEMPLATE/bug_report.yml</code>). Include <code>zeroclaw --version</code>, OS, and the output of <code>zeroclaw doctor</code>.</li>
-<li><strong>Feature requests</strong> — use the feature template (<code>.github/ISSUE_TEMPLATE/feature_request.yml</code>). Focus on user value and constraints; implementation details are for RFCs or PR discussion.</li>
-<li><strong>RFCs</strong> — see <a href="./rfcs.html">RFC process</a>.</li>
+<li><strong>Bug reports</strong>: use the bug template (<code>.github/ISSUE_TEMPLATE/bug_report.yml</code>). Include <code>zeroclaw --version</code>, OS, and the output of <code>zeroclaw doctor</code>.</li>
+<li><strong>Feature requests</strong>: use the feature template (<code>.github/ISSUE_TEMPLATE/feature_request.yml</code>). Focus on user value and constraints; implementation details are for RFCs or PR discussion.</li>
+<li><strong>RFCs</strong>: see <a href="./rfcs.html">RFC process</a>.</li>
 </ul>
 <p>Search before filing. Duplicates get consolidated; the search box is your friend.</p>
 <h2 id="github-discussions"><a class="header" href="#github-discussions">GitHub Discussions</a></h2>
@@ -259,17 +335,17 @@
 </tbody>
 </table>
 </div>
-<p><code>@</code>-mention sparingly — CC maintainers only when the issue genuinely needs their attention. Default to letting the team triage.</p>
+<p><code>@</code>-mention sparingly, CC maintainers only when the issue genuinely needs their attention. Default to letting the team triage.</p>
 <h2 id="security-issues"><a class="header" href="#security-issues">Security issues</a></h2>
 <p>Do not file public issues for security vulnerabilities.</p>
-<p>Email: <code>security@zeroclaw.dev</code></p>
+<p>Report privately through GitHub’s <a href="https://github.com/zeroclaw-labs/zeroclaw/security/advisories/new">private vulnerability reporting</a> (Security Advisories).</p>
 <p>Include:</p>
 <ul>
 <li>Affected versions</li>
 <li>Reproduction (minimal, please)</li>
 <li>Impact assessment</li>
 </ul>
-<p>We aim to acknowledge within 48 hours and publish a patch + advisory within 14 days for critical issues. Coordinated disclosure is appreciated.</p>
+<p>We aim to acknowledge within 48 hours, assess within 1 week, and ship a fix within 2 weeks for critical issues. Coordinated disclosure is appreciated.</p>
 <p>See <code>SECURITY.md</code> in the repo root for the full policy.</p>
 <h2 id="release-feed"><a class="header" href="#release-feed">Release feed</a></h2>
 <p>Subscribe to the GitHub release feed to be notified when new versions ship:</p>
@@ -280,14 +356,14 @@
 <h2 id="commercial-support"><a class="header" href="#commercial-support">Commercial support</a></h2>
 <p>None offered. ZeroClaw is maintained by the community. If you’re deploying at scale and want SLAs, sponsor a maintainer directly or fund a dedicated support arrangement through the core team. Reach out via <code>hello@zeroclaw.dev</code>.</p>
 <h2 id="feedback"><a class="header" href="#feedback">Feedback</a></h2>
-<p>Open-ended feedback — “I tried to do X and it felt wrong”, UX observations, direction thoughts — lands best as a thread in Discord <code>#general</code> or <code>#dev</code>. The team is more likely to see and discuss it there. If the thread turns into something concrete, move it to a GitHub Discussion or issue.</p>
+<p>Open-ended feedback, “I tried to do X and it felt wrong”, UX observations, direction thoughts, lands best as a thread in Discord <code>#general</code> or <code>#dev</code>. The team is more likely to see and discuss it there. If the thread turns into something concrete, move it to a GitHub Discussion or issue.</p>
 <h2 id="contributor-recognition"><a class="header" href="#contributor-recognition">Contributor recognition</a></h2>
-<p>Everyone who’s had a PR merged appears in the contributors list on the repo. For substantial contributions — features, RFCs, significant bug fixes — your handle shows up in the release notes.</p>
+<p>Everyone who’s had a PR merged appears in the contributors list on the repo. For substantial contributions, features, RFCs, significant bug fixes, your handle shows up in the release notes.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="./how-to.html">How to contribute</a></li>
 <li><a href="./rfcs.html">RFC process</a></li>
-<li><a href="../philosophy.html">Philosophy</a> — what the project is trying to be, so you know what’s in scope</li>
+<li><a href="../philosophy/index.html">Philosophy</a>: what the project is trying to be, so you know what’s in scope</li>
 </ul>
 
                     </main>

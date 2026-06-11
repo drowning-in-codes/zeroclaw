@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -226,16 +302,16 @@
 <tr><th>変更</th><th>RFC ですか？</th></tr>
 </thead>
 <tbody>
-<tr><td>新しいチャンネルの実装</td><td>いいえ、PR を開いてください</td></tr>
-<tr><td>新しいプロバイダーの実装</td><td>いいえ、PR を開いてください</td></tr>
-<tr><td>新しいツール</td><td>いいえ、PR を開いてください</td></tr>
-<tr><td>バグ修正</td><td>いいえ、PR を開いてください</td></tr>
-<tr><td>新しい設定キー</td><td>依存 — 既存のスキーマの形状に収まる場合はPR。新しいサブシステムやパラダイムを導入する場合はRFC</td></tr>
-<tr><td>既定のデフォルト値の変更</td><td>はい — RFC</td></tr>
-<tr><td>既存の設定を壊すスキーママイグレーション</td><td>はい — RFC</td></tr>
-<tr><td>複数のクレートに影響する横断的なリファクタリング</td><td>はい — RFC</td></tr>
-<tr><td>新しいサブシステム（例：新しいセキュリティレイヤー、新しいプロトコル）</td><td>はい — RFC</td></tr>
-<tr><td>ガバナンス、リリースプロセス、またはコントリビューションモデルの変更</td><td>はい — RFC</td></tr>
+<tr><td>新しいチャンネルの実装</td><td>No: open a PR</td></tr>
+<tr><td>新しいプロバイダーの実装</td><td>No: open a PR</td></tr>
+<tr><td>新しいツール</td><td>No: open a PR</td></tr>
+<tr><td>バグ修正</td><td>No: open a PR</td></tr>
+<tr><td>新しい設定キー</td><td>Depends: if it fits within existing schema shape, PR. If it introduces a new subsystem or paradigm, RFC</td></tr>
+<tr><td>既定のデフォルト値の変更</td><td>Yes: RFC</td></tr>
+<tr><td>既存の設定を壊すスキーママイグレーション</td><td>Yes: RFC</td></tr>
+<tr><td>複数のクレートに影響する横断的なリファクタリング</td><td>Yes: RFC</td></tr>
+<tr><td>新しいサブシステム（例：新しいセキュリティレイヤー、新しいプロトコル）</td><td>Yes: RFC</td></tr>
+<tr><td>ガバナンス、リリースプロセス、またはコントリビューションモデルの変更</td><td>Yes: RFC</td></tr>
 </tbody>
 </table>
 </div>
@@ -244,54 +320,59 @@
 <p>RFCは <code>type:rfc</code> タグ付きのGitHub Issueです。タイトル形式:</p>
 <pre><code>RFC: &lt;short description of the proposal&gt;
 </code></pre>
-<p>ボディ構造 — プロポーザルのサイズに合わせて適応する：</p>
+<p>Body structure: adapt to the size of the proposal:</p>
 <ol>
-<li><strong>問題</strong> — ユーザーの痛みやシステムの欠陥がこれを動機づけるのは何ですか？</li>
-<li><strong>提案</strong> — 何を提案していますか？</li>
-<li><strong>設計</strong> — 詳細情報；コードのスケッチ、スキーマの形状、マイグレーション計画</li>
-<li><strong>検討した代替案</strong> — それ以外に何を評価し、なぜ採用しなかったのか？</li>
-<li><strong>非目標</strong> — この提案が明示的に解決しようとしていないこと</li>
-<li><strong>リスクと軽減策</strong> — 何が問題になる可能性があり、ロールバックの計画はどうなっているか</li>
-<li><strong>ロールアウト</strong> — 機能フラグ付き？スキーマバージョン管理？破壊的変更のウィンドウ？</li>
+<li><strong>Problem</strong>: what user pain or system deficiency motivates this?</li>
+<li><strong>Proposal</strong>: what are you proposing to do?</li>
+<li><strong>Design</strong>: the details; code sketches, schema shapes, migration plans</li>
+<li><strong>Alternatives considered</strong>: what else did you evaluate, and why not?</li>
+<li><strong>Non-goals</strong>: what this proposal explicitly isn’t trying to solve</li>
+<li><strong>Risks and mitigations</strong>: what could go wrong, and what’s the rollback story</li>
+<li><strong>Rollout</strong>: feature-flagged? schema-versioned? breaking change window?</li>
 </ol>
 <p>RFCの提出は、議論期間（デフォルトは7日間、より大きな提案の場合はそれより長い）を経て行われます。誰でもコメントできます。メンテナーが意見を述べます。RFCの著者は、それに応じて本文を反復して改善します。</p>
 <h2 id="承認"><a class="header" href="#承認">承認</a></h2>
 <p>RFC #5577 によると、RFC はメンテナーの3分の2の多数派によって承認されます。その結果：</p>
 <ul>
-<li><strong>承認済み</strong> — <code>status:accepted</code> ラベルと、最終的な形状を要約したメンテナのコメント付きでイシューがクローズされました。これにより、実装のPRを進めることができます。</li>
-<li><strong>却下</strong> — <code>status:rejected</code> ラベルを付与し、理由を記載してイシューをクローズ。記録は残っており、再提案するには本質的に異なるアプローチが必要です。</li>
-<li><strong>延期</strong> — 問題は <code>status:deferred</code> のままオープンで、後で見直します。</li>
-<li><strong>取り下げ</strong> — 著者が取り下げました。無 prejudice で閉じられました。</li>
+<li><strong>Accepted</strong>: issue closed with the <code>status:accepted</code> label and a maintainer comment summarising the final shape. Implementation PRs can then proceed.</li>
+<li><strong>Rejected</strong>: issue closed with a maintainer comment giving the rationale. The record lives; re-proposing requires a materially different take.</li>
+<li><strong>Deferred</strong>: issue stays open with a maintainer comment noting it’s parked; revisit later. Add <code>status:blocked</code> when it’s waiting on a specific prerequisite.</li>
+<li><strong>Withdrawn</strong>: the author pulls it. Closed without prejudice.</li>
 </ul>
 <h2 id="採用されたrfcの実装"><a class="header" href="#採用されたrfcの実装">採用されたRFCの実装</a></h2>
 <p>実装のPRには以下が含まれているべきです：</p>
 <ul>
 <li>RFCのissue番号を参照してください（<code>Implements #5574 phase 1</code>）</li>
-<li>受け入れられた設計内に収める — 実装中に詳細が変更された場合は、RFC本文またはファイルのフォローアップの明確化問題を更新する</li>
+<li>Fit within the accepted design, if a detail changes during implementation, update the RFC body or file a follow-up clarification issue</li>
 <li>RFCで段階的なロールアウトが求められている場合は、フィーチャーフラグの背後に配備してください。</li>
 <li>破壊的変更の影響を受けるユーザー向けの移行パスを含める</li>
 </ul>
 <p>大きなRFCは、複数のリリースにわたって複数のPRで提供されることがよくあります。RFCの追跡コメントは、フェーズが実装されるたびに更新されます。</p>
 <h2 id="現在公開されているrfc"><a class="header" href="#現在公開されているrfc">現在公開されているRFC</a></h2>
 <p>Open RFCは、ZeroClawにおける「次に来るもの」の最も良い一次情報源です。閲覧:</p>
-<pre><code class="language-bash">gh issue list --repo zeroclaw-labs/zeroclaw --label type:rfc --state open
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh issue list --repo zeroclaw-labs/zeroclaw --label type:rfc --state open
 </code></pre>
-<p>執筆時点で、注目すべきオープンなRFCは以下の通りです：</p>
+</div>
+
+<p>The list above is the canonical source. A snapshot of notable open RFCs at time of writing (browse the live list for the current set):</p>
 <ul>
-<li><strong>#5787</strong> — TOML i18n を Mozilla Fluent に置き換え（このブランチは実装です）</li>
-<li><strong>#5890</strong> — マルチエージェントのUXフロー設計</li>
-<li><strong>#5626</strong> — 観測性のデフォルト設定（ポリシーに関する質問：v0.8 のデフォルトで Prometheus をオン/オフにするか）</li>
-<li><strong>#5934</strong> — ドキュメント実装の追跡（RFC #5576 のマルチフェーズ展開）</li>
+<li><strong>#6808</strong>: Work Lanes, Board Automation, and Label Cleanup (governance, in progress)</li>
+<li><strong>#6971</strong>: Security UX, runtime credential boundaries, and isolation defaults</li>
+<li><strong>#6996</strong>: Granular sandbox policy: filesystem and network restrictions</li>
+<li><strong>#7218</strong>: A2A agent discovery (<code>.well-known/agent-card.json</code>) for multi-agent installs</li>
+<li><strong>#7184</strong>: Move translated <code>.ftl</code> and <code>.po</code> files into a git submodule</li>
 </ul>
 <h2 id="承認された基礎的なrfc"><a class="header" href="#承認された基礎的なrfc">承認された基礎的なRFC</a></h2>
 <p>これらは他のすべての要素に影響を与えます。横断的な変更を提案する前に、これらをお読みください：</p>
 <ul>
-<li><strong>#5574</strong> — マイクロカーネルへの移行：クレートの分割、フィーチャーフラグの分類体系、v1.0への道</li>
-<li><strong>#5576</strong> — ドキュメントの標準化とナレッジアーキテクチャ</li>
-<li><strong>#5577</strong> — プロジェクトガバナンス：コアチーム、投票の閾値、この文書の権威</li>
-<li><strong>#5579</strong> — エンジニアリングインフラストラクチャ：CIパイプライン、リリース自動化</li>
-<li><strong>#5615</strong> — コミュニティ文化：人間とAIの共著に関する規範</li>
-<li><strong>#5653</strong> — ゼロコンプロミス：エラー処理、デッドコードポリシー、リリース準備の基準</li>
+<li><strong>#5574</strong>: Microkernel transition: crate split, feature-flag taxonomy, v1.0 path</li>
+<li><strong>#5576</strong>: Documentation standards and knowledge architecture</li>
+<li><strong>#5577</strong>: Project governance: core team, voting thresholds, this document’s authority</li>
+<li><strong>#5579</strong>: Engineering infrastructure: CI pipelines, release automation</li>
+<li><strong>#5615</strong>: Contribution culture: human/AI co-authorship norms</li>
+<li><strong>#5653</strong>: Zero Compromise: error handling, dead-code policy, release-readiness bar</li>
 </ul>
 <h2 id="aiが作成したrfc"><a class="header" href="#aiが作成したrfc">AIが作成したRFC</a></h2>
 <p>RFCの著者としてAIアシスタント（人間のスポンサー付き）が関与することは、RFC #5615により明示的に許可されています。もしRFCがAIの助けを借りて作成された場合:</p>
@@ -300,12 +381,12 @@
 <li>スポンサーの人間は、正確性とレビューへの対応を担当します。</li>
 <li>承認投票はAIではなく人間が行います。</li>
 </ul>
-<p>これまでにうまく機能しています。AI のドラフトを第一級のものとして扱いますが、スポンサーが責任を負うことを忘れないでください。</p>
+<p>This has worked well so far. Treat AI drafts as first-class but remember the sponsor is accountable.</p>
 <h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
 <ul>
 <li><a href="./how-to.html">貢献方法</a></li>
 <li><a href="./communication.html">通信</a></li>
-<li><a href="../philosophy.html">哲学</a></li>
+<li><a href="../philosophy/index.html">Philosophy</a></li>
 </ul>
 
                     </main>

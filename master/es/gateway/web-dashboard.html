@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,16 +295,20 @@
                         <h1 id="panel-web-gatewayweb_dist_dir"><a class="header" href="#panel-web-gatewayweb_dist_dir">Panel web (<code>gateway.web_dist_dir</code>)</a></h1>
 <p>El daemon del gateway incluye su API HTTP en el binario, pero el HTML/JS/CSS del panel web reside en disco en un directorio <code>web/dist/</code> generado por Vite. El ajuste <code>gateway.web_dist_dir</code> (y su anulación mediante la variable de entorno reflejada en el esquema <code>ZEROCLAW_gateway__web_dist_dir</code>) le indica al daemon dónde está ese directorio. Cuando ni el ajuste ni una ubicación de respaldo conocida contienen un <code>index.html</code> compilado, el gateway arranca en <strong>modo solo-API</strong> y la URL del panel devuelve un mensaje de “no disponible”.</p>
 <h2 id="tldr"><a class="header" href="#tldr">TL;DR</a></h2>
-<pre><code class="language-toml"># config.toml
-[gateway]
-web_dist_dir = "/absolute/path/to/zeroclaw/web/dist"   # NOTA: sin ~, sin $HOME
-</code></pre>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
 <pre><code class="language-sh"># Anulación equivalente de variable de entorno (solo en memoria, nunca persistida)
 export ZEROCLAW_gateway__web_dist_dir=/absolute/path/to/zeroclaw/web/dist
 </code></pre>
+</div>
+
 <p>Luego compila el bundle una vez:</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh">cargo web build
 </code></pre>
+</div>
+
 <p>…y reinicie el daemon. El log de inicio cambia de</p>
 <pre><code class="language-text">Web dashboard: not available — no web/dist found. Build with `cargo web build` …
 </code></pre>
@@ -238,14 +318,14 @@ export ZEROCLAW_gateway__web_dist_dir=/absolute/path/to/zeroclaw/web/dist
 <h2 id="lo-que-hace-la-configuración"><a class="header" href="#lo-que-hace-la-configuración">Lo que hace la configuración</a></h2>
 <p><code>gateway.web_dist_dir</code> es un <code>Option&lt;String&gt;</code> que apunta al directorio que contiene un <code>index.html</code> compilado. Al iniciar el gateway, el daemon:</p>
 <ol>
-<li>Lee el valor de <code>config.toml</code> (o la anulación mediante variable de entorno).</li>
+<li>Reads the configured value (or the env-var override).</li>
 <li>Verifica que el directorio existe Y contiene <code>index.html</code> en esta máquina.</li>
-<li>Si es así, sirve el panel de control desde esa ruta.</li>
-<li>Si no — registra un WARN (“path doesn’t contain <code>index.html</code> on this machine; falling back to auto-detect”) e intenta los candidatos de detección automática que se muestran a continuación.</li>
-<li>Si la detección automática tampoco encuentra nada, la puerta de enlace se ejecuta en modo API-only y <code>GET /</code> devuelve un mensaje de “not available” que remite de nuevo aquí.</li>
+<li>If yes, serves the dashboard from that path.</li>
+<li>If no, logs a WARN (“path doesn’t contain <code>index.html</code> on this machine; falling back to auto-detect”) and tries the auto-detect candidates below.</li>
+<li>If auto-detect also turns up nothing, the gateway runs in API-only mode and <code>GET /</code> returns a “not available” message that points back here.</li>
 </ol>
 <p>El valor se trata como una sugerencia, no como un requisito estricto. Una ruta obsoleta (error tipográfico, ruta específica de un host copiada de otra máquina, compilación faltante) recurre a la detección automática en lugar de bloquear cada solicitud del panel.</p>
-<h2 id="predeterminado-orden-de-detección-automática"><a class="header" href="#predeterminado-orden-de-detección-automática">Predeterminado: orden de detección automática</a></h2>
+<h2 id="default-auto-detect-order"><a class="header" href="#default-auto-detect-order">Default: auto-detect order</a></h2>
 <p>Cuando <code>gateway.web_dist_dir</code> no está definido (o se establece en una ruta sin <code>index.html</code>), el daemon explora estas ubicaciones en orden y sirve desde la primera que contenga <code>index.html</code>:</p>
 <div class="table-wrapper">
 <table>
@@ -261,15 +341,19 @@ export ZEROCLAW_gateway__web_dist_dir=/absolute/path/to/zeroclaw/web/dist
 </tbody>
 </table>
 </div>
-<p>Si estás en una de esas distribuciones y el panel “simplemente funciona”, no necesitas configurar <code>gateway.web_dist_dir</code> en absoluto: la detección automática lo encontró.</p>
+<p>If you’re on one of those distributions and the dashboard “just works”, you don’t need to set <code>gateway.web_dist_dir</code> at all, the auto-detect found it.</p>
 <h2 id="cómo-obtener-un-webdist"><a class="header" href="#cómo-obtener-un-webdist">Cómo obtener un <code>web/dist</code></a></h2>
 <p>Tienes tres opciones. Elige la que coincida con cómo instalaste ZeroClaw.</p>
 <h3 id="a-obtención-del-código-fuente-desarrolladores--empaquetadores"><a class="header" href="#a-obtención-del-código-fuente-desarrolladores--empaquetadores">A) Obtención del código fuente (desarrolladores / empaquetadores)</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
 <pre><code class="language-sh">git clone https://github.com/zeroclaw-labs/zeroclaw.git
 cd zeroclaw
 cargo web build           # alias para `cargo run -p xtask --bin web -- build`
                           # ejecuta automáticamente `npm install` en la primera ejecución
 </code></pre>
+</div>
+
 <p>El paquete se genera en <code>web/dist/</code>. Apunta <code>web_dist_dir</code> a la ruta absoluta de ese directorio, o ejecuta el daemon desde la raíz del repositorio y deja que el candidato 1 de detección automática lo localice.</p>
 <p>El conjunto completo de subcomandos de <code>cargo web</code> (<code>dev</code>, <code>check</code>, <code>gen-api</code>, etc.) está documentado en <a href="../developing/web.html">Building the web dashboard</a>.</p>
 <h3 id="b-artefacto-de-versión-precompilado"><a class="header" href="#b-artefacto-de-versión-precompilado">B) Artefacto de versión precompilado</a></h3>
@@ -280,11 +364,11 @@ cargo web build           # alias para `cargo run -p xtask --bin web -- build`
 <p>El valor se resuelve con el orden estándar de las capas de configuración:</p>
 <ol>
 <li><code>ZEROCLAW_gateway__web_dist_dir</code> (variable de entorno que refleja el esquema, consulta <a href="../reference/env-vars.html">Variables de entorno</a>)</li>
-<li><code>gateway.web_dist_dir</code> en <code>config.toml</code></li>
+<li>The configured <code>gateway.web_dist_dir</code></li>
 <li>Detección automática (los cinco candidatos anteriores)</li>
 </ol>
-<p>Las anulaciones mediante variables de entorno se aplican únicamente al <code>Config</code> en memoria; nunca se escriben de vuelta en <code>config.toml</code>.</p>
-<h2 id="gramática-de-espejo-de-esquema-derivación-de-zeroclaw_gateway__web_dist_dir"><a class="header" href="#gramática-de-espejo-de-esquema-derivación-de-zeroclaw_gateway__web_dist_dir">Gramática de espejo de esquema: derivación de <code>ZEROCLAW_gateway__web_dist_dir</code></a></h2>
+<p>Env-var overrides apply to the in-memory <code>Config</code> only; they are never persisted.</p>
+<h2 id="schema-mirror-grammar-deriving-zeroclaw_gateway__web_dist_dir"><a class="header" href="#schema-mirror-grammar-deriving-zeroclaw_gateway__web_dist_dir">Schema-mirror grammar: deriving <code>ZEROCLAW_gateway__web_dist_dir</code></a></h2>
 <p>La gramática general de anulación de operadores (consulta <a href="../reference/env-vars.html">Variables de entorno</a>) asigna la ruta TOML con puntos a un nombre de variable de entorno de forma mecánica:</p>
 <pre><code class="language-text">TOML path:  gateway.web_dist_dir
             ─────── ─────────────
@@ -295,26 +379,23 @@ Env var:    ZEROCLAW_gateway__web_dist_dir
             prefix          path-separator  field-name
                             (`.` → `__`)    (unchanged)
 </code></pre>
-<p>Los mismos tres pasos generan los nombres de variables de entorno para cualquier otro parámetro del gateway; por ejemplo, <code>gateway.request_timeout_secs</code> se convierte en <code>ZEROCLAW_gateway__request_timeout_secs</code>.</p>
+<p>The same three steps produce env-var names for every other gateway knob, e.g. <code>gateway.request_timeout_secs</code> becomes <code>ZEROCLAW_gateway__request_timeout_secs</code>.</p>
 <h2 id="errores-comunes"><a class="header" href="#errores-comunes">Errores comunes</a></h2>
 <h3 id="no-uses--ni-home"><a class="header" href="#no-uses--ni-home">No uses <code>~</code> ni <code>$HOME</code></a></h3>
-<p>El gateway <strong>no</strong> expande una tilde literal:</p>
-<pre><code class="language-toml"># Roto — el gateway busca un directorio llamado literalmente "~"
-web_dist_dir = "~/zeroclaw/web/dist"
-</code></pre>
-<pre><code class="language-toml"># Correcto
-web_dist_dir = "/home/alice/zeroclaw/web/dist"
-</code></pre>
-<p>Las variables de shell (<code>$HOME</code>, <code>%USERPROFILE%</code>) tampoco se expanden. Expándelas previamente en la variable de entorno si estableces el valor de esa manera:</p>
+<p>A literal tilde is <strong>not</strong> expanded by the gateway; use an absolute path for <code>gateway.web_dist_dir</code>. Shell variables (<code>$HOME</code>, <code>%USERPROFILE%</code>) are likewise not expanded; pre-expand them in the env var if you set the value that way:</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
 <pre><code class="language-sh">export ZEROCLAW_gateway__web_dist_dir="$HOME/zeroclaw/web/dist"   # shell expande $HOME
 </code></pre>
-<p>El <a href="https://github.com/zeroclaw-labs/zeroclaw/pull/6961">PR #6961</a> complementario añade la comprobación específica “parece un <code>~</code> / <code>$VAR</code> sin expandir — usa <a href="https://crates.io/crates/shellexpand"><code>shellexpand</code></a> antes de escribir este valor”, registrada en el <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/6079">issue #6079</a>, tanto a <code>zeroclaw doctor</code> como a <code>zeroclaw self-test</code> como un diagnóstico de severidad Warn. Ningún comando lo muestra en el <code>master</code> actual — hasta que se integre #6961, expande <code>~</code> / <code>$VAR</code> tú mismo antes de escribir <code>gateway.web_dist_dir</code> (por ejemplo, escribe <code>/home/alice/zeroclaw/web/dist</code> en lugar de <code>~/zeroclaw/web/dist</code>).</p>
+</div>
+
+<p>Companion <a href="https://github.com/zeroclaw-labs/zeroclaw/pull/6961">PR #6961</a> adds the targeted “looks like an unexpanded <code>~</code> / <code>$VAR</code>, <a href="https://crates.io/crates/shellexpand"><code>shellexpand</code></a> it before writing this value” check tracked in <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/6079">issue #6079</a> to both <code>zeroclaw doctor</code> and <code>zeroclaw self-test</code> as a Warn-severity diagnostic. Neither command surfaces it on current <code>master</code>, until #6961 lands, expand <code>~</code> / <code>$VAR</code> yourself before writing <code>gateway.web_dist_dir</code> (for example write <code>/home/alice/zeroclaw/web/dist</code> instead of <code>~/zeroclaw/web/dist</code>).</p>
 <h3 id="las-rutas-relativas-se-resuelven-respecto-al-cwd-no-respecto-al-archivo-de-configuración"><a class="header" href="#las-rutas-relativas-se-resuelven-respecto-al-cwd-no-respecto-al-archivo-de-configuración">Las rutas relativas se resuelven respecto al CWD, no respecto al archivo de configuración</a></h3>
-<p><code>web_dist_dir = "web/dist"</code> se interpreta de forma relativa al directorio de trabajo del daemon en el momento del inicio, no de forma relativa a la ubicación de <code>config.toml</code>. Si distribuyes una configuración a otro host o invocas el daemon desde un directorio diferente (por ejemplo, mediante systemd), la forma relativa buscará en el lugar equivocado. <strong>Usa rutas absolutas en <code>config.toml</code>.</strong></p>
+<p><code>web_dist_dir = "web/dist"</code> is interpreted relative to the daemon’s working directory at start time, not relative to the config location. If you ship a config to another host or invoke the daemon from a different directory (e.g. via systemd), the relative form will look in the wrong place. <strong>Use absolute paths for <code>web_dist_dir</code>.</strong></p>
 <h3 id="advertencia-de-stale-path-al-inicio"><a class="header" href="#advertencia-de-stale-path-al-inicio">Advertencia de “Stale path” al inicio</a></h3>
 <pre><code class="language-text">WARN gateway.web_dist_dir points at a path that doesn't contain index.html
 on this machine; falling back to auto-detect. Update or remove the setting
-in config.toml to silence this warning.
+to silence this warning.
 </code></pre>
 <p>Esto significa que la ruta es sintácticamente válida, pero el archivo aún no está ahí. Ejecuta <code>cargo web build</code>, corrige la ruta o elimina la configuración por completo y deja que la detección automática se encargue.</p>
 <h3 id="web-dashboard-not-available-al-iniciar"><a class="header" href="#web-dashboard-not-available-al-iniciar">“Web dashboard: not available” al iniciar</a></h3>
@@ -322,12 +403,12 @@ in config.toml to silence this warning.
 `cargo web build` and point gateway.web_dist_dir at the resulting
 web/dist directory.
 </code></pre>
-<p>Los endpoints de la API siguen funcionando — solo falta el bundle HTML/JS. Compílalo (opción A/B/C de arriba) o configura la ruta.</p>
+<p>API endpoints still work, only the HTML/JS bundle is missing. Build it (option A/B/C above) or set the path.</p>
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
-<li><a href="../reference/env-vars.html">Variables de entorno</a> — gramática completa de réplica del esquema</li>
-<li><a href="./api.html">API HTTP de Gateway</a>: con lo que se comunica el panel</li>
-<li><a href="../developing/web.html">Compilar el panel web</a> — Subcomandos <code>cargo web</code> y qué se genera</li>
+<li><a href="../reference/env-vars.html">Environment variables</a>: full schema-mirror grammar</li>
+<li><a href="./api.html">Gateway HTTP API</a>: what the dashboard talks to</li>
+<li><a href="../developing/web.html">Building the web dashboard</a>: <code>cargo web</code> subcommands and what gets generated</li>
 </ul>
 
                     </main>
@@ -338,7 +419,7 @@ web/dist directory.
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../providers/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../agents/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -352,7 +433,7 @@ web/dist directory.
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../providers/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../agents/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

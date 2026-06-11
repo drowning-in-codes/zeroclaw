@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="line"><a class="header" href="#line">LINE</a></h1>
-<p>ZeroClawは、メッセージング APIを介してLINEをサポートしており、組み込みWebhookサーバーを通じてメッセージを受信し、Reply API (リプライトークンが期限切れの場合はプッシュAPIフォールバック) を介して返信します。</p>
+<p>ZeroClaw supports LINE via the Messaging API, receiving messages through an embedded webhook server and replying via the Reply API (with Push API fallback when the reply token has expired).</p>
+<h2 id="who-can-talk-to-the-agent"><a class="header" href="#who-can-talk-to-the-agent">Who can talk to the agent</a></h2>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for line sets <code>channel</code> to <code>line</code>, lists the allowed senders in <code>external_peers</code> (for line, the LINE user ID; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
+<p>LINE layers <code>dm_policy</code> and <code>group_policy</code> on top of the peer set, see <a href="#6-access-policies">Access Policies</a> below. When a policy is set to <code>allowlist</code>, the peer set is the allowlist.</p>
 <h2 id="前提条件"><a class="header" href="#前提条件">前提条件</a></h2>
 <ol>
 <li><a href="https://developers.line.biz">LINE Developers Console</a>アカウント。</li>
@@ -232,26 +320,170 @@
 <li>そのプロバイダーの下に新しい<strong>メッセージングAPIチャネル</strong>を作成します。</li>
 <li>チャネル設定から、2つの値を集めます:
 <ul>
-<li><strong>チャネルアクセストークン</strong> — メッセージングAPIタブ → <strong>発行</strong>して長期トークンを取得。</li>
-<li><strong>チャネルシークレット</strong> — 基本設定タブ。</li>
+<li><strong>Channel Access Token</strong>: Messaging API tab → <strong>Issue</strong> a long-lived token.</li>
+<li><strong>Channel Secret</strong>: Basic settings tab.</li>
 </ul>
 </li>
 </ol>
 <hr>
 <h2 id="2-zeroclawを設定する"><a class="header" href="#2-zeroclawを設定する">2. ZeroClawを設定する</a></h2>
-<p><code>[channels.line]</code> の下に LINE チャンネルを、少なくとも <code>channel_access_token</code> と <code>channel_secret</code> を設定してください。フィールド一覧、デフォルト値、および <code>dm_policy</code> / <code>group_policy</code> の列挙型については、<a href="../reference/config.html">設定リファレンス</a> を参照してください（これらユーザ向けセマンティクスについては、以下の §6 でも説明しています）。</p>
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>channel_access_token</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>""</code></span></summary>
+<p>Long-lived channel access token (from LINE Developers Console). Used for both the Reply API and the Push API fallback. Falls back to the <code>LINE_CHANNEL_ACCESS_TOKEN</code> environment variable if empty.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.channel_access_token</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.channel_access_token</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.channel_access_token    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__channel_access_token=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>channel_secret</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>""</code></span></summary>
+<p>Channel secret (from LINE Developers Console). Used to verify the <code>X-Line-Signature</code> header on incoming webhooks. Falls back to the <code>LINE_CHANNEL_SECRET</code> environment variable if empty.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.channel_secret</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.channel_secret</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.channel_secret    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__channel_secret=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>dm_policy</code> <span class="cfg-field-meta"><code>LineDmPolicy</code> · default <code>"pairing"</code></span></summary>
+<p>DM (1:1 chat) access policy. Default: <code>pairing</code>. - <code>open</code>: respond to everyone - <code>pairing</code>: require one-time <code>/bind &lt;code&gt;</code> handshake on first contact - <code>allowlist</code>: respond only to user IDs listed in <code>allowed_users</code></p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.dm_policy</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.dm_policy</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.dm_policy &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__dm_policy=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>group_policy</code> <span class="cfg-field-meta"><code>LineGroupPolicy</code> · default <code>"mention"</code></span></summary>
+<p>Group / multi-person chat policy. Default: <code>mention</code>. - <code>open</code>: respond to every message - <code>mention</code>: respond only when @mentioned - <code>disabled</code>: ignore all group messages</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.group_policy</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.group_policy</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.group_policy &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__group_policy=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>proxy_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Per-channel proxy URL (http, https, socks5, socks5h). Overrides the global <code>[proxy]</code> setting for this channel only.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.proxy_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__proxy_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>webhook_port</code> <span class="cfg-field-meta"><code>integer</code> · default <code>8443</code></span></summary>
+<p>TCP port the embedded webhook server listens on. Default: <code>8443</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/line"><code>/config/channels/line</code></a> and set the <code>channels.line.&lt;alias&gt;.webhook_port</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.line.&lt;alias&gt;.webhook_port</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.line.&lt;alias&gt;.webhook_port &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__line__&lt;alias&gt;__webhook_port=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<p>Configure the LINE channel under <code>[channels.line.&lt;alias&gt;]</code> with at minimum <code>channel_access_token</code> and <code>channel_secret</code>. The <code>dm_policy</code> / <code>group_policy</code> user-facing semantics are covered in §6 below.</p>
 <h3 id="設定ファイルの代わりに環境変数を使用する"><a class="header" href="#設定ファイルの代わりに環境変数を使用する">設定ファイルの代わりに環境変数を使用する</a></h3>
 <p>認証情報を設定ファイルに保存したくない場合は、トークンフィールドを省略し、代わりに環境変数としてエクスポートしてください：</p>
-<pre><code class="language-bash">export LINE_CHANNEL_ACCESS_TOKEN="your-channel-access-token"
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">export LINE_CHANNEL_ACCESS_TOKEN="your-channel-access-token"
 export LINE_CHANNEL_SECRET="your-channel-secret"
 </code></pre>
+</div>
+
 <p>環境変数は空の設定フィールドより優先されます。</p>
 <hr>
 <h2 id="3-webhookエンドポイントを公開する"><a class="header" href="#3-webhookエンドポイントを公開する">3. Webhookエンドポイントを公開する</a></h2>
 <p>LINEはWebhook URLにPOSTしてメッセージを配信します。埋め込みサーバーは設定された<code>webhook_port</code>でリッスンします。</p>
 <p><strong>ローカル開発の場合（ngrok）：</strong></p>
-<pre><code class="language-bash">ngrok http 8443
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">ngrok http 8443
 </code></pre>
+</div>
+
 <p>ngrokが提供する<code>https://</code> URL（例：<code>https://abc123.ngrok.io</code>）をコピーします。</p>
 <p><strong>本番環境の場合：</strong> HTTPSリバースプロキシ（nginx、Caddy等）の後ろでポート8443（または設定したポート）を公開するか、TLS証明書を備えたサーバーに直接デプロイしてください。</p>
 <hr>
@@ -260,21 +492,22 @@ export LINE_CHANNEL_SECRET="your-channel-secret"
 <li>チャネル → <strong>Messaging API</strong>タブ → <strong>Webhook設定</strong>に移動します。</li>
 <li><strong>Webhook URL</strong>を<code>https://your-domain.com/line/webhook</code>に設定します。</li>
 <li><strong>Webhookを使用する</strong>をオンに切り替えます。</li>
-<li><strong>確認</strong>をクリック — LINEはテストリクエストを送信します。検証が成功するにはZeroClawが実行されている必要があります。</li>
+<li>Click <strong>Verify</strong>, LINE will send a test request. ZeroClaw must be running for verification to succeed.</li>
 </ol>
 <hr>
 <h2 id="5-zeroclawを開始する"><a class="header" href="#5-zeroclawを開始する">5. ZeroClawを開始する</a></h2>
-<pre><code class="language-bash">./target/release/zeroclaw --config zeroclaw.toml
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon
 </code></pre>
-<p>またはデーモンモード経由：</p>
-<pre><code class="language-bash">zeroclaw daemon
-</code></pre>
+</div>
+
 <p><strong>スタートアップログシグナル：</strong></p>
 <pre><code>LINE: webhook server listening on http://0.0.0.0:8443/line/webhook
 </code></pre>
 <hr>
 <h2 id="6-アクセスポリシー"><a class="header" href="#6-アクセスポリシー">6. アクセスポリシー</a></h2>
-<h3 id="dm11チャット-dm_policy"><a class="header" href="#dm11チャット-dm_policy">DM（1:1チャット）— <code>dm_policy</code></a></h3>
+<h3 id="dm-11-chat-dm_policy"><a class="header" href="#dm-11-chat-dm_policy">DM (1:1 chat): <code>dm_policy</code></a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -283,7 +516,7 @@ export LINE_CHANNEL_SECRET="your-channel-secret"
 <tbody>
 <tr><td><code>pairing</code>（デフォルト）</td><td>ボットはユーザーが<code>/bind &lt;code&gt;</code>を送信するまですべてのDMを無視します。ペアリングコードはZeroClawログのスタートアップ時に表示されます。</td></tr>
 <tr><td><code>open</code></td><td>ボットはすべてのDMに即座に応答します。</td></tr>
-<tr><td><code>allowlist</code></td><td>ボットは<code>allowed_users</code>にリストされているLINEユーザーIDにのみ応答します。</td></tr>
+<tr><td><code>allowlist</code></td><td>The bot responds only to LINE user IDs in the agent’s peer set (see <a href="#who-can-talk-to-the-agent">Who can talk to the agent</a>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -293,7 +526,7 @@ export LINE_CHANNEL_SECRET="your-channel-secret"
 <li>ユーザーはボットとのLINE DMを開き、<code>/bind &lt;code&gt;</code>を送信します。</li>
 <li>ZeroClawはペアリングを確認し、後続のDMが受け入れられます。</li>
 </ol>
-<h3 id="グループ複数人チャット--group_policy"><a class="header" href="#グループ複数人チャット--group_policy">グループ/複数人チャット — <code>group_policy</code></a></h3>
+<h3 id="group--multi-person-chat-group_policy"><a class="header" href="#group--multi-person-chat-group_policy">Group / multi-person chat: <code>group_policy</code></a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -308,7 +541,7 @@ export LINE_CHANNEL_SECRET="your-channel-secret"
 </div>
 <hr>
 <h2 id="7-オーディオ音声メッセージトランスクリプションオプション"><a class="header" href="#7-オーディオ音声メッセージトランスクリプションオプション">7. オーディオ/音声メッセージトランスクリプション（オプション）</a></h2>
-<p>トランスクリプションが有効な場合（グローバル<code>[transcription]</code>設定経由 — <a href="../reference/config.html">設定リファレンス</a>を参照）、LINE<code>audio</code>メッセージイベントはLINE Content APIから自動的にダウンロードされ、モデルに渡される前にトランスクリプションされます。</p>
+<p>When transcription is enabled (via the global <code>[transcription]</code> config, see <a href="../reference/config.html">Config reference</a>), LINE <code>audio</code> message events are automatically downloaded from the LINE Content API and transcribed before being passed to the model.</p>
 <p>最大受け入れオーディオサイズは25 MBです。より大きいファイルはログ警告とともに黙って スキップされます。</p>
 <hr>
 <h2 id="8-トラブルシューティング"><a class="header" href="#8-トラブルシューティング">8. トラブルシューティング</a></h2>
@@ -321,7 +554,7 @@ export LINE_CHANNEL_SECRET="your-channel-secret"
 <tr><td>LINE検証が失敗する</td><td>ZeroClawが実行されていない、またはポートに到達できない</td><td>プロセスが起動し、ポートがインターネットからアクセス可能であることを確認します</td></tr>
 <tr><td>ボットはDMに返信しません</td><td><code>dm_policy = pairing</code> でユーザーが <code>/bind</code> を実行していない</td><td>ユーザーは先に <code>/bind &lt;code&gt;</code> を送信するか、<code>dm_policy = open</code> に切り替える必要があります</td></tr>
 <tr><td>ボットはグループで返信しません</td><td><code>group_policy = mention</code> でメッセージに @mention がない</td><td>ボットに @mention するか、<code>group_policy = open</code> に切り替えます</td></tr>
-<tr><td>返信はプッシュメッセージとして到着します</td><td>返信トークンの有効期限が切れた（約30秒のウィンドウ）</td><td>予期されたフォールバック動作 — アクションは不要です</td></tr>
+<tr><td>返信はプッシュメッセージとして到着します</td><td>返信トークンの有効期限が切れた（約30秒のウィンドウ）</td><td>Expected fallback behaviour, no action required</td></tr>
 <tr><td>音声メッセージは無視されます</td><td><code>[transcription]</code> が設定されていません</td><td><code>[transcription]</code> ブロックを <code>enabled = true</code> で追加します</td></tr>
 </tbody>
 </table>
@@ -345,7 +578,7 @@ export LINE_CHANNEL_SECRET="your-channel-secret"
 <hr>
 <h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
 <ul>
-<li><a href="../reference/config.html">設定リファレンス</a> — 完全な設定フィールドインデックス</li>
+<li><a href="../reference/config.html">Config reference</a>: full config field index</li>
 <li><a href="https://developers.line.biz/en/docs/messaging-api/">LINE Developers Documentation</a></li>
 </ul>
 

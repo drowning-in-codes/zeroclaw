@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,222 +296,1168 @@
 <p>Toutes les familles de fournisseurs de modèles livrées avec ZeroClaw. Pour chacune : la forme de configuration, des notes sur l’authentification et le comportement des points de terminaison, ainsi que la clé d’emplacement à utiliser sous <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code>.</p>
 <p>Consultez <a href="./configuration.html">Configuration</a> pour les champs universels (<code>api_key</code>, <code>uri</code>, <code>model</code>, …) et l’ordre de résolution.</p>
 <blockquote>
-<p>Les exemples ci-dessous utilisent <code>home</code> comme alias pour souligner que la partie alias est choisie par l’opérateur — choisissez le nom qui convient (<code>work</code>, <code>personal</code>, <code>cn</code>, <code>prod</code>, …). Référencez-le depuis un agent via <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code>.</p>
+<p>Examples below use <code>home</code> as the alias to underline that the alias half is operator-chosen, pick whatever name fits (<code>work</code>, <code>personal</code>, <code>cn</code>, <code>prod</code>, …). Reference it from an agent via <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code>.</p>
 </blockquote>
 <hr>
 <h2 id="natif"><a class="header" href="#natif">Natif</a></h2>
-<h3 id="anthropic--slot-anthropic"><a class="header" href="#anthropic--slot-anthropic">Anthropic — slot <code>anthropic</code></a></h3>
-<pre><code class="language-toml">[providers.models.anthropic.home]
-model   = "claude-haiku-4-5-20251001"        # ou claude-sonnet-4-6, claude-opus-4-7
-api_key = "sk-ant-..."                       # ou "sk-ant-oat-..." pour OAuth
-</code></pre>
-<p>Prend en charge les jetons OAuth (<code>sk-ant-oat*</code>) des abonnements Claude Pro/Team — pas de facturation API distincte. Le streaming, les appels d’outils, la vision et le raisonnement sont tous pris en charge. Les points de terminaison personnalisés (proxys compatibles Anthropic, par exemple l’API Anthropic de Z.AI) utilisent également cet emplacement — définissez <code>uri</code> pour le remplacer.</p>
-<h3 id="openai--emplacement-openai"><a class="header" href="#openai--emplacement-openai">OpenAI — emplacement <code>openai</code></a></h3>
-<pre><code class="language-toml">[providers.models.openai.home]
-model   = "gpt-4o-mini"
-api_key = "sk-..."
-</code></pre>
+<h3 id="anthropic-slot-anthropic"><a class="header" href="#anthropic-slot-anthropic">Anthropic: slot <code>anthropic</code></a></h3>
+<p>Supports OAuth tokens (<code>sk-ant-oat*</code>) from Claude Pro/Team subscriptions, no separate API billing. Streaming, tool calls, vision, and reasoning all supported. Custom endpoints (Anthropic-compatible proxies, e.g. Z.AI’s Anthropic API) go on this slot too: set <code>uri</code> to override.</p>
+<h3 id="openai-slot-openai"><a class="header" href="#openai-slot-openai">OpenAI: slot <code>openai</code></a></h3>
 <p>GPT-4o, GPT-5, modèles de raisonnement de la série o. Les tokens de raisonnement sont exposés sous forme d’événements <code>ReasoningDelta</code> ; voir <a href="./streaming.html">Streaming</a>.</p>
-<h3 id="openai-codex--emplacement-openai-avec-requires_openai_auth--true"><a class="header" href="#openai-codex--emplacement-openai-avec-requires_openai_auth--true">OpenAI Codex — emplacement <code>openai</code> avec <code>requires_openai_auth = true</code></a></h3>
-<pre><code class="language-toml">[providers.models.openai.coding]
-model                  = "gpt-5-codex"
-wire_api               = "responses"
-requires_openai_auth   = true
-</code></pre>
-<p>OpenAI Codex subscription auth lives on the <code>openai</code> slot. Set <code>wire_api = "responses"</code> to route through <code>POST /v1/responses</code> and <code>requires_openai_auth = true</code> to pull credentials from the OAuth profile imported from <code>~/.codex/auth.json</code> instead of an <code>api_key</code> field on the entry. The subscription path does not read <code>OPENAI_API_KEY</code> — that variable applies only to the metered <code>openai</code> API-key mode.</p>
-<h3 id="ollama--emplacement-ollama"><a class="header" href="#ollama--emplacement-ollama">Ollama — emplacement <code>ollama</code></a></h3>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri              = "http://localhost:11434"
-model            = "qwen3.6:35b-a3b"
-think            = false                     # désactive la chaîne de raisonnement sur les modèles de raisonnement
-reasoning_effort = "none"
-</code></pre>
+<h3 id="openai-codex-openai-slot-with-requires_openai_auth--true"><a class="header" href="#openai-codex-openai-slot-with-requires_openai_auth--true">OpenAI Codex: <code>openai</code> slot with <code>requires_openai_auth = true</code></a></h3>
+<p>OpenAI Codex subscription auth lives on the <code>openai</code> slot. Set <code>wire_api = "responses"</code> to route through <code>POST /v1/responses</code> and <code>requires_openai_auth = true</code> to use the Codex subscription login (from the Codex CLI’s own <code>~/.codex/auth.json</code>) instead of an <code>api_key</code> field on the entry. The subscription path does not read <code>OPENAI_API_KEY</code>; that variable applies only to the metered <code>openai</code> API-key mode. See <a href="./configuration.html#oauth-and-subscription-auth">Provider Configuration → OAuth and subscription auth</a> for the credential model.</p>
+<h3 id="ollama-slot-ollama"><a class="header" href="#ollama-slot-ollama">Ollama: slot <code>ollama</code></a></h3>
 <p>Inférence locale via l’API native <code>/api/chat</code> d’Ollama. Sortie structurée basée sur un schéma via <code>format</code>. Aucune clé API requise.</p>
-<h3 id="bedrock--emplacement-bedrock"><a class="header" href="#bedrock--emplacement-bedrock">Bedrock — emplacement <code>bedrock</code></a></h3>
-<pre><code class="language-toml">[providers.models.bedrock.home]
-region = "us-east-1"                         # Variable de modèle de région AWS
-model  = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-# Authentification via la chaîne d'identifiants AWS standard (env, rôle IAM, ~/.aws/credentials).
-</code></pre>
-<h3 id="gemini--slot-gemini"><a class="header" href="#gemini--slot-gemini">Gemini — slot <code>gemini</code></a></h3>
-<pre><code class="language-toml">[providers.models.gemini.home]
-model   = "gemini-2.5-pro"
-api_key = "..."
-</code></pre>
+<h3 id="bedrock-slot-bedrock"><a class="header" href="#bedrock-slot-bedrock">Bedrock: slot <code>bedrock</code></a></h3>
+<h3 id="gemini-slot-gemini"><a class="header" href="#gemini-slot-gemini">Gemini: slot <code>gemini</code></a></h3>
 <p>L’API Gemini de Google. Prend en charge la vision et la recherche ancrée pré-exécutée (voir <a href="./streaming.html">Streaming</a> pour les événements <code>PreExecutedToolCall</code>).</p>
-<h3 id="gemini-cli--slot-gemini_cli"><a class="header" href="#gemini-cli--slot-gemini_cli">Gemini CLI — slot <code>gemini_cli</code></a></h3>
-<pre><code class="language-toml">[providers.models.gemini_cli.home]
-model = "gemini-2.5-pro"
-</code></pre>
+<h3 id="gemini-cli-slot-gemini_cli"><a class="header" href="#gemini-cli-slot-gemini_cli">Gemini CLI: slot <code>gemini_cli</code></a></h3>
 <p>Lance le CLI <code>gemini</code> ; utilise l’authentification existante du CLI.</p>
-<h3 id="azure-openai--emplacement-azure"><a class="header" href="#azure-openai--emplacement-azure">Azure OpenAI — emplacement <code>azure</code></a></h3>
-<pre><code class="language-toml">[providers.models.azure.home]
-resource    = "my-resource"                  # https://{resource}.openai.azure.com/...
-deployment  = "gpt-4o"
-api_version = "2024-10-01-preview"
-api_key     = "..."
-</code></pre>
-<p><code>resource</code>, <code>deployment</code> et <code>api_version</code> se trouvent dans cette configuration typée — ils ne sont pas lus à partir des variables d’environnement.</p>
-<h3 id="copilot--emplacement-copilot"><a class="header" href="#copilot--emplacement-copilot">Copilot — emplacement <code>copilot</code></a></h3>
-<pre><code class="language-toml">[providers.models.copilot.home]
-model = "gpt-4o"
-</code></pre>
+<h3 id="azure-openai-slot-azure"><a class="header" href="#azure-openai-slot-azure">Azure OpenAI: slot <code>azure</code></a></h3>
+<p><code>resource</code>, <code>deployment</code>, and <code>api_version</code> live in this typed config, they are not read from environment variables.</p>
+<h3 id="copilot-slot-copilot"><a class="header" href="#copilot-slot-copilot">Copilot: slot <code>copilot</code></a></h3>
 <p>Utilise un abonnement GitHub Copilot pour l’inférence de l’agent. L’authentification utilise un jeton OAuth Copilot obtenu auprès de GitHub.</p>
-<h3 id="telnyx--emplacement-telnyx"><a class="header" href="#telnyx--emplacement-telnyx">Telnyx — emplacement <code>telnyx</code></a></h3>
-<pre><code class="language-toml">[providers.models.telnyx.home]
-model   = "..."
-api_key = "..."
-</code></pre>
+<h3 id="telnyx-slot-telnyx"><a class="header" href="#telnyx-slot-telnyx">Telnyx: slot <code>telnyx</code></a></h3>
 <p>Point de terminaison IA orienté voix. À associer au canal <code>clawdtalk</code> pour des appels SIP en temps réel.</p>
-<h3 id="kilocli--slot-kilocli"><a class="header" href="#kilocli--slot-kilocli">KiloCLI — slot <code>kilocli</code></a></h3>
-<pre><code class="language-toml">[providers.models.kilocli.local]
-model = "..."
-</code></pre>
+<h3 id="kilocli-slot-kilocli"><a class="header" href="#kilocli-slot-kilocli">KiloCLI: slot <code>kilocli</code></a></h3>
 <p>Inférence locale via KiloCLI.</p>
-<hr>
-<h2 id="familles-compatibles-openai"><a class="header" href="#familles-compatibles-openai">Familles compatibles OpenAI</a></h2>
-<p>Chaque fournisseur compatible OpenAI possède son propre emplacement canonique. Il n’existe pas de sélecteur générique <code>kind = "openai-compatible"</code> — choisissez l’emplacement correspondant à votre fournisseur, ou utilisez <code>custom</code> pour les points de terminaison non répertoriés ici.</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Slot</th><th>Point de terminaison par défaut</th><th>Notes</th></tr>
-</thead>
-<tbody>
-<tr><td><code>groq</code></td><td><code>https://api.groq.com/openai</code></td><td>Indications de streaming des outils natifs prises en charge</td></tr>
-<tr><td><code>mistral</code></td><td><code>https://api.mistral.ai</code></td><td></td></tr>
-<tr><td><code>xai</code></td><td><code>https://api.x.ai</code></td><td></td></tr>
-<tr><td><code>deepseek</code></td><td><code>https://api.deepseek.com</code></td><td>DeepSeek V3 / R1</td></tr>
-<tr><td><code>cohere</code>, <code>perplexity</code>, <code>cerebras</code>, <code>sambanova</code>, <code>hyperbolic</code></td><td>par fournisseur</td><td>Format OpenAI standard</td></tr>
-<tr><td><code>deepinfra</code>, <code>huggingface</code>, <code>together</code>, <code>fireworks</code></td><td>par fournisseur</td><td></td></tr>
-<tr><td><code>ai21</code>, <code>reka</code>, <code>baseten</code>, <code>nscale</code>, <code>anyscale</code>, <code>nebius</code></td><td>par fournisseur</td><td></td></tr>
-<tr><td><code>friendli</code>, <code>stepfun</code>, <code>aihubmix</code>, <code>siliconflow</code></td><td>par fournisseur</td><td></td></tr>
-<tr><td><code>astrai</code>, <code>avian</code>, <code>deepmyst</code>, <code>venice</code>, <code>novita</code>, <code>nvidia</code></td><td>par fournisseur</td><td></td></tr>
-<tr><td><code>vercel</code>, <code>cloudflare</code>, <code>ovh</code></td><td>par passerelle de fournisseur</td><td></td></tr>
-<tr><td><code>lepton</code>, <code>synthetic</code>, <code>opencode</code></td><td>par fournisseur</td><td></td></tr>
-<tr><td><code>morph</code></td><td><code>https://api.morphllm.com/v1</code></td><td>Fast apply-edits models</td></tr>
-<tr><td><code>github_models</code></td><td><code>https://models.github.ai/inference</code></td><td>OpenAI/Meta/Microsoft models via a GitHub PAT (alias <code>github-models</code>)</td></tr>
-<tr><td><code>upstage</code></td><td><code>https://api.upstage.ai/v1</code></td><td>Solar Pro / Solar Mini</td></tr>
-<tr><td><code>featherless</code></td><td><code>https://api.featherless.ai/v1</code></td><td>Serverless open-weight models</td></tr>
-<tr><td><code>arcee</code></td><td><code>https://api.arcee.ai/api/v1</code></td><td>Trinity / Conductor / Maestro — note the non-standard <code>/api/v1</code> path</td></tr>
-<tr><td><code>lambda_ai</code></td><td><code>https://api.lambda.ai/v1</code></td><td>Lambda hosted inference (alias <code>lambda-ai</code>)</td></tr>
-<tr><td><code>inception</code></td><td><code>https://api.inceptionlabs.ai/v1</code></td><td>Mercury diffusion LLM</td></tr>
-<tr><td><code>lmstudio</code>, <code>llamacpp</code>, <code>sglang</code>, <code>vllm</code>, <code>osaurus</code>, <code>litellm</code></td><td><code>http://localhost:&lt;port&gt;/v1</code></td><td>Emplacements de serveur local avec des valeurs par défaut pertinentes</td></tr>
-</tbody>
-</table>
-</div>
-<p>Exemple concret (Groq) :</p>
-<pre><code class="language-toml">[providers.models.groq.fast]
-model   = "llama-3.3-70b-versatile"
-api_key = "gsk_..."
-# `uri` est omis — l'enum d'endpoint typé de la famille fournit l'URL.
-</code></pre>
-<p>Si votre fournisseur n’est pas répertorié, utilisez <code>custom</code> :</p>
-<pre><code class="language-toml">[providers.models.custom.gateway]
-uri     = "https://my-gateway.example.com/v1"
-model   = "my-model-id"
+<h3 id="kilo-ai-gateway-slot-kilo"><a class="header" href="#kilo-ai-gateway-slot-kilo">Kilo AI Gateway: slot <code>kilo</code></a></h3>
+<pre><code class="language-toml">[providers.models.kilo.home]
+model   = "anthropic/claude-sonnet-4-6"
 api_key = "..."
+# endpoint = "gateway"  # default → https://api.kilo.ai/api/gateway
 </code></pre>
-<h3 id="worked-examples-morph-github-models-upstage-featherless-arcee-lambda-ai-inception"><a class="header" href="#worked-examples-morph-github-models-upstage-featherless-arcee-lambda-ai-inception">Worked examples: Morph, GitHub Models, Upstage, Featherless, Arcee, Lambda AI, Inception</a></h3>
-<p>Each of these is a standard OpenAI-compatible slot: set <code>model</code> and <code>api_key</code>, leave <code>uri</code> off (the typed endpoint supplies it). None of them ship a public model index, so the model picker stays empty until you paste a credential — once a key is set, ZeroClaw lists models from the provider’s live <code>/models</code> endpoint. The model IDs below are illustrative; confirm the current catalog in the vendor dashboard.</p>
-<p><strong>Morph</strong> — slot <code>morph</code>. Fast apply-edits models (<code>morph-v3-large</code>, <code>morph-v3-fast</code>, or <code>auto</code>). Key from the <a href="https://morphllm.com">Morph dashboard</a>.</p>
-<pre><code class="language-toml">[providers.models.morph.apply]
-model   = "morph-v3-large"
-api_key = "..."
-</code></pre>
-<p><strong>GitHub Models</strong> — slot <code>github_models</code> (alias <code>github-models</code>). OpenAI / Meta / Microsoft models behind a single GitHub Personal Access Token. Create a PAT with the <strong><code>models</code></strong> permission (fine-grained) — a Copilot token is <em>not</em> the same credential. Model IDs are publisher-prefixed.</p>
-<pre><code class="language-toml">[providers.models.github_models.home]
-model   = "openai/gpt-4o"
-api_key = "github_pat_..."
-</code></pre>
-<p><strong>Upstage</strong> — slot <code>upstage</code>. Solar Pro / Solar Mini. Key from the <a href="https://console.upstage.ai/api-keys">Upstage console</a>.</p>
-<pre><code class="language-toml">[providers.models.upstage.home]
-model   = "solar-pro2"
-api_key = "..."
-</code></pre>
-<p><strong>Featherless</strong> — slot <code>featherless</code>. Serverless open-weight models, addressed by their Hugging Face repo IDs. Key from <a href="https://featherless.ai">featherless.ai</a>.</p>
-<pre><code class="language-toml">[providers.models.featherless.home]
-model   = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-api_key = "..."
-</code></pre>
-<p><strong>Arcee</strong> — slot <code>arcee</code>. Native models include <code>conductor</code>, <code>maestro</code>, <code>virtuoso-large</code>, <code>coder-large</code>, and <code>blitz</code>. Key from the <a href="https://www.arcee.ai">Arcee platform</a>. Arcee’s Platform API uses the non-standard <code>/api/v1</code> base path; the typed endpoint already accounts for this, so still leave <code>uri</code> off.</p>
-<pre><code class="language-toml">[providers.models.arcee.home]
-model   = "conductor"
-api_key = "..."
-</code></pre>
-<p><strong>Lambda AI</strong> — slot <code>lambda_ai</code> (alias <code>lambda-ai</code>). Lambda’s hosted inference. Key from the <a href="https://cloud.lambda.ai">Lambda Cloud</a> API-keys page.</p>
-<pre><code class="language-toml">[providers.models.lambda_ai.home]
-model   = "hermes3-405b"
-api_key = "..."
-</code></pre>
-<p><strong>Inception</strong> — slot <code>inception</code>. The Mercury diffusion-LLM family (<code>mercury-coder</code> and the newer <code>mercury-2</code>). Key from the <a href="https://platform.inceptionlabs.ai">Inception platform</a>.</p>
-<pre><code class="language-toml">[providers.models.inception.home]
-model   = "mercury-coder"
-api_key = "..."
-</code></pre>
+<p>Cloud API via Kilo AI Gateway. Bearer-token auth with multiple model tiers (free, balanced, pro). The <code>/models</code> endpoint is public (<code>PUBLIC_MODEL_LISTING</code>), so model listing works without a credential. Because it is queried live, it is the source that carries pricing into the cost-rates editor. The shared models.dev catalog (<code>kilo</code> key) is only a fallback for when the live endpoint is unreachable, and it does not include pricing.</p>
 <blockquote>
-<p>Credentials come only from config (<code>api_key</code>) or the <code>--credential</code> override at run time — these slots do <strong>not</strong> read a per-provider <code>*_API_KEY</code> environment variable.</p>
+<p><strong>Naming migration:</strong> <code>kilo</code> now refers to this gateway provider. The KiloCLI subprocess provider keeps its <code>kilocli</code> slot (synonym <code>kilo-cli</code>). If you previously configured the CLI provider under the <code>kilo</code> shorthand, switch to <code>kilocli</code>.</p>
+</blockquote>
+<hr>
+<h2 id="all-slots"><a class="header" href="#all-slots">All slots</a></h2>
+<p>Every canonical slot, its default endpoint, whether it runs locally, and its full config field set, generated from the provider registry and the config schema. Click a slot to expand its fields; click a field to see how to set it. Slots with no fixed default need <code>uri</code> set on the alias entry (Azure, <code>custom</code>, multi-region families, CLI shims).</p>
+<h3 id="shared-fields"><a class="header" href="#shared-fields">Shared fields</a></h3>
+<p>Every provider slot accepts these fields. Slot-specific extras are listed per provider below.</p>
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>api_key</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>—</code></span></summary>
+<p>Secret API token for this model_provider. Grab it from the model_provider’s dashboard (OpenAI platform, Anthropic console, OpenRouter keys page, etc.). Stored via the OS keyring when possible; never commit it to config.toml directly.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.api_key</code> field.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.api_key</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.api_key    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__api_key=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>chat_template_kwargs</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Arbitrary key/value pairs forwarded verbatim as <code>chat_template_kwargs</code> in the request body (llama.cpp-specific). Use this to pass model-family template variables that control behaviour not exposed by other fields. Example (Qwen3 thinking suppression): <code>chat_template_kwargs = { enable_thinking = false }</code></p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.chat_template_kwargs</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.chat_template_kwargs</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.chat_template_kwargs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__chat_template_kwargs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>extra_headers</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>—</code></span></summary>
+<p>Extra HTTP headers sent with every request. Niche: used for auth bridges, corporate proxies, or custom gateways that demand a tracing header. Most users never touch this; edit <code>config.toml</code> directly if you need it.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.extra_headers</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.extra_headers</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.extra_headers    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__extra_headers=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>fallback</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>—</code></span></summary>
+<p>Ordered list of other provider aliases to try when every model on this alias has failed. Each entry is a dotted <code>&lt;type&gt;.&lt;alias&gt;</code> reference into <code>providers.models</code> and resolves with its own credentials, endpoint, and model. A fallback never inherits this alias’s key. The walk is depth-first: this alias’s models are exhausted first, then each fallback alias is descended in turn (applying its own <code>fallback_models</code> and <code>fallback</code>). Empty means no provider-level fallback.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.fallback</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.fallback</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.fallback &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__fallback=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>fallback_models</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>—</code></span></summary>
+<p>Ordered alternate models to try on THIS provider before falling over to the <code>fallback</code> aliases. Same endpoint, key, and headers as the primary <code>model</code>. Only the model identifier changes. Use this when a provider serves a backup model (e.g. a smaller or older variant) that should be tried before leaving the provider entirely. Empty means only <code>model</code> is tried.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.fallback_models</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.fallback_models</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.fallback_models &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__fallback_models=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>kind</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Provider implementation to instantiate for this profile. Use this when a canonical typed slot should run through a compatible implementation, e.g. <code>[providers.models.openai.proxy] kind = "openai-compatible"</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.kind</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.kind</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.kind &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__kind=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>max_tokens</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>—</code></span></summary>
+<p>Hard cap on response length in tokens. Most models enforce sensible built-in limits already; leave unset unless you specifically need to clip long outputs for cost or latency reasons.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.max_tokens</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.max_tokens</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.max_tokens &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__max_tokens=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>merge_system_into_user</code> <span class="cfg-field-meta"><code>bool</code> · default <code>—</code></span></summary>
+<p>ModelProvider-specific quirk: fold the system prompt into the first user message instead of sending a separate system role. Only needed for models that reject (or mishandle) a standalone system role, e.g. certain older Mistral variants.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.merge_system_into_user</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.merge_system_into_user</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.merge_system_into_user &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__merge_system_into_user=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>model</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Model identifier to send with each request: the ID string from the model_provider’s catalog (e.g. <code>gpt-4o</code>, <code>claude-sonnet-4-5</code>, <code>llama-3.3-70b</code>). Must match a model the model_provider actually serves on this account.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.model</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.model</code> field.</p>
+<h4 id="zeroclaw-config-8"><a class="header" href="#zeroclaw-config-8">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.model &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-8"><a class="header" href="#environment-variable-8">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__model=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>native_tools</code> <span class="cfg-field-meta"><code>bool?</code> · default <code>—</code></span></summary>
+<p>Override the provider’s default for native tool calling. <code>None</code> (default) honors the provider’s built-in choice. <code>Some(true)</code> forces native tool calls on, <code>Some(false)</code> forces text-fallback. Currently consulted only by the Groq factory, which defaults to text-fallback because llama-family Groq models reject native tool calls with HTTP 400. Setting <code>native_tools = true</code> re-enables native tool calling for Groq models that support it.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.native_tools</code> field.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.native_tools</code> field.</p>
+<h4 id="zeroclaw-config-9"><a class="header" href="#zeroclaw-config-9">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.native_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-9"><a class="header" href="#environment-variable-9">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__native_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>pricing</code> <span class="cfg-field-meta"><code>map</code> · default <code>—</code></span></summary>
+<p>Per-model pricing for cost tracking, USD per 1M tokens. Free-form key/value map. Keys are user-defined model identifiers; an optional <code>.input</code> / <code>.output</code> suffix encodes pricing dimension when the operator wants to split rates. A bare key without a suffix is used as a flat per-token rate when neither dimension is specified. Default is empty: cost tracking falls back to “unknown” rates and only token usage is recorded. Example: <code>pricing = { opus = 15.0, sonnet = 3.0 }</code> Or split: <code>pricing = { "opus.input" = 15.0, "opus.output" = 75.0 }</code></p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-10"><a class="header" href="#gateway-dashboard-10">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.pricing</code> field.</p>
+<h4 id="zerocode-10"><a class="header" href="#zerocode-10">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.pricing</code> field.</p>
+<h4 id="zeroclaw-config-10"><a class="header" href="#zeroclaw-config-10">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.pricing &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-10"><a class="header" href="#environment-variable-10">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__pricing=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>provider_extra</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Extra JSON parameters to include in API requests. Merged at the top level of the request body, allowing provider-specific features (routing, transforms, etc.) without code changes. Example: <code>provider_extra = { model_provider = { only = ["Anthropic"] } }</code></p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-11"><a class="header" href="#gateway-dashboard-11">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.provider_extra</code> field.</p>
+<h4 id="zerocode-11"><a class="header" href="#zerocode-11">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.provider_extra</code> field.</p>
+<h4 id="zeroclaw-config-11"><a class="header" href="#zeroclaw-config-11">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.provider_extra &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-11"><a class="header" href="#environment-variable-11">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__provider_extra=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>requires_openai_auth</code> <span class="cfg-field-meta"><code>bool</code> · default <code>—</code></span></summary>
+<p>When true, the client pulls credentials from <code>OPENAI_API_KEY</code> or <code>~/.codex/auth.json</code> instead of the <code>api_key</code> field above. Turn on only for the OpenAI Codex model_provider; leave off for standard API-key model_providers.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-12"><a class="header" href="#gateway-dashboard-12">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.requires_openai_auth</code> field.</p>
+<h4 id="zerocode-12"><a class="header" href="#zerocode-12">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.requires_openai_auth</code> field.</p>
+<h4 id="zeroclaw-config-12"><a class="header" href="#zeroclaw-config-12">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.requires_openai_auth &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-12"><a class="header" href="#environment-variable-12">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__requires_openai_auth=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>temperature</code> <span class="cfg-field-meta"><code>number?</code> · default <code>—</code></span></summary>
+<p>Sampling temperature passed to the model. Lower values (0.0–0.3) give deterministic, near-verbatim output, which fits code, routing, summarization. Higher values (0.7–1.2) give more varied output, which fits open-ended chat.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-13"><a class="header" href="#gateway-dashboard-13">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.temperature</code> field.</p>
+<h4 id="zerocode-13"><a class="header" href="#zerocode-13">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.temperature</code> field.</p>
+<h4 id="zeroclaw-config-13"><a class="header" href="#zeroclaw-config-13">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.temperature &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-13"><a class="header" href="#environment-variable-13">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__temperature=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>think</code> <span class="cfg-field-meta"><code>bool?</code> · default <code>—</code></span></summary>
+<p>Enable or disable chain-of-thought thinking for models that support it (e.g. Qwen3, GLM-4). <code>true</code> turns thinking on, <code>false</code> turns it off. <code>None</code> (default) lets the model decide. Forwarded as <code>enable_thinking</code> in the request body; mirrors the Ollama provider’s <code>think</code> field.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-14"><a class="header" href="#gateway-dashboard-14">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.think</code> field.</p>
+<h4 id="zerocode-14"><a class="header" href="#zerocode-14">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.think</code> field.</p>
+<h4 id="zeroclaw-config-14"><a class="header" href="#zeroclaw-config-14">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.think &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-14"><a class="header" href="#environment-variable-14">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__think=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>timeout_secs</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>—</code></span></summary>
+<p>HTTP request timeout in seconds. Bump this for slow local model_providers (Ollama on CPU, big local models) or high-latency networks; leave unset otherwise.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-15"><a class="header" href="#gateway-dashboard-15">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.timeout_secs</code> field.</p>
+<h4 id="zerocode-15"><a class="header" href="#zerocode-15">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.timeout_secs</code> field.</p>
+<h4 id="zeroclaw-config-15"><a class="header" href="#zeroclaw-config-15">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.timeout_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-15"><a class="header" href="#environment-variable-15">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__timeout_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>uri</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Endpoint URI the client hits. Override the family’s default endpoint when pointing at a self-hosted gateway (LiteLLM, vLLM, Ollama), a custom proxy, or any non-standard URL. Leave unset to use the family’s default URI from its <code>ModelEndpoint</code> impl. Set this to the FULL endpoint URL; there is no separate path-suffix field.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-16"><a class="header" href="#gateway-dashboard-16">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.uri</code> field.</p>
+<h4 id="zerocode-16"><a class="header" href="#zerocode-16">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.uri</code> field.</p>
+<h4 id="zeroclaw-config-16"><a class="header" href="#zeroclaw-config-16">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.uri &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-16"><a class="header" href="#environment-variable-16">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__uri=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>wire_api</code> <span class="cfg-field-meta"><code>`responses` \| `chat_completions`</code> · default <code>—</code></span></summary>
+<p>Wire protocol flavor for the model_provider client. <code>responses</code> routes through OpenAI’s Codex/Responses API (<code>POST /v1/responses</code>); <code>chat_completions</code> routes through the legacy <code>/v1/chat/completions</code> (or the family’s chat-completions-compatible endpoint). Auto-selected per family when unset.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-17"><a class="header" href="#gateway-dashboard-17">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/openrouter"><code>/config/providers.models/openrouter</code></a> and set the <code>providers.models.openrouter.&lt;alias&gt;.wire_api</code> field.</p>
+<h4 id="zerocode-17"><a class="header" href="#zerocode-17">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.openrouter.&lt;alias&gt;.wire_api</code> field.</p>
+<h4 id="zeroclaw-config-17"><a class="header" href="#zeroclaw-config-17">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.openrouter.&lt;alias&gt;.wire_api &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-17"><a class="header" href="#environment-variable-17">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__openrouter__&lt;alias&gt;__wire_api=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<h3 id="primary"><a class="header" href="#primary">Primary</a></h3>
+<div class="provider-fields">
+<div class="provider-row"><code>openrouter</code> <span class="provider-endpoint"><code>https://openrouter.ai/api/v1</code></span></div>
+
+<div class="provider-row"><code>anthropic</code> <span class="provider-endpoint"><code>https://api.anthropic.com</code></span></div>
+
+<div class="provider-row"><code>openai</code> <span class="provider-endpoint"><code>https://api.openai.com/v1</code></span></div>
+
+<div class="provider-row"><code>telnyx</code> <span class="provider-endpoint"><code>https://api.telnyx.com/v2/ai</code></span></div>
+
+<details class="provider-entry"><summary><code>azure</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>api_version</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Azure API version string (e.g. <code>2024-10-21</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-18"><a class="header" href="#gateway-dashboard-18">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/azure"><code>/config/providers.models/azure</code></a> and set the <code>providers.models.azure.&lt;alias&gt;.api_version</code> field.</p>
+<h4 id="zerocode-18"><a class="header" href="#zerocode-18">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.azure.&lt;alias&gt;.api_version</code> field.</p>
+<h4 id="zeroclaw-config-18"><a class="header" href="#zeroclaw-config-18">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.azure.&lt;alias&gt;.api_version &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-18"><a class="header" href="#environment-variable-18">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__azure__&lt;alias&gt;__api_version=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>deployment</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Azure deployment name: the deployment created in Azure AI Studio.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-19"><a class="header" href="#gateway-dashboard-19">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/azure"><code>/config/providers.models/azure</code></a> and set the <code>providers.models.azure.&lt;alias&gt;.deployment</code> field.</p>
+<h4 id="zerocode-19"><a class="header" href="#zerocode-19">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.azure.&lt;alias&gt;.deployment</code> field.</p>
+<h4 id="zeroclaw-config-19"><a class="header" href="#zeroclaw-config-19">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.azure.&lt;alias&gt;.deployment &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-19"><a class="header" href="#environment-variable-19">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__azure__&lt;alias&gt;__deployment=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>resource</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Azure resource name (the <code>&lt;resource&gt;</code> part of <code>&lt;resource&gt;.openai.azure.com</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-20"><a class="header" href="#gateway-dashboard-20">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/azure"><code>/config/providers.models/azure</code></a> and set the <code>providers.models.azure.&lt;alias&gt;.resource</code> field.</p>
+<h4 id="zerocode-20"><a class="header" href="#zerocode-20">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.azure.&lt;alias&gt;.resource</code> field.</p>
+<h4 id="zeroclaw-config-20"><a class="header" href="#zeroclaw-config-20">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.azure.&lt;alias&gt;.resource &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-20"><a class="header" href="#environment-variable-20">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__azure__&lt;alias&gt;__resource=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>ollama</code> <span class="provider-endpoint"><code>http://localhost:11434</code> · local</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>num_ctx</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>—</code></span></summary>
+<p>Override the Ollama <code>num_ctx</code> (context window, in tokens) sent on every <code>/api/chat</code> request. Defaults to the framework constant (<code>OLLAMA_DEFAULT_NUM_CTX</code>) when unset.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-21"><a class="header" href="#gateway-dashboard-21">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/ollama"><code>/config/providers.models/ollama</code></a> and set the <code>providers.models.ollama.&lt;alias&gt;.num_ctx</code> field.</p>
+<h4 id="zerocode-21"><a class="header" href="#zerocode-21">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.ollama.&lt;alias&gt;.num_ctx</code> field.</p>
+<h4 id="zeroclaw-config-21"><a class="header" href="#zeroclaw-config-21">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.ollama.&lt;alias&gt;.num_ctx &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-21"><a class="header" href="#environment-variable-21">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__ollama__&lt;alias&gt;__num_ctx=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>num_predict</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>—</code></span></summary>
+<p>Override the Ollama <code>num_predict</code> (max output tokens) sent on every <code>/api/chat</code> request. Defaults to the framework constant (<code>OLLAMA_DEFAULT_NUM_PREDICT</code>) when unset.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-22"><a class="header" href="#gateway-dashboard-22">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/ollama"><code>/config/providers.models/ollama</code></a> and set the <code>providers.models.ollama.&lt;alias&gt;.num_predict</code> field.</p>
+<h4 id="zerocode-22"><a class="header" href="#zerocode-22">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.ollama.&lt;alias&gt;.num_predict</code> field.</p>
+<h4 id="zeroclaw-config-22"><a class="header" href="#zeroclaw-config-22">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.ollama.&lt;alias&gt;.num_predict &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-22"><a class="header" href="#environment-variable-22">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__ollama__&lt;alias&gt;__num_predict=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>temperature_override</code> <span class="cfg-field-meta"><code>number?</code> · default <code>—</code></span></summary>
+<p>Force every Ollama <code>/api/chat</code> request to use this temperature, overriding the per-call value passed through <code>ModelProvider::chat_with_system(.., temperature)</code>. When unset (<code>None</code>, the default), the per-call temperature wins: full backward compatibility.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-23"><a class="header" href="#gateway-dashboard-23">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/ollama"><code>/config/providers.models/ollama</code></a> and set the <code>providers.models.ollama.&lt;alias&gt;.temperature_override</code> field.</p>
+<h4 id="zerocode-23"><a class="header" href="#zerocode-23">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.ollama.&lt;alias&gt;.temperature_override</code> field.</p>
+<h4 id="zeroclaw-config-23"><a class="header" href="#zeroclaw-config-23">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.ollama.&lt;alias&gt;.temperature_override &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-23"><a class="header" href="#environment-variable-23">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__ollama__&lt;alias&gt;__temperature_override=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>gemini</code> <span class="provider-endpoint"><code>https://generativelanguage.googleapis.com/v1beta</code></span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>auth_mode</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Authentication mode for model model_provider families that support more than one (e.g. Qwen, Minimax can use API key OR OAuth). Families that only support a single auth flow simply omit this field from their config struct.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-24"><a class="header" href="#gateway-dashboard-24">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/gemini"><code>/config/providers.models/gemini</code></a> and set the <code>providers.models.gemini.&lt;alias&gt;.auth_mode</code> field.</p>
+<h4 id="zerocode-24"><a class="header" href="#zerocode-24">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.gemini.&lt;alias&gt;.auth_mode</code> field.</p>
+<h4 id="zeroclaw-config-24"><a class="header" href="#zeroclaw-config-24">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.gemini.&lt;alias&gt;.auth_mode &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-24"><a class="header" href="#environment-variable-24">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__gemini__&lt;alias&gt;__auth_mode=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_client_id</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Google OAuth app <code>client_id</code>, used when this alias drives ZeroClaw’s own browser/device-code login flow (<code>zeroclaw auth login --model-provider gemini --profile &lt;alias&gt;</code>). Operators relying on the upstream <code>gemini login</code> tool don’t need this; that tool writes its own client_id / client_secret into <code>~/.gemini/oauth_creds.json</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-25"><a class="header" href="#gateway-dashboard-25">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/gemini"><code>/config/providers.models/gemini</code></a> and set the <code>providers.models.gemini.&lt;alias&gt;.oauth_client_id</code> field.</p>
+<h4 id="zerocode-25"><a class="header" href="#zerocode-25">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.gemini.&lt;alias&gt;.oauth_client_id</code> field.</p>
+<h4 id="zeroclaw-config-25"><a class="header" href="#zeroclaw-config-25">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.gemini.&lt;alias&gt;.oauth_client_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-25"><a class="header" href="#environment-variable-25">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__gemini__&lt;alias&gt;__oauth_client_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_client_secret</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Google OAuth app <code>client_secret</code>. Set alongside <code>oauth_client_id</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-26"><a class="header" href="#gateway-dashboard-26">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/gemini"><code>/config/providers.models/gemini</code></a> and set the <code>providers.models.gemini.&lt;alias&gt;.oauth_client_secret</code> field.</p>
+<h4 id="zerocode-26"><a class="header" href="#zerocode-26">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.gemini.&lt;alias&gt;.oauth_client_secret</code> field.</p>
+<h4 id="zeroclaw-config-26"><a class="header" href="#zeroclaw-config-26">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.gemini.&lt;alias&gt;.oauth_client_secret &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-26"><a class="header" href="#environment-variable-26">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__gemini__&lt;alias&gt;__oauth_client_secret=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_project</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Pin a specific GCP project ID for the OAuth <code>loadCodeAssist</code> discovery call. When unset, the discovery probes for an already-onboarded project on the credential’s account. Replaces <code>GOOGLE_CLOUD_PROJECT</code> / <code>GOOGLE_CLOUD_PROJECT_ID</code> env vars.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-27"><a class="header" href="#gateway-dashboard-27">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/gemini"><code>/config/providers.models/gemini</code></a> and set the <code>providers.models.gemini.&lt;alias&gt;.oauth_project</code> field.</p>
+<h4 id="zerocode-27"><a class="header" href="#zerocode-27">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.gemini.&lt;alias&gt;.oauth_project</code> field.</p>
+<h4 id="zeroclaw-config-27"><a class="header" href="#zeroclaw-config-27">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.gemini.&lt;alias&gt;.oauth_project &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-27"><a class="header" href="#environment-variable-27">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__gemini__&lt;alias&gt;__oauth_project=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+</div>
+
+<h3 id="openai-compatible"><a class="header" href="#openai-compatible">OpenAI-compatible</a></h3>
+<div class="provider-fields">
+<div class="provider-row"><code>venice</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>vercel</code> <span class="provider-endpoint"><code>https://ai-gateway.vercel.sh/v1</code></span></div>
+
+<div class="provider-row"><code>cloudflare</code> <span class="provider-endpoint"><code>https://gateway.ai.cloudflare.com/v1</code></span></div>
+
+<details class="provider-entry"><summary><code>moonshot</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Moonshot endpoint variants. Operators pick the region that matches their account; the runtime resolves the URI from the chosen variant unless overridden by <code>base.uri</code>. Code variant is intl-only.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-28"><a class="header" href="#gateway-dashboard-28">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/moonshot"><code>/config/providers.models/moonshot</code></a> and set the <code>providers.models.moonshot.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-28"><a class="header" href="#zerocode-28">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.moonshot.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-28"><a class="header" href="#zeroclaw-config-28">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.moonshot.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-28"><a class="header" href="#environment-variable-28">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__moonshot__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<div class="provider-row"><code>synthetic</code> <span class="provider-endpoint"><code>https://api.synthetic.new/openai/v1</code></span></div>
+
+<div class="provider-row"><code>opencode</code> <span class="provider-endpoint"><code>https://opencode.ai/zen/v1</code></span></div>
+
+<details class="provider-entry"><summary><code>zai</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>`cn` \| `global`</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-29"><a class="header" href="#gateway-dashboard-29">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/zai"><code>/config/providers.models/zai</code></a> and set the <code>providers.models.zai.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-29"><a class="header" href="#zerocode-29">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.zai.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-29"><a class="header" href="#zeroclaw-config-29">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.zai.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-29"><a class="header" href="#environment-variable-29">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__zai__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>glm</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>`cn` \| `global`</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-30"><a class="header" href="#gateway-dashboard-30">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/glm"><code>/config/providers.models/glm</code></a> and set the <code>providers.models.glm.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-30"><a class="header" href="#zerocode-30">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.glm.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-30"><a class="header" href="#zeroclaw-config-30">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.glm.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-30"><a class="header" href="#environment-variable-30">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__glm__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>minimax</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>auth_mode</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Authentication mode for model model_provider families that support more than one (e.g. Qwen, Minimax can use API key OR OAuth). Families that only support a single auth flow simply omit this field from their config struct.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-31"><a class="header" href="#gateway-dashboard-31">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/minimax"><code>/config/providers.models/minimax</code></a> and set the <code>providers.models.minimax.&lt;alias&gt;.auth_mode</code> field.</p>
+<h4 id="zerocode-31"><a class="header" href="#zerocode-31">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.minimax.&lt;alias&gt;.auth_mode</code> field.</p>
+<h4 id="zeroclaw-config-31"><a class="header" href="#zeroclaw-config-31">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.minimax.&lt;alias&gt;.auth_mode &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-31"><a class="header" href="#environment-variable-31">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__minimax__&lt;alias&gt;__auth_mode=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>`cn` \| `intl`</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-32"><a class="header" href="#gateway-dashboard-32">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/minimax"><code>/config/providers.models/minimax</code></a> and set the <code>providers.models.minimax.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-32"><a class="header" href="#zerocode-32">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.minimax.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-32"><a class="header" href="#zeroclaw-config-32">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.minimax.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-32"><a class="header" href="#environment-variable-32">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__minimax__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_client_id</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Override of MiniMax’s published OAuth client_id. Most operators should leave this unset; the runtime defaults to the vendor-published client_id (same one MiniMax’s own portal uses).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-33"><a class="header" href="#gateway-dashboard-33">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/minimax"><code>/config/providers.models/minimax</code></a> and set the <code>providers.models.minimax.&lt;alias&gt;.oauth_client_id</code> field.</p>
+<h4 id="zerocode-33"><a class="header" href="#zerocode-33">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.minimax.&lt;alias&gt;.oauth_client_id</code> field.</p>
+<h4 id="zeroclaw-config-33"><a class="header" href="#zeroclaw-config-33">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.minimax.&lt;alias&gt;.oauth_client_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-33"><a class="header" href="#environment-variable-33">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__minimax__&lt;alias&gt;__oauth_client_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_refresh_token</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Long-lived OAuth refresh token issued by MiniMax. When set, the runtime exchanges it for a short-lived access token at provider construction time and uses that as the API credential. Operators who prefer dashboard-generated long-lived API keys can leave this unset and populate <code>api_key</code> directly.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-34"><a class="header" href="#gateway-dashboard-34">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/minimax"><code>/config/providers.models/minimax</code></a> and set the <code>providers.models.minimax.&lt;alias&gt;.oauth_refresh_token</code> field.</p>
+<h4 id="zerocode-34"><a class="header" href="#zerocode-34">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.minimax.&lt;alias&gt;.oauth_refresh_token</code> field.</p>
+<h4 id="zeroclaw-config-34"><a class="header" href="#zeroclaw-config-34">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.minimax.&lt;alias&gt;.oauth_refresh_token &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-34"><a class="header" href="#environment-variable-34">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__minimax__&lt;alias&gt;__oauth_refresh_token=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>bedrock</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>region</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>AWS region for the Bedrock endpoint (e.g. <code>us-east-1</code>, <code>eu-west-1</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-35"><a class="header" href="#gateway-dashboard-35">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/bedrock"><code>/config/providers.models/bedrock</code></a> and set the <code>providers.models.bedrock.&lt;alias&gt;.region</code> field.</p>
+<h4 id="zerocode-35"><a class="header" href="#zerocode-35">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.bedrock.&lt;alias&gt;.region</code> field.</p>
+<h4 id="zeroclaw-config-35"><a class="header" href="#zeroclaw-config-35">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.bedrock.&lt;alias&gt;.region &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-35"><a class="header" href="#environment-variable-35">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__bedrock__&lt;alias&gt;__region=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<div class="provider-row"><code>qianfan</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>doubao</code> <span class="provider-endpoint"><code>https://ark.cn-beijing.volces.com/api/v3</code></span></div>
+
+<details class="provider-entry"><summary><code>qwen</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>auth_mode</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Authentication mode for model model_provider families that support more than one (e.g. Qwen, Minimax can use API key OR OAuth). Families that only support a single auth flow simply omit this field from their config struct.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-36"><a class="header" href="#gateway-dashboard-36">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/qwen"><code>/config/providers.models/qwen</code></a> and set the <code>providers.models.qwen.&lt;alias&gt;.auth_mode</code> field.</p>
+<h4 id="zerocode-36"><a class="header" href="#zerocode-36">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.qwen.&lt;alias&gt;.auth_mode</code> field.</p>
+<h4 id="zeroclaw-config-36"><a class="header" href="#zeroclaw-config-36">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.qwen.&lt;alias&gt;.auth_mode &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-36"><a class="header" href="#environment-variable-36">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__qwen__&lt;alias&gt;__auth_mode=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p>Qwen endpoint variants. Operators pick the region matching their account.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-37"><a class="header" href="#gateway-dashboard-37">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/qwen"><code>/config/providers.models/qwen</code></a> and set the <code>providers.models.qwen.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-37"><a class="header" href="#zerocode-37">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.qwen.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-37"><a class="header" href="#zeroclaw-config-37">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.qwen.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-37"><a class="header" href="#environment-variable-37">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__qwen__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_client_id</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Override of Qwen’s published OAuth client_id. Most operators should leave this unset.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-38"><a class="header" href="#gateway-dashboard-38">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/qwen"><code>/config/providers.models/qwen</code></a> and set the <code>providers.models.qwen.&lt;alias&gt;.oauth_client_id</code> field.</p>
+<h4 id="zerocode-38"><a class="header" href="#zerocode-38">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.qwen.&lt;alias&gt;.oauth_client_id</code> field.</p>
+<h4 id="zeroclaw-config-38"><a class="header" href="#zeroclaw-config-38">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.qwen.&lt;alias&gt;.oauth_client_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-38"><a class="header" href="#environment-variable-38">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__qwen__&lt;alias&gt;__oauth_client_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_refresh_token</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Long-lived Qwen OAuth refresh token. When set, the runtime exchanges it for a short-lived access token at provider construction time. Operators relying on the upstream <code>qwen login</code> tool (which writes <code>~/.qwen/oauth_creds.json</code>) leave this unset; the file-cache integration takes over.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-39"><a class="header" href="#gateway-dashboard-39">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/qwen"><code>/config/providers.models/qwen</code></a> and set the <code>providers.models.qwen.&lt;alias&gt;.oauth_refresh_token</code> field.</p>
+<h4 id="zerocode-39"><a class="header" href="#zerocode-39">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.qwen.&lt;alias&gt;.oauth_refresh_token</code> field.</p>
+<h4 id="zeroclaw-config-39"><a class="header" href="#zeroclaw-config-39">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.qwen.&lt;alias&gt;.oauth_refresh_token &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-39"><a class="header" href="#environment-variable-39">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__qwen__&lt;alias&gt;__oauth_refresh_token=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>oauth_resource_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Operator override of the resource URL the refreshed access token is paired with. When unset, the runtime falls back to the <code>endpoint</code>-derived URL (or the cached <code>resource_url</code> when reading from <code>~/.qwen/oauth_creds.json</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-40"><a class="header" href="#gateway-dashboard-40">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/qwen"><code>/config/providers.models/qwen</code></a> and set the <code>providers.models.qwen.&lt;alias&gt;.oauth_resource_url</code> field.</p>
+<h4 id="zerocode-40"><a class="header" href="#zerocode-40">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.qwen.&lt;alias&gt;.oauth_resource_url</code> field.</p>
+<h4 id="zeroclaw-config-40"><a class="header" href="#zeroclaw-config-40">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.qwen.&lt;alias&gt;.oauth_resource_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-40"><a class="header" href="#environment-variable-40">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__qwen__&lt;alias&gt;__oauth_resource_url=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<div class="provider-row"><code>groq</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>mistral</code> <span class="provider-endpoint"><code>https://api.mistral.ai/v1</code></span></div>
+
+<div class="provider-row"><code>xai</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>deepseek</code> <span class="provider-endpoint"><code>https://api.deepseek.com</code></span></div>
+
+<div class="provider-row"><code>together</code> <span class="provider-endpoint"><code>https://api.together.xyz</code></span></div>
+
+<div class="provider-row"><code>fireworks</code> <span class="provider-endpoint"><code>https://api.fireworks.ai/inference/v1</code></span></div>
+
+<div class="provider-row"><code>novita</code> <span class="provider-endpoint"><code>https://api.novita.ai/openai</code></span></div>
+
+<div class="provider-row"><code>perplexity</code> <span class="provider-endpoint"><code>https://api.perplexity.ai</code></span></div>
+
+<div class="provider-row"><code>cohere</code> <span class="provider-endpoint"><code>https://api.cohere.com/compatibility</code></span></div>
+
+<div class="provider-row"><code>copilot</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<details class="provider-entry"><summary><code>gemini_cli</code> <span class="provider-endpoint">no fixed default · local</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>binary_path</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Path to the <code>gemini</code> CLI binary. Falls back to <code>gemini</code> (PATH lookup).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-41"><a class="header" href="#gateway-dashboard-41">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/gemini_cli"><code>/config/providers.models/gemini_cli</code></a> and set the <code>providers.models.gemini_cli.&lt;alias&gt;.binary_path</code> field.</p>
+<h4 id="zerocode-41"><a class="header" href="#zerocode-41">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.gemini_cli.&lt;alias&gt;.binary_path</code> field.</p>
+<h4 id="zeroclaw-config-41"><a class="header" href="#zeroclaw-config-41">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.gemini_cli.&lt;alias&gt;.binary_path &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-41"><a class="header" href="#environment-variable-41">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__gemini_cli__&lt;alias&gt;__binary_path=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>kilocli</code> <span class="provider-endpoint">no fixed default · local</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>binary_path</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
+<p>Path to the <code>kilo</code> CLI binary. Falls back to <code>kilo</code> (PATH lookup).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-42"><a class="header" href="#gateway-dashboard-42">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/kilocli"><code>/config/providers.models/kilocli</code></a> and set the <code>providers.models.kilocli.&lt;alias&gt;.binary_path</code> field.</p>
+<h4 id="zerocode-42"><a class="header" href="#zerocode-42">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.kilocli.&lt;alias&gt;.binary_path</code> field.</p>
+<h4 id="zeroclaw-config-42"><a class="header" href="#zeroclaw-config-42">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.kilocli.&lt;alias&gt;.binary_path &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-42"><a class="header" href="#environment-variable-42">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__kilocli__&lt;alias&gt;__binary_path=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<details class="provider-entry"><summary><code>kilo</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>`gateway`</code> · default <code>—</code></span></summary>
+<p>Kilo AI Gateway endpoint. Single canonical endpoint at kilo.ai.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-43"><a class="header" href="#gateway-dashboard-43">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/kilo"><code>/config/providers.models/kilo</code></a> and set the <code>providers.models.kilo.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-43"><a class="header" href="#zerocode-43">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.kilo.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-43"><a class="header" href="#zeroclaw-config-43">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.kilo.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-43"><a class="header" href="#environment-variable-43">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__kilo__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<div class="provider-row"><code>lmstudio</code> <span class="provider-endpoint">no fixed default · local</span></div>
+
+<div class="provider-row"><code>llamacpp</code> <span class="provider-endpoint">no fixed default · local</span></div>
+
+<div class="provider-row"><code>sglang</code> <span class="provider-endpoint"><code>http://localhost:30000/v1</code> · local</span></div>
+
+<div class="provider-row"><code>vllm</code> <span class="provider-endpoint"><code>http://localhost:8000/v1</code> · local</span></div>
+
+<div class="provider-row"><code>osaurus</code> <span class="provider-endpoint">no fixed default · local</span></div>
+
+<div class="provider-row"><code>nvidia</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>siliconflow</code> <span class="provider-endpoint"><code>https://api.siliconflow.com/v1</code></span></div>
+
+<div class="provider-row"><code>aihubmix</code> <span class="provider-endpoint"><code>https://aihubmix.com/v1</code></span></div>
+
+<div class="provider-row"><code>litellm</code> <span class="provider-endpoint"><code>http://localhost:4000/v1</code></span></div>
+
+<div class="provider-row"><code>atomic_chat</code> <span class="provider-endpoint">no fixed default · local</span></div>
+
+<div class="provider-row"><code>astrai</code> <span class="provider-endpoint"><code>https://as-trai.com/v1</code></span></div>
+
+<div class="provider-row"><code>deepmyst</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>morph</code> <span class="provider-endpoint"><code>https://api.morphllm.com/v1</code></span></div>
+
+<div class="provider-row"><code>github_models</code> <span class="provider-endpoint"><code>https://models.github.ai/inference</code></span></div>
+
+<div class="provider-row"><code>upstage</code> <span class="provider-endpoint"><code>https://api.upstage.ai/v1</code></span></div>
+
+<div class="provider-row"><code>featherless</code> <span class="provider-endpoint"><code>https://api.featherless.ai/v1</code></span></div>
+
+<div class="provider-row"><code>arcee</code> <span class="provider-endpoint"><code>https://api.arcee.ai/api/v1</code></span></div>
+
+<div class="provider-row"><code>lambda_ai</code> <span class="provider-endpoint"><code>https://api.lambda.ai/v1</code></span></div>
+
+<div class="provider-row"><code>inception</code> <span class="provider-endpoint"><code>https://api.inceptionlabs.ai/v1</code></span></div>
+
+<div class="provider-row"><code>custom</code> <span class="provider-endpoint">no fixed default</span></div>
+
+</div>
+
+<h3 id="fast-inference"><a class="header" href="#fast-inference">Fast inference</a></h3>
+<div class="provider-fields">
+<div class="provider-row"><code>cerebras</code> <span class="provider-endpoint"><code>https://api.cerebras.ai/v1</code></span></div>
+
+<div class="provider-row"><code>sambanova</code> <span class="provider-endpoint"><code>https://api.sambanova.ai/v1</code></span></div>
+
+<div class="provider-row"><code>hyperbolic</code> <span class="provider-endpoint"><code>https://api.hyperbolic.xyz/v1</code></span></div>
+
+</div>
+
+<h3 id="model-hosting-platforms"><a class="header" href="#model-hosting-platforms">Model hosting platforms</a></h3>
+<div class="provider-fields">
+<div class="provider-row"><code>deepinfra</code> <span class="provider-endpoint"><code>https://api.deepinfra.com/v1/openai</code></span></div>
+
+<div class="provider-row"><code>huggingface</code> <span class="provider-endpoint"><code>https://router.huggingface.co/v1</code></span></div>
+
+<div class="provider-row"><code>ai21</code> <span class="provider-endpoint"><code>https://api.ai21.com/studio/v1</code></span></div>
+
+<div class="provider-row"><code>reka</code> <span class="provider-endpoint"><code>https://api.reka.ai/v1</code></span></div>
+
+<div class="provider-row"><code>baseten</code> <span class="provider-endpoint"><code>https://inference.baseten.co/v1</code></span></div>
+
+<div class="provider-row"><code>nscale</code> <span class="provider-endpoint"><code>https://inference.api.nscale.com/v1</code></span></div>
+
+<div class="provider-row"><code>anyscale</code> <span class="provider-endpoint"><code>https://api.endpoints.anyscale.com/v1</code></span></div>
+
+<div class="provider-row"><code>nebius</code> <span class="provider-endpoint"><code>https://api.studio.nebius.ai/v1</code></span></div>
+
+<div class="provider-row"><code>friendli</code> <span class="provider-endpoint"><code>https://api.friendli.ai/serverless/v1</code></span></div>
+
+<div class="provider-row"><code>lepton</code> <span class="provider-endpoint"><code>https://llama3-1-405b.lepton.run/api/v1</code></span></div>
+
+</div>
+
+<h3 id="chinese-ai"><a class="header" href="#chinese-ai">Chinese AI</a></h3>
+<div class="provider-fields">
+<details class="provider-entry"><summary><code>stepfun</code> <span class="provider-endpoint">no fixed default</span></summary>
+<p><strong>Slot-specific fields</strong> (in addition to the shared fields above):</p>
+
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>endpoint</code> <span class="cfg-field-meta"><code>table</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-44"><a class="header" href="#gateway-dashboard-44">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/providers.models/stepfun"><code>/config/providers.models/stepfun</code></a> and set the <code>providers.models.stepfun.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zerocode-44"><a class="header" href="#zerocode-44">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>providers.models.stepfun.&lt;alias&gt;.endpoint</code> field.</p>
+<h4 id="zeroclaw-config-44"><a class="header" href="#zeroclaw-config-44">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set providers.models.stepfun.&lt;alias&gt;.endpoint &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-44"><a class="header" href="#environment-variable-44">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_providers__models__stepfun__&lt;alias&gt;__endpoint=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+</details>
+<div class="provider-row"><code>baichuan</code> <span class="provider-endpoint"><code>https://api.baichuan-ai.com/v1</code></span></div>
+
+<div class="provider-row"><code>yi</code> <span class="provider-endpoint"><code>https://api.lingyiwanwu.com/v1</code></span></div>
+
+<div class="provider-row"><code>hunyuan</code> <span class="provider-endpoint">no fixed default</span></div>
+
+</div>
+
+<h3 id="cloud-ai-endpoints"><a class="header" href="#cloud-ai-endpoints">Cloud AI endpoints</a></h3>
+<div class="provider-fields">
+<div class="provider-row"><code>ovh</code> <span class="provider-endpoint">no fixed default</span></div>
+
+<div class="provider-row"><code>avian</code> <span class="provider-endpoint">no fixed default</span></div>
+
+</div>
+
+<p>For a worked example per family, see <a href="./configuration.html">Configuration</a>. If your vendor isn’t listed, use the <code>custom</code> slot (<a href="./custom.html">Custom providers</a>).</p>
+<h3 id="worked-examples-morph-github-models-upstage-featherless-arcee-lambda-ai-inception"><a class="header" href="#worked-examples-morph-github-models-upstage-featherless-arcee-lambda-ai-inception">Worked examples: Morph, GitHub Models, Upstage, Featherless, Arcee, Lambda AI, Inception</a></h3>
+<p>Each of these is a standard OpenAI-compatible slot: set <code>model</code> and <code>api_key</code>, leave <code>uri</code> off (the typed endpoint supplies it). None of them ship a public model index, so the model picker stays empty until you paste a credential. Once a key is set, ZeroClaw lists models from the provider’s live <code>/models</code> endpoint. The model IDs below are illustrative; confirm the current catalog in the vendor dashboard.</p>
+<p><strong>Morph</strong>: slot <code>morph</code>. Fast apply-edits models (<code>morph-v3-large</code>, <code>morph-v3-fast</code>, or <code>auto</code>). Key from the <a href="https://morphllm.com">Morph dashboard</a>.</p>
+<p><strong>GitHub Models</strong>: slot <code>github_models</code> (alias <code>github-models</code>). OpenAI / Meta / Microsoft models behind a single GitHub Personal Access Token. Create a PAT with the <strong><code>models</code></strong> permission (fine-grained); a Copilot token is <em>not</em> the same credential. Model IDs are publisher-prefixed (e.g. <code>openai/gpt-4o</code>).</p>
+<p><strong>Upstage</strong>: slot <code>upstage</code>. Solar Pro / Solar Mini (e.g. <code>solar-pro2</code>). Key from the <a href="https://console.upstage.ai/api-keys">Upstage console</a>.</p>
+<p><strong>Featherless</strong>: slot <code>featherless</code>. Serverless open-weight models, addressed by their Hugging Face repo IDs (e.g. <code>meta-llama/Meta-Llama-3.1-8B-Instruct</code>). Key from <a href="https://featherless.ai">featherless.ai</a>.</p>
+<p><strong>Arcee</strong>: slot <code>arcee</code>. Native models include <code>conductor</code>, <code>maestro</code>, <code>virtuoso-large</code>, <code>coder-large</code>, and <code>blitz</code>. Key from the <a href="https://www.arcee.ai">Arcee platform</a>. Arcee’s Platform API uses the non-standard <code>/api/v1</code> base path; the typed endpoint already accounts for this, so still leave <code>uri</code> off.</p>
+<p><strong>Lambda AI</strong>: slot <code>lambda_ai</code> (alias <code>lambda-ai</code>). Lambda’s hosted inference (e.g. <code>hermes3-405b</code>). Key from the <a href="https://cloud.lambda.ai">Lambda Cloud</a> API-keys page.</p>
+<p><strong>Inception</strong>: slot <code>inception</code>. The Mercury diffusion-LLM family (<code>mercury-coder</code> and the newer <code>mercury-2</code>). Key from the <a href="https://platform.inceptionlabs.ai">Inception platform</a>.</p>
+<blockquote>
+<p>Credentials come only from config (<code>api_key</code>) or the <code>--credential</code> override at run time, these slots do <strong>not</strong> read a per-provider <code>*_API_KEY</code> environment variable.</p>
 </blockquote>
 <hr>
 <h2 id="familles-multi-régions"><a class="header" href="#familles-multi-régions">Familles multi-régions</a></h2>
 <p>Plusieurs fournisseurs chinois exposent des points de terminaison régionaux distincts avec différents modèles par défaut. Utilisez un seul emplacement canonique et choisissez la région à l’aide du champ typé <code>endpoint</code> sur l’entrée d’alias.</p>
-<h3 id="moonshot--slot-moonshot"><a class="header" href="#moonshot--slot-moonshot">Moonshot — slot <code>moonshot</code></a></h3>
-<pre><code class="language-toml">[providers.models.moonshot.cn]
-api_key  = "..."
-endpoint = "cn"                              # https://api.moonshot.cn/v1
-
-[providers.models.moonshot.intl]
-api_key  = "..."
-endpoint = "intl"                            # https://api.moonshot.ai/v1
-</code></pre>
+<h3 id="moonshot-slot-moonshot"><a class="header" href="#moonshot-slot-moonshot">Moonshot: slot <code>moonshot</code></a></h3>
 <p>Variantes : <code>cn</code>, <code>intl</code>, <code>code</code>.</p>
-<h3 id="qwen--dashscope--emplacement-qwen"><a class="header" href="#qwen--dashscope--emplacement-qwen">Qwen / DashScope — emplacement <code>qwen</code></a></h3>
-<pre><code class="language-toml">[providers.models.qwen.intl]
-api_key   = "..."
-endpoint  = "intl"                           # variantes : cn, intl
-auth_mode = "oauth"                          # facultatif ; pour les comptes Qwen adossés à OAuth
-</code></pre>
+<h3 id="qwen--dashscope-slot-qwen"><a class="header" href="#qwen--dashscope-slot-qwen">Qwen / DashScope: slot <code>qwen</code></a></h3>
 <p>Les comptes Qwen basés sur OAuth utilisent le même emplacement avec <code>auth_mode = "oauth"</code>.</p>
-<h3 id="glm--slot-glm"><a class="header" href="#glm--slot-glm">GLM — slot <code>glm</code></a></h3>
-<pre><code class="language-toml">[providers.models.glm.home]
-api_key  = "..."
-endpoint = "default"
-</code></pre>
-<h3 id="minimax--emplacement-minimax"><a class="header" href="#minimax--emplacement-minimax">MiniMax — emplacement <code>minimax</code></a></h3>
-<pre><code class="language-toml">[providers.models.minimax.intl]
-api_key  = "..."
-endpoint = "intl"                            # variantes : cn, intl
-</code></pre>
-<h3 id="zai--emplacement-zai"><a class="header" href="#zai--emplacement-zai">Z.AI — emplacement <code>zai</code></a></h3>
-<pre><code class="language-toml">[providers.models.zai.home]
-api_key  = "..."
-endpoint = "global"
-</code></pre>
+<h3 id="glm-slot-glm"><a class="header" href="#glm-slot-glm">GLM: slot <code>glm</code></a></h3>
+<h3 id="minimax-slot-minimax"><a class="header" href="#minimax-slot-minimax">MiniMax: slot <code>minimax</code></a></h3>
+<h3 id="zai-slot-zai"><a class="header" href="#zai-slot-zai">Z.AI: slot <code>zai</code></a></h3>
 <p>Pour l’API compatible Anthropic de Z.AI, utilisez <code>[providers.models.anthropic.zai]</code> avec <code>uri = "https://api.z.ai/api/anthropic"</code> à la place.</p>
-<h3 id="doubao--volcengine--emplacement-doubao"><a class="header" href="#doubao--volcengine--emplacement-doubao">Doubao / Volcengine — emplacement <code>doubao</code></a></h3>
-<pre><code class="language-toml">[providers.models.doubao.home]
-api_key  = "..."
-endpoint = "default"
-</code></pre>
-<h3 id="autres-emplacements-de-la-région-chinoise"><a class="header" href="#autres-emplacements-de-la-région-chinoise">Autres emplacements de la région chinoise</a></h3>
-<ul>
-<li><code>yi</code></li>
-<li><code>hunyuan</code></li>
-<li><code>qianfan</code></li>
-<li><code>baichuan</code></li>
-</ul>
+<h3 id="doubao--volcengine-slot-doubao"><a class="header" href="#doubao--volcengine-slot-doubao">Doubao / Volcengine: slot <code>doubao</code></a></h3>
+<p>The remaining Chinese-region slots (<code>yi</code>, <code>hunyuan</code>, <code>qianfan</code>, <code>baichuan</code>) appear in the all-slots table above; select the region with the typed <code>endpoint</code> field on the alias entry.</p>
 <hr>
 <h2 id="couches-de-routage"><a class="header" href="#couches-de-routage">Couches de routage</a></h2>
 <p>OpenRouter est traité comme un fournisseur de première classe à part entière, et non comme un méta-routeur. Le runtime ne voit qu’un seul point de terminaison ; OpenRouter gère la répartition entre les fournisseurs derrière ce point de terminaison.</p>
-<pre><code class="language-toml">[providers.models.openrouter.home]
-model   = "anthropic/claude-sonnet-4-20250514"
-api_key = "sk-or-..."
-</code></pre>
-<p>Pour le routage par tâche, exécutez plusieurs agents et laissez les canaux choisir quel agent gère quel trafic — voir <a href="./routing.html">Routing</a>. Pour un mécanisme d’indication plus restreint dans la configuration, utilisez <code>[[model_routes]]</code>.</p>
+<p>For per-task routing, run multiple agents and let channels pick which agent handles which traffic, see <a href="./routing.html">Routing</a>. For a narrower in-config hint mechanism, use <code>[[model_routes]]</code>.</p>
 <hr>
 <h2 id="il-manque-quelque-chose-"><a class="header" href="#il-manque-quelque-chose-">Il manque quelque chose ?</a></h2>
 <ul>
 <li>Si le point de terminaison est compatible avec OpenAI, utilisez l’emplacement <code>custom</code> avec <code>uri</code> défini.</li>
-<li>S’il possède son propre emplacement canonique ci-dessus, utilisez-le — même si vous ne voyez qu’une seule de ses régions, l’énumération <code>endpoint</code> de l’emplacement couvre le reste.</li>
+<li>If it has its own canonical slot above, use that, even if you only see one of its regions, the slot’s <code>endpoint</code> enum covers the rest.</li>
 <li>S’il utilise un format de communication non-OpenAI et nécessite sa propre implémentation, consultez <a href="./custom.html">Fournisseurs personnalisés</a>.</li>
 </ul>
 
@@ -443,11 +1465,11 @@ api_key = "sk-or-..."
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../providers/routing.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../providers/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../providers/custom.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../providers/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -457,11 +1479,11 @@ api_key = "sk-or-..."
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../providers/routing.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../providers/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../providers/custom.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../providers/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

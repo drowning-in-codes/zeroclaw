@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,9 +293,14 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="building-the-docs-locally"><a class="header" href="#building-the-docs-locally">Building the docs locally</a></h1>
-<p>The docs site you’re reading is published from <code>docs/book/</code>. You can build the same site on your own machine — useful for offline reading, previewing edits before opening a PR, or developing translations.</p>
+<p>The docs site you’re reading is published from <code>docs/book/</code>. You can build the same site on your own machine, useful for offline reading, previewing edits before opening a PR, or developing translations.</p>
+<!-- Canonical local docs-build commands and tooling. Edit here; reuse via
+     {{#include}}. Shared by developing/building-docs and
+     maintainers/docs-and-translations. -->
 <h2 id="one-command-quickstart"><a class="header" href="#one-command-quickstart">One-command quickstart</a></h2>
-<pre><code class="language-bash">cargo mdbook serve                       # serve all locales at http://localhost:3000/en/
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook serve                       # serve all locales at http://localhost:3000/en/
 cargo mdbook serve --locale ja           # live-reload against Japanese source
 cargo mdbook build                       # static build of every locale into docs/book/book/
 cargo mdbook refs                        # regenerate the auto-generated reference pages
@@ -230,6 +311,8 @@ cargo mdbook sync --locale ja --force    # force-retranslate one locale
 cargo mdbook stats                       # show translated/fuzzy/untranslated per locale
 cargo mdbook check                       # validate .po format (run before a translation PR)
 </code></pre>
+</div>
+
 <blockquote>
 <p>Always go through the <code>cargo mdbook …</code> wrapper. Running <code>mdbook build</code> directly from <code>docs/book/</code> skips the xtask step that renders <code>theme/lang-switcher.js</code> from <code>locales.toml</code>, which fails the build with <code>failed to open theme/lang-switcher.js for hashing</code>.</p>
 </blockquote>
@@ -262,79 +345,16 @@ cargo mdbook check                       # validate .po format (run before a tra
 </tbody>
 </table>
 </div>
-<p>The two <code>reference/*.md</code> files are generated from the actual <code>clap</code> derives and JSON schema in the code — never edit them by hand. Edit the <code>///</code> doc comments on the relevant Rust types instead.</p>
-<h2 id="how-translations-stay-current"><a class="header" href="#how-translations-stay-current">How translations stay current</a></h2>
-<p>English markdown is the only source maintained by humans. Translations are stored in <code>docs/book/po/&lt;locale&gt;.po</code> files, which act as a cache — not as copies of the docs.</p>
-<p>When English source changes, <code>cargo mdbook sync</code> runs two stages:</p>
-<ol>
-<li><strong>Extract</strong>: <code>mdbook-xgettext</code> regenerates <code>po/messages.pot</code> from the current English source</li>
-<li><strong>Merge</strong>: <code>msgmerge</code> updates each locale’s <code>.po</code> file — new strings get an empty <code>msgstr ""</code>; changed strings get marked <code>#, fuzzy</code> with the old translation preserved as a starting point</li>
-</ol>
-<p>Then the command counts fuzzy + untranslated entries. If there’s a delta and <code>--provider</code> is given, the <code>fill-translations</code> tool translates only those entries. <strong>Unchanged strings cost nothing</strong> — the <code>.po</code> file cache means re-running against unchanged source is a no-op.</p>
-<p>Without <code>--provider</code>, <code>cargo mdbook sync</code> still runs extract + merge and reports how many strings need translation. Strings without a <code>msgstr</code> fall back to English at render time — partial translations are valid.</p>
-<p><code>cargo mdbook sync</code> normalizes generated gettext catalogs with stable output rules (<code>msgcat --sort-output --no-wrap --add-location=file</code>). That keeps diffs focused on real source changes and avoids global line-number churn from small edits.</p>
-<p>Expected unavoidable churn:</p>
-<ul>
-<li>Header metadata updates (for example <code>POT-Creation-Date</code> / <code>PO-Revision-Date</code>)</li>
-<li>Reference updates when a string moves to a different source file</li>
-<li>Actual source-string additions, removals, and edits</li>
-</ul>
-<p>Quick stability check after a small docs edit:</p>
-<pre><code class="language-bash">cargo mdbook sync
-git diff --numstat -- docs/book/po
-</code></pre>
-<p>Routine English docs PRs do not need to include generated <code>.po</code> churn when the sync output is broad and hard to review. Keep the prose PR focused, leave the generated catalog refresh for a dedicated translation-cache PR, and say so in the PR body:</p>
-<blockquote>
-<p>Skipped committing generated <code>.po</code> updates: this is an English docs-only change, and <code>cargo mdbook sync</code> would produce broad gettext catalog churn. Translation-cache updates are deferred to a dedicated follow-up PR.</p>
-</blockquote>
-<p>Include <code>.po</code> updates only when one of these is true:</p>
-<ul>
-<li>The PR is specifically a translation-cache or release-translation pass.</li>
-<li>The PR adds a new locale.</li>
-<li><code>cargo mdbook sync</code> produces a small, reviewable diff limited to the strings changed by the PR.</li>
-</ul>
-<h2 id="adding-a-new-locale"><a class="header" href="#adding-a-new-locale">Adding a new locale</a></h2>
-<ol>
-<li>
-<p>Edit <code>locales.toml</code> at the repo root — the <strong>only</strong> file you need to touch:</p>
-<pre><code class="language-toml">[[locale]]
-code = "xx"
-label = "Language Name"
-</code></pre>
-<p>Everything else (<code>lang-switcher.js</code>, CI, <code>cargo fluent fill</code>, <code>cargo mdbook sync</code>) reads from this file automatically.</p>
-</li>
-<li>
-<p>Bootstrap and fill the docs translations:</p>
-<pre><code class="language-bash">cargo mdbook sync --locale xx --provider ollama
-</code></pre>
-<p>If the <code>.po</code> file doesn’t exist it’s bootstrapped automatically, then all entries are filled.</p>
-</li>
-<li>
-<p>Validate and preview:</p>
-<pre><code class="language-bash">cargo mdbook check              # exits non-zero on format errors
-cargo mdbook stats              # show coverage counts
-cargo mdbook serve --locale xx
-</code></pre>
-</li>
-</ol>
-<h2 id="release-translation-workflow"><a class="header" href="#release-translation-workflow">Release translation workflow</a></h2>
-<p>Before tagging a release, run a full translation pass locally and commit the updated <code>.po</code> files.</p>
-<pre><code class="language-bash"># Fast delta pass (only new or changed strings since last release)
-cargo mdbook sync --provider ollama
-
-# OR: quality pass — re-translate everything
-cargo mdbook sync --provider ollama --force
-
-cargo mdbook check   # validate before committing
-cargo mdbook stats   # review coverage
-</code></pre>
-<p>The model used is whatever is configured in <code>[providers.models.&lt;name&gt;]</code> in <code>config.toml</code>.</p>
+<p>The two <code>reference/*.md</code> files are generated from the actual <code>clap</code> derives and JSON schema in the code, never edit them by hand. Edit the <code>///</code> doc comments on the relevant Rust types instead.</p>
+<p><code>cargo mdbook</code> is an alias for <code>cargo run -p xtask --bin mdbook --</code> (defined in the cargo config).</p>
+<h2 id="translations"><a class="header" href="#translations">Translations</a></h2>
+<p>English markdown is the only source maintained by humans. Translations live in <code>docs/book/po/&lt;locale&gt;.po</code> files that act as a cache, and <code>cargo mdbook sync</code> keeps them current. Routine English docs PRs do not need to carry the generated <code>.po</code> churn: leave it for a dedicated translation-cache PR. For the full translation pipeline (app strings, docs, zerocode, adding a locale, release passes), see <a href="../maintainers/docs-and-translations.html">Docs &amp; Translations</a>.</p>
 <h2 id="tips"><a class="header" href="#tips">Tips</a></h2>
 <ul>
 <li><strong>Fast iteration on prose:</strong> <code>cargo mdbook serve</code> auto-rebuilds on save. Skip <code>cargo mdbook refs</code> unless you’ve changed CLI flags or config schema.</li>
-<li><strong>Fast iteration on translations:</strong> edit <code>po/&lt;locale&gt;.po</code> and reload the browser — mdbook serve detects <code>.po</code> changes and rebuilds automatically.</li>
+<li><strong>Fast iteration on translations:</strong> edit <code>po/&lt;locale&gt;.po</code> and reload the browser, mdbook serve detects <code>.po</code> changes and rebuilds automatically.</li>
 <li><strong>Cleaning up:</strong> <code>rm -rf docs/book/book target/doc</code> removes everything generated.</li>
-<li><strong>Zero-cost re-runs:</strong> <code>cargo mdbook sync</code> against unchanged English source completes in seconds — no AI calls, no cost.</li>
+<li><strong>Zero-cost re-runs:</strong> <code>cargo mdbook sync</code> against unchanged English source completes in seconds, no AI calls, no cost.</li>
 </ul>
 
                     </main>

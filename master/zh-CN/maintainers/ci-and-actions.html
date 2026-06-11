@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,25 +293,35 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="ci--actions"><a class="header" href="#ci--actions">CI &amp; Actions</a></h1>
-<p>每个工作流都位于 <code>.github/workflows/</code> 目录下。以下部分按触发方式对工作流进行分组——由 Git 事件自动触发，或通过 <code>workflow_dispatch</code> 手动触发。</p>
+<p>Every workflow lives in <code>.github/workflows/</code>. The sections below group them by trigger: automatic on git events, or manual via <code>workflow_dispatch</code>.</p>
 <h2 id="自动工作流"><a class="header" href="#自动工作流">自动工作流</a></h2>
 <h3 id="质量门禁ciyml"><a class="header" href="#质量门禁ciyml">质量门禁（<code>ci.yml</code>）</a></h3>
 <p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>. Composite job with multiple matrix legs:</p>
 <ul>
-<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
-<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
-<li><strong>构建</strong> — 矩阵：<code>x86_64-unknown-linux-gnu</code>、<code>aarch64-apple-darwin</code>、<code>x86_64-pc-windows-msvc</code></li>
-<li><strong>check</strong> — 所有功能 + 无默认功能</li>
-<li><strong>check-32bit</strong> — <code>i686-unknown-linux-gnu</code>，无默认特性</li>
-<li><strong>bench</strong> — 基准测试编译检查</li>
-<li><strong>test</strong> — 在 Linux 上运行 <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code></li>
-<li><strong>安全性</strong> — <code>cargo deny check</code></li>
+<li><strong>fmt</strong>: <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong>: <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code>, plus two architecture guards (<code>cargo test --test architecture</code>): config-write isolation and Fluent coverage (no bare user-facing strings)</li>
+<li><strong>build</strong>: matrix: <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
+<li><strong>check</strong>: all features + no-default-features</li>
+<li><strong>check-32bit</strong>: <code>i686-unknown-linux-gnu</code> with no default features</li>
+<li><strong>bench</strong>: benchmarks compile check</li>
+<li><strong>test</strong>: <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> on Linux</li>
+<li><strong>security</strong>: <code>cargo deny check</code></li>
+<li><strong>nix-eval</strong>: evaluates the NixOS module assertions (<code>nixos-module-eval</code> flake check)</li>
+<li><strong>docs-style</strong>: markdown lint + em-dash prose check via <code>scripts/ci/docs_quality_gate.sh</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. Every other job declares <code>needs: [fmt]</code> and fans out after formatting passes; <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="每日顾问扫描-daily-audityml"><a class="header" href="#每日顾问扫描-daily-audityml">每日顾问扫描 (<code>daily-audit.yml</code>)</a></h3>
-<p>每晚对依赖树运行 <code>cargo audit</code>。在发现漏洞时创建问题。除非报告了漏洞，否则不采取任何操作。</p>
+<p>Runs <code>cargo deny check advisories</code> daily at 09:00 UTC against the dependency tree. Opens an issue on findings. No action unless a vulnerability is reported.</p>
 <h3 id="pr-路径标签器-pr-path-labeleryml"><a class="header" href="#pr-路径标签器-pr-path-labeleryml">PR 路径标签器 (<code>pr-path-labeler.yml</code>)</a></h3>
-<p>根据更改的文件路径自动应用作用域和风险标签。在每次 PR 中静默运行——如果 PR 缺少标签，请检查 <code>.github/labeler.yml</code> 中的路径是否覆盖了这些更改。</p>
+<p>Auto-applies path and scope labels based on changed files. It runs on PR open, reopen, and every pushed update to the PR branch. Because <code>sync-labels: true</code> is enabled, labels defined in <code>.github/labeler.yml</code> are recalculated from the current PR file set.</p>
+<p>This workflow does not currently apply <code>risk:*</code>, <code>size:*</code>, <code>type:*</code>, contributor-tier, status, resolution, stale, or pickup labels. If a PR is missing a path/scope label, check whether the paths in <code>.github/labeler.yml</code> cover the changes.</p>
+<p>Dependabot has separate label configuration in <code>.github/dependabot.yml</code> for its own PRs. Cargo update PRs start with <code>dependencies</code>; GitHub Actions and Docker update PRs start with <code>ci</code> and <code>dependencies</code>.</p>
+<h3 id="validate-pr-title-pr-titleyml"><a class="header" href="#validate-pr-title-pr-titleyml">Validate PR title (<code>pr-title.yml</code>)</a></h3>
+<p>Runs on every PR open/edit/synchronize. Runs the validator unit tests (<code>scripts/check-pr-title.test.sh</code>) and checks the PR title against Conventional Commits (<code>scripts/check-pr-title.sh</code>).</p>
+<h3 id="deploy-mdbook-docs-to-pages-docs-deployyml"><a class="header" href="#deploy-mdbook-docs-to-pages-docs-deployyml">Deploy mdBook docs to Pages (<code>docs-deploy.yml</code>)</a></h3>
+<p>Triggered on tag push (and <code>workflow_dispatch</code>); builds and publishes versioned docs to the <code>gh-pages</code> branch. See <a href="./release-runbook.html#step-7-versioned-documentation-deployment">Release Runbook → Versioned documentation deployment</a> for the version-floor and bootstrap rules.</p>
+<h3 id="docker-image-pr-check-docker-image-pryml"><a class="header" href="#docker-image-pr-check-docker-image-pryml">Docker Image PR Check (<code>docker-image-pr.yml</code>)</a></h3>
+<p>Runs only when Docker image or release-Docker context files change. It prepares a smoke <code>docker-ctx</code> with the same helper used by the stable release workflow, then builds the default and Debian compatibility images without pushing either image. This catches image dependency and <code>COPY</code> path breakage before release without giving PR runs registry write permission or running on every PR.</p>
 <h3 id="discord-发布discord-releaseyml"><a class="header" href="#discord-发布discord-releaseyml">Discord 发布（<code>discord-release.yml</code>）</a></h3>
 <p>在稳定版发布成功后触发。将发布说明发布到社区 Discord。</p>
 <h3 id="推文发布-tweet-releaseyml"><a class="header" href="#推文发布-tweet-releaseyml">推文发布 (<code>tweet-release.yml</code>)</a></h3>
@@ -243,10 +329,10 @@
 <p>文档作为发布流程的一部分进行构建和发布，而非在每次 <code>master</code> 推送时执行。翻译是仅限本地的工作流：运行 <code>cargo mdbook sync --provider &lt;name&gt;</code> 以处理专用的翻译缓存 PR、新增语言环境以及发布翻译流程。常规的英文文档 PR 可以推迟处理大范围生成的 <code>.po</code> 变更。详情请参阅 <a href="./docs-and-translations.html">Docs &amp; Translations</a>。</p>
 <h2 id="手动工作流"><a class="header" href="#手动工作流">手动工作流</a></h2>
 <h3 id="跨平台构建cross-platform-build-manualyml"><a class="header" href="#跨平台构建cross-platform-build-manualyml">跨平台构建（<code>cross-platform-build-manual.yml</code>）</a></h3>
-<p>手动触发构建发布二进制文件，覆盖完整的目标平台矩阵（Linux GNU/MUSL、macOS Intel/ARM、Windows、其他 ARM Linux 目标）。在打标签前，使用此功能验证分支在非 Linux 目标平台上能否干净地编译。</p>
+<p>Manual trigger for building release binaries across the full target matrix: Linux x86_64/aarch64 GNU plus armv7 and arm hard-float, macOS Intel/ARM, Windows x86_64, and <code>aarch64-linux-android</code> (built with the NDK). Use this to verify a branch compiles cleanly on non-Linux targets before tagging.</p>
 <h3 id="发布稳定版release-stable-manualyml"><a class="header" href="#发布稳定版release-stable-manualyml">发布稳定版（<code>release-stable-manual.yml</code>）</a></h3>
-<p>手动触发完整发布流水线。构建所有目标，创建 GitHub Release，发布到 crates.io，推送 Docker 镜像，并调用下游工作流。运行过程中需要维护者批准三个环境门禁：<code>github-releases</code>、<code>crates-io</code>、<code>docker</code>。</p>
-<p>请参阅仓库 <code>docs/maintainers/</code> 目录中的发布运行手册，以获取完整流程（该手册尚未迁移至本 mdBook）。</p>
+<p>Manual trigger for the full release pipeline. Builds all targets, creates the GitHub Release, pushes Docker images to GHCR, triggers the website redeploy, and invokes the distribution sub-workflows (Scoop, AUR, Homebrew, Discord, tweet). Two environment gates require maintainer approval mid-run: <code>github-releases</code> (the <code>publish</code> job) and <code>docker</code>.</p>
+<p>See the <a href="./release-runbook.html">Release Runbook</a> for the full procedure.</p>
 <h3 id="软件包发布者"><a class="header" href="#软件包发布者">软件包发布者</a></h3>
 <p>每个工作流都在 <code>workflow_dispatch</code> 触发时运行，并接收一个版本输入参数。此外，它们也会在发布工作流成功发布后被调用。</p>
 <div class="table-wrapper">
@@ -270,22 +356,23 @@
 <tbody>
 <tr><td><code>AUR_SSH_KEY</code></td><td><code>pub-aur.yml</code></td></tr>
 <tr><td><code>DISCORD_WEBHOOK_URL</code></td><td><code>discord-release.yml</code></td></tr>
-<tr><td><code>TWITTER_*</code> 令牌</td><td><code>tweet-release.yml</code></td></tr>
-<tr><td><code>HOMEBREW_CORE_TOKEN</code></td><td><code>pub-homebrew-core.yml</code></td></tr>
-<tr><td><code>CARGO_REGISTRY_TOKEN</code></td><td><code>release-stable-manual.yml</code></td></tr>
-<tr><td><code>DOCKER_HUB_TOKEN</code></td><td><code>release-stable-manual.yml</code></td></tr>
-<tr><td><code>GITHUB_TOKEN</code>（自动）</td><td>所有推送提交或打开 PR 的工作流</td></tr>
+<tr><td><code>TWITTER_ACCESS_TOKEN</code>, <code>TWITTER_ACCESS_TOKEN_SECRET</code>, <code>TWITTER_CONSUMER_API_KEY</code>, <code>TWITTER_CONSUMER_API_SECRET_KEY</code></td><td><code>tweet-release.yml</code></td></tr>
+<tr><td><code>HOMEBREW_CORE_BOT_TOKEN</code>, <code>HOMEBREW_UPSTREAM_PR_TOKEN</code></td><td><code>pub-homebrew-core.yml</code></td></tr>
+<tr><td><code>SCOOP_BUCKET_TOKEN</code></td><td><code>pub-scoop.yml</code></td></tr>
+<tr><td><code>WEBSITE_REPO_PAT</code></td><td><code>release-stable-manual.yml</code> (triggers the website repo redeploy)</td></tr>
+<tr><td><code>GITHUB_TOKEN</code>（自动）</td><td>All workflows that push commits, open PRs, or push images to GHCR</td></tr>
 </tbody>
 </table>
 </div>
+<p>Docker images push to GHCR using the automatic <code>GITHUB_TOKEN</code>; there is no separate registry token. The release pipeline does not publish to crates.io, so no <code>CARGO_REGISTRY_TOKEN</code> is required.</p>
 <h2 id="构建缓存行为"><a class="header" href="#构建缓存行为">构建缓存行为</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The <code>fmt</code>, <code>nix-eval</code>, and <code>docs-style</code> jobs (none of which compile the workspace) do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>失败时保存缓存。</strong> 每个作业都设置了 <code>cache-on-failure: true</code>，因此部分运行仍可为下一次尝试预热缓存。</li>
-<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>增量编译已禁用。</strong> 工作流级别设置了 <code>CARGO_INCREMENTAL: 0</code>。增量构建会增大缓存体积，并在部分陈旧条件下产生不可复现的构建产物。</li>
-<li><strong><code>cargo-deny</code> 未被缓存。</strong> <code>security</code> 作业每次运行都会从源代码全新安装它。未来的改进方案是使用 <code>taiki-e/install-action</code>，该工具已经缓存了 <code>cargo-nextest</code>。</li>
+<li><strong><code>cargo-deny</code> and <code>cargo-nextest</code> are installed fresh each run.</strong> The <code>security</code> job runs <code>cargo install cargo-deny --locked</code>; the <code>test</code> job pulls the <code>cargo-nextest</code> binary from <code>get.nexte.st</code>. Neither is cached, so both add a fixed install cost to every run. Switching either to <code>taiki-e/install-action</code> would let them be cached, but that action is not in the allowlist today.</li>
 </ul>
 <h2 id="当闸门变红时"><a class="header" href="#当闸门变红时">当闸门变红时</a></h2>
 <div class="table-wrapper">
@@ -303,44 +390,51 @@
 </table>
 </div>
 <h2 id="允许的操作"><a class="header" href="#允许的操作">允许的操作</a></h2>
-<p>该仓库以 <code>selected</code> 模式运行 Actions——仅允许白名单中的 Actions 运行。白名单必须保持严格；新增的第三方 Actions 需经维护者明确批准后方可添加。</p>
+<p>The repository runs Actions in <code>selected</code> mode, only the actions in this allowlist may run. The allowlist must stay tight; new third-party actions need explicit maintainer approval before being added.</p>
+<p>All third-party refs are pinned to a full commit SHA with a trailing version comment; the version column below records that comment.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>操作</th><th>用于</th><th>目的</th></tr>
 </thead>
 <tbody>
-<tr><td><code>actions/checkout@v4</code></td><td>所有工作流</td><td>检出仓库</td></tr>
-<tr><td><code>actions/upload-artifact@v4</code></td><td>发布</td><td>上传构建产物</td></tr>
-<tr><td><code>actions/download-artifact@v4</code></td><td>发布</td><td>下载用于打包的构建产物</td></tr>
-<tr><td><code>actions/labeler@v5</code></td><td><code>pr-path-labeler.yml</code></td><td>从 <code>.github/labeler.yml</code> 应用路径/作用域标签</td></tr>
-<tr><td><code>dtolnay/rust-toolchain@stable</code></td><td>所有工作流</td><td>安装 Rust 工具链</td></tr>
-<tr><td><code>Swatinem/rust-cache@v2</code></td><td>所有工作流</td><td>Cargo 构建/依赖缓存</td></tr>
-<tr><td><code>softprops/action-gh-release@v2</code></td><td>发布</td><td>创建 GitHub 发布版本</td></tr>
-<tr><td><code>docker/setup-buildx-action@v3</code></td><td>发布</td><td>Docker Buildx 设置</td></tr>
-<tr><td><code>docker/login-action@v3</code></td><td>发布</td><td>GHCR 身份验证</td></tr>
-<tr><td><code>docker/build-push-action@v6</code></td><td>发布</td><td>多平台镜像构建与推送</td></tr>
+<tr><td><code>actions/checkout</code> (<code>v6.0.2</code>)</td><td>Most workflows</td><td>检出仓库</td></tr>
+<tr><td><code>actions/cache</code> (<code>v5.0.5</code>)</td><td><code>tweet-release.yml</code></td><td>Generic dependency caching</td></tr>
+<tr><td><code>actions/setup-node</code> (<code>v6.4.0</code>)</td><td><code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code></td><td>Node toolchain for the web-dashboard build</td></tr>
+<tr><td><code>actions/upload-artifact</code> (<code>v7.0.1</code>)</td><td><code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code></td><td>上传构建产物</td></tr>
+<tr><td><code>actions/download-artifact</code> (<code>v8.0.1</code>)</td><td><code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code></td><td>下载用于打包的构建产物</td></tr>
+<tr><td><code>actions/labeler</code> (<code>v6.1.0</code>)</td><td><code>pr-path-labeler.yml</code></td><td>从 <code>.github/labeler.yml</code> 应用路径/作用域标签</td></tr>
+<tr><td><code>dtolnay/rust-toolchain</code> (<code>stable</code>)</td><td><code>ci.yml</code>, <code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code>, <code>daily-audit.yml</code>, <code>docs-deploy.yml</code></td><td>安装 Rust 工具链</td></tr>
+<tr><td><code>Swatinem/rust-cache</code> (<code>v2.9.1</code>)</td><td><code>ci.yml</code>, <code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code>, <code>docs-deploy.yml</code></td><td>Cargo 构建/依赖缓存</td></tr>
+<tr><td><code>docker/setup-buildx-action</code> (<code>v4.0.0</code>)</td><td><code>release-stable-manual.yml</code></td><td>Docker Buildx 设置</td></tr>
+<tr><td><code>docker/login-action</code> (<code>v4.1.0</code>)</td><td><code>release-stable-manual.yml</code></td><td>GHCR 身份验证</td></tr>
+<tr><td><code>docker/build-push-action</code> (<code>v7.1.0</code>)</td><td><code>release-stable-manual.yml</code></td><td>多平台镜像构建与推送</td></tr>
 </tbody>
 </table>
 </div>
+<p>The GitHub Release itself is created with <code>gh release create</code> inside the <code>publish</code> job, not a release action.</p>
 <p>等效的白名单模式（故意保持狭窄）：</p>
 <pre><code>actions/*
 dtolnay/rust-toolchain@*
 Swatinem/rust-cache@*
-softprops/action-gh-release@*
 docker/*
 </code></pre>
 <p>导出当前生效的策略：</p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/actions/permissions
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/actions/permissions
 gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 </code></pre>
+</div>
+
 <p>任何添加或更改 <code>uses:</code> 操作来源的 PR 都必须在正文中包含一个白名单影响说明。避免使用宽泛的通配符例外；仅针对已验证缺失的操作扩展白名单。</p>
 <h2 id="维护规则"><a class="header" href="#维护规则">维护规则</a></h2>
 <ul>
 <li>保持 <code>CI Required Gate</code> 的确定性和简洁性。向该门禁添加作业需要有明确的质量依据。</li>
 <li>所有第三方操作引用必须固定到完整的提交 SHA（根据上述白名单策略）。</li>
-<li>保持 <code>ci.yml</code>、<code>dev/ci.sh</code> 和 <code>.githooks/pre-push</code> 同步——确保本地和 CI 中运行相同的质量检查。</li>
-<li><code>docs-quality</code> 检查未包含在必需的门禁中。请通过运行 <code>bash scripts/ci/docs_quality_gate.sh</code> 在本地执行这些检查。</li>
+<li>Keep <code>ci.yml</code>, <code>dev/ci.sh</code>, and <code>.githooks/pre-push</code> aligned, the same quality gates run locally and in CI.</li>
+<li>Keep <code>scripts/ci/prepare_docker_context.sh</code>, <code>docker-image-pr.yml</code>, and the Docker job in <code>release-stable-manual.yml</code> aligned so PR validation exercises the same context shape the release workflow publishes.</li>
+<li>The <code>docs-style</code> gate job runs <code>bash scripts/ci/docs_quality_gate.sh</code> (markdown lint + em-dash prose check). Run the same script locally before pushing docs changes.</li>
 </ul>
 <h2 id="紧急回滚"><a class="header" href="#紧急回滚">紧急回滚</a></h2>
 <p>如果白名单在事件处理过程中锁定了关键操作：</p>
@@ -349,7 +443,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <li>在识别出缺失的条目后，恢复 <code>selected</code> 的白名单。</li>
 <li>记录事件和最终的白名单差异。</li>
 </ol>
-<p>这是进入 <code>all</code> 模式的唯一合理路径——且该模式不应持续超过事件处理时间。</p>
+<p>This is the only justified path to <code>all</code> mode, and it should never outlast the incident.</p>
 
                     </main>
 

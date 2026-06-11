@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -238,45 +314,30 @@
 </tbody>
 </table>
 </div>
-<p>Python 辅助文件不需要 <code>allow_scripts = true</code>。仅在你审查过技能源代码后，才启用类似 shell 的辅助文件：</p>
-<pre><code class="language-toml">[skills]
-allow_scripts = true
-</code></pre>
-<p>允许代理所使用的风险配置文件中的解释器：</p>
-<pre><code class="language-toml">[agents.assistant]
-risk_profile = "assistant"
-
-[risk_profiles.assistant]
-allowed_commands = ["python3", "python"]
-</code></pre>
-<p><code>allowed_commands</code> 非空时是一份严格的可执行文件允许列表。Shell 策略仍会在该允许列表的基础上检查破坏性模式和解释器参数风险。</p>
+<p>Python helper files do not require <code>allow_scripts = true</code>. Enable shell-like helper files only after you have reviewed the skill source, and allow the interpreter (<code>python</code>, <code>python3</code>, <code>pip</code>) in the risk profile’s <code>allowed_commands</code>. <code>allowed_commands</code> is a strict executable allowlist when it is non-empty. The shell policy still checks destructive patterns and interpreter argument risks on top of that allowlist.</p>
 <p>优先在镜像构建时、经过审查的本地虚拟环境中，或在 agent 轮次之外的其他设置步骤中安装 Python 包。仅当运行时安装包是该部署有意为之的一部分时，才将 <code>pip</code> 添加到受信任的配置文件中。</p>
 <h2 id="哪些内容仍被阻止"><a class="header" href="#哪些内容仍被阻止">哪些内容仍被阻止</a></h2>
 <p>ZeroClaw 会刻意阻止内联解释器执行，例如：</p>
-<pre><code class="language-bash">python3 -c print("hello")
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">python3 -c print("hello")
 python3 -m http.server
 python3 -m pip install requests
 node -e console.log(process.env)
 </code></pre>
+</div>
+
 <p>对于 Python 技能，将代码放在可审查的脚本文件中并运行该文件：</p>
-<pre><code class="language-bash">python3 skills/portfolio/run.py
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">python3 skills/portfolio/run.py
 </code></pre>
+</div>
+
 <p>这样可使该可执行文件能够通过 skill 审计路径进行审查，并避免将 shell 命令字符串变为任意代码的容器。</p>
 <p>诸如 <code>PYTHONPATH=... python3 script.py</code> 这样的环境变量前缀也属于策略敏感项。当你需要稳定的运行时环境配置时，建议使用封装脚本、项目本地的虚拟环境，或在脚本内部进行显式配置。</p>
 <h2 id="模式-a可信原生-python"><a class="header" href="#模式-a可信原生-python">模式 A：可信原生 Python</a></h2>
 <p>当技能可信，且希望它们使用主机的 Python 安装、软件包、文件系统权限和网络时，请使用本机执行。</p>
-<pre><code class="language-toml">[agents.assistant]
-risk_profile = "assistant"
-
-[runtime]
-kind = "native"
-
-[risk_profiles.assistant]
-level = "supervised"
-allowed_commands = ["python3", "python"]
-sandbox_enabled = false
-sandbox_backend = "none"
-</code></pre>
 <p>此设置适用于本地开发、单用户工作站，或你自行编写技能的家庭实验室环境。它会移除该配置下工具运行时的操作系统级沙箱，因此普通用户权限和 ZeroClaw 策略检查将成为仅存的防护机制。</p>
 <p>请勿将此模式用于未经审查的第三方技能或多租户部署。</p>
 <h2 id="模式-b自定义-docker-运行时镜像"><a class="header" href="#模式-b自定义-docker-运行时镜像">模式 B：自定义 Docker 运行时镜像</a></h2>
@@ -293,41 +354,18 @@ RUN pip install --no-cache-dir \
 WORKDIR /workspace
 </code></pre>
 <p>构建它：</p>
-<pre><code class="language-bash">docker build -f Dockerfile.skill-exec -t zeroclaw-python-skills:local .
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">docker build -f Dockerfile.skill-exec -t zeroclaw-python-skills:local .
 </code></pre>
-<p>将 ZeroClaw 指向该镜像：</p>
-<pre><code class="language-toml">[agents.assistant]
-risk_profile = "assistant"
+</div>
 
-[runtime]
-kind = "docker"
-
-[runtime.docker]
-image = "zeroclaw-python-skills:local"
-network = "none"
-read_only_rootfs = true
-mount_workspace = true
-
-[risk_profiles.assistant]
-level = "supervised"
-allowed_commands = ["python3", "python"]
-sandbox_enabled = false
-sandbox_backend = "none"
-</code></pre>
-<p><code>runtime.kind = "docker"</code> 在临时容器中运行 shell 调用。Docker 特定的镜像、网络、内存、CPU、只读 rootfs 和工作区挂载设置位于 <code>[runtime.docker]</code> 下。</p>
-<p><code>sandbox_backend = "none"</code> 这一行可避免将 Docker 运行时包裹在第二个独立的沙箱容器中。在此模式下，Docker 运行时是内置 shell 调用的执行边界，而 <code>[runtime.docker]</code> 则是配置镜像和容器限制的位置。</p>
-<p>如果技能需要出站 HTTP，请有针对性地修改 <code>runtime.docker.network</code>，例如：</p>
-<pre><code class="language-toml">[runtime.docker]
-network = "bridge"
-</code></pre>
-<p>如果某个 skill 需要在挂载的工作区之外写入包缓存、报告或临时状态，请先评估是否应改为写入到 <code>/workspace</code> 下，只有当这样仍不足以满足需求时，才放宽 <code>read_only_rootfs</code>。</p>
+<p>Point ZeroClaw at the image via <code>runtime.kind = "docker"</code>, which runs shell invocations in an ephemeral container. Docker-specific image, network, memory, CPU, read-only rootfs, and workspace mount settings live under <code>runtime.docker</code>.</p>
+<p>Set <code>sandbox_backend = "none"</code> to avoid wrapping the Docker runtime in a second, separate sandbox container. In this pattern the Docker runtime is the execution boundary for built-in shell invocations, and <code>runtime.docker</code> is where the image and container limits are configured.</p>
+<p>If a skill needs outbound HTTP, change <code>runtime.docker.network</code> deliberately. If a skill needs to write package caches, reports, or temporary state outside the mounted workspace, review whether it should instead write under <code>/workspace</code>, then relax <code>read_only_rootfs</code> only when that is not enough.</p>
 <h2 id="工作区挂载"><a class="header" href="#工作区挂载">工作区挂载</a></h2>
 <p>当 <code>runtime.docker.mount_workspace = true</code> 时，ZeroClaw 会将配置的工作区挂载到容器中的 <code>/workspace</code>，并将容器工作目录设置为该路径。技能脚本应尽可能使用相对于工作区的路径。</p>
-<p>如果你的工作区路径需要进一步限制，请配置：</p>
-<pre><code class="language-toml">[runtime.docker]
-allowed_workspace_roots = ["/srv/zeroclaw-workspaces"]
-</code></pre>
-<p>ZeroClaw 会在添加 Docker 卷挂载之前，根据该允许列表验证主机工作区路径。</p>
+<p>If your workspace path must be constrained further, configure the workspace allowlist. ZeroClaw validates the host workspace path against that allowlist before adding the Docker volume mount.</p>
 <h2 id="选择模式"><a class="header" href="#选择模式">选择模式</a></h2>
 <ul>
 <li>当你编写或审查过相关技能，并且希望在单用户主机上获得最低延迟时，请使用受信任的原生 Python。</li>

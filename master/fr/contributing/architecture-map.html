@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -272,11 +348,10 @@
 <li>Si un brouillon généré ou rédigé par une compétence entre en conflit avec le code source, le fichier <code>AGENTS.md</code> actuel ou un document de référence ratifié, arrêtez-vous et résolvez le conflit avant de publier ou d’implémenter.</li>
 </ul>
 <h2 id="points-de-contrôle-rfc-et-pr"><a class="header" href="#points-de-contrôle-rfc-et-pr">Points de contrôle RFC et PR</a></h2>
-<p>Cette carte ne remplace pas le <a href="./rfcs.html">processus RFC</a> ni le modèle de PR. Elle existe pour faciliter la recherche de l’architecture et de la portée des contributions. Une fois les tranches de politique de la RFC #6808 promues, suivez <a href="../foundations/fnd-003-governance.html">FND-003</a>, <a href="../maintainers/labels.html">Labels</a>, <a href="../maintainers/pr-workflow.html">PR workflow</a> et <a href="../maintainers/reviewer-playbook.html">Reviewer playbook</a>.</p>
+<p>This map does not replace the <a href="./rfcs.html">RFC process</a> or the PR template; it only helps you find the right doc. The <a href="./rfcs.html">RFC process</a> carries the canonical “is this RFC-shaped?” table, so check it rather than guessing from a restated list here. After RFC #6808 policy slices are promoted, follow <a href="../foundations/fnd-003-governance.html">FND-003</a>, <a href="../maintainers/labels.html">Labels</a>, <a href="../maintainers/pr-workflow.html">PR workflow</a>, and <a href="../maintainers/reviewer-playbook.html">Reviewer playbook</a>.</p>
 <ul>
-<li>Consultez ou ouvrez d’abord une RFC lorsque la page RFC indique que le changement est de type RFC : modifications de comportements par défaut établis, migrations de configuration ou de schéma avec rupture de compatibilité, nouveau sous-système ou protocole, refactorisation transversale, gouvernance, version, ou modifications du modèle de contribution.</li>
 <li>Si un changement est ambigu mais pas clairement de type RFC, consultez un mainteneur ou réduisez la portée de la PR avant l’implémentation.</li>
-<li>Avant d’ouvrir une PR, répondez aux questions du modèle concernant le résumé, la validation, la compatibilité et le rollback. Si ces réponses ne sont pas claires, rédigez d’abord la note de conception ou la RFC.</li>
+<li>Before opening a PR, answer the prompts in the PR template (<code>.github/pull_request_template.md</code>). If those answers are not clear, write the design note or RFC first.</li>
 </ul>
 
                     </main>

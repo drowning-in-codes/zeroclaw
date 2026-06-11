@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,92 +294,98 @@
                     <main>
                         <h1 id="windows"><a class="header" href="#windows">Windows</a></h1>
 <p>Instalar, actualizar, ejecutar como tarea programada / Servicio de Windows y desinstalar en Windows 10 / 11.</p>
-<p><code>setup.bat</code> es la contraparte de Windows para <code>install.sh</code>: misma función, diferente shell. Si estás ejecutando WSL2, puedes seguir la <a href="./linux.html">instalación de Linux</a>; <code>install.sh</code> se ejecuta sin cambios bajo WSL.</p>
+<p><code>setup.bat</code> is the Windows counterpart to <code>install.sh</code>, same job, different shell.</p>
 <h2 id="instalar"><a class="header" href="#instalar">Instalar</a></h2>
-<h3 id="opción-1--setupbat-desde-una-versión"><a class="header" href="#opción-1--setupbat-desde-una-versión">Opción 1 — <code>setup.bat</code> desde una versión</a></h3>
-<p>Descarga la última versión de ZeroClaw, descomprime y ejecuta:</p>
 <pre><code class="language-cmd">setup.bat
 </code></pre>
-<p>Banderas:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Bandera</th><th>Comportamiento</th></tr>
-</thead>
-<tbody>
-<tr><td><code>--prebuilt</code></td><td>Descarga el binario precompilado desde GitHub Releases (más rápido — no se necesita la cadena de herramientas de Rust)</td></tr>
-<tr><td><code>--minimal</code></td><td>Compilar solo el núcleo (<code>--no-default-features</code>; sin canales, sin hardware)</td></tr>
-<tr><td><code>--standard</code></td><td>Build with lean default channels (ACP server, webhook, email, Telegram)</td></tr>
-<tr><td><code>--full</code></td><td>Build with all channels (<code>channels-full</code>)</td></tr>
-</tbody>
-</table>
-</div>
-<p>El script:</p>
-<ol>
-<li>Verifica la presencia de <code>rustup</code>; descarga <code>rustup-init.exe</code> e instala la cadena de herramientas estable si no está presente.</li>
-<li>Compila (o descarga) el binario</li>
-<li>Se instala en <code>%USERPROFILE%\.zeroclaw\bin\zeroclaw.exe</code></li>
-<li>Imprime los pasos siguientes específicos del modo:
-<ul>
-<li><code>--prebuilt</code>, <code>--standard</code>, <code>--full</code>: run <code>zeroclaw quickstart</code></li>
-<li><code>--minimal</code>: quickstart is unavailable; configure <code>%USERPROFILE%\.zeroclaw\config.toml</code> manually and use the reduced CLI path (<code>zeroclaw agent ...</code>)</li>
-</ul>
-</li>
-</ol>
-<p>Para las compilaciones desde el código fuente, <code>setup.bat</code> ahora imprime el comando exacto <code>cargo build ...</code> que ejecuta e informa el tamaño del <code>zeroclaw.exe</code> instalado, de modo que la forma del comando y las expectativas del artefacto permanezcan visibles.</p>
-<h3 id="opción-2--scoop"><a class="header" href="#opción-2--scoop">Opción 2 — Scoop</a></h3>
+<p>That is the whole install: grab <code>setup.bat</code> from a ZeroClaw release and run it. It prompts for a build mode, then either downloads the prebuilt binary or (for source modes) installs a stable Rust toolchain via <code>rustup</code> and compiles. Either way the binary lands at <code>%USERPROFILE%\.zeroclaw\bin\zeroclaw.exe</code>, and it points you at <a href="../getting-started/quickstart.html"><code>zeroclaw quickstart</code></a>.</p>
+<p>To skip the interactive prompt, pass a build-mode flag: <code>--prebuilt</code> (download a release binary, no toolchain), <code>--minimal</code> (core only), <code>--standard</code>, or <code>--full</code>. Run <code>setup.bat --help</code> for the authoritative list of modes and the exact feature set each one compiles; that output is generated from the script itself, so it never drifts. With <code>--minimal</code>, quickstart is unavailable; configure ZeroClaw manually with <code>zeroclaw config set</code> and use the reduced CLI path (<code>zeroclaw agent ...</code>).</p>
+<h3 id="scoop"><a class="header" href="#scoop">Scoop</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd"><a class="header" href="#cmd">cmd</a></h4>
 <pre><code class="language-cmd">scoop install zeroclaw
-zeroclaw quickstart
 </code></pre>
-<h3 id="opción-3--desde-el-código-fuente"><a class="header" href="#opción-3--desde-el-código-fuente">Opción 3 — Desde el código fuente</a></h3>
+</div>
+
+<h3 id="desde-la-fuente"><a class="header" href="#desde-la-fuente">Desde la fuente</a></h3>
 <p>Requiere Rust (<code>rustup</code>) y las herramientas de compilación de Visual Studio:</p>
+<div class="os-tabs-src">
+<h4 id="cmd-1"><a class="header" href="#cmd-1">cmd</a></h4>
 <pre><code class="language-cmd">git clone https://github.com/zeroclaw-labs/zeroclaw
 cd zeroclaw
 cargo install --locked --path .
-zeroclaw quickstart
 </code></pre>
+</div>
+
+<p>If you’re running WSL2, follow the <a href="./linux.html">Linux setup</a> instead; <code>install.sh</code> runs unchanged under WSL.</p>
 <h2 id="dependencias-del-sistema"><a class="header" href="#dependencias-del-sistema">Dependencias del sistema</a></h2>
 <p>Las compilaciones de Windows utilizan la cadena de herramientas MSVC. Necesitas:</p>
 <ul>
 <li>Herramientas de compilación de Visual Studio (o Visual Studio completo) con la carga de trabajo “Desarrollo de escritorio con C++”</li>
 <li>Rust estable (vía <code>rustup</code>)</li>
 </ul>
-<p>Si estás utilizando <code>--prebuilt</code>, no necesitas el toolchain de Rust: el binario es autocontenido.</p>
+<p>If you’re using <code>--prebuilt</code> you don’t need the Rust toolchain; the binary is self-contained.</p>
 <h2 id="ejecutándose-como-un-servicio"><a class="header" href="#ejecutándose-como-un-servicio">Ejecutándose como un servicio</a></h2>
 <p>Windows tiene dos opciones: una tarea programada (sesión de usuario) o un servicio de Windows (sesión del sistema).</p>
 <h3 id="tarea-programada-recomendada-para-máquinas-de-un-solo-usuario"><a class="header" href="#tarea-programada-recomendada-para-máquinas-de-un-solo-usuario">Tarea programada (recomendada para máquinas de un solo usuario)</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd-2"><a class="header" href="#cmd-2">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service install
 zeroclaw service start
 </code></pre>
+</div>
+
 <p>Esto crea una tarea que se ejecuta bajo tu cuenta de usuario y se inicia al iniciar sesión. Se gestiona mediante el Programador de tareas (<code>taskschd.msc</code>).</p>
 <p>Los registros se guardan en <code>%LOCALAPPDATA%\ZeroClaw\logs\</code>.</p>
 <h3 id="servicio-de-windows-para-instalaciones-en-servidor"><a class="header" href="#servicio-de-windows-para-instalaciones-en-servidor">Servicio de Windows (para instalaciones en servidor)</a></h3>
 <p>Ejecutar como un servicio verdadero requiere privilegios de Administrador durante la instalación. Abre una <code>cmd.exe</code> elevada y:</p>
+<div class="os-tabs-src">
+<h4 id="cmd-3"><a class="header" href="#cmd-3">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service install
 </code></pre>
+</div>
+
 <p>Cuando se ejecuta con privilegios elevados, el instalador registra un servicio de Windows bajo <code>LocalSystem</code> en lugar de una tarea programada con ámbito de usuario. Considere crear una cuenta de servicio dedicada si el agente accede a recursos con ámbito de usuario.</p>
 <p>Detalles completos: <a href="./service.html">Gestión de servicios</a>.</p>
 <h2 id="actualizar"><a class="header" href="#actualizar">Actualizar</a></h2>
 <h3 id="desde-setupbat--zip-de-la-versión"><a class="header" href="#desde-setupbat--zip-de-la-versión">Desde <code>setup.bat</code> / zip de la versión</a></h3>
 <p>Vuelve a descargar la última versión y vuelve a ejecutar <code>setup.bat --prebuilt</code> (o la bandera que usaste originalmente). Luego:</p>
+<div class="os-tabs-src">
+<h4 id="cmd-4"><a class="header" href="#cmd-4">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service restart
 </code></pre>
-<h3 id="scoop"><a class="header" href="#scoop">Scoop</a></h3>
+</div>
+
+<h3 id="scoop-update"><a class="header" href="#scoop-update">Scoop update</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd-5"><a class="header" href="#cmd-5">cmd</a></h4>
 <pre><code class="language-cmd">scoop update zeroclaw
 zeroclaw service restart
 </code></pre>
-<h3 id="desde-la-fuente"><a class="header" href="#desde-la-fuente">Desde la fuente</a></h3>
+</div>
+
+<h3 id="from-source-update"><a class="header" href="#from-source-update">From source update</a></h3>
+<div class="os-tabs-src">
+<h4 id="cmd-6"><a class="header" href="#cmd-6">cmd</a></h4>
 <pre><code class="language-cmd">cd C:\path\to\zeroclaw
 git pull
 cargo install --locked --path . --force
 zeroclaw service restart
 </code></pre>
+</div>
+
 <h2 id="desinstalar"><a class="header" href="#desinstalar">Desinstalar</a></h2>
 <p>Detener y eliminar el servicio:</p>
+<div class="os-tabs-src">
+<h4 id="cmd-7"><a class="header" href="#cmd-7">cmd</a></h4>
 <pre><code class="language-cmd">zeroclaw service stop
 zeroclaw service uninstall
 </code></pre>
+</div>
+
 <p>Eliminar el binario:</p>
+<div class="os-tabs-src">
+<h4 id="cmd-8"><a class="header" href="#cmd-8">cmd</a></h4>
 <pre><code class="language-cmd">:: setup.bat
 del "%USERPROFILE%\.zeroclaw\bin\zeroclaw.exe"
 
@@ -313,10 +395,16 @@ del "%USERPROFILE%\.cargo\bin\zeroclaw.exe"
 :: Scoop
 scoop uninstall zeroclaw
 </code></pre>
-<p>Eliminar configuración y espacio de trabajo (opcional: esto elimina el historial de conversaciones):</p>
+</div>
+
+<p>Remove config and workspace (optional, this deletes conversation history):</p>
+<div class="os-tabs-src">
+<h4 id="cmd-9"><a class="header" href="#cmd-9">cmd</a></h4>
 <pre><code class="language-cmd">rmdir /s /q "%USERPROFILE%\.zeroclaw"
 rmdir /s /q "%LOCALAPPDATA%\ZeroClaw"
 </code></pre>
+</div>
+
 <h2 id="cosas-a-tener-en-cuenta"><a class="header" href="#cosas-a-tener-en-cuenta">Cosas a tener en cuenta</a></h2>
 <ul>
 <li><strong>Rutas largas.</strong> Algunos sistemas de archivos de Windows aún limitan la longitud de las rutas a 260 caracteres. Habilita el soporte para rutas largas si encuentras errores de <code>ruta demasiado larga</code> durante la compilación (<code>reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f</code>).</li>
@@ -326,7 +414,7 @@ rmdir /s /q "%LOCALAPPDATA%\ZeroClaw"
 <h2 id="siguiente"><a class="header" href="#siguiente">Siguiente</a></h2>
 <ul>
 <li><a href="./service.html">Gestión de servicios</a></li>
-<li><a href="../getting-started/quick-start.html">Inicio rápido</a></li>
+<li><a href="../getting-started/quickstart.html">Quickstart</a></li>
 <li><a href="../ops/overview.html">Operaciones → Resumen</a></li>
 </ul>
 

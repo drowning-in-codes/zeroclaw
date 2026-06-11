@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,160 +295,51 @@
                         <h1 id="autres-plateformes-de-chat"><a class="header" href="#autres-plateformes-de-chat">Autres plateformes de chat</a></h1>
 <p>Canaux disposant d’intégrations fonctionnelles mais qui n’ont pas encore été extraits dans des guides dédiés. Chaque canal est activé par une fonctionnalité ; activez la fonctionnalité correspondante <code>channel-&lt;name&gt;</code> lors de la compilation.</p>
 <h2 id="pacing-outbound-replies-reply_min_interval_secs"><a class="header" href="#pacing-outbound-replies-reply_min_interval_secs">Pacing outbound replies (<code>reply_min_interval_secs</code>)</a></h2>
-<p>Every outbound channel accepts an optional <code>reply_min_interval_secs = N</code> field (range <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>, default <code>0</code>). When set, the orchestrator wraps the channel in a per-(channel, recipient) pacing layer so consecutive outbound replies to the same peer wait at least <code>N</code> seconds apart. <code>0</code> (the default) is a passthrough — no wrapper allocated, no overhead.</p>
-<pre><code class="language-toml">[channels.whatsapp]
-reply_min_interval_secs = 120    # 0 = no pacing (default)
-reply_queue_depth_max   = 16     # bounded queue when pacing &gt; 0 (0 = use default)
-</code></pre>
-<p>When the floor is active, sends that arrive before the floor elapses enter a bounded FIFO queue. A background worker drains the queue at the floor rate so replies still land in order at the configured cadence. The queue depth defaults to <strong>16</strong> (good for the “agent went briefly bursty” case) and is capped at <code>REPLY_QUEUE_DEPTH_CEILING</code> (<code>1024</code>). When the queue is full the <strong>newest</strong> send is dropped and a <code>WARN</code> is emitted with <code>channel_alias</code>, redacted <code>recipient</code>, <code>queue_depth</code>, <code>queue_max</code>, and <code>dropped_chars</code> — body content stays out of logs.</p>
-<p>Streaming draft updates within a single reply are <strong>not</strong> paced (they would freeze the live preview); only the final <code>send</code> (and the terminal <code>finalize_draft</code> write) enter the queue. Different recipients are independent — pacing for one peer does not block messages to another. The wrapper retains state for up to <code>PACING_RECIPIENT_CAP</code> (1024) distinct peers via idle-state LRU eviction: only rows with no queued work and no in-flight send are reclaimed, so the cap is a target for idle state rather than an unconditional hard bound under an all-active burst.</p>
+<p>Every outbound channel accepts an optional <code>reply_min_interval_secs = N</code> field (range <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>, default <code>0</code>). When set, the orchestrator wraps the channel in a per-(channel, recipient) pacing layer so consecutive outbound replies to the same peer wait at least <code>N</code> seconds apart. <code>0</code> (the default) is a passthrough, no wrapper allocated, no overhead.</p>
+<p>When the floor is active, sends that arrive before the floor elapses enter a bounded FIFO queue. A background worker drains the queue at the floor rate so replies still land in order at the configured cadence. The queue depth defaults to <strong>16</strong> (good for the “agent went briefly bursty” case) and is capped at <code>REPLY_QUEUE_DEPTH_CEILING</code> (<code>1024</code>). When the queue is full the <strong>newest</strong> send is dropped and a <code>WARN</code> is emitted with <code>channel_alias</code>, redacted <code>recipient</code>, <code>queue_depth</code>, <code>queue_max</code>, and <code>dropped_chars</code>: body content stays out of logs.</p>
+<p>Streaming draft updates within a single reply are <strong>not</strong> paced (they would freeze the live preview); only the final <code>send</code> (and the terminal <code>finalize_draft</code> write) enter the queue. Different recipients are independent: pacing for one peer does not block messages to another. The wrapper retains state for up to <code>PACING_RECIPIENT_CAP</code> (1024) distinct peers via idle-state LRU eviction: only rows with no queued work and no in-flight send are reclaimed, so the cap is a target for idle state rather than an unconditional hard bound under an all-active burst.</p>
 <p>Use case: paired-identity channels where sub-second replies are an AI-tell. Wire-level coverage exists end-to-end across nine channels (Telegram, Discord, Slack, Mattermost, Webhook, iMessage, Matrix, Signal, WhatsApp); integration tests pin the floor + overflow contract on Telegram and WhatsApp Web.</p>
 <blockquote>
 <p><strong>Webhook caveat:</strong> on a synchronous webhook channel the outbound reply is the HTTP response to the caller’s request. A non-zero <code>reply_min_interval_secs</code> floor can hold that response open for the floor duration, which may exceed the caller’s own request timeout. Set the floor only when the webhook caller tolerates a delayed response, or leave it at <code>0</code> and pace upstream.</p>
 </blockquote>
-<h2 id="discord"><a class="header" href="#discord">Discord</a></h2>
-<pre><code class="language-toml">[channels.discord]
-enabled = true
-bot_token = "..."                  # créer à l'adresse https://discord.com/developers/applications
-allowed_guilds = ["123..."]
-allowed_users = []
-reply_to_mentions_only = true
-draft_update_interval_ms = 750     # augmenter si vous atteignez les limites de taux de Discord
-</code></pre>
-<ul>
-<li><strong>Intents de bot requis :</strong> Intent de contenu des messages, Intent des membres du serveur. À configurer dans le portail développeur.</li>
-<li><strong><a href="../providers/streaming.html">Streaming</a></strong> : full — modifie les messages en place et divise les réponses longues en plusieurs messages.</li>
-<li><strong>Indicateur d’appel d’outil :</strong> indicateur de saisie pendant l’exécution des outils ; aperçu du bloc de code visible pour les appels shell et navigateur.</li>
-</ul>
-<h2 id="slack"><a class="header" href="#slack">Slack</a></h2>
-<pre><code class="language-toml">[channels.slack]
-enabled = true
-bot_token = "xoxb-..."            # jeton classique de bot
-app_token = "xapp-..."            # pour Socket Mode
-signing_secret = "..."
-allowed_channels = ["C01..."]
-</code></pre>
-<ul>
-<li><strong>Socket Mode</strong> est le mode par défaut (aucune URL de webhook public n’est nécessaire).</li>
-<li>Pour l’API des événements HTTP, supprimez <code>app_token</code> et pointez l’URL d’abonnement aux événements de Slack vers <code>/slack/events</code> sur la passerelle.</li>
-<li>Prend en charge le streaming multi-messages, les réponses threadées et l’ingestion de commandes slash.</li>
-</ul>
 <h2 id="telegram"><a class="header" href="#telegram">Telegram</a></h2>
-<pre><code class="language-toml">[channels.telegram]
-enabled = true
-bot_token = "..."                  # depuis @BotFather
-allowed_users = [123456789]
-allowed_chats = [-100987...]       # identifiants de groupe / de canal
-use_long_polling = true            # par défaut — aucun webhook n'est nécessaire
-</code></pre>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for telegram sets <code>channel</code> to <code>telegram</code>, lists the allowed senders in <code>external_peers</code> (for telegram, the Telegram user ID or @username; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
 <ul>
-<li>Le long polling est le mode par défaut ; aucune URL publique n’est requise. Passez en mode webhook en définissant <code>webhook_url</code> (puis exposez le gateway).</li>
+<li>Long polling is the default; no public URL required.</li>
 <li>Les modifications en brouillon en streaming sont prises en charge, mais limitées par la limite de taux de Telegram. Ajustez <code>draft_update_interval_ms</code> si vous voyez « Trop de requêtes ».</li>
 </ul>
 <h2 id="imessage-uniquement-sur-macos"><a class="header" href="#imessage-uniquement-sur-macos">iMessage (uniquement sur macOS)</a></h2>
-<pre><code class="language-toml">[channels.imessage]
-enabled = true
-provider = "linq"                  # API partenaire Linq pour iMessage/RCS/SMS
-api_key = "..."
-</code></pre>
+<p>iMessage is bridged through the Linq Partner API (<code>[channels.linq.&lt;alias&gt;]</code>):</p>
 <p><strong>macOS uniquement</strong> et nécessite soit Linq comme relais tiers, soit une automatisation directe via AppleScript (expérimental, nécessite les autorisations d’accès complet au disque et d’accessibilité).</p>
-<h2 id="wecom-bot-webhook-企业微信群机器人"><a class="header" href="#wecom-bot-webhook-企业微信群机器人">WeCom Bot Webhook (企业微信群机器人)</a></h2>
-<pre><code class="language-toml">[channels.wecom.default]
-enabled = true
-webhook_key = "..."                 # clé issue de l'URL du webhook du bot de groupe
-</code></pre>
-<p>WeCom Bot Webhook fonctionne uniquement en envoi via l’API de webhook du bot de groupe. Utilisez-le pour une simple diffusion sortante vers un groupe WeCom lorsque ZeroClaw n’a pas besoin de recevoir de messages de WeCom.</p>
-<h2 id="choix-du-canal-wecom"><a class="header" href="#choix-du-canal-wecom">Choix du canal WeCom</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>**Cas d’utilisation</th><th>Bloc de configuration</th><th>Transport</th><th>Direction</th></tr>
-</thead>
-<tbody>
-<tr><td>Envoyer des messages simples vers un webhook de bot de groupe WeCom</td><td><code>[channels.wecom.&lt;alias&gt;]</code></td><td>Webhook du bot de groupe WeCom</td><td>Sortant uniquement</td></tr>
-<tr><td>Recevoir et répondre en tant que WeCom AI Bot</td><td><code>[channels.wecom_ws.&lt;alias&gt;]</code></td><td>Bot IA WeCom en connexion longue via WebSocket</td><td>Bidirectionnel</td></tr>
-</tbody>
-</table>
-</div>
-<p><code>wecom_ws</code> utilise WebSocket comme transport, mais il ne s’agit pas d’un canal générique compatible WebSocket. Il implémente le protocole de connexion longue AI Bot de WeCom, y compris l’abonnement, les trames de rappel entrantes, les commandes de réponse, les accusés de réception des requêtes, les listes d’autorisation utilisateur/groupe et la gestion des pièces jointes chiffrées.</p>
-<h2 id="wecom-ai-bot-long-connection-企业微信智能机器人长连接"><a class="header" href="#wecom-ai-bot-long-connection-企业微信智能机器人长连接">WeCom AI Bot Long Connection (企业微信智能机器人长连接)</a></h2>
-<pre><code class="language-toml">[channels.wecom_ws.default]
-enabled = true
-bot_id = "..."
-secret = "..."
-allowed_users = ["zeroclaw_user"]    # une liste vide refuse tous les utilisateurs
-allowed_groups = ["zeroclaw_group"]  # une liste vide refuse tous les groupes
-bot_name = "danya"                   # alias de mention de groupe facultatif
-stream_mode = "partial"
-file_retention_days = 7
-max_file_size_mb = 20
-# proxy_url = "http://127.0.0.1:7890"  # remplacement facultatif propre au canal
-</code></pre>
-<p>Ce canal se connecte à l’API de longue connexion AI Bot de WeCom via WebSocket. Utilisez-le lorsque ZeroClaw doit recevoir des messages WeCom et répondre en tant qu’AI Bot. Pour une simple distribution sortante par webhook de groupe, utilisez plutôt <code>[channels.wecom.&lt;alias&gt;]</code>.</p>
-<p>Le WebSocket n’est que le transport. Le canal implémente toujours l’abonnement/l’authentification spécifiques à WeCom, l’analyse de <code>msg_callback</code>, les réponses <code>aibot_respond_msg</code> / <code>aibot_send_msg</code>, la gestion des accusés de réception des requêtes, les listes d’autorisation, l’adressage de groupe et la gestion des pièces jointes chiffrées. L’activation de <code>wecom_ws</code> ne modifie pas le comportement existant des webhooks.</p>
-<p>Le contrôle d’accès est explicite. Si <code>allowed_users</code> et <code>allowed_groups</code> sont tous deux vides, les messages entrants sont refusés. Utilisez <code>"*"</code> uniquement pour des déploiements de test contrôlés.</p>
-<p>Définissez <code>bot_name</code> sur le nom visible du robot WeCom lorsque vous utilisez le canal dans des groupes. Cela permet à ZeroClaw de reconnaître les messages tels que <code>@danya say hi</code> comme adressés au bot lors des contrôles préalables d’intention de réponse.</p>
-<p>Les pièces jointes envoyées par WeCom peuvent être téléchargées dans le cache de l’espace de travail et présentées au modèle sous forme de marqueurs locaux tels que <code>[IMAGE:/absolute/path.png]</code> ou <code>[Document: /absolute/path.bin]</code>.</p>
-<p>Les charges utiles d’images sortantes ne sont pas encore prises en charge. <code>stream_mode</code> prend en charge <code>"partial"</code> pour les mises à jour progressives de brouillon ou <code>"off"</code> pour les réponses finales uniquement.</p>
 <h2 id="wechat-personal-ilink-bot-微信个人号-ilink"><a class="header" href="#wechat-personal-ilink-bot-微信个人号-ilink">WeChat personal iLink Bot (微信个人号 iLink)</a></h2>
-<pre><code class="language-toml">[channels.wechat]
-enabled = true
-allowed_users = ["*"]
-# api_base_url, cdn_base_url, et state_dir sont des remplacements facultatifs.
-</code></pre>
-<p>WeChat personal iLink Bot est un canal distinct de WeCom. Il utilise une connexion par QR-code via l’API iLink Bot pour les conversations WeChat personnelles et ne doit pas être utilisé pour le trafic des bots d’entreprise WeCom.</p>
+<p>WeChat personal iLink Bot uses QR-code login against the iLink Bot API for personal WeChat conversations.</p>
 <h2 id="dingtalk"><a class="header" href="#dingtalk">DingTalk</a></h2>
-<pre><code class="language-toml">[channels.dingtalk]
-enabled = true
-app_key = "..."
-app_secret = "..."
-robot_code = "..."
-</code></pre>
-<p>Messagerie d’entreprise d’Alibaba. Même forme de bot que WeCom.</p>
+<p>Alibaba’s enterprise messenger.</p>
 <h2 id="lark--feishu"><a class="header" href="#lark--feishu">Lark / Feishu</a></h2>
-<pre><code class="language-toml">[channels.lark]
-enabled = true
-app_id = "..."
-app_secret = "..."
-# use_feishu = true  # acheminer ce canal compatible Lark vers les points de terminaison Feishu
-</code></pre>
 <p>Compilez avec <code>channel-lark</code> pour Lark ou Feishu. La fonctionnalité racine <code>channel-feishu</code> est un alias de <code>channel-lark</code> ; la sélection à l’exécution se fait toujours via <code>use_feishu = true</code>.</p>
 <h2 id="qq"><a class="header" href="#qq">QQ</a></h2>
-<pre><code class="language-toml">[channels.qq]
-enabled = true
-bot_id = "..."
-bot_token = "..."
-</code></pre>
 <p>Messager grand public de Tencent. L’accès à l’API Bot nécessite un enregistrement en tant que développeur.</p>
 <h2 id="irc"><a class="header" href="#irc">IRC</a></h2>
-<pre><code class="language-toml">[channels.irc]
-enabled = true
-server = "irc.libera.chat"
-port = 6697
-tls = true
-nickname = "zeroclaw"
-channels = ["#mychannel"]
-nickserv_password = "..."          # optionnel
-</code></pre>
 <p>IRC classique. Prend en charge SASL, l’authentification NickServ et plusieurs canaux.</p>
 <h2 id="mochat"><a class="header" href="#mochat">Mochat</a></h2>
-<pre><code class="language-toml">[channels.mochat]
-enabled = true
-api_key = "..."
-# champs supplémentaires spécifiques au fournisseur
-</code></pre>
 <h2 id="notion"><a class="header" href="#notion">Notion</a></h2>
-<pre><code class="language-toml">[channels.notion]
-enabled = true
-integration_token = "..."
-databases = ["..."]                # IDs de base de données que l'agent peut modifier
-</code></pre>
 <p>Traite une base de données Notion comme une surface de message. Utile pour les flux de travail asynchrones où le « canal » est une boîte de réception de tâches.</p>
 <hr>
 <h2 id="quand-privilégier-un-guide-dédié"><a class="header" href="#quand-privilégier-un-guide-dédié">Quand privilégier un guide dédié</a></h2>
 <p>Les canaux nécessitant une configuration plus complexe (flux OAuth, chiffrement de bout en bout, considérations multi-appareils) sont détaillés dans leurs propres pages :</p>
 <ul>
-<li><a href="./matrix.html">Matrix</a> — Chiffrement de bout en bout (E2EE), vérification des appareils, spécificités de Synapse/Dendrite</li>
+<li><a href="./matrix.html">Matrix</a>: E2EE, device verification, Synapse/Dendrite specifics</li>
+<li><a href="./discord.html">Discord</a></li>
+<li><a href="./slack.html">Slack</a></li>
 <li><a href="./mattermost.html">Mattermost</a></li>
 <li><a href="./line.html">LINE</a></li>
 <li><a href="./nextcloud-talk.html">Nextcloud Talk</a></li>

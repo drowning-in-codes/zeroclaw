@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -226,16 +302,16 @@
 <tr><th>Change</th><th>RFC first?</th></tr>
 </thead>
 <tbody>
-<tr><td>New channel implementation</td><td>No — open a PR</td></tr>
-<tr><td>New provider implementation</td><td>No — open a PR</td></tr>
-<tr><td>New tool</td><td>No — open a PR</td></tr>
-<tr><td>Bug fix</td><td>No — open a PR</td></tr>
-<tr><td>New config key</td><td>Depends — if it fits within existing schema shape, PR. If it introduces a new subsystem or paradigm, RFC</td></tr>
-<tr><td>Changing an established default</td><td>Yes — RFC</td></tr>
-<tr><td>Schema migration that breaks existing configs</td><td>Yes — RFC</td></tr>
-<tr><td>Cross-cutting refactor affecting multiple crates</td><td>Yes — RFC</td></tr>
-<tr><td>New subsystem (e.g. a new security layer, a new protocol)</td><td>Yes — RFC</td></tr>
-<tr><td>Changes to governance, release process, or contribution model</td><td>Yes — RFC</td></tr>
+<tr><td>New channel implementation</td><td>No: open a PR</td></tr>
+<tr><td>New provider implementation</td><td>No: open a PR</td></tr>
+<tr><td>New tool</td><td>No: open a PR</td></tr>
+<tr><td>Bug fix</td><td>No: open a PR</td></tr>
+<tr><td>New config key</td><td>Depends: if it fits within existing schema shape, PR. If it introduces a new subsystem or paradigm, RFC</td></tr>
+<tr><td>Changing an established default</td><td>Yes: RFC</td></tr>
+<tr><td>Schema migration that breaks existing configs</td><td>Yes: RFC</td></tr>
+<tr><td>Cross-cutting refactor affecting multiple crates</td><td>Yes: RFC</td></tr>
+<tr><td>New subsystem (e.g. a new security layer, a new protocol)</td><td>Yes: RFC</td></tr>
+<tr><td>Changes to governance, release process, or contribution model</td><td>Yes: RFC</td></tr>
 </tbody>
 </table>
 </div>
@@ -244,54 +320,59 @@
 <p>RFCs are GitHub Issues tagged <code>type:rfc</code>. Title format:</p>
 <pre><code>RFC: &lt;short description of the proposal&gt;
 </code></pre>
-<p>Body structure — adapt to the size of the proposal:</p>
+<p>Body structure: adapt to the size of the proposal:</p>
 <ol>
-<li><strong>Problem</strong> — what user pain or system deficiency motivates this?</li>
-<li><strong>Proposal</strong> — what are you proposing to do?</li>
-<li><strong>Design</strong> — the details; code sketches, schema shapes, migration plans</li>
-<li><strong>Alternatives considered</strong> — what else did you evaluate, and why not?</li>
-<li><strong>Non-goals</strong> — what this proposal explicitly isn’t trying to solve</li>
-<li><strong>Risks and mitigations</strong> — what could go wrong, and what’s the rollback story</li>
-<li><strong>Rollout</strong> — feature-flagged? schema-versioned? breaking change window?</li>
+<li><strong>Problem</strong>: what user pain or system deficiency motivates this?</li>
+<li><strong>Proposal</strong>: what are you proposing to do?</li>
+<li><strong>Design</strong>: the details; code sketches, schema shapes, migration plans</li>
+<li><strong>Alternatives considered</strong>: what else did you evaluate, and why not?</li>
+<li><strong>Non-goals</strong>: what this proposal explicitly isn’t trying to solve</li>
+<li><strong>Risks and mitigations</strong>: what could go wrong, and what’s the rollback story</li>
+<li><strong>Rollout</strong>: feature-flagged? schema-versioned? breaking change window?</li>
 </ol>
 <p>Filed RFCs go through a discussion window (default 7 days, longer for larger proposals). Anyone can comment. Maintainers weigh in. The RFC author iterates on the body in response.</p>
 <h2 id="ratification"><a class="header" href="#ratification">Ratification</a></h2>
 <p>Per RFC #5577, RFCs are ratified by a two-thirds maintainer majority. The outcomes:</p>
 <ul>
-<li><strong>Accepted</strong> — issue closed with the <code>status:accepted</code> label and a maintainer comment summarising the final shape. Implementation PRs can then proceed.</li>
-<li><strong>Rejected</strong> — issue closed with <code>status:rejected</code> label and a rationale. The record lives; re-proposing requires a materially different take.</li>
-<li><strong>Deferred</strong> — issue stays open with <code>status:deferred</code>; revisit later.</li>
-<li><strong>Withdrawn</strong> — the author pulls it. Closed without prejudice.</li>
+<li><strong>Accepted</strong>: issue closed with the <code>status:accepted</code> label and a maintainer comment summarising the final shape. Implementation PRs can then proceed.</li>
+<li><strong>Rejected</strong>: issue closed with a maintainer comment giving the rationale. The record lives; re-proposing requires a materially different take.</li>
+<li><strong>Deferred</strong>: issue stays open with a maintainer comment noting it’s parked; revisit later. Add <code>status:blocked</code> when it’s waiting on a specific prerequisite.</li>
+<li><strong>Withdrawn</strong>: the author pulls it. Closed without prejudice.</li>
 </ul>
 <h2 id="implementing-an-accepted-rfc"><a class="header" href="#implementing-an-accepted-rfc">Implementing an accepted RFC</a></h2>
 <p>Implementation PRs should:</p>
 <ul>
 <li>Reference the RFC issue number (<code>Implements #5574 phase 1</code>)</li>
-<li>Fit within the accepted design — if a detail changes during implementation, update the RFC body or file a follow-up clarification issue</li>
+<li>Fit within the accepted design, if a detail changes during implementation, update the RFC body or file a follow-up clarification issue</li>
 <li>Ship behind a feature flag if the RFC calls for gradual rollout</li>
 <li>Include migration paths for users affected by breaking changes</li>
 </ul>
 <p>Large RFCs often ship across multiple PRs over several releases. The RFC’s tracking comment gets updated as phases land.</p>
 <h2 id="current-open-rfcs"><a class="header" href="#current-open-rfcs">Current open RFCs</a></h2>
 <p>Open RFCs are the best primary source for “what’s coming next” in ZeroClaw. Browse:</p>
-<pre><code class="language-bash">gh issue list --repo zeroclaw-labs/zeroclaw --label type:rfc --state open
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh issue list --repo zeroclaw-labs/zeroclaw --label type:rfc --state open
 </code></pre>
-<p>As of writing, notable open RFCs:</p>
+</div>
+
+<p>The list above is the canonical source. A snapshot of notable open RFCs at time of writing (browse the live list for the current set):</p>
 <ul>
-<li><strong>#5787</strong> — Replace TOML i18n with Mozilla Fluent (this branch is the implementation)</li>
-<li><strong>#5890</strong> — Multi-agent UX flow design</li>
-<li><strong>#5626</strong> — Observability defaults (policy question: Prometheus on/off in v0.8 defaults)</li>
-<li><strong>#5934</strong> — Documentation implementation tracking (multi-phase rollout of RFC #5576)</li>
+<li><strong>#6808</strong>: Work Lanes, Board Automation, and Label Cleanup (governance, in progress)</li>
+<li><strong>#6971</strong>: Security UX, runtime credential boundaries, and isolation defaults</li>
+<li><strong>#6996</strong>: Granular sandbox policy: filesystem and network restrictions</li>
+<li><strong>#7218</strong>: A2A agent discovery (<code>.well-known/agent-card.json</code>) for multi-agent installs</li>
+<li><strong>#7184</strong>: Move translated <code>.ftl</code> and <code>.po</code> files into a git submodule</li>
 </ul>
 <h2 id="ratified-foundational-rfcs"><a class="header" href="#ratified-foundational-rfcs">Ratified foundational RFCs</a></h2>
 <p>These shape everything else. Read them before proposing cross-cutting changes:</p>
 <ul>
-<li><strong>#5574</strong> — Microkernel transition: crate split, feature-flag taxonomy, v1.0 path</li>
-<li><strong>#5576</strong> — Documentation standards and knowledge architecture</li>
-<li><strong>#5577</strong> — Project governance: core team, voting thresholds, this document’s authority</li>
-<li><strong>#5579</strong> — Engineering infrastructure: CI pipelines, release automation</li>
-<li><strong>#5615</strong> — Contribution culture: human/AI co-authorship norms</li>
-<li><strong>#5653</strong> — Zero Compromise: error handling, dead-code policy, release-readiness bar</li>
+<li><strong>#5574</strong>: Microkernel transition: crate split, feature-flag taxonomy, v1.0 path</li>
+<li><strong>#5576</strong>: Documentation standards and knowledge architecture</li>
+<li><strong>#5577</strong>: Project governance: core team, voting thresholds, this document’s authority</li>
+<li><strong>#5579</strong>: Engineering infrastructure: CI pipelines, release automation</li>
+<li><strong>#5615</strong>: Contribution culture: human/AI co-authorship norms</li>
+<li><strong>#5653</strong>: Zero Compromise: error handling, dead-code policy, release-readiness bar</li>
 </ul>
 <h2 id="ai-authored-rfcs"><a class="header" href="#ai-authored-rfcs">AI-authored RFCs</a></h2>
 <p>RFC authorship by AI assistants (with a human sponsor) is explicitly permitted per RFC #5615. If an RFC was drafted with AI help:</p>
@@ -300,12 +381,12 @@
 <li>The sponsoring human is responsible for accuracy and for responding to review</li>
 <li>The human takes the ratification vote, not the AI</li>
 </ul>
-<p>This has worked well so far — treat AI drafts as first-class but remember the sponsor is accountable.</p>
+<p>This has worked well so far. Treat AI drafts as first-class but remember the sponsor is accountable.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="./how-to.html">How to contribute</a></li>
 <li><a href="./communication.html">Communication</a></li>
-<li><a href="../philosophy.html">Philosophy</a></li>
+<li><a href="../philosophy/index.html">Philosophy</a></li>
 </ul>
 
                     </main>

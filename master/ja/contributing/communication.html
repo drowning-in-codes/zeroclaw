@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,24 +295,24 @@
                         <h1 id="通信"><a class="header" href="#通信">通信</a></h1>
 <p>質問の投稿、バグの報告、機能提案、チームへの連絡先</p>
 <p><strong>単に私たちと会話したい場合は、Discordが最適です。</strong> バグ、機能リクエスト、設計の議論、RFCなど、永続的な記録が必要な場合はGitHubをご利用ください。</p>
-<h2 id="discord--チームに連絡する最適な場所"><a class="header" href="#discord--チームに連絡する最適な場所">Discord — チームに連絡する最適な場所</a></h2>
+<h2 id="discord-best-place-to-reach-the-team"><a class="header" href="#discord-best-place-to-reach-the-team">Discord: best place to reach the team</a></h2>
 <p>リアルタイムチャット。ここはメンテナーが日常的に活動している場所であり、人間からの回答を得るための最も迅速な経路です。</p>
 <p>チャンネル:</p>
 <ul>
-<li><code>#general</code> — デフォルトのルーム</li>
-<li><code>#help</code> — 「Xが動かない」といったスレッド；最も速く問題を解決する方法</li>
-<li><code>#dev</code> — 進行中の開発議論</li>
-<li><code>#releases</code> — アナウンスメント、リリースノート、破壊的変更の事前警告</li>
+<li><code>#general</code>: the default room</li>
+<li><code>#help</code>: “I can’t get X working” threads; the fastest way to unblock</li>
+<li><code>#dev</code>: in-flight development discussion</li>
+<li><code>#releases</code>: announcements, release notes, breaking-change pre-warnings</li>
 </ul>
 <p><a href="https://github.com/zeroclaw-labs/zeroclaw">リポジトリのREADMEにある招待リンク</a></p>
-<p><strong>Discord は一時的なものです</strong> — 会話の中でバグや機能のアイデアが見つかった場合は、後で GitHub のイシューとして記録し、情報を永続化してください。Discord は会話用、GitHub は記録用です。</p>
+<p><strong>Discord is ephemeral</strong>: if the conversation leads to a bug or a feature idea, capture it as a GitHub issue afterwards so the record persists. Discord is for conversation; GitHub is for memory.</p>
 <p>Discord でプロジェクトが記憶すべき内容が生まれたときは、GitHub への引き継ぎを使用します。スレッドから再現可能なバグ、具体的な機能スコープ、アーキテクチャやガバナンスの決定、メンテナーのコミットメント、オーナーの割り当て、マイルストーンの決定、ブロッカー、回避策、検証の証跡、リリースへの影響に関する注記、または stale 除外の理由が生まれた場合は、issue、ディスカッション、PR コメント、またはメンテナードキュメントを作成または更新します。引き継ぎに必要なのは、決定内容、証跡、オーナー（存在する場合）、そして別のメンテナーがチャットを読み返さずに続行できるだけの十分なコンテキストだけです。</p>
 <h2 id="githubのイシュー"><a class="header" href="#githubのイシュー">GitHubのイシュー</a></h2>
 <p>バグ、機能リクエスト、および追跡が必要な事項について。</p>
 <ul>
-<li><strong>バグ報告</strong> — バグテンプレート (<code>.github/ISSUE_TEMPLATE/bug_report.yml</code>) を使用してください。<code>zeroclaw --version</code>、OS、および <code>zeroclaw doctor</code> の出力を含めてください。</li>
-<li><strong>機能リクエスト</strong> — 機能テンプレート (<code>.github/ISSUE_TEMPLATE/feature_request.yml</code>) を使用してください。ユーザー価値と制約事項に焦点を当て、実装の詳細は RFC や PR の議論に委ねます。</li>
-<li><strong>RFC</strong> — <a href="./rfcs.html">RFC プロセス</a> を参照してください。</li>
+<li><strong>Bug reports</strong>: use the bug template (<code>.github/ISSUE_TEMPLATE/bug_report.yml</code>). Include <code>zeroclaw --version</code>, OS, and the output of <code>zeroclaw doctor</code>.</li>
+<li><strong>Feature requests</strong>: use the feature template (<code>.github/ISSUE_TEMPLATE/feature_request.yml</code>). Focus on user value and constraints; implementation details are for RFCs or PR discussion.</li>
+<li><strong>RFCs</strong>: see <a href="./rfcs.html">RFC process</a>.</li>
 </ul>
 <p>報告する前に検索してください。重複は統合されます。検索ボックスはあなたの味方です。</p>
 <h2 id="github-discussions"><a class="header" href="#github-discussions">GitHub Discussions</a></h2>
@@ -259,17 +335,17 @@
 </tbody>
 </table>
 </div>
-<p><code>@</code>-メンションは控えめに使い、問題が本当にメンテナーの注意を必要とする場合にのみCCしてください。デフォルトでは、チームにトリアージを任せるようにします。</p>
+<p><code>@</code>-mention sparingly, CC maintainers only when the issue genuinely needs their attention. Default to letting the team triage.</p>
 <h2 id="セキュリティ上の問題"><a class="header" href="#セキュリティ上の問題">セキュリティ上の問題</a></h2>
 <p>セキュリティ上の脆弱性については、公開されたイシューには記載しないでください。</p>
-<p>メール: <code>security@zeroclaw.dev</code></p>
+<p>Report privately through GitHub’s <a href="https://github.com/zeroclaw-labs/zeroclaw/security/advisories/new">private vulnerability reporting</a> (Security Advisories).</p>
 <p>含める:</p>
 <ul>
 <li>影響を受けるバージョン</li>
 <li>再現（最小限の例）</li>
 <li>影響評価</li>
 </ul>
-<p>重大な問題については、48時間以内に確認し、14日以内にパッチとアドバイザリを公開することを目指しています。調整された開示を歓迎します。</p>
+<p>We aim to acknowledge within 48 hours, assess within 1 week, and ship a fix within 2 weeks for critical issues. Coordinated disclosure is appreciated.</p>
 <p>完全なポリシーについては、リポジトリのルートにある <code>SECURITY.md</code> を参照してください。</p>
 <h2 id="リリースフィード"><a class="header" href="#リリースフィード">リリースフィード</a></h2>
 <p>新しいバージョンがリリースされた際に通知を受け取るために、GitHubのリリースフィードを購読してください：</p>
@@ -280,14 +356,14 @@
 <h2 id="商用サポート"><a class="header" href="#商用サポート">商用サポート</a></h2>
 <p>提供されていません。ZeroClaw はコミュニティによって維持されています。大規模なデプロイを行い、SLA を希望する場合は、メンテナに直接スポンサーシップを提供するか、コアチームを通じて専用サポートの手配に資金を提供してください。<code>hello@zeroclaw.dev</code> までお問い合わせください。</p>
 <h2 id="フィードバック"><a class="header" href="#フィードバック">フィードバック</a></h2>
-<p>オープンエンドのフィードバック（「X を試したが、違和感があった」などのUXの観察や方向性に関する意見）は、Discord の <code>#general</code> や <code>#dev</code> のスレッドとして投稿するのが最も効果的です。チームメンバーはそこでそれを見かけ、議論する可能性が高くなります。スレッドが具体的な内容になった場合は、GitHub Discussion やイシューに移動してください。</p>
+<p>Open-ended feedback, “I tried to do X and it felt wrong”, UX observations, direction thoughts, lands best as a thread in Discord <code>#general</code> or <code>#dev</code>. The team is more likely to see and discuss it there. If the thread turns into something concrete, move it to a GitHub Discussion or issue.</p>
 <h2 id="貢献者の表彰"><a class="header" href="#貢献者の表彰">貢献者の表彰</a></h2>
-<p>PRがマージされたすべての人がリポジトリの貢献者リストに表示されます。重要な貢献（機能追加、RFC、重大なバグ修正など）を行った場合、あなたのハンドルがリリースノートに表示されます。</p>
+<p>Everyone who’s had a PR merged appears in the contributors list on the repo. For substantial contributions, features, RFCs, significant bug fixes, your handle shows up in the release notes.</p>
 <h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
 <ul>
 <li><a href="./how-to.html">貢献方法</a></li>
 <li><a href="./rfcs.html">RFC プロセス</a></li>
-<li><a href="../philosophy.html">哲学</a> — プロジェクトが何を目指しているかを示し、範囲内の内容がわかるようにします。</li>
+<li><a href="../philosophy/index.html">Philosophy</a>: what the project is trying to be, so you know what’s in scope</li>
 </ul>
 
                     </main>

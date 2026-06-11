@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -226,7 +302,9 @@
 </code></pre>
 <p>zerocode vars win on conflict: your <code>PATH</code>, <code>HOME</code>, and credential sockets take precedence over whatever the daemon inherited. No configuration required.</p>
 <p>Por eso <code>SSH_AUTH_SOCK</code> funciona cuando ejecutas zerocode desde un terminal que tiene un ssh-agent en ejecución, incluso si el daemon se inició como un servicio sin agente:</p>
-<pre><code class="language-bash"># El terminal tiene SSH_AUTH_SOCK configurado por ssh-agent o un token de hardware (YubiKey, etc.)
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh"># El terminal tiene SSH_AUTH_SOCK configurado por ssh-agent o un token de hardware (YubiKey, etc.)
 echo $SSH_AUTH_SOCK
 # /run/user/1000/gnupg/S.gpg-agent.ssh
 
@@ -234,6 +312,8 @@ echo $SSH_AUTH_SOCK
 # zerocode forwards its env at connect time, so any shell command the agent
 # las ejecuciones (git push, ssh, gpg-sign) obtienen SSH_AUTH_SOCK desde tu terminal.
 </code></pre>
+</div>
+
 <p>zerocode envía todo su entorno. En un daemon compartido o remoto donde esto sea una preocupación, usa WSS con una cuenta de usuario dedicada.</p>
 <h2 id="multiple-connected-clients-no-cross-session-clobbering"><a class="header" href="#multiple-connected-clients-no-cross-session-clobbering">Multiple connected clients: no cross-session clobbering</a></h2>
 <p>Each zerocode instance gets a unique <code>tui_id</code> (<code>tui_</code> + 8 random hex chars). The registry is a <code>HashMap&lt;tui_id → TuiEntry&gt;</code>, and entries are completely independent:</p>
@@ -259,9 +339,6 @@ echo $SSH_AUTH_SOCK
 <p>El último punto es importante: <code>get_env</code> devuelve un <strong>clon</strong>, no una referencia. Una vez creada una sesión, esta posee su propia instantánea del entorno. Las reconexiones o desconexiones del cliente de origen no tienen ningún efecto en las sesiones en ejecución.</p>
 <h2 id="paso-directo-del-perfil-de-riesgo-lista-de-permitidos-explícita"><a class="header" href="#paso-directo-del-perfil-de-riesgo-lista-de-permitidos-explícita">Paso directo del perfil de riesgo (lista de permitidos explícita)</a></h2>
 <p><code>shell_env_passthrough</code> on a risk profile controls which variables from the <em>daemon’s own process environment</em> are passed to shell subprocesses. This is useful when you want specific vars available regardless of whether zerocode is connected, for example on a headless server where the daemon itself has the vars set.</p>
-<pre><code class="language-toml">[risk_profiles.default]
-shell_env_passthrough = ["SSH_AUTH_SOCK", "GPG_AGENT_INFO"]
-</code></pre>
 <p>Subagents cannot expand this list beyond what the parent policy allows: adding a var not present on the parent’s list is rejected as a policy escalation.</p>
 
                     </main>

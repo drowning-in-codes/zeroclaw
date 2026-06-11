@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,9 +292,9 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-005-contribution-culture--human-collaboration-ai-partnership-and-team-growth"><a class="header" href="#fnd-005-contribution-culture--human-collaboration-ai-partnership-and-team-growth">FND-005: Contribution Culture — Human Collaboration, AI Partnership, and Team Growth</a></h1>
-<h3 id="starting-v070--type-culture--rev-1"><a class="header" href="#starting-v070--type-culture--rev-1">Starting v0.7.0 · Type: Culture · Rev. 1</a></h3>
+                        <h1 id="fnd-005-contribution-culture-human-collaboration-ai-partnership-and-team-growth"><a class="header" href="#fnd-005-contribution-culture-human-collaboration-ai-partnership-and-team-growth">FND-005: Contribution Culture: Human Collaboration, AI Partnership, and Team Growth</a></h1>
 <blockquote>
+<p>Starting v0.7.0 · Type: Culture · Rev. 1</p>
 <p><strong>Canonical reference</strong> · Ratified by the team · Rev. 1
 Discussion thread and full revision history: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5615">#5615</a></p>
 </blockquote>
@@ -226,14 +302,14 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <blockquote>
 <p><strong>A note to the team before you read this.</strong></p>
 <p>This is the fifth document in ZeroClaw’s maturity framework. The other four address
-architecture, documentation, governance, and engineering infrastructure — the structural
+architecture, documentation, governance, and engineering infrastructure, the structural
 layers that make a project work. This one addresses something those four take for granted
 but never explicitly teach: how to work together.</p>
 <p>The tools and processes in the other RFCs only function as well as the team using them.
 A perfect CI pipeline does not help a team that cannot give honest feedback. A clean
 architecture does not survive a team that cannot disagree productively. A governance
 model does not build ownership in people who have never been taught what ownership means.</p>
-<p>This document is about building that team — not just technically capable individuals,
+<p>This document is about building that team, not just technically capable individuals,
 but people who know how to give and receive feedback, how to ask for help, how to use
 powerful tools responsibly, and how to grow together over time. These are learnable
 skills. Nobody arrives with them fully formed. This document names them clearly enough
@@ -252,11 +328,11 @@ framework. They are designed to be read as a whole, though each stands on its ow
 <tr><th>RFC</th><th>Scope</th><th>Issue</th></tr>
 </thead>
 <tbody>
-<tr><td>Intentional Architecture — Microkernel Transition</td><td>What we are building and how it is structured</td><td>#5574</td></tr>
+<tr><td>Intentional Architecture: Microkernel Transition</td><td>What we are building and how it is structured</td><td>#5574</td></tr>
 <tr><td>Documentation Standards and Knowledge Architecture</td><td>How we document what we build</td><td>#5576</td></tr>
 <tr><td>Team Organization and Project Governance</td><td>How we coordinate and make decisions</td><td>#5577</td></tr>
-<tr><td>Engineering Infrastructure — CI/CD Pipeline</td><td>How we build, test, and ship reliably</td><td>#5579</td></tr>
-<tr><td><strong>Contribution Culture — Human Collaboration and AI Partnership</strong></td><td><strong>How we work together and grow</strong></td><td><strong>FND-005</strong></td></tr>
+<tr><td>Engineering Infrastructure: CI/CD Pipeline</td><td>How we build, test, and ship reliably</td><td>#5579</td></tr>
+<tr><td><strong>Contribution Culture: Human Collaboration and AI Partnership</strong></td><td><strong>How we work together and grow</strong></td><td><strong>FND-005</strong></td></tr>
 </tbody>
 </table>
 </div>
@@ -301,7 +377,7 @@ talented people becomes a functional team or a collection of individuals who hap
 share a repository.</p>
 <p>These are learnable skills. They are not personality traits you either have or do not
 have. They are not things that come automatically with technical ability. They are
-practiced — slowly, with feedback, over time — the same way any other skill is learned.
+practiced, slowly, with feedback, over time, the same way any other skill is learned.
 Most software engineering education focuses almost entirely on the technical layer and
 leaves the human layer to chance. The result is that a lot of technically capable people
 end up in teams that do not work well together, without any clear understanding of what
@@ -325,7 +401,7 @@ to describe them:</p>
 the principle behind it: <strong>every decision you make should be traceable back up to the top.</strong></p>
 <p>In practice, this means asking yourself before you start building:</p>
 <ul>
-<li><strong>What problem am I solving?</strong> Not “what ticket am I closing” — what actual problem
+<li><strong>What problem am I solving?</strong> Not “what ticket am I closing”: what actual problem
 does this solve for someone?</li>
 <li><strong>Does this fit the architecture?</strong> If you cannot describe where this belongs in the
 system structure, you do not yet understand the system well enough to change it.</li>
@@ -333,7 +409,7 @@ system structure, you do not yet understand the system well enough to change it.
 “It works” is not an acceptance criterion. “A user can install a plugin without a Rust
 toolchain and it runs correctly” is.</li>
 <li><strong>Who needs to know about this?</strong> Changes that touch other people’s work, or that make
-decisions the whole team should make, need visibility before implementation — not after.</li>
+decisions the whole team should make, need visibility before implementation, not after.</li>
 </ul>
 <p>This is not bureaucracy. It is the difference between building something and building the
 right thing. It also applies directly to how you work with AI tools, which we cover in
@@ -342,7 +418,7 @@ Section 4.</p>
 works, open a PR, and then learn in the review that it solves the wrong problem, or
 solves the right problem in a way that conflicts with a decision that was already made
 somewhere else. That wastes your time, the reviewer’s time, and delays the people who
-depend on the work. The pre-work is not extra — it is how you protect your own effort.</p>
+depend on the work. The pre-work is not extra. It is how you protect your own effort.</p>
 <hr>
 <h2 id="3-working-with-people"><a class="header" href="#3-working-with-people">3. Working with people</a></h2>
 <h3 id="giving-feedback"><a class="header" href="#giving-feedback">Giving feedback</a></h3>
@@ -352,7 +428,7 @@ A poorly written one can discourage someone from contributing again.</p>
 <p><strong>Be specific.</strong> Vague feedback creates anxiety without direction.</p>
 <blockquote>
 <p>❌ “This is hard to read.”</p>
-<p>✅ “This function is handling three separate concerns — input validation, business logic,
+<p>✅ “This function is handling three separate concerns: input validation, business logic,
 and formatting the response. Consider splitting them so each function does one thing.
 That makes it easier to test each piece and easier to understand at a glance what each
 one does.”</p>
@@ -365,7 +441,7 @@ understanding that applies to the next ten situations where the same principle a
 <p><strong>Separate the work from the person.</strong> “This approach has a problem” and “you made a
 mistake” are not the same statement. The first is about the code. The second is about
 the person. Keep your feedback pointed at the work.</p>
-<p><strong>Name what is good.</strong> This is not about being nice — it is about being useful. When you
+<p><strong>Name what is good.</strong> This is not about being nice. It is about being useful. When you
 tell someone what they got right and explain why it is right, you teach them what
 patterns to repeat. Generic praise (“great work!”) teaches nothing. Specific praise
 (“extracting this into its own crate was the right call because it means we can now test
@@ -379,12 +455,12 @@ people guess.</p>
 <h3 id="receiving-feedback"><a class="header" href="#receiving-feedback">Receiving feedback</a></h3>
 <p>This is harder than giving feedback for most people, and it is worth being honest about
 why.</p>
-<p>When you have spent hours on something — working through a problem, making decisions,
-writing the code — and someone tells you it has issues, the natural human response is
+<p>When you have spent hours on something, working through a problem, making decisions,
+writing the code, and someone tells you it has issues, the natural human response is
 to feel like the criticism is about you. It is not. It is about the work. Learning to
 hold those two things as separate is a skill, and it takes practice.</p>
 <p>A few things that help:</p>
-<p><strong>Read the feedback before you respond to it.</strong> Not just the summary line — the whole
+<p><strong>Read the feedback before you respond to it.</strong> Not just the summary line, the whole
 comment, including the explanation. Many feedback responses are written in reaction to
 the verdict before the person has absorbed the reasoning. Read the why before you decide
 how you feel about the what.</p>
@@ -395,11 +471,11 @@ useful is staying silent when you have questions, or saying “ok fine” when y
 disagree.</p>
 <p><strong>You do not have to agree with every piece of feedback to learn from it.</strong> Sometimes
 feedback is wrong. Sometimes it reflects a different set of tradeoffs than the ones you
-were optimising for. You are allowed to push back — see Disagreeing productively below.
+were optimising for. You are allowed to push back. See Disagreeing productively below.
 But even feedback you ultimately reject is worth understanding fully before you decide
 to reject it.</p>
 <p><strong>Close the loop.</strong> When someone takes time to review your work, tell them when you have
-addressed their feedback. You do not have to thank them effusively — a simple “addressed
+addressed their feedback. You do not have to thank them effusively. A simple “addressed
 in the latest commit” is enough. It tells them their time was worthwhile and keeps the
 PR moving.</p>
 <p><strong>Feedback on your code is not feedback on your worth.</strong> This sounds obvious. It is not
@@ -417,7 +493,7 @@ resolve is three hours of your time and your team’s time that is gone. Knowing
 ask is a skill, not a weakness.</p>
 <p>A good help request has three parts:</p>
 <ol>
-<li><strong>What you are trying to do.</strong> Not just “it’s broken” — what is the goal?</li>
+<li><strong>What you are trying to do.</strong> Not just “it’s broken”: what is the goal?</li>
 <li><strong>What you have already tried.</strong> This shows you have engaged with the problem and
 gives the person helping you a starting point that is not zero.</li>
 <li><strong>Where you are stuck specifically.</strong> “I don’t know what’s wrong” is a different
@@ -428,7 +504,7 @@ but I don’t know why my fix works.”</li>
 because the person helping you can calibrate to exactly where you are.</p>
 <p><strong>Ask publicly when you can.</strong> A question asked in a shared channel or on a PR benefits
 everyone who has the same question later. A question asked privately benefits only you.
-There are times when private is right — sensitive feedback, personal circumstances — but
+There are times when private is right, sensitive feedback, personal circumstances, but
 technical questions about the codebase are almost always better asked in the open.</p>
 <p><strong>Not knowing something is not shameful.</strong> Nobody knows everything. The engineers who
 appear to know everything have asked a lot of questions over a long time, and the answers
@@ -437,13 +513,13 @@ accumulated. The only way to get there is to start asking.</p>
 <h3 id="disagreeing-productively"><a class="header" href="#disagreeing-productively">Disagreeing productively</a></h3>
 <p>Architecture disagreements are healthy. They mean people care about how the system is
 built and are paying attention to the decisions being made. A team where nobody disagrees
-is not a team where everyone agrees — it is a team where people have stopped engaging.</p>
+is not a team where everyone agrees. It is a team where people have stopped engaging.</p>
 <p>The difference between a productive disagreement and an unproductive one is usually in
 the framing.</p>
 <p><strong>Lead with the concern, not the verdict.</strong></p>
 <blockquote>
 <p>❌ “This approach is wrong.”</p>
-<p>✅ “I have a concern about this approach — specifically, if we wire the gateway directly
+<p>✅ “I have a concern about this approach: specifically, if we wire the gateway directly
 into the runtime here, we break the dependency rule in RFC §4.2. Can we talk through
 whether there is a way to achieve the same result without that coupling?”</p>
 </blockquote>
@@ -453,11 +529,11 @@ RFC section, or a concrete failure scenario is a contribution. An architecture
 disagreement backed by “I just feel like” is an opinion. Both are worth expressing, but
 only one moves the conversation forward quickly.</p>
 <p><strong>Be genuinely open to being wrong.</strong> If you go into a disagreement having already
-decided you are right, you are not having a conversation — you are lobbying. People can
+decided you are right, you are not having a conversation. You are lobbying. People can
 tell the difference, and it makes them less likely to engage seriously with your concerns.
 The goal is the best outcome for the project, not being right.</p>
-<p><strong>When the team decides, move with the team.</strong> You can note your dissent on the record —
-in the issue, in the RFC comments, in the PR thread — and then you build what was
+<p><strong>When the team decides, move with the team.</strong> You can note your dissent on the record.
+in the issue, in the RFC comments, in the PR thread, and then you build what was
 decided. This is not capitulation. It is how teams function. A team that keeps
 relitigating settled decisions does not ship.</p>
 <p><strong>Some decisions are reversible and some are not.</strong> Know which kind you are arguing about.
@@ -472,14 +548,14 @@ that touches your area and noticing a side effect the author did not notice. It 
 seeing a follow-up issue sitting without an assignee and picking it up. It means not
 waiting to be told.</p>
 <p><strong>Ownership means your word means something.</strong> If you file a follow-up issue with your
-name on it, that issue is your commitment. Not “someone should do this” — you will do
+name on it, that issue is your commitment. Not “someone should do this”: you will do
 this. If circumstances change and you cannot, you say so early and you find a handoff.
 A tracker full of filed-and-forgotten issues with names attached is a broken trust
 register.</p>
 <p><strong>Ownership is not “I did my part.”</strong> It is “I care whether the whole thing works.” You
 can own a crate without being indifferent to whether the system that crate lives in is
 healthy. You can own a feature without being indifferent to whether users can actually
-use it. Narrow ownership — “I did my bit, the rest is someone else’s problem” — produces
+use it. Narrow ownership, “I did my bit, the rest is someone else’s problem”, produces
 systems that technically have owners for every piece and functionally have no one
 responsible for anything.</p>
 <p><strong>Ownership includes the follow-through.</strong> Shipping code is not the end of ownership.
@@ -495,7 +571,7 @@ are working in. Maybe you have seen this particular failure mode before.</p>
 what was wrong or why your solution works produces a merged PR and zero learning. The
 next time they hit a similar problem, they will be in the same place. Take the extra
 five minutes to explain what you saw and why the fix works.</p>
-<p><strong>Review with intent to teach.</strong> A bad PR is not just a problem to close — it is a
+<p><strong>Review with intent to teach.</strong> A bad PR is not just a problem to close. It is a
 teaching opportunity. A dismissive review (“this doesn’t follow the architecture”) is
 less useful than a review that names what was missed, explains the principle it violates,
 and points to where the contributor can learn more. The extra effort is an investment in
@@ -503,7 +579,7 @@ a contributor who writes better PRs from that point forward.</p>
 <p><strong>If someone is blocked and not asking for help, say something.</strong> Sometimes people do
 not ask because they do not want to look like they are struggling. Sometimes they are not
 sure who to ask. Sometimes they have been struggling long enough that they have stopped
-noticing how stuck they are. A quiet “looks like this one has been open for a while —
+noticing how stuck they are. A quiet “looks like this one has been open for a while.
 is there anything I can help unblock?” costs almost nothing and can mean everything to
 someone who is spinning.</p>
 <p><strong>Make it safe to not know things.</strong> If people in your team feel judged for not knowing
@@ -522,7 +598,7 @@ explain the goal, the constraints, what good looks like, and what the boundaries
 You do not just say “build me a feature.” You say: here is what the user is trying to
 do, here is how it fits into the system, here is how we will know it is done, and here
 are the things you should not do.</p>
-<p>Then — critically — you review what comes back. You do not accept a junior engineer’s
+<p>Then, critically, you review what comes back. You do not accept a junior engineer’s
 PR without reading it. You check whether it does what was asked, whether it fits the
 architecture, whether it has test coverage, whether the error handling is correct. You
 give feedback. You may iterate.</p>
@@ -531,7 +607,7 @@ almost entirely by the quality of what you put in. A vague prompt produces vague
 A prompt with clear context, specific constraints, and concrete acceptance criteria
 produces output that is actually useful as a starting point.</p>
 <p>The engineers who struggle with AI tools are usually the ones who are still learning
-to give clear direction to anything — human or AI. The engineers who thrive with them
+to give clear direction to anything: human or AI. The engineers who thrive with them
 are the ones who already know what they want before they ask for it.</p>
 <p>This mental model also means that the output is your responsibility. You cannot submit
 a PR and say “the AI wrote it.” You reviewed it. You opened the PR. It is your work.</p>
@@ -554,7 +630,7 @@ ask whether you have thought through the security implications. It will not noti
 you are solving the wrong problem.</p>
 <p>ZeroClaw itself is a useful example. The initial codebase was bootstrapped with AI
 assistance. The result, as the architecture RFC describes it, is “impressively functional
-but architecturally accidental.” The code does what it needs to do today — but it was
+but architecturally accidental.” The code does what it needs to do today, but it was
 not designed, it accumulated. That is not a failure of AI tools. It is a predictable
 outcome of using implementation-layer tooling without first doing the vision,
 architecture, and design work that gives implementation its direction.</p>
@@ -565,9 +641,9 @@ always, before you ask the AI to build anything.</p>
 <p>AI tools amplify your existing capabilities. That is the honest description of what
 they do.</p>
 <p>If you have a clear vision, a defined architecture, quality criteria you can articulate,
-and the ability to evaluate output critically — AI is a genuine force multiplier. You
+and the ability to evaluate output critically. AI is a genuine force multiplier. You
 move faster. You explore more options. You write more tests. You draft more documentation.</p>
-<p>If you do not have those things — AI generates a lot of code that looks convincing and
+<p>If you do not have those things. AI generates a lot of code that looks convincing and
 does not hold together. It generates tests that pass without testing anything meaningful.
 It generates documentation that describes the code but not the intent. It generates
 architecture that is locally consistent and globally incoherent.</p>
@@ -590,7 +666,7 @@ in the design phase.</p>
 <h3 id="the-review-discipline"><a class="header" href="#the-review-discipline">The review discipline</a></h3>
 <p>AI-generated code requires the same review discipline as human-written code. In some
 ways it requires more, because the surface area of issues you are checking for is wider.</p>
-<p>When you review AI-generated output — your own or someone else’s — check for:</p>
+<p>When you review AI-generated output, your own or someone else’s, check for:</p>
 <p><strong>Architectural fit.</strong> Does this respect the dependency rules? Does it live in the right
 crate? Does it introduce a coupling that the design explicitly avoids?</p>
 <p><strong>Correctness at the boundary.</strong> AI models are very good at the common case and
@@ -603,7 +679,7 @@ values, that uses deprecated cryptographic primitives, that opens file paths wit
 checking them. You have to bring the security lens explicitly.</p>
 <p><strong>Test quality.</strong> AI-generated tests frequently test the implementation rather than the
 behaviour. A test that asserts a function returns a specific internal struct value is
-not a behaviour test — it is a snapshot of the implementation that will break whenever
+not a behaviour test. It is a snapshot of the implementation that will break whenever
 the implementation changes. Ask: does this test verify that the system does what the
 user or caller needs, or does it verify that the code does what it currently does?</p>
 <p><strong>Completeness.</strong> AI tools optimise for plausible-looking completeness. They will
@@ -612,18 +688,18 @@ Check that errors are propagated, handled, or surfaced in a way that is actually
 to the caller.</p>
 <hr>
 <h3 id="what-this-means-for-your-career"><a class="header" href="#what-this-means-for-your-career">What this means for your career</a></h3>
-<p>The skills being described here — giving direction clearly, evaluating output critically,
+<p>The skills being described here: giving direction clearly, evaluating output critically,
 understanding where a component fits in a larger system, knowing what good looks like
-before you build — are not AI-specific skills. They are the skills that make someone
+before you build, are not AI-specific skills. They are the skills that make someone
 an effective engineer, an effective tech lead, and eventually an effective engineering
 manager.</p>
 <p>The engineers who will be most valuable in a world saturated with AI-generated code are
 not the ones who can write the most code fastest. They are the ones who can tell whether
 the code is right. That requires system thinking, architectural judgment, and the
 ability to evaluate work against a standard you have internalised.</p>
-<p>Everything you practice here — understanding the RFC before you implement, asking “why”
+<p>Everything you practice here: understanding the RFC before you implement, asking “why”
 before you build, reviewing AI output with the same eye you would bring to a junior
-engineer’s PR — is practice for that kind of judgment. It compounds. Every PR where you
+engineer’s PR, is practice for that kind of judgment. It compounds. Every PR where you
 engage seriously with the architecture is a data point that makes the next architectural
 decision easier.</p>
 <p>The contributors on this project have an unusual advantage: you are building these habits
@@ -648,7 +724,7 @@ with an explanation teaches the principle behind what was done well, which appli
 every future decision in the same category.</p>
 <p><strong>Commendations require no action.</strong> Their purpose is to reinforce.</p>
 <blockquote>
-<p><em>Example: “Extracting the tool call parser into its own crate was the right call — this
+<p><em>Example: “Extracting the tool call parser into its own crate was the right call: this
 code has zero dependencies on agent state and is now independently testable. The 91
 tests you added are exactly the kind of coverage that would be impossible to achieve
 when this logic lived inside <code>loop_.rs</code>.”</em></p>
@@ -663,7 +739,7 @@ explicitly prohibits, or that contradicts a decision recorded in an RFC or ADR.<
 <li><strong>Quality regressions</strong>: missing test coverage for new behaviour, security issues,
 broken contract compatibility, or code that introduces a defect.</li>
 </ul>
-<p>A blocking comment explains what the issue is, why it matters, and — where possible —
+<p>A blocking comment explains what the issue is, why it matters, and, where possible,
 what a resolution path looks like. A blocking comment is not a judgment of the author.
 It is the reviewer’s responsibility to the codebase and the users who depend on it.</p>
 <p><strong>Authors should not interpret a blocking comment as rejection.</strong> It is a specific,
@@ -676,29 +752,29 @@ need that commitment on record before we merge.</em></p>
 <p>The distinction between blocking and conditional is often about timing and risk. A
 missing feature that will be delivered in the next PR is conditional. A missing feature
 that creates a security gap is blocking.</p>
-<p><strong>A conditional deferral without an assignee is not a deferral — it is a wish.</strong> Tracked
+<p><strong>A conditional deferral without an assignee is not a deferral. It is a wish.</strong> Tracked
 issues with no owner tend to stay open indefinitely. When a reviewer marks something
 conditional, they are asking for a named commitment, not a theoretical future intention.</p>
 <hr>
 <h3 id="-team-decision"><a class="header" href="#-team-decision">🔵 Team Decision</a></h3>
 <p>A question the PR surfaces that no single reviewer or author should answer unilaterally.
 Team decisions involve tradeoffs that affect the project’s direction, its architecture,
-or its users — and they belong to the group.</p>
+or its users, and they belong to the group.</p>
 <p>Using this label is how reviewers avoid holding up individual contributors with questions
 that are really about shared direction. It surfaces the decision, frames the tradeoffs,
-and asks the team to weigh in — without making the author feel like their PR is blocked
+and asks the team to weigh in, without making the author feel like their PR is blocked
 on something that is not in their control.</p>
 <p><strong>Team decisions should be answered in the PR thread, on the record, by the people who
 need to own the outcome.</strong> A decision answered in a side conversation that does not
 appear in the PR thread does not exist for anyone who reads the history later.</p>
 <hr>
 <h2 id="6-a-note-to-reviewers-and-mentors"><a class="header" href="#6-a-note-to-reviewers-and-mentors">6. A note to reviewers and mentors</a></h2>
-<p>If you are in a position of reviewing someone else’s work — whether as a code owner, a
-more experienced contributor, or simply someone who has been here longer — this section
+<p>If you are in a position of reviewing someone else’s work, whether as a code owner, a
+more experienced contributor, or simply someone who has been here longer, this section
 is for you.</p>
 <p><strong>You are modelling what collaboration looks like.</strong> Every review you write teaches the
 author how to review. Every question you ask in a PR thread teaches newer contributors
-what questions are worth asking. You cannot opt out of this — the only choice is whether
+what questions are worth asking. You cannot opt out of this: the only choice is whether
 to do it intentionally or accidentally.</p>
 <p><strong>Thoroughness is respect.</strong> A thorough review that explains its reasoning is more
 respectful of the author’s effort than a quick approval. The author put time into the
@@ -706,18 +782,18 @@ work. They deserve to understand why it is or is not ready to merge, and what th
 take forward from the interaction.</p>
 <p><strong>The goal of every review interaction is to leave the author better equipped than they
 were before.</strong> Not just to produce a merged PR. Not to demonstrate your own knowledge.
-Not to enforce rules. To leave the author with something they can use — a principle,
-a pattern, an understanding of a tradeoff — that applies beyond the immediate PR.</p>
+Not to enforce rules. To leave the author with something they can use: a principle,
+a pattern, an understanding of a tradeoff, that applies beyond the immediate PR.</p>
 <p><strong>Name the pattern, not just the instance.</strong> When you ask for a change, explain the
 principle behind it. “Rename this variable to something that describes what it contains”
 is less useful than “variable names should describe their purpose from the caller’s
-perspective, not the implementation’s — what does the caller of this function actually
+perspective, not the implementation’s: what does the caller of this function actually
 care that this value represents?” The second version applies to every variable in every
 function the author will ever write.</p>
 <p><strong>Be honest about what is your preference and what is a requirement.</strong> “I would write
 this differently” is not the same as “this must change.” If you are expressing a
-preference, say so. If you are citing a hard requirement — architecture, security,
-compatibility — cite the specific reason. Authors who cannot tell the difference between
+preference, say so. If you are citing a hard requirement: architecture, security,
+compatibility, cite the specific reason. Authors who cannot tell the difference between
 reviewer preference and architectural necessity will either change everything or change
 nothing. Neither serves them well.</p>
 <p><strong>The team you are helping build is the team you will work in.</strong> The investment you make

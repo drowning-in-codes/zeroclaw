@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,9 +295,9 @@
                         <h1 id="étiquettes"><a class="header" href="#étiquettes">Étiquettes</a></h1>
 <p>Référence unique pour chaque libellé utilisé dans les PR et les tickets. Sources de vérité :</p>
 <ul>
-<li><code>.github/labeler.yml</code> — configuration de <code>path-label</code> consommée par <code>actions/labeler</code></li>
-<li><code>.github/label-policy.json</code> — seuils de niveau des contributeurs</li>
-<li>Cette page — définitions, comportement et ce qui est automatisé vs manuel</li>
+<li><code>.github/labeler.yml</code>: path-label config consumed by <code>actions/labeler</code></li>
+<li><code>.github/label-policy.json</code>: contributor tier thresholds</li>
+<li>This page: definitions, behavior, and what’s automated vs manual</li>
 </ul>
 <p>Lorsque les définitions entrent en conflit, mettez d’abord à jour le fichier source, puis synchronisez cette page.</p>
 <h2 id="limites-de-propriété"><a class="header" href="#limites-de-propriété">Limites de propriété</a></h2>
@@ -234,11 +310,16 @@
 <li>L’état natif des PR GitHub gère l’état de revue qui change rapidement : décision de revue, vérifications requises, possibilité de fusion, conflits et approbations obsolètes.</li>
 </ul>
 <p>Le tableau devrait réduire le travail des mainteneurs. Si un champ nécessite une maintenance manuelle après chaque push de PR ou chaque revue, préférez plutôt les labels, les jalons ou l’état natif de GitHub.</p>
-<p>Labels can suggest likely ownership, but they are not ownership. A <code>channel:*</code>, <code>provider:*</code>, <code>tool:*</code>, <code>security:*</code>, or <code>docs</code> label identifies the surface that probably needs attention. Contributor-visible owner-source rules live in the <a href="./pr-workflow.html#project-board-contract">Project board contract</a>.</p>
+<p>Labels can suggest likely ownership, but they are not ownership. A <code>channel:*</code>, <code>provider:*</code>, <code>tool:*</code>, <code>security</code>, or <code>docs</code> label identifies the surface that probably needs attention. Contributor-visible owner-source rules live in the <a href="./pr-workflow.html#project-board-contract">Project board contract</a>.</p>
 <p>Use assignees for active work. Use area stewardship for routing responsibility when nobody is implementing yet. The <a href="./pr-workflow.html#issue-ownership-path">Project board contract</a> defines the accepted owner sources and routing outcomes.</p>
 <h2 id="orthographe-canonique"><a class="header" href="#orthographe-canonique">Orthographe canonique</a></h2>
-<p>Utilisez l’orthographe active sans espace du module pour les libellés de module à portée : <code>provider:openai</code>, <code>channel:telegram</code>, <code>tool:shell</code>, <code>security:policy</code>, et libellés similaires. Les familles size et risk conservent intentionnellement un espace après les deux-points : <code>size: XS</code>, <code>risk: low</code>, <code>risk: medium</code>, <code>risk: high</code>.</p>
-<p>Les libellés en double hérités tels que <code>provider: openai</code>, <code>channel: telegram</code> ou <code>tool: shell</code> sont candidats au nettoyage. Migrez les issues/PRs ouvertes vers l’orthographe canonique sans espace avant suppression. Ne supprimez pas les libellés avec des références ouvertes, ne renommez pas largement les familles de libellés, et ne retirez pas les libellés de stale-policy sans une décision du mainteneur pour ce lot de nettoyage.</p>
+<p>Use the live no-space module spelling for scoped module labels: <code>provider:openai</code>, <code>channel:telegram</code>, <code>security:policy</code>, and similar labels. The size, risk, and most type families currently keep a space after the colon: <code>size: XS</code>, <code>risk: low</code>, <code>risk: medium</code>, <code>risk: high</code>, and <code>type: docs</code>.</p>
+<p>Legacy duplicate labels such as <code>provider: openai</code>, <code>channel: telegram</code>, or <code>tool: shell</code> are cleanup candidates. Future no-space spelling for size, risk, or type labels is also a migration question, not a casual rename. Migrate open issues/PRs to the canonical label before deletion. Do not delete labels with open references, broadly rename label families, or remove stale-policy labels without a maintainer decision for that cleanup batch.</p>
+<h2 id="automation-contract"><a class="header" href="#automation-contract">Automation contract</a></h2>
+<p>Live PR label automation is split by source. <code>pr-path-labeler.yml</code> runs <code>actions/labeler</code> from <code>.github/labeler.yml</code> on PR open, reopen, and every pushed update. Because that workflow uses <code>sync-labels: true</code>, labels owned by <code>.github/labeler.yml</code> are recalculated from the current PR file set: matching path labels are added, and path labels that no longer match are removed.</p>
+<p>Dependabot also seeds configured labels on its own PRs from <code>.github/dependabot.yml</code>: Cargo updates get <code>dependencies</code>; GitHub Actions and Docker updates get <code>ci</code> and <code>dependencies</code>. Those labels are initial Dependabot PR metadata, not the synchronized path-labeler contract.</p>
+<p>Today <code>.github/labeler.yml</code> owns only path and scope labels such as <code>docs</code>, <code>ci</code>, <code>channel</code>, <code>provider:openai</code>, and <code>tool:file</code>. It does not own <code>risk:*</code>, <code>size:*</code>, <code>type:*</code>, contributor-tier, status, resolution, stale, or pickup labels.</p>
+<p>If risk or size automation is added later, it should recalculate on every pushed PR update so the labels continue to describe the actual diff under review. Risk automation must honor <code>risk: manual</code> as an override that prevents future automated risk replacement for that PR until a maintainer removes the override.</p>
 <h2 id="protocole-de-nettoyage"><a class="header" href="#protocole-de-nettoyage">Protocole de nettoyage</a></h2>
 <p>Le nettoyage des étiquettes est une action de mainteneur, et non un effet secondaire de la revue normale d’une PR.</p>
 <p>Utilisez cette séquence :</p>
@@ -265,7 +346,7 @@
 </table>
 </div>
 <h2 id="étiquettes-de-chemin"><a class="header" href="#étiquettes-de-chemin">Étiquettes de chemin</a></h2>
-<p>Appliqué automatiquement par <code>pr-path-labeler.yml</code> (la seule automatisation d’étiquetage actuellement active). Les globs sont définis dans <code>.github/labeler.yml</code>.</p>
+<p>Applied automatically by <code>pr-path-labeler.yml</code>. Globs live in <code>.github/labeler.yml</code>; when this page and the config disagree, treat <code>.github/labeler.yml</code> as the operational source and update this page.</p>
 <h3 id="étiquettes-de-portée-de-base"><a class="header" href="#étiquettes-de-portée-de-base">Étiquettes de portée de base</a></h3>
 <div class="table-wrapper">
 <table>
@@ -277,27 +358,27 @@
 <tr><td><code>dépendances</code></td><td><code>Cargo.toml</code>, <code>Cargo.lock</code>, <code>deny.toml</code>, <code>.github/dependabot.yml</code></td></tr>
 <tr><td><code>ci</code></td><td><code>.github/codeql/**</code>, <code>.github/workflows/**</code>, <code>.github/*.yaml</code>, <code>.github/*.yml</code>, <code>.github/*.json</code>, <code>.githooks/**</code></td></tr>
 <tr><td><code>core</code></td><td><code>src/*.rs</code></td></tr>
-<tr><td><code>agent</code></td><td><code>src/agent/**</code></td></tr>
-<tr><td><code>channel</code></td><td><code>src/channels/**</code></td></tr>
-<tr><td><code>gateway</code></td><td><code>src/gateway/**</code></td></tr>
-<tr><td><code>config</code></td><td><code>src/config/**</code></td></tr>
-<tr><td><code>cron</code></td><td><code>src/cron/**</code></td></tr>
-<tr><td><code>daemon</code></td><td><code>src/daemon/**</code></td></tr>
-<tr><td><code>doctor</code></td><td><code>src/doctor/**</code></td></tr>
-<tr><td><code>health</code></td><td><code>src/health/**</code></td></tr>
-<tr><td><code>heartbeat</code></td><td><code>src/heartbeat/**</code></td></tr>
-<tr><td><code>integration</code></td><td><code>src/integrations/**</code></td></tr>
-<tr><td><code>mémoire</code></td><td><code>src/memory/**</code></td></tr>
-<tr><td><code>sécurité</code></td><td><code>src/security/**</code></td></tr>
-<tr><td><code>runtime</code></td><td><code>src/runtime/**</code></td></tr>
-<tr><td><code>onboard</code></td><td><code>src/onboard/**</code></td></tr>
-<tr><td><code>provider</code></td><td><code>src/providers/**</code></td></tr>
-<tr><td><code>service</code></td><td><code>src/service/**</code></td></tr>
-<tr><td><code>skillforge</code></td><td><code>src/skillforge/**</code></td></tr>
-<tr><td><code>compétences</code></td><td><code>src/skills/**</code></td></tr>
-<tr><td><code>outil</code></td><td><code>src/tools/**</code></td></tr>
-<tr><td><code>tunnel</code></td><td><code>src/tunnel/**</code></td></tr>
-<tr><td><code>observabilité</code></td><td><code>src/observabilité/**</code></td></tr>
+<tr><td><code>agent</code></td><td><code>src/agent/**</code>, <code>crates/zeroclaw-runtime/src/agent/**</code></td></tr>
+<tr><td><code>channel</code></td><td><code>src/channels/**</code>, <code>crates/zeroclaw-channels/src/**</code></td></tr>
+<tr><td><code>gateway</code></td><td><code>src/gateway/**</code>, <code>crates/zeroclaw-gateway/src/**</code></td></tr>
+<tr><td><code>config</code></td><td><code>src/config/**</code>, <code>crates/zeroclaw-config/src/**</code></td></tr>
+<tr><td><code>cron</code></td><td><code>src/cron/**</code>, <code>crates/zeroclaw-runtime/src/cron/**</code></td></tr>
+<tr><td><code>daemon</code></td><td><code>src/daemon/**</code>, <code>crates/zeroclaw-runtime/src/daemon/**</code></td></tr>
+<tr><td><code>doctor</code></td><td><code>src/doctor/**</code>, <code>crates/zeroclaw-runtime/src/doctor/**</code></td></tr>
+<tr><td><code>health</code></td><td><code>src/health/**</code>, <code>crates/zeroclaw-runtime/src/health/**</code></td></tr>
+<tr><td><code>heartbeat</code></td><td><code>src/heartbeat/**</code>, <code>crates/zeroclaw-runtime/src/heartbeat/**</code></td></tr>
+<tr><td><code>integration</code></td><td><code>src/integrations/**</code>, <code>crates/zeroclaw-runtime/src/integrations/**</code></td></tr>
+<tr><td><code>mémoire</code></td><td><code>src/memory/**</code>, <code>crates/zeroclaw-memory/src/**</code></td></tr>
+<tr><td><code>sécurité</code></td><td><code>src/security/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code></td></tr>
+<tr><td><code>runtime</code></td><td><code>src/runtime/**</code>, <code>crates/zeroclaw-runtime/src/**</code></td></tr>
+<tr><td><code>quickstart</code></td><td><code>crates/zeroclaw-runtime/src/quickstart/**</code>, <code>crates/zeroclaw-gateway/src/api_quickstart.rs</code>, <code>apps/zerocode/src/quickstart_pane.rs</code>, <code>web/src/pages/quickstart/**</code></td></tr>
+<tr><td><code>provider</code></td><td><code>src/providers/**</code>, <code>crates/zeroclaw-providers/src/**</code></td></tr>
+<tr><td><code>service</code></td><td><code>src/service/**</code>, <code>crates/zeroclaw-runtime/src/service/**</code></td></tr>
+<tr><td><code>skillforge</code></td><td><code>src/skillforge/**</code>, <code>crates/zeroclaw-runtime/src/skillforge/**</code></td></tr>
+<tr><td><code>compétences</code></td><td><code>src/skills/**</code>, <code>crates/zeroclaw-runtime/src/skills/**</code></td></tr>
+<tr><td><code>outil</code></td><td><code>src/tools/**</code>, <code>crates/zeroclaw-tools/src/**</code></td></tr>
+<tr><td><code>tunnel</code></td><td><code>src/tunnel/**</code>, <code>crates/zeroclaw-runtime/src/tunnel/**</code></td></tr>
+<tr><td><code>observabilité</code></td><td><code>src/observability/**</code>, <code>crates/zeroclaw-runtime/src/observability/**</code></td></tr>
 <tr><td><code>tests</code></td><td><code>tests/**</code></td></tr>
 <tr><td><code>scripts</code></td><td><code>scripts/**</code></td></tr>
 <tr><td><code>dev</code></td><td><code>dev/**</code></td></tr>
@@ -317,7 +398,7 @@
 <tr><td><code>channel:clawdtalk</code></td><td><code>clawdtalk.rs</code></td></tr>
 <tr><td><code>channel:cli</code></td><td><code>cli.rs</code></td></tr>
 <tr><td><code>channel:dingtalk</code></td><td><code>dingtalk.rs</code></td></tr>
-<tr><td><code>channel:discord</code></td><td><code>discord.rs</code></td></tr>
+<tr><td><code>channel:discord</code></td><td><code>discord.rs</code>, <code>discord_history.rs</code></td></tr>
 <tr><td><code>channel:email</code></td><td><code>email_channel.rs</code>, <code>gmail_push.rs</code></td></tr>
 <tr><td><code>channel:imessage</code></td><td><code>imessage.rs</code></td></tr>
 <tr><td><code>channel:irc</code></td><td><code>irc.rs</code></td></tr>
@@ -338,7 +419,7 @@
 <tr><td><code>channel:twitter</code></td><td><code>twitter.rs</code></td></tr>
 <tr><td><code>channel:wati</code></td><td><code>wati.rs</code></td></tr>
 <tr><td><code>channel:webhook</code></td><td><code>webhook.rs</code></td></tr>
-<tr><td><code>channel:wecom</code></td><td><code>wecom.rs</code></td></tr>
+<tr><td><code>channel:wecom</code></td><td><code>wecom.rs</code>, <code>wecom_ws.rs</code></td></tr>
 <tr><td><code>channel:whatsapp</code></td><td><code>whatsapp.rs</code>, <code>whatsapp_storage.rs</code>, <code>whatsapp_web.rs</code></td></tr>
 </tbody>
 </table>
@@ -391,7 +472,7 @@
 </table>
 </div>
 <h2 id="étiquettes-de-taille"><a class="header" href="#étiquettes-de-taille">Étiquettes de taille</a></h2>
-<p>En fonction du nombre de lignes modifiées, normalisé pour les PRs uniquement documentaires et celles avec des fichiers lockfile. Actuellement appliqué <strong>manuellement</strong> — l’automatisation de taille qui calculait ces données a été supprimée lors de la simplification du CI.</p>
+<p>Based on effective changed line count, normalized for docs-only and lockfile-heavy PRs. Currently applied <strong>manually</strong>; the size automation that previously computed these was removed during CI simplification. Future size automation should follow the <a href="#automation-contract">automation contract</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -407,7 +488,7 @@
 </table>
 </div>
 <h2 id="étiquettes-de-risque"><a class="header" href="#étiquettes-de-risque">Étiquettes de risque</a></h2>
-<p>Pour les PR, les étiquettes de risque décrivent le diff réel en cours de révision : chemins modifiés, changement de comportement, exposition des limites de sécurité et difficulté de rollback. Pour les issues, les étiquettes de risque décrivent le rayon d’impact probable du correctif d’après le rapport, aident à trier la profondeur de révision et l’adéquation des contributeurs, et peuvent changer une fois qu’une PR concrète montre le véritable chemin d’implémentation. Actuellement appliquées <strong>manuellement</strong>.</p>
+<p>For PRs, risk labels describe the actual diff under review: touched paths, behavior change, security boundary exposure, and rollback difficulty. For issues, risk labels describe the likely fix blast radius based on the report, help triage reviewer depth and contributor fit, and may change once a concrete PR shows the actual implementation path. Currently applied <strong>manually</strong>. Future risk automation should follow the <a href="#automation-contract">automation contract</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -421,7 +502,7 @@
 </tbody>
 </table>
 </div>
-<p>Cheminements à haut risque : <code>crates/zeroclaw-runtime/src/**</code>, <code>crates/zeroclaw-gateway/src/**</code>, <code>crates/zeroclaw-tools/src/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code>, <code>.github/workflows/**</code>.</p>
+<p>High-risk paths (canonical set; other maintainer pages reference this list): <code>crates/zeroclaw-runtime/src/**</code>, <code>crates/zeroclaw-gateway/src/**</code>, <code>crates/zeroclaw-tools/src/**</code>, <code>crates/zeroclaw-runtime/src/security/**</code>, <code>.github/workflows/**</code>.</p>
 <p>En cas de doute, considérez-le comme un risque élevé.</p>
 <h2 id="étiquettes-de-niveau-de-contributeur"><a class="header" href="#étiquettes-de-niveau-de-contributeur">Étiquettes de niveau de contributeur</a></h2>
 <p>Défini dans <code>.github/label-policy.json</code>. Basé sur le nombre de PR fusionnées de l’auteur, interrogé via l’API GitHub. Actuellement appliqué <strong>manuellement</strong>.</p>
@@ -471,7 +552,7 @@
 <p>Ne créez ni n’appliquez de libellés proposés tels que <code>status:wont-do</code> ou <code>status:wont-fix</code> tant qu’un dossier de migration de libellés approuvé par un mainteneur n’a pas défini le plan exact de renommage, d’alias ou de suppression. Le libellé actuellement en vigueur pour le concept « Won’t Do » au niveau du tableau est <code>wontfix</code>.</p>
 <p>Le remplacement (superseding) est un processus de substitution, pas actuellement un label actif. Utilisez <a href="./superseding.html">Superseding PRs</a> pour les règles de remplacement et les exigences d’attribution jusqu’à ce qu’un paquet de migration approuvé ultérieurement crée ou mappe un label de remplacement.</p>
 <h2 id="étiquettes-de-tri"><a class="header" href="#étiquettes-de-tri">Étiquettes de tri</a></h2>
-<p>Appliqué manuellement — l’automatisation de réponse automatique qui gérait ces cas a été supprimée lors de la simplification de l’intégration continue (CI).</p>
+<p>Applied manually: the auto-response automation that used to handle these was removed during CI simplification.</p>
 <div class="table-wrapper">
 <table>
 <thead>

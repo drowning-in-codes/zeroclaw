@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,62 +294,14 @@
                     <main>
                         <h1 id="standard-operating-procedures-sop"><a class="header" href="#standard-operating-procedures-sop">Standard Operating Procedures (SOP)</a></h1>
 <p>SOPs are deterministic procedures executed by the <code>SopEngine</code>. They provide explicit trigger matching, approval gates, and auditable run state.</p>
-<h2 id="quick-paths"><a class="header" href="#quick-paths">Quick Paths</a></h2>
 <ul>
-<li><strong>Connect Events:</strong> <a href="connectivity.html">Connectivity &amp; Fan-In</a> — trigger SOPs via MQTT, webhooks, cron, or peripherals.</li>
-<li><strong>Write SOPs:</strong> <a href="syntax.html">Syntax Reference</a> — required file layout and trigger/step syntax.</li>
-<li><strong>Monitor:</strong> <a href="observability.html">Observability &amp; Audit</a> — where run state and audit entries are stored.</li>
-<li><strong>Examples:</strong> <a href="cookbook.html">Cookbook</a> — reusable SOP patterns.</li>
+<li><a href="./how-it-works.html">How SOPs run</a>: the runtime contract, event flow, and a getting-started walkthrough.</li>
+<li><a href="./syntax.html">Syntax</a>: required file layout and trigger/step syntax.</li>
+<li><a href="./cookbook.html">Cookbook</a>: reusable SOP patterns.</li>
+<li><a href="./connectivity.html">Connectivity</a>: event fan-in to the SOP engine. MQTT is the wired live source; webhook, cron, and peripheral triggers are defined and matched but not yet routed to a live event source.</li>
+<li><a href="./observability.html">Observability</a>: where run state and audit entries are stored.</li>
+<li><a href="./example.html">Worked Example</a>: the stagehand StageX auto-update bot, from build to draft PR, driven by a deterministic SOP over an AMQP feed.</li>
 </ul>
-<h2 id="1-runtime-contract-current"><a class="header" href="#1-runtime-contract-current">1. Runtime Contract (Current)</a></h2>
-<ul>
-<li>SOP definitions are loaded from <code>&lt;workspace&gt;/sops/&lt;sop_name&gt;/SOP.toml</code> plus optional <code>SOP.md</code>.</li>
-<li>CLI <code>zeroclaw sop</code> currently manages definitions only: <code>list</code>, <code>validate</code>, <code>show</code>.</li>
-<li>SOP runs are started by event fan-in (MQTT/webhook/cron/peripheral) or by the in-agent tool <code>sop_execute</code>.</li>
-<li>Run progression uses tools: <code>sop_status</code>, <code>sop_approve</code>, <code>sop_advance</code>.</li>
-<li>SOP audit records are persisted in the configured Memory backend under category <code>sop</code>.</li>
-</ul>
-<h2 id="2-event-flow"><a class="header" href="#2-event-flow">2. Event Flow</a></h2>
-<pre class="mermaid">graph LR
-    MQTT[MQTT] --&gt;|topic match| Dispatch
-    WH[POST /sop/* or /webhook] --&gt;|path match| Dispatch
-    CRON[Scheduler] --&gt;|window check| Dispatch
-    GPIO[Peripheral] --&gt;|board/signal match| Dispatch
-
-    Dispatch --&gt; Engine[SOP Engine]
-    Engine --&gt; Run[SOP Run]
-    Run --&gt; Action{Action}
-    Action --&gt;|ExecuteStep| Agent[Agent Loop]
-    Action --&gt;|WaitApproval| Human[Operator]
-    Human --&gt;|sop_approve| Run
-</pre>
-
-<h2 id="3-getting-started"><a class="header" href="#3-getting-started">3. Getting Started</a></h2>
-<ol>
-<li>
-<p>Set the SOP directory in <code>config.toml</code> (required for runtime SOP loading):</p>
-<pre><code class="language-toml">[sop]
-sops_dir = "sops"  # omitting this disables runtime SOP execution
-</code></pre>
-</li>
-<li>
-<p>Create a SOP directory, for example:</p>
-<pre><code class="language-text">~/.zeroclaw/workspace/sops/deploy-prod/SOP.toml
-~/.zeroclaw/workspace/sops/deploy-prod/SOP.md
-</code></pre>
-</li>
-<li>
-<p>Validate and inspect definitions:</p>
-<pre><code class="language-bash">zeroclaw sop list
-zeroclaw sop validate
-zeroclaw sop show deploy-prod
-</code></pre>
-</li>
-<li>
-<p>Trigger runs via configured event sources, or manually from an agent turn with <code>sop_execute</code>.</p>
-</li>
-</ol>
-<p>For trigger routing and auth details, see <a href="connectivity.html">Connectivity</a>.</p>
 
                     </main>
 
@@ -283,7 +311,7 @@ zeroclaw sop show deploy-prod
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../sop/syntax.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../sop/how-it-works.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -297,7 +325,7 @@ zeroclaw sop show deploy-prod
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../sop/syntax.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../sop/how-it-works.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

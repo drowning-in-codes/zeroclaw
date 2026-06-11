@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,86 +296,15 @@
 <p>El enrutamiento ocurre en la <strong>capa de agente</strong>. Cada agente apunta exactamente a un proveedor; los canales apuntan a los agentes.</p>
 <p>Dos capas de decisiones:</p>
 <ol>
-<li><strong>Selección de backend por llamada</strong> — “usa el modelo económico a menos que este prompt parezca de razonamiento”. Cada destino de enrutamiento es su propia entrada <code>[agents.&lt;alias&gt;]</code> con su propio <code>model_provider</code>. Los canales se enrutan al agente que deba gestionar su tráfico.</li>
-<li><strong>Confiabilidad del proveedor</strong> — la redundancia de proveedores reside detrás de un único proveedor de primera clase. Configura OpenRouter (o un equivalente) como un proveedor y deja que él gestione la distribución entre proveedores en su endpoint.</li>
+<li><strong>Per-call backend selection</strong>: “use the cheap model unless this prompt looks like reasoning.” Each routing target is its own <code>[agents.&lt;alias&gt;]</code> entry with its own <code>model_provider</code>. Channels are routed to whichever agent should handle their traffic.</li>
+<li><strong>Provider reliability</strong>: vendor-redundancy lives behind a single first-class provider. Configure OpenRouter (or an equivalent) as one provider and let it handle vendor fan-out at its endpoint.</li>
 </ol>
 <h2 id="despacho-por-agente"><a class="header" href="#despacho-por-agente">Despacho por agente</a></h2>
 <p>Define cada destino de enrutamiento como su propio agente, luego apunta los canales al agente que debe gestionar su tráfico.</p>
-<pre><code class="language-toml">[providers.models.anthropic.sonnet]
-model   = "claude-sonnet-4-6"
-api_key = "sk-ant-..."
-
-[providers.models.anthropic.haiku]
-model   = "claude-haiku-4-5-20251001"
-api_key = "sk-ant-..."
-
-[providers.models.deepseek.reasoner]
-model   = "deepseek-reasoner"
-api_key = "sk-..."
-
-[providers.models.gemini.vision]
-model   = "gemini-2.5-pro"
-api_key = "..."
-
-[channels.telegram.home]
-bot_token = "..."
-
-[channels.slack.engineering]
-bot_token = "..."
-
-[channels.slack.research]
-bot_token = "..."
-
-[channels.discord.media]
-bot_token = "..."
-
-[agents.fast]
-model_provider  = "anthropic.haiku"
-risk_profile    = "hardened"
-runtime_profile = "tight"             # respuestas públicas ágiles
-channels        = ["telegram.home"]
-
-[agents.deep]
-model_provider  = "anthropic.sonnet"
-risk_profile    = "hardened"
-runtime_profile = "deep"              # tareas de ingeniería extendidas
-channels        = ["slack.engineering"]
-
-[agents.reasoner]
-model_provider  = "deepseek.reasoner"
-risk_profile    = "hardened"
-runtime_profile = "deep"              # cadenas de razonamiento estilo investigación
-channels        = ["slack.research"]
-
-[agents.eyes]
-model_provider  = "gemini.vision"
-risk_profile    = "hardened"
-runtime_profile = "tight"             # respuestas rápidas con imágenes
-channels        = ["discord.media"]
-
-[risk_profiles.hardened]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-
-[runtime_profiles.tight]
-max_tool_iterations  = 5
-max_actions_per_hour = 30
-
-[runtime_profiles.deep]
-max_tool_iterations  = 50
-max_actions_per_hour = 200
-</code></pre>
 <p>Cada canal se vincula a un agente. Los canales se mueven entre agentes editando <code>channels = [...]</code> en el agente que debe recibirlos; <code>Config::validate()</code> se asegura de que las referencias se resuelvan.</p>
 <p>Para enrutamiento ad-hoc de varios pasos dentro de una sola conversación, la herramienta <code>spawn_subagent</code> permite que un agente ejecute un proceso hijo efímero bajo su propia identidad. El hijo hereda el conjunto de permisos del padre (consulta <code>[risk_profiles.&lt;alias&gt;].allowed_tools</code>) y devuelve su respuesta final al bucle de herramientas del padre.</p>
 <h2 id="rutas-de-modelo-basadas-en-sugerencias"><a class="header" href="#rutas-de-modelo-basadas-en-sugerencias">Rutas de modelo basadas en sugerencias</a></h2>
-<p>Un mecanismo más específico: <code>[[model_routes]]</code> permite que un agente anule el <code>model_provider</code> configurado para los prompts marcados con una cadena de sugerencia. Resulta útil cuando un agente debería ocasionalmente recurrir a un modelo diferente sin necesidad de crear un segundo agente.</p>
-<pre><code class="language-toml">[[model_routes]]
-hint           = "reasoning"
-model_provider = "deepseek.reasoner"
-model          = "deepseek-reasoner"
-</code></pre>
+<p>A narrower mechanism: <code>[[model_routes]]</code> lets an agent override the configured <code>model_provider</code> for prompts marked with a hint string. Useful when one agent should occasionally reach for a different model without spinning up a second agent. Each route entry carries a <code>hint</code> (the string a prompt must declare to fire it), a <code>model_provider</code> (the dotted <code>&lt;type&gt;.&lt;alias&gt;</code> profile to switch to, e.g. <code>deepseek.reasoner</code>), and a <code>model</code> (the provider-local model id, e.g. <code>deepseek-reasoner</code>). Configure routes through the gateway, zerocode, or <code>zeroclaw config set</code>; see the <a href="../reference/config.html#model_routes">Config reference</a> for the field schema.</p>
 <p>Las rutas solo se activan cuando un prompt incluye explícitamente la pista coincidente. La ruta de solicitud predeterminada usa el <code>model_provider</code> principal del agente.</p>
 <p><code>model_provider</code> is always a provider profile reference in dotted <code>&lt;type&gt;.&lt;alias&gt;</code> form, such as <code>anthropic.sonnet</code> or <code>openai.default</code>. The profile carries the endpoint, credential reference, compatibility flavor, fallback chain, and configured default model. The <code>model</code> field is provider-local state under that profile.</p>
 <h2 id="runtime-model-switching"><a class="header" href="#runtime-model-switching">Runtime model switching</a></h2>
@@ -319,9 +324,9 @@ INFO model_provider=anthropic.haiku stream complete tokens={input=512, output=12
 <p>Para implementaciones en producción, conecta la salida de los registros a Loki / Grafana. Consulta <a href="../ops/observability.html">Operaciones → Registros y observabilidad</a>.</p>
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
-<li><a href="./overview.html">Información general</a> — modelo de proveedor y despacho por agente</li>
-<li><a href="./configuration.html">Configuración</a> — esquema completo de <code>[providers.*]</code></li>
-<li><a href="./catalog.html">Catálogo de proveedores</a>: cada slot canónico</li>
+<li><a href="./overview.html">Overview</a>: provider model and per-agent dispatch</li>
+<li><a href="./configuration.html">Configuration</a>: full <code>[providers.*]</code> schema</li>
+<li><a href="./catalog.html">Provider catalog</a>: every canonical slot</li>
 </ul>
 
                     </main>
@@ -332,7 +337,7 @@ INFO model_provider=anthropic.haiku stream complete tokens={input=512, output=12
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../providers/catalog.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../providers/custom.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -346,7 +351,7 @@ INFO model_provider=anthropic.haiku stream complete tokens={input=512, output=12
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../providers/catalog.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../providers/custom.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,40 +296,10 @@
 <p>Cada evento que ZeroClaw emite fluye a través de un único crate: <code>zeroclaw-log</code>. El crate es propietario del esquema JSONL en disco, el flujo de difusión en proceso que lee el dashboard, el puente al <code>Observer</code> tipado (Prometheus / OTel) y las macros (<code>record!</code>, <code>scope!</code>, <code>spawn!</code>) que los subsistemas invocan.</p>
 <p>Esta página cubre lo que un operador necesita: la configuración, dónde se encuentra el registro, la estructura de los eventos y cómo consultarlos.</p>
 <h2 id="configuración-observability"><a class="header" href="#configuración-observability">Configuración (<code>[observability]</code>)</a></h2>
-<pre><code class="language-toml">[observability]
-# Política de almacenamiento para el registro JSONL.
-# "none"    — solo difusión en proceso (sin escrituras en disco).
-# "rolling" — anexar + recortar una vez que se supere `log_persistence_max_entries`.
-# "full"    — anexar para siempre, el operador gestiona la rotación.
-log_persistence = "rolling"
-
-# Ruta relativa al workspace (o absoluta).
-log_persistence_path = "state/runtime-trace.jsonl"
-
-# Límite para "rolling".
-log_persistence_max_entries = 200
-
-# Política de captura de entrada/salida de herramientas.
-# "off"      — solo nombre de la herramienta + resultado + duración; sin cuerpos de E/S.
-# "redacted" — los cuerpos se analizan en busca de fugas y se truncan en `log_tool_io_truncate_bytes`.
-# "full"     — los cuerpos se analizan en busca de fugas; sin truncamiento.
-log_tool_io = "redacted"
-log_tool_io_truncate_bytes = 8192
-
-# Nombres de herramientas cuya E/S nunca se persiste más allá de nombre + resultado + duración,
-# independientemente de `log_tool_io`. Para herramientas cuya E/S es intrínsecamente sensible.
-log_tool_io_denylist = []
-
-# Backend OTel / Prometheus (independiente del registro JSONL).
-backend = "none"            # "none" | "log" | "verbose" | "prometheus" | "otel"
-otel_endpoint = "http://localhost:4318"
-otel_service_name = "zeroclaw"
-# otel_headers = { Authorization = "Bearer …" }
-</code></pre>
-<p>Valores por defecto: <code>log_persistence = "rolling"</code>, <code>log_persistence_max_entries = 200</code>, <code>log_tool_io = "redacted"</code>, <code>log_tool_io_truncate_bytes = 8192</code>. Una instalación nueva produce un JSONL rotativo de 200 eventos en <code>~/.zeroclaw/state/runtime-trace.jsonl</code>, y la página de Logs del panel funciona sin configuración adicional.</p>
+<p>Defaults: <code>log_persistence = "rolling"</code>, <code>log_persistence_max_entries = 200</code>, <code>log_tool_io = "redacted"</code>, <code>log_tool_io_truncate_bytes = 40960</code>. A fresh install produces a 200-event rolling JSONL at <code>~/.zeroclaw/data/state/runtime-trace.jsonl</code>, and the dashboard’s Logs page works without further configuration.</p>
 <p><code>log_persistence = "none"</code> desactiva la persistencia por completo. El flujo de difusión (SSE del panel) y el puente tipado <code>Observer</code> siguen recibiendo eventos; solo se controla el escritor JSONL.</p>
 <h2 id="formato-en-disco"><a class="header" href="#formato-en-disco">Formato en disco</a></h2>
-<p>JSONL: un evento por línea, UTF-8, permisos <code>0o600</code> en Unix. Cada línea se procesa con <code>sync_data</code> después de escribirse: la línea es duradera antes de que el código emisor retorne.</p>
+<p>JSONL: one event per line, UTF-8, <code>0o600</code> permissions on Unix. Every line is <code>sync_data</code>’d after write, the line is durable before the emitting code returns.</p>
 <p>La forma de la línea refleja <code>zeroclaw_log::event::LogEvent</code>. Claves de nivel superior:</p>
 <div class="table-wrapper">
 <table>
@@ -282,15 +328,17 @@ otel_service_name = "zeroclaw"
 <h3 id="atribución-zeroclaw"><a class="header" href="#atribución-zeroclaw">Atribución <code>zeroclaw.*</code></a></h3>
 <p>La fuente de verdad en Rust es <code>ATTRIBUTION_FIELDS</code> + <code>COMPOSITE_PREFIXES</code> en <code>crates/zeroclaw-log/src/event.rs</code>. La respuesta de <code>/api/logs</code> incluye la lista canónica como <code>attribution_keys</code>; obtenla en lugar de codificarla manualmente.</p>
 <p>Los campos simples (<code>ATTRIBUTION_FIELDS</code>) contienen una sola cadena cada uno. Los prefijos compuestos obtienen tres claves: <code>&lt;prefix&gt;</code>, <code>&lt;prefix&gt;_type</code>, <code>&lt;prefix&gt;_alias</code> (p. ej. <code>channel = "discord.glados"</code>, <code>channel_type = "discord"</code>, <code>channel_alias = "glados"</code>). Los filtros pueden coincidir de forma general o precisa.</p>
-<p>Cuando una llamada de tracing establece un campo composite-prefix en un tipo simple (sin <code>.</code>), solo se rellena el slot <code>_type</code> — de esa manera, una llamada <code>tracing::*!(model_provider = name, …)</code> dentro de un span que ya contiene el composite <code>&lt;type&gt;.&lt;alias&gt;</code> completo no lo sobrescribe en la fusión leaf→root.</p>
+<p>When a tracing call sets a composite-prefix field to a bare type (no <code>.</code>), only the <code>_type</code> slot is populated, that way a <code>tracing::*!(model_provider = name, …)</code> call inside a span that already carries the full <code>&lt;type&gt;.&lt;alias&gt;</code> composite doesn’t clobber it on the leaf→root merge.</p>
 <h2 id="consulta"><a class="header" href="#consulta">Consulta</a></h2>
 <p>La página de Logs del panel es la superficie principal. Debajo:</p>
 <pre><code>GET /api/logs
 </code></pre>
 <p>Filtros de nivel superior (parámetros de consulta): <code>since_ts</code>, <code>until_ts</code>, <code>until_id</code>, <code>action</code>, <code>category</code>, <code>outcome</code>, <code>severity_min</code>, <code>trace_id</code>, <code>q</code> (subcadena en <code>message</code> + <code>attributes</code>), <code>hide_internal</code> (descarta <code>event.category = "internal"</code>), <code>limit</code>.</p>
-<p>Cada <code>?&lt;key&gt;=&lt;value&gt;</code> restante se trata como un filtro de igualdad por atribución: el gateway valida la clave con <code>is_attribution_field</code> y rechaza las desconocidas con <code>400</code>. La respuesta incluye <code>attribution_keys: string[]</code>, de modo que quienes la invocan no tengan que adivinar.</p>
+<p>Every other <code>?&lt;key&gt;=&lt;value&gt;</code> is treated as a per-attribution equality filter, the gateway validates the key against <code>is_attribution_field</code> and rejects unknowns with <code>400</code>. The response includes <code>attribution_keys: string[]</code>, so callers don’t have to guess.</p>
 <p>Ejemplos:</p>
-<pre><code class="language-bash"># Todos los eventos WARN+ desde que se inició el daemon.
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh"># Todos los eventos WARN+ desde que se inició el daemon.
 curl "$ZEROCLAW_GATEWAY/api/logs?severity_min=13"
 
 # Eventos de un agente específico:
@@ -302,6 +350,8 @@ curl "$ZEROCLAW_GATEWAY/api/logs?channel=discord.glados"
 # Un único turno del agente:
 curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 </code></pre>
+</div>
+
 <p>La paginación utiliza cursor inverso. La respuesta incluye <code>next_cursor: [timestamp, id] | null</code>; pásalos de vuelta como <code>until_ts</code> + <code>until_id</code> para cargar entradas más antiguas. <code>at_end: true</code> significa que el lector recorrió todo el archivo según el filtro actual.</p>
 <p>La respuesta de <code>/api/status</code> incluye <code>daemon_started_at: string</code> (RFC 3339), de modo que un panel puede usar de forma predeterminada “desde el inicio del daemon” sin necesidad de una solicitud adicional.</p>
 <h2 id="visores-de-registros-externos"><a class="header" href="#visores-de-registros-externos">Visores de registros externos</a></h2>
@@ -355,22 +405,22 @@ curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 </ul>
 <p>La cadena de spans es la siguiente: <code>channel_listener{channel=discord.glados}: …</code>. Los campos del span se muestran en línea.</p>
 <h2 id="migración-de-esquema"><a class="header" href="#migración-de-esquema">Migración de esquema</a></h2>
-<p>Al iniciar, si <code>log_persistence</code> está habilitado y el archivo existe, el escritor transmite cualquier fila de schema-1 a través de una migración in situ a schema-2 antes del primer agregado. Transmisión pura — limitada por la asignación de una sola línea independientemente del tamaño del archivo. El archivo migrado se renombra de forma atómica en su lugar. Los archivos que ya están en v2 se dejan intactos.</p>
+<p>On startup, if <code>log_persistence</code> is enabled and the file exists, the writer streams any schema-1 rows through an in-place migration to schema-2 before the first append. Pure streaming, bounded by a single line’s allocation regardless of file size. The migrated file is atomically renamed into place. Files already at v2 are left untouched.</p>
 <p>Si la migración falla, el daemon registra un <code>warn</code> y continúa escribiendo anexos v2; las filas v1 antiguas siguen siendo legibles por las herramientas que aún entienden v1, pero no pasarán el deserializador del lector v2.</p>
 <h2 id="qué-es-internal"><a class="header" href="#qué-es-internal">¿Qué es <code>internal</code>?</a></h2>
 <p><code>event.category = "internal"</code> es el grupo para el ruido de operaciones que un operador no necesita en el panel de forma predeterminada: marcas de heartbeat, difusiones inactivas, reintentos de sincronización con pérdidas y similares. El interruptor “Hide internal” del panel (activado de forma predeterminada) los filtra.</p>
 <p>Úsalo cuando tengas un evento de alta frecuencia cuya presencia sea relevante para el análisis forense pero cuya ausencia sea el estado normal. No lo uses como regulador de volumen para errores genuinos.</p>
 <h2 id="archivos-de-interés"><a class="header" href="#archivos-de-interés">Archivos de interés</a></h2>
 <ul>
-<li><code>crates/zeroclaw-log/src/event.rs</code> — la estructura canónica de <code>LogEvent</code>.</li>
-<li><code>crates/zeroclaw-log/src/layer.rs</code> — el Layer de <code>tracing-subscriber</code> que captura cada llamada <code>tracing::*</code> y alimenta el pipeline.</li>
-<li><code>crates/zeroclaw-log/src/macro.rs</code> — <code>record!</code>, <code>scope!</code>, <code>spawn!</code>.</li>
-<li><code>crates/zeroclaw-log/src/writer.rs</code> — anexado + recorte rotativo.</li>
-<li><code>crates/zeroclaw-log/src/reader.rs</code> — lector de <code>/api/logs</code>.</li>
-<li><code>crates/zeroclaw-log/src/config.rs</code> — <code>StoragePolicy</code>, <code>ToolIoPolicy</code>, <code>ResolvedPolicy</code>.</li>
-<li><code>crates/zeroclaw-log/src/migrate.rs</code> — migración de streaming de schema-1 → schema-2.</li>
-<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code> — proyección tipada de <code>Observer</code> para consumidores de Prometheus / OTel.</li>
-<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code> — el adaptador HTTP.</li>
+<li><code>crates/zeroclaw-log/src/event.rs</code>: the canonical <code>LogEvent</code> shape.</li>
+<li><code>crates/zeroclaw-log/src/layer.rs</code>: the <code>tracing-subscriber</code> Layer that captures every <code>tracing::*</code> call and feeds the pipeline.</li>
+<li><code>crates/zeroclaw-log/src/macro.rs</code>: <code>record!</code>, <code>scope!</code>, <code>spawn!</code>.</li>
+<li><code>crates/zeroclaw-log/src/writer.rs</code>: append + rolling trim.</li>
+<li><code>crates/zeroclaw-log/src/reader.rs</code>: <code>/api/logs</code> reader.</li>
+<li><code>crates/zeroclaw-log/src/config.rs</code>: <code>StoragePolicy</code>, <code>ToolIoPolicy</code>, <code>ResolvedPolicy</code>.</li>
+<li><code>crates/zeroclaw-log/src/migrate.rs</code>: schema-1 → schema-2 streaming migration.</li>
+<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code>: typed <code>Observer</code> projection for Prometheus / OTel consumers.</li>
+<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code>: the HTTP adapter.</li>
 </ul>
 <p>Verifica la fuente antes de confiar en el texto de esta página.</p>
 

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -224,9 +300,13 @@
 <p>Para skills locales escritas manualmente, usa <code>SKILL.md</code> o <code>SKILL.toml</code>. Usa <code>SKILL.md</code> para instrucciones junto con metadatos simples. Usa <code>SKILL.toml</code> cuando la skill necesite prompts estructurados o definiciones de herramientas. ZeroClaw también admite <code>manifest.toml</code> para paquetes de skills al estilo de registro, pero <code>SKILL.md</code> y <code>SKILL.toml</code> son los formatos de creación local recomendados.</p>
 <h2 id="crear-una-skill-de-markdown"><a class="header" href="#crear-una-skill-de-markdown">Crear una skill de Markdown</a></h2>
 <p>Una skill mínima de solo instrucciones puede ser simplemente un archivo Markdown:</p>
-<pre><code class="language-bash">mkdir -p ~/.zeroclaw/workspace/skills/release-check
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">mkdir -p ~/.zeroclaw/workspace/skills/release-check
 $EDITOR ~/.zeroclaw/workspace/skills/release-check/SKILL.md
 </code></pre>
+</div>
+
 <pre><code class="language-markdown"># Release check
 
 Review the release notes, changelog, version tags, and migration notes before confirming that a release is ready.
@@ -247,73 +327,60 @@ Review the release notes, changelog, version tags, and migration notes before co
 </code></pre>
 <p>Los campos de frontmatter compatibles son <code>name</code>, <code>description</code>, <code>version</code>, <code>author</code> y <code>tags</code>.</p>
 <h2 id="crear-una-skill-de-toml"><a class="header" href="#crear-una-skill-de-toml">Crear una skill de TOML</a></h2>
-<p>Aquí está la misma habilidad como un manifiesto TOML estructurado:</p>
-<pre><code class="language-toml">[skill]
-name = "release-check"
-description = "Comprobar la preparación de la versión antes de etiquetar"
-version = "0.1.0"
-author = "zeroclaw_user"
-tags = ["release", "docs"]
-prompts = [
-  "Revisa las notas de la versión, el registro de cambios, las etiquetas de versión y las notas de migración antes de confirmar que una versión está lista."
-]
-
-[[tools]]
-name = "show_latest_tag"
-description = "Imprimir la última etiqueta local de git"
-kind = "shell"
-command = "git describe --tags --abbrev=0"
-</code></pre>
-<p>La tabla <code>[skill]</code> requiere <code>name</code> y <code>description</code>. <code>version</code> toma el valor predeterminado <code>0.1.0</code> cuando se omite. <code>author</code>, <code>tags</code> y <code>prompts</code> son opcionales.</p>
-<p>Las entradas de herramientas pueden usar <code>kind = "shell"</code>, <code>kind = "http"</code> o <code>kind = "script"</code>. Mantén las descripciones de herramientas precisas y concretas para que el modelo sepa cuándo usarlas.</p>
+<p>A skill can also be a structured TOML manifest (<code>SKILL.toml</code>). The <code>[skill]</code> table requires <code>name</code> and <code>description</code>; <code>version</code> defaults to <code>0.1.0</code> when omitted; <code>author</code>, <code>tags</code>, and <code>prompts</code> are optional. Tool entries may use <code>kind = "shell"</code>, <code>kind = "http"</code>, or <code>kind = "script"</code>. Keep tool descriptions narrow and concrete so the model knows when to use them.</p>
 <h2 id="gestionar-habilidades-instaladas"><a class="header" href="#gestionar-habilidades-instaladas">Gestionar habilidades instaladas</a></h2>
 <p>Listar skills instaladas:</p>
-<pre><code class="language-bash">zeroclaw skills list
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">zeroclaw skills list
 </code></pre>
+</div>
+
 <p>Audita una skill instalada o un directorio de skill local:</p>
-<pre><code class="language-bash">zeroclaw skills audit release-check
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">zeroclaw skills audit release-check
 zeroclaw skills audit ./release-check
 </code></pre>
+</div>
+
 <p>Instala una skill desde un directorio local, una URL de Git, un nombre de registro o una fuente de ClawHub:</p>
-<pre><code class="language-bash">zeroclaw skills install ./release-check
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">zeroclaw skills install ./release-check
 zeroclaw skills install https://example.com/zeroclaw-release-check.git
 zeroclaw skills install release-check
 zeroclaw skills install clawhub:release-check
 </code></pre>
+</div>
+
 <p>Eliminar una skill instalada:</p>
-<pre><code class="language-bash">zeroclaw skills remove release-check
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">zeroclaw skills remove release-check
 </code></pre>
+</div>
+
 <p>Ejecuta la validación de <code>TEST.sh</code> para una skill, u omite el nombre para probar todas las skills instaladas:</p>
-<pre><code class="language-bash">zeroclaw skills test release-check
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">zeroclaw skills test release-check
 zeroclaw skills test --verbose
 </code></pre>
+</div>
+
 <p><code>zeroclaw skills test</code> ejecuta el archivo <code>TEST.sh</code> de la skill cuando existe. Inspecciona <code>TEST.sh</code> antes de ejecutar pruebas de un origen de skill en el que aún no confías.</p>
 <h2 id="sugerencias-de-funcionalidades-activadas-por-prompts"><a class="header" href="#sugerencias-de-funcionalidades-activadas-por-prompts">Sugerencias de funcionalidades activadas por prompts</a></h2>
 <p>ZeroClaw puede sugerir opcionalmente una capacidad de skill instalable cuando un prompt enviado nombra claramente algo que existe en los metadatos de registro en caché pero que no está instalado. La ruta del lado del servidor se ejecuta después del envío y antes del turno normal del LLM. Solo devuelve una sugerencia; no instala el skill, no lo habilita, no escribe en memoria ni trata el cuerpo del skill como instrucciones globales.</p>
-<p>Actívalo en la configuración:</p>
-<pre><code class="language-toml">[skills.install_suggestions]
-enabled = true
-</code></pre>
-<p>El comparador de sugerencias usa los nombres de skills instaladas y los metadatos del registro en caché, como nombres, alias y frontmatter. Evita intencionadamente comparar cuerpos de skills no aprobadas. La detección a nivel de plugin/paquete queda como alcance de seguimiento hasta que esté disponible la superficie de búsqueda/instalación del registro de plugins. Las sugerencias exactas en tiempo de composición mientras el usuario aún está escribiendo requieren compatibilidad con ACP, gateway o la interfaz del cliente, y quedan fuera de esta ruta exclusiva del servidor.</p>
+<p>Enable it via the <code>skills</code> config (gateway, zerocode, or <code>zeroclaw config set</code>). The suggestion matcher uses installed skill names and cached registry metadata such as names, aliases, and frontmatter. It intentionally avoids matching unapproved skill bodies. Plugin/package-level discovery remains follow-up scope until the plugin registry search/install surface is available. Exact composer-time suggestions while the user is still typing require ACP, gateway, or client UI support and are outside this server-only path.</p>
 <h2 id="seguridad-de-scripts"><a class="header" href="#seguridad-de-scripts">Seguridad de scripts</a></h2>
 <p>ZeroClaw audita las skills antes de cargarlas o instalarlas. Los archivos similares a scripts como <code>.sh</code>, <code>.bash</code>, <code>.ps1</code> y los archivos con shebangs de shell se bloquean de forma predeterminada.</p>
-<p>Si usas intencionalmente skills con scripts, habilítalos en la configuración de ZeroClaw:</p>
-<pre><code class="language-toml">[skills]
-allow_scripts = true
-</code></pre>
-<p>Mantén esto deshabilitado a menos que confíes en la fuente de la skill y hayas revisado lo que hacen los scripts.</p>
+<p>If you intentionally use script-bearing skills, enable <code>skills.allow_scripts</code>. Keep this disabled unless you trust the skill source and have reviewed what the scripts do.</p>
 <p>Para conocer los patrones de ejecución específicos de Python, la política del intérprete y las ventajas e inconvenientes entre la ejecución nativa y Docker, consulta <a href="./python-skills.html">Running Python skills</a>.</p>
 <h2 id="cargando-habilidades-de-la-comunidad"><a class="header" href="#cargando-habilidades-de-la-comunidad">Cargando habilidades de la comunidad</a></h2>
-<p>La carga de open-skills de la comunidad es opcional:</p>
-<pre><code class="language-toml">[skills]
-open_skills_enabled = true
-</code></pre>
-<p>Cuando está habilitado, ZeroClaw carga las habilidades desde el <code>open_skills_dir</code> configurado o desde <code>$HOME/open-skills</code> cuando no se ha establecido ningún directorio. Si ese directorio no existe, ZeroClaw puede clonar el repositorio comunitario open-skills; si existe y es un checkout de git, ZeroClaw puede extraer actualizaciones. Habilita esto únicamente para fuentes comunitarias en las que confíes, o haz que <code>open_skills_dir</code> apunte a una copia local revisada.</p>
+<p>Community open-skills loading is opt-in via the <code>skills</code> config. When enabled, ZeroClaw loads skills from the configured <code>open_skills_dir</code>, or from <code>$HOME/open-skills</code> when no directory is set. If that directory does not exist, ZeroClaw may clone the community open-skills repository; if it does exist and is a git checkout, ZeroClaw may pull updates. Enable this only for community sources you trust, or point <code>open_skills_dir</code> at a reviewed local copy.</p>
 <h2 id="configuración-avanzada"><a class="header" href="#configuración-avanzada">Configuración avanzada</a></h2>
 <p>El modo de inyección de prompt predeterminado es <code>full</code>, que incluye las instrucciones completas de la skill en el system prompt. Usa <code>compact</code> para mantener solo metadatos compactos en el contexto y cargar los detalles de la skill bajo demanda:</p>
-<pre><code class="language-toml">[skills]
-prompt_injection_mode = "compact"
-</code></pre>
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
 <li><a href="./overview.html">Resumen de herramientas</a></li>

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["build","check","refs","serve","stats","sync","themes","versions"]};
+window.SIDEBAR_ITEMS = {"mod":["build","check","hardware","keymap","linkcheck","peer_groups","refs","serve","stats","sync","themes","versions"]};

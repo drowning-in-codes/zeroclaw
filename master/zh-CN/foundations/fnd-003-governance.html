@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,14 +293,14 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="fnd-003团队组织项目治理与贡献流程"><a class="header" href="#fnd-003团队组织项目治理与贡献流程">FND-003：团队组织、项目治理与贡献流程</a></h1>
-<p>起始 v0.7.0 · 类型：治理 · 修订 5</p>
 <blockquote>
+<p>起始 v0.7.0 · 类型：治理 · 修订 5</p>
 <p><strong>权威参考</strong> · 由团队批准 · 修订版 5 原始治理讨论：<a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5577">#5577</a> 后续工作通道及标签治理策略：<a href="https://github.com/zeroclaw-labs/zeroclaw/issues/6808">#6808</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>在你们阅读此内容之前，给团队的一条提示。</strong></p>
-<p>软件项目失败，并非因为代码质量差，而是因为编写代码的人员无法有效协作。功能被重复开发，Bug 被遗漏，好点子因无人记录而消失。新贡献者希望提供帮助，却不知从何入手。本 RFC 旨在构建轻量级的支撑结构，以防止这些失败——目的不是让项目看起来井然有序，而是让团队能够更快速、更自信、更少摩擦地推进工作。此处提出的每项建议都是专门为小型、成长中的学生主导开源团队量身定制的。这里没有任何要求需要项目经理、Scrum Master 或正式委员会。</p>
+<p>Software projects do not fail because the code is bad. They fail because the people writing the code cannot coordinate. Features get built twice. Bugs get lost. Good ideas evaporate because nobody wrote them down. New contributors show up wanting to help and cannot find where to start. This RFC is about building the lightweight scaffolding that prevents those failures, not so the project feels organized, but so the team can move faster, with more confidence, and with less friction. Every recommendation here is chosen specifically for a small, growing, student-led open source team. Nothing here requires a project manager, a Scrum Master, or a formal committee.</p>
 </blockquote>
 <hr>
 <h2 id="修订历史"><a class="header" href="#修订历史">修订历史</a></h2>
@@ -277,17 +353,17 @@
 <li>想法存在于某人的脑海中，或出现在一条会滚出屏幕的聊天消息里</li>
 <li>问题在跟踪器中堆积，没有优先级、没有负责人，也没有明确的完成定义</li>
 <li>贡献者提交无人请求的 PR，或主动提出帮助却得不到回应</li>
-<li>团队的工作方式是反应式的——谁喊得最大声就得到关注，什么坏了就修什么，计划不会超过一周。</li>
+<li>The team works reactively: whoever shouts loudest gets attention, whatever breaks gets fixed, nothing gets planned more than a week out</li>
 <li>架构决策在 PR 评论中做出，但从未在任何地方记录。</li>
 </ul>
-<p>这并非对任何人的努力提出批评，而是对默认情况下会发生的情况的描述。解决方案不是增加更多的流程，而是采用正确的流程，并根据团队规模和发展阶段在合适的层级上应用。</p>
+<p>This is not a criticism of anyone’s effort. It is a description of what happens by default. The solution is not more process. It is the right process, applied at the right level for the size and maturity of the team.</p>
 <p>ZeroClaw 需要以下三样东西：</p>
 <ol>
 <li><strong>一个管道</strong>，用于将想法转化为已发布的代码，在每个阶段都有可见的步骤，并在每次转换时有明确的关卡。</li>
 <li><strong>一个持续维护的讨论区</strong>，用于汇集社区的问题、想法、作品展示以及尚未进入正式流程的早期探索，既不会让这些内容流失，也不会干扰正在进行的工作</li>
 <li><strong>治理模型</strong>，定义谁可以决定什么、架构决策如何制定以及团队如何成长</li>
 </ol>
-<p>这是三个不同的问题。将它们混为一谈——把所有内容放在一个看板中，或依赖非正式的聊天来做出决策——正是导致团队试图摆脱的混乱局面。</p>
+<p>These are three distinct concerns. Conflating them, putting everything in one board, or relying on informal chat for decisions, is what creates the chaos the team is trying to escape.</p>
 <hr>
 <h2 id="2-三部分系统"><a class="header" href="#2-三部分系统">2. 三部分系统</a></h2>
 <div class="table-wrapper">
@@ -343,7 +419,7 @@
 </code></pre>
 <p>看板级别的 <code>Won't Do</code> 状态是一项持久性的关闭决策。当前的关闭标签拼写规则和替换流程规则记录在 <a href="../maintainers/labels.html#resolution-labels">维护者标签指南</a> 和 <a href="../maintainers/superseding.html">取代指南</a> 中。</p>
 <h3 id="32-门控问题"><a class="header" href="#32-门控问题">3.2 门控问题</a></h3>
-<p>每个阶段都有一个门槛问题。在条目进入下一阶段之前，必须回答“是”。这使得项目板得以实际运作——愿景 → 架构 → 设计 → 实现 → 测试 → 文档的层级结构在每个阶段都变成了一份检查清单。</p>
+<p>Every transition has a gate question. The question must be answered “yes” before the item moves forward. This is the project board made operational: the Vision → Architecture → Design → Implementation → Testing → Documentation hierarchy becomes a checklist at each stage.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -405,14 +481,14 @@
 <p>XL 项在进入“进行中”状态前，几乎都应被拆解。如果无法拆解，说明设计还不够完善。</p>
 <h3 id="34-视图"><a class="header" href="#34-视图">3.4 视图</a></h3>
 <p>在项目中创建四个命名视图：</p>
-<p><strong>视图 1：路线图</strong></p>
+<h4 id="view-1-roadmap"><a class="header" href="#view-1-roadmap">View 1: Roadmap</a></h4>
 <ul>
 <li>类型：路线图（时间线）</li>
 <li>按里程碑分组</li>
 <li>可见字段：标题、类型、大小、组件、负责人</li>
 <li>用途：面向公众。“即将发布的内容及时间安排。”请在 README 中分享此链接，并与社区共享。请保持其更新。</li>
 </ul>
-<p><strong>视图 2：看板</strong></p>
+<h4 id="view-2-board"><a class="header" href="#view-2-board">View 2: Board</a></h4>
 <ul>
 <li>类型：看板（Kanban）</li>
 <li>列：状态字段值</li>
@@ -420,7 +496,7 @@
 <li>可见字段：标题、负责人、大小、风险等级</li>
 <li>目的：日常工作的可见性。每个人现在正在做什么？有哪些工作被阻塞了？</li>
 </ul>
-<p><strong>视图 3：待办事项列表</strong></p>
+<h4 id="view-3-backlog"><a class="header" href="#view-3-backlog">View 3: Backlog</a></h4>
 <ul>
 <li>类型：表格</li>
 <li>按优先级（降序），然后按大小（升序）排序</li>
@@ -428,7 +504,7 @@
 <li>可见字段：标题、类型、优先级、大小、组件、里程碑、风险等级</li>
 <li>用途：在梳理会议中使用。接下来需要处理哪些工作？哪些已经估算好并准备好被认领？</li>
 </ul>
-<p><strong>视图 4：我的工作</strong></p>
+<h4 id="view-4-my-work"><a class="header" href="#view-4-my-work">View 4: My Work</a></h4>
 <ul>
 <li>类型：板</li>
 <li>筛选条件：分配人 = @me</li>
@@ -489,7 +565,7 @@
 <hr>
 <h2 id="5-团队层级与贡献权限"><a class="header" href="#5-团队层级与贡献权限">5. 团队层级与贡献权限</a></h2>
 <h3 id="51-三个层级"><a class="header" href="#51-三个层级">5.1 三个层级</a></h3>
-<p>开源项目以<strong>功绩制</strong>为基础——影响力和权威来自已证明的贡献，而非资历、头衔或人脉关系。这是开源与商业软件不同的关键之一，值得明确传授。</p>
+<p>Open source projects run on <strong>meritocracy</strong>: influence and authority come from demonstrated contribution, not from seniority, title, or who you know. This is one of the things that makes open source different from corporate software, and it is worth teaching explicitly.</p>
 <p>这三个层级反映了逐步增强的对项目承诺：</p>
 <hr>
 <h4 id="第-1-级社区"><a class="header" href="#第-1-级社区">第 1 级：社区</a></h4>
@@ -530,7 +606,7 @@
 <hr>
 <h4 id="第三级核心团队"><a class="header" href="#第三级核心团队">第三级：核心团队</a></h4>
 <p>在过去一段时间内展现出持续且高质量贡献，并已被现有核心团队成员邀请的贡献者。</p>
-<p><em>如何成为核心团队成员：</em> 由现有核心团队成员邀请，并在 Discussions 中公开宣布。没有正式的门槛——这是一个基于过去贡献的质量、一致性和契合度的判断。</p>
+<p><em>How to become one:</em> Invitation from existing Core Team members, announced publicly in Discussions. There is no formal threshold; it is a judgment call based on the quality, consistency, and alignment of past contributions.</p>
 <p><em>他们作为贡献者之外获得的权益：</em></p>
 <ul>
 <li>对仓库的写入访问</li>
@@ -550,7 +626,7 @@
 </ul>
 <hr>
 <h3 id="52-懒共识规则"><a class="header" href="#52-懒共识规则">5.2 懒共识规则</a></h3>
-<p>对于常规决策——例如添加标签、关闭过期的问题、更新文档——核心团队（Core Team）成员遵循<strong>懒共识</strong>（lazy consensus）原则：如果你在相关问题中宣布你的意图，且 48 小时内没有核心团队（Core Team）成员提出异议，你就可以继续执行。这一机制避免了因要求对所有事项都进行明确批准而导致的决策瘫痪，同时保持了透明度。</p>
+<p>For routine decisions, adding a label, closing a stale issue, updating documentation, Core Team members operate under <strong>lazy consensus</strong>: if you announce your intention in the relevant issue and no Core Team member objects within 48 hours, you proceed. This prevents the paralysis of requiring explicit approval for everything while maintaining visibility.</p>
 <p>“惰性共识”不适用于：</p>
 <ul>
 <li>RFC 接受或拒绝</li>
@@ -562,12 +638,12 @@
 <p>这些始终需要核心团队的明确投票。</p>
 <h3 id="53-记录团队成员"><a class="header" href="#53-记录团队成员">5.3 记录团队成员</a></h3>
 <p>团队成员信息记录在两个地方：</p>
-<p><strong><code>CONTRIBUTORS.md</code></strong> 位于仓库根目录——一份公开记录所有贡献者的文件，按层级组织。由核心团队成员在认可贡献者时进行更新。</p>
-<p>组织设置中的 <strong>GitHub Teams</strong> —— <code>zeroclaw-core</code> 和 <code>zeroclaw-contributors</code> 团队，在 CODEOWNERS 中引用，并用于通知路由。</p>
+<p><strong><code>CONTRIBUTORS.md</code></strong> at the repository root: a public record of everyone who has contributed, organized by tier. Updated by Core Team members as contributors are recognized.</p>
+<p><strong>GitHub Teams</strong> in the organization settings: <code>zeroclaw-core</code> and <code>zeroclaw-contributors</code> teams, referenced in CODEOWNERS and used for notification routing.</p>
 <hr>
 <h2 id="6-codeowners-和分支保护"><a class="header" href="#6-codeowners-和分支保护">6. CODEOWNERS 和分支保护</a></h2>
 <h3 id="61-codeowners"><a class="header" href="#61-codeowners">6.1 CODEOWNERS</a></h3>
-<p><code>CODEOWNERS</code> 文件实现了自动化的治理机制。它定义了哪些路径在 PR 合并前需要哪个团队进行审查。GitHub 将其作为必需的审查要求来执行——在满足该要求之前，PR 无法合并。</p>
+<p>The <code>CODEOWNERS</code> file makes governance automatic. It defines which paths require review from which team before a PR can merge. GitHub enforces this as a required review: the PR cannot be merged until the requirement is satisfied.</p>
 <p>创建 <code>.github/CODEOWNERS</code> 文件：</p>
 <pre><code># CODEOWNERS — Automatic review routing by risk tier
 # See AGENTS.md for risk tier definitions.
@@ -599,7 +675,7 @@ AGENTS.md                       @zeroclaw-labs/zeroclaw-core
 
 *                               @zeroclaw-labs/zeroclaw-contributors
 </code></pre>
-<p>随着特定的核心团队成员开始负责各个组件，请在团队句柄旁边添加他们的个人句柄。在 CODEOWNERS 中，具体性优先——更具体的路径规则会覆盖更通用的规则。</p>
+<p>As specific Core Team members take ownership of components, add their individual handles alongside the team handle. Specificity wins in CODEOWNERS: a more specific path rule overrides a more general one.</p>
 <h3 id="62-分支保护规则"><a class="header" href="#62-分支保护规则">6.2 分支保护规则</a></h3>
 <p>为 <code>master</code> 分支配置以下分支保护规则：</p>
 <div class="table-wrapper">
@@ -608,7 +684,7 @@ AGENTS.md                       @zeroclaw-labs/zeroclaw-core
 <tr><th>规则</th><th>设置</th><th>原因</th></tr>
 </thead>
 <tbody>
-<tr><td>合并前需要拉取请求</td><td>已启用</td><td>永远不要直接向 master 分支推送代码</td></tr>
+<tr><td>合并前需要拉取请求</td><td>已启用</td><td>No direct pushes to master, ever</td></tr>
 <tr><td>需要审批</td><td>1 表示低风险/中风险；2 表示高风险</td><td>CODEOWNERS 强制执行处理“谁”</td></tr>
 <tr><td>要求状态检查通过</td><td><code>cargo fmt</code>、<code>cargo clippy</code>、<code>cargo test</code></td><td>合并前必须确保 CI 通过</td></tr>
 <tr><td>要求分支保持最新</td><td>已启用</td><td>防止合并过时的代码</td></tr>
@@ -619,7 +695,7 @@ AGENTS.md                       @zeroclaw-labs/zeroclaw-core
 </tbody>
 </table>
 </div>
-<p><strong>为什么管理员无法绕过：</strong> 在小团队项目中，最常见的错误之一是将分支保护视为“仅适用于其他人”。当管理员可以绕过时，他们会在时间紧迫、紧急情况下，“仅此一次”地绕过。然后这就会成为常态。规则必须适用于所有人，否则就毫无意义。如果确实存在紧急情况，正确的做法是更快地遵循流程，而不是跳过它。</p>
+<p><strong>Why admins cannot bypass:</strong> One of the most common mistakes in small team projects is treating branch protection as “for other people.” When an admin can bypass, they will, under time pressure, in an emergency, “just this once.” Then it becomes the norm. The rule must apply to everyone for it to mean anything. If there is a genuine emergency, the right response is to follow the process faster, not to skip it.</p>
 <h3 id="63-必需的签核状态"><a class="header" href="#63-必需的签核状态">6.3 必需的签核状态</a></h3>
 <p>在合并任何 PR 之前必须通过的 CI 检查：</p>
 <pre><code>build (stable)          ← cargo build --release
@@ -629,24 +705,24 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </code></pre>
 <p>随着工作区按照架构 RFC 拆分为多个 crate，请为每个 crate 添加相应的检查。对 <code>crates/zeroclaw-api</code> 的更改应独立运行该 crate 的测试套件。</p>
 <h3 id="64-架构合规性人工审查ai-支持"><a class="header" href="#64-架构合规性人工审查ai-支持">6.4 架构合规性：人工审查，AI 支持</a></h3>
-<p>本节的存在是因为这个问题迟早会出现——它已经出现了——因此需要一个清晰、文档化的答案，而不是在每次 PR 中进行争论。</p>
+<p>This section exists because the question will come up (it already has) and it deserves a clear, documented answer rather than a debate on every PR.</p>
 <p><strong>问题：</strong> 我们是否应该添加一个自动化门禁，用于检查 PR 是否符合 RFC 中定义的架构和设计模式？</p>
 <p><strong>答案：</strong> 不是。理解其中的原因非常重要。</p>
 <hr>
 <p><strong>存在两种根本不同的质量保障方式，它们需要不同的机制。</strong></p>
 <p>第一种是_结构合规性_：这段代码是否违反了机械规则？<code>zeroclaw-kernel</code> 是否导入了 <code>TelegramChannel</code>？依赖图的边是否指向了错误的方向？是否存在 clippy 警告？这些都是二元问题。代码要么违反了规则，要么没有。编译器、<code>cargo deny</code> 和 <code>cargo clippy --workspace</code> 已经强制执行这些规则。不需要人类参与，也不需要 AI 介入。机器是权威的、快速的，并且对于事实性违规绝不会出错。</p>
-<p>第二种是<strong>架构意图</strong>：这个决策是否应该放在这里？这个抽象是否处于正确的层级？这个权衡是否符合愿景？这种耦合在第三阶段会不会带来痛苦？这个 PR 是否会制造出在当前 diff 中看不到的维护负担？这些问题需要判断力、上下文以及对架构存在的原因的理解——而不仅仅是了解规则。没有自动化工具能够可靠地回答这些问题，因为答案依赖于 diff 中不存在的信息：路线图、团队当前的优先级、贡献者的意图以及该决策的长期成本。</p>
+<p>The second kind is <em>architectural intent</em>: does this decision belong here? Is this abstraction at the right layer? Does this trade-off align with the vision? Is this coupling going to be painful in Phase 3? Will this PR create a maintenance burden that isn’t visible in the diff today? These questions require judgment, context, and an understanding of <em>why</em> the architecture exists, not just what the rules are. No automated tool can answer them reliably, because the answer depends on information that is not in the diff: the roadmap, the team’s current priorities, the contributor’s intent, and the long-term cost of the decision.</p>
 <p><strong>自动化架构判断的失败模式都很糟糕。</strong></p>
-<p>一个允许细微架构违规通过的网关会制造虚假的信心。开发者看到 ✅ 后，便认为自己的决策得到了验证。最具破坏性的架构漂移——那种需要数年才能理清的漂移——在结构上看起来是正确的。它可以编译，可以通过 lint 检查，依赖关系图也没有问题。问题在于，它以一种只有在后期才会显现的方式违背了设计的初衷，而此时解开它的成本已经很高。</p>
+<p>A gate that passes subtle architectural violations creates false confidence. The developer sees ✅ and assumes their decision was validated. The most damaging architectural drift, the kind that takes years to untangle, looks structurally correct. It compiles. It passes lint. The dependency graph is fine. The problem is that it violated the spirit of the design in a way that only becomes apparent later, when the cost of unwinding it is high.</p>
 <p>一个因工具误读上下文而标记了有效架构决策的关卡，会教导开发者完全忽略该关卡。一旦团队学会了点击跳过嘈杂的自动化检查，该检查在实际操作中便形同虚设，尽管它在 CI 中仍在运行。项目为此浪费了 CI 分钟数，却产生了负价值。</p>
 <p><strong>CODEOWNERS 是架构合规的关卡，审查者是工具。</strong></p>
-<p>§6.1 中的 <code>CODEOWNERS</code> 配置已规定，涉及高风险路径（如 crate 边界、trait 定义、依赖关系图、<code>src/security/</code>、<code>.github/</code>）的 PR 必须由核心团队成员进行审查。这位核心团队成员以 RFC 作为参考框架，充当架构合规性检查的角色。他们所带来的情境判断能力是任何自动化手段都无法复制的。</p>
+<p>The <code>CODEOWNERS</code> configuration in §6.1 already enforces that PRs touching high-risk paths, crate boundaries, trait definitions, the dependency graph, <code>src/security/</code>, <code>.github/</code>, require review from a Core Team member. That Core Team member, equipped with the RFCs as their reference framework, is the architectural compliance check. They bring the contextual judgment that no automation can replicate.</p>
 <p>这就是 RFC、AGENTS.md 文件以及文档规范存在的原因：不是为了供机器解析并生成评分，而是为了让人类审查者有一个一致且文档化的框架来应用。RFC 回答了“为什么存在这种架构”，而审查者则回答“这个 PR 是服务于还是削弱了这种架构”。</p>
 <p><strong>AI 应融入开发流程，而非合并门禁。</strong></p>
-<p>AI 工具——Claude、Copilot、Cursor 以及后续出现的各种工具——在正确的位置使用时，确实对架构工作大有裨益。正确的位置是 <em>开发过程中</em>，而不是 <em>合并审查阶段</em>。</p>
+<p>AI tools, Claude, Copilot, Cursor, and whatever comes next, are genuinely useful for architectural work when they are used in the right place. The right place is <em>during development</em>, not <em>during the merge gate</em>.</p>
 <p>在开发过程中，配备 RFC 和 crate 的 AGENTS.md 的 AI 助手可以帮助贡献者在编写代码之前理解新的功能属于哪个 crate，在代码结构仍在塑造时标记潜在的依赖倒置问题，解释设计模式存在的原因，并建议新的抽象是否处于正确的层级。这是增量的，它使贡献者更加有能力。</p>
 <p>在代码审查过程中，AI 助手可以帮助人类审查者起草结构化的反馈，将变更与 RFC（请求评论）进行交叉引用，并识别 RFC 中与当前 PR（拉取请求）相关的讨论问题。这一过程也是增量的。审查者提供判断力，而 AI 提供速度和记忆能力。</p>
-<p>AI 无法替代的是判断力。“AI 帮助我评估这个 PR” 和 “AI 自动拦截这个 PR” 是截然不同的概念，而只有前者适用于架构决策。当项目通过自动化门禁来路由架构合规性时——无论其多么复杂——架构就会开始以无人察觉的方式漂移，直到为时已晚。</p>
+<p>What AI cannot do is replace the judgment. “AI helps me assess this PR” and “AI automatically gates this PR” are categorically different, and only the first one works for architectural decisions. The day the project routes architectural compliance through an automated gate, however sophisticated, is the day the architecture starts drifting in ways nobody notices until it is too late.</p>
 <p><strong>实际策略，直白地说：</strong></p>
 <ul>
 <li>结构合规性（导入方向、依赖图、代码检查、格式化）由 CI 强制执行。这是不可协商的，并且已自动化。</li>
@@ -848,7 +924,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
       描述: 如果您知道正确的内容应该是什么，请在此处分享。
 </code></pre>
 <h3 id="模板-5安全报告重定向"><a class="header" href="#模板-5安全报告重定向">模板 5：安全报告重定向</a></h3>
-<p>创建 <code>.github/ISSUE_TEMPLATE/security.md</code> 作为重定向文件——GitHub 会将其显示为模板选项，但内容会进行重定向，而不是创建问题：</p>
+<p>Create <code>.github/ISSUE_TEMPLATE/security.md</code> as a redirect: GitHub will show it as a template option but the content redirects rather than creating an issue:</p>
 <pre><code class="language-yaml">名称: 安全漏洞
 描述: ⚠️ 请勿使用此模板。有关私有报告，请参阅 SECURITY.md。
 标签: []
@@ -911,7 +987,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </code></pre>
 <hr>
 <h2 id="8-rfc-治理循环"><a class="header" href="#8-rfc-治理循环">8. RFC 治理循环</a></h2>
-<p>RFC 流程在文档 RFC 和架构 RFC 中确立。本节定义了闭环——即 RFC 如何从提案到决策再到行动。</p>
+<p>The RFC process was established in the documentation RFC and the architecture RFC. This section defines the close loop: how an RFC moves from proposal to decision to action.</p>
 <h3 id="81-rfc-的完整生命周期"><a class="header" href="#81-rfc-的完整生命周期">8.1 RFC 的完整生命周期</a></h3>
 <pre><code>1. AUTHOR writes proposal → docs/proposals/&lt;slug&gt;.md
            ↓
@@ -970,7 +1046,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </div>
 <p>“活跃”核心团队成员是指在过去 90 天内至少参与过一次投票的成员。不活跃的成员不计入多数阈值，但仍会收到投票通知。</p>
 <h3 id="83-adr-连接"><a class="header" href="#83-adr-连接">8.3 ADR 连接</a></h3>
-<p>每份被接受的 RFC 必须在相应实施开始之前至少生成一份 ADR。ADR 并非对 RFC 的总结，而是对所做具体决策的永久记录，采用文档 RFC 中定义的 Nygard 格式。RFC 可能篇幅较长且具有探索性，而 ADR 则简短且具决定性。</p>
+<p>Every accepted RFC must produce at least one ADR before the corresponding implementation can begin. The ADR is not a summary of the RFC: it is the permanent record of the specific decision made, in the Nygard format defined in the documentation RFC. The RFC can be long and exploratory. The ADR is short and definitive.</p>
 <p>RFC 是提案，ADR 是决策。两者都是必要的，且互不替代。</p>
 <h3 id="84-本仓库中现有的-rfc"><a class="header" href="#84-本仓库中现有的-rfc">8.4 本仓库中现有的 RFC</a></h3>
 <p>截至本文撰写时，已提交以下 RFC，应立即将其转换为正式的 RFC 问题：</p>
@@ -988,9 +1064,9 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </div>
 <hr>
 <h2 id="9-标签分类"><a class="header" href="#9-标签分类">9. 标签分类</a></h2>
-<p>标签是问题和拉取请求（PR）上的元数据层。一个一致且设计良好的标签系统可以实现过滤、报告和自动化。而不一致的标签系统（常见情况——由创建问题的人随意添加标签）会产生噪音。</p>
+<p>Labels are the metadata layer on issues and PRs. A consistent, well-designed label system makes filtering, reporting, and automation possible. An inconsistent label system (the common case, labels added ad hoc by whoever creates an issue) creates noise.</p>
 <p>使用<strong>命名空间</strong>标签系统。每个标签都有一个前缀，用于标识其类别：</p>
-<h3 id="type--这是什么类型的工作"><a class="header" href="#type--这是什么类型的工作"><code>type:</code> — 这是什么类型的工作？</a></h3>
+<h3 id="type-what-kind-of-work-is-this"><a class="header" href="#type-what-kind-of-work-is-this"><code>type:</code> What kind of work is this?</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1008,7 +1084,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="priority--这项任务的紧急程度如何"><a class="header" href="#priority--这项任务的紧急程度如何"><code>priority:</code> — 这项任务的紧急程度如何？</a></h3>
+<h3 id="priority-how-urgent-is-this"><a class="header" href="#priority-how-urgent-is-this"><code>priority:</code> How urgent is this?</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1022,7 +1098,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="size--这个工作项有多大"><a class="header" href="#size--这个工作项有多大"><code>size:</code> — 这个工作项有多大？</a></h3>
+<h3 id="size-how-large-is-this-work-item"><a class="header" href="#size-how-large-is-this-work-item"><code>size:</code> How large is this work item?</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1037,10 +1113,10 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="component--系统的哪个部分"><a class="header" href="#component--系统的哪个部分"><code>component:</code> — 系统的哪个部分？</a></h3>
+<h3 id="component-which-part-of-the-system"><a class="header" href="#component-which-part-of-the-system"><code>component:</code> Which part of the system?</a></h3>
 <p><code>组件:内核</code> · <code>组件:网关</code> · <code>组件:通道</code> · <code>组件:工具</code> · <code>组件:内存</code> · <code>组件:安全</code> · <code>组件:硬件</code> · <code>组件:文档</code> · <code>组件:基础设施</code></p>
 <p>使用 <code>#f1f5f9</code>（浅灰色）作为所有组件标签的颜色，以便在视觉上与其他类别区分开来。</p>
-<h3 id="risk--风险等级是什么与-agentsmd-保持一致"><a class="header" href="#risk--风险等级是什么与-agentsmd-保持一致"><code>risk:</code> — 风险等级是什么？（与 <code>AGENTS.md</code> 保持一致）</a></h3>
+<h3 id="risk-what-is-the-risk-tier-mirrors-agentsmd"><a class="header" href="#risk-what-is-the-risk-tier-mirrors-agentsmd"><code>risk:</code> What is the risk tier? (mirrors <code>AGENTS.md</code>)</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1053,7 +1129,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="status--当前处于哪个阶段"><a class="header" href="#status--当前处于哪个阶段"><code>status:</code> — 当前处于哪个阶段？</a></h3>
+<h3 id="status-where-is-this-in-the-process"><a class="header" href="#status-where-is-this-in-the-process"><code>status:</code> Where is this in the process?</a></h3>
 <p>此表记录了治理意图和历史分类结构。如需了解当前实际生效的标签语义和自动化行为，请参考维护者标签指南作为操作依据；维护者文档包含了来自 #6808 的后续标签策略修正。</p>
 <div class="table-wrapper">
 <table>
@@ -1075,31 +1151,31 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </div>
 <p>当前社区认领标签是无前缀的 <code>good first issue</code> 和 <code>help wanted</code>；上方的 <code>status:*</code> 认领条目属于历史分类法。当前运营风险标签还区分问题风险（根据报告预估的修复影响范围）与 PR 风险（实际待审查的 diff）。有关当前策略，请参阅<a href="../maintainers/labels.html">维护者标签指南</a>。</p>
 <p>终态关闭标签属于运营策略，并非本基础文档中历史 <code>status:*</code> 分类体系的一部分。当前的解决标签请参阅<a href="../maintainers/labels.html#resolution-labels">维护者标签指南</a>，替换流程规则请参阅<a href="../maintainers/superseding.html">取代指南</a>。</p>
-<h3 id="rfc--rfc-特定的状态"><a class="header" href="#rfc--rfc-特定的状态"><code>rfc:</code> — RFC 特定的状态</a></h3>
+<h3 id="rfc-rfc-specific-status"><a class="header" href="#rfc-rfc-specific-status"><code>rfc:</code> RFC-specific status</a></h3>
 <p><code>rfc:accepted</code> · <code>rfc:rejected</code> · <code>rfc:revision-requested</code></p>
 <hr>
 <h2 id="10-完成定义"><a class="header" href="#10-完成定义">10. 完成定义</a></h2>
-<p>“完成”具有特定的含义。如果你不定义它，每个人都会对它有不同理解，而这些分歧会在最糟糕的时刻浮现——在审查期间、发布期间，或者在用户提交 bug 之后。</p>
+<p><strong>“Done” means something specific. If you do not define it, everyone will have a different definition, and the disagreements will surface at the worst possible time: during review, during release, or after a user files a bug.</strong></p>
 <p>当满足以下条件时，一项任务即被视为<strong>已完成</strong>：</p>
-<h3 id="对于代码更改"><a class="header" href="#对于代码更改">对于代码更改：</a></h3>
+<h3 id="for-code-changes"><a class="header" href="#for-code-changes">For code changes</a></h3>
 <ul>
 <li><input disabled="" type="checkbox"> 该 PR 已经过所需审查者层级（根据 CODEOWNERS 和风险等级）的审查和批准。</li>
 <li><input disabled="" type="checkbox"> 所有 CI 检查均通过：<code>cargo fmt</code>、<code>cargo clippy</code>、<code>cargo test</code></li>
 <li><input disabled="" type="checkbox"> 针对新增或更改的行为编写了测试（至少包含单元测试；面向用户的特性需包含集成测试）</li>
 <li><input disabled="" type="checkbox"> PR 之前通过的测试覆盖率没有丢失</li>
-<li><input disabled="" type="checkbox"> PR 描述说明了 <em>什么</em> 发生了更改以及 <em>为什么</em>（而不仅仅是“修复了 bug”——具体是哪个 bug、出了什么问题、做了什么更改）。</li>
+<li><input disabled="" type="checkbox"> The PR description explains <em>what</em> changed and <em>why</em> (not just “fixed bug”: what bug, what was wrong, what was changed)</li>
 <li><input disabled="" type="checkbox"> 如果更改影响了面向用户的行为，则相关参考文档将在同一 PR 中更新。</li>
 <li><input disabled="" type="checkbox"> 如果变更较大，请在正确的里程碑部分添加 CHANGELOG.md 条目</li>
 <li><input disabled="" type="checkbox"> 如果该变更需要 ADR：则 ADR 应在实现 PR 之前或与其同时编写、链接并合并。</li>
 </ul>
-<h3 id="对于文档更改"><a class="header" href="#对于文档更改">对于文档更改：</a></h3>
+<h3 id="for-documentation-changes"><a class="header" href="#for-documentation-changes">For documentation changes</a></h3>
 <ul>
 <li><input disabled="" type="checkbox"> 存在且有效的 YAML frontmatter</li>
 <li><input disabled="" type="checkbox"> 所有内部链接均正确解析</li>
 <li><input disabled="" type="checkbox"> 如果文档描述的是当前行为，则其准确性基于当前的 <code>master</code> 分支。</li>
 <li><input disabled="" type="checkbox"> 如果文档是 ADR，它遵循 Nygard 格式，并包含一个 <code>status</code> 字段。</li>
 </ul>
-<h3 id="对于发布版本"><a class="header" href="#对于发布版本">对于发布版本：</a></h3>
+<h3 id="for-releases"><a class="header" href="#for-releases">For releases</a></h3>
 <ul>
 <li><input disabled="" type="checkbox"> 里程碑中的所有项目都处于“完成”状态，或者已明确移至下一个里程碑，并附有解释原因的注释。</li>
 <li><input disabled="" type="checkbox"> 该版本的 CHANGELOG.md 条目已完成</li>
@@ -1131,14 +1207,14 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 <h3 id="112-github-actions-工作流"><a class="header" href="#112-github-actions-工作流">11.2 GitHub Actions 工作流</a></h3>
 <p><strong>根据变更文件自动添加标签：</strong></p>
 <p>活动路径标注器会根据已更改的文件为 PR 应用范围标签。风险和大小标签目前由维护者手动应用；维护者标签指南是标签名称、自动化状态和风险语义的实时来源。</p>
-<p><strong>自动请求 CODEOWNERS 审查（内置于 CODEOWNERS 中，无需额外操作）：</strong></p>
+<p><strong>Auto-request CODEOWNERS review (built into CODEOWNERS: no Action needed):</strong></p>
 <p>当文件存在且分支保护要求启用时，GitHub 会自动强制执行 CODEOWNERS。无需采取任何操作。</p>
 <p><strong>过期问题管理 (<code>.github/workflows/stale.yml</code>):</strong></p>
 <p>Issues with no activity for 45 days are labeled <code>status:stale</code> and a comment is posted asking if the issue is still relevant. Issues with no activity for 15 days after the stale label is applied are closed. This prevents the backlog from accumulating hundreds of issues that are months old and no longer relevant. Exclude <code>priority:p0</code>, <code>type:rfc</code>, issues with open linked PRs, and issues with <code>status:blocked</code> while a recorded blocker remains unresolved. The intended <code>status:no-stale</code> follow-up is to exclude it only while the operational source records both the stale-exemption reason and a contributor-visible active owner or steward path. The maintainer label guide and issue-triage protocol carry the current operational details.</p>
 <p><strong>PR 大小标签（<code>.github/workflows/pr-size.yml</code>）：</strong></p>
 <p>根据变更的行数自动为 PR 添加 <code>size:xs</code> 到 <code>size:xl</code> 的标签。这可以让审查者和维护者在无需打开差异对比的情况下，立即了解 PR 的范围。使用以下阈值作为起点：XS &lt; 10 行，S &lt; 50，M &lt; 250，L &lt; 1000，XL ≥ 1000。</p>
 <p><strong>合并 PR 时的里程碑检查 (<code>.github/workflows/milestone-check.yml</code>)：</strong></p>
-<p>如果 PR 在没有关联具有里程碑的 issue 的情况下被合并，则发出警告（不阻止）。这是一个温和的提示，而非硬性限制——其目的是防止工作在没有被追踪到发布版本的情况下进行。</p>
+<p>Warn (not block) if a PR is merged without a linked issue that has a milestone assigned. This is a gentle nudge, not a hard gate: the goal is to prevent work from happening without being tracked to a release.</p>
 <h3 id="113-哪些内容暂不要自动化"><a class="header" href="#113-哪些内容暂不要自动化">11.3 哪些内容暂不要自动化</a></h3>
 <ul>
 <li><strong>自动发布草稿：</strong> GitHub 的 release-drafter 很有用，但会增加配置开销。在团队建立了稳定的发布节奏后再添加它。</li>
@@ -1149,7 +1225,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 <h2 id="12-分阶段发布"><a class="header" href="#12-分阶段发布">12. 分阶段发布</a></h2>
 <p>治理和工具必须逐步引入。一次性引入所有内容会在团队理解每个部分的存在意义之前产生开销。</p>
 <hr>
-<h3 id="第一阶段--本周--基础"><a class="header" href="#第一阶段--本周--基础">第一阶段 · 本周 — “基础”</a></h3>
+<h3 id="phase-1--this-week-foundations"><a class="header" href="#phase-1--this-week-foundations">Phase 1 · This Week: “Foundations”</a></h3>
 <p>最小可行的治理设置。让团队立即协调起来。</p>
 <ul>
 <li><input disabled="" type="checkbox"> 创建包含状态、类型、优先级和里程碑字段的 GitHub 项目</li>
@@ -1164,7 +1240,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </ul>
 <p><strong>成功信号：</strong> 新问题会自动出现在项目中。团队清楚在哪里查找活跃工作，以及在哪里发布想法。</p>
 <hr>
-<h3 id="第二阶段--v070-里程碑--管道"><a class="header" href="#第二阶段--v070-里程碑--管道">第二阶段 · v0.7.0 里程碑 — “管道”</a></h3>
+<h3 id="phase-2--v070-milestone-the-pipeline"><a class="header" href="#phase-2--v070-milestone-the-pipeline">Phase 2 · v0.7.0 Milestone: “The Pipeline”</a></h3>
 <p>建立完整的工作流程，并根据已批准的 RFC 填充待办事项列表。</p>
 <ul>
 <li><input disabled="" type="checkbox"> 向项目添加“大小”、“风险等级”和“组件”字段</li>
@@ -1179,19 +1255,19 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </ul>
 <p><strong>成功信号：</strong> 团队每天都在使用看板。项目在各个阶段中推进，并可见地执行关卡检查。微内核架构的 RFC 已记录了投票结果。</p>
 <hr>
-<h3 id="第-3-阶段--v080-里程碑--社区成长"><a class="header" href="#第-3-阶段--v080-里程碑--社区成长">第 3 阶段 · v0.8.0 里程碑 — “社区成长”</a></h3>
+<h3 id="phase-3--v080-milestone-growing-the-community"><a class="header" href="#phase-3--v080-milestone-growing-the-community">Phase 3 · v0.8.0 Milestone: “Growing the Community”</a></h3>
 <p>随着插件系统逐渐可用，外部贡献者将陆续加入。贡献基础设施必须准备就绪。</p>
 <ul>
 <li><input disabled="" type="checkbox"> 实现 PR 大小标签工作流</li>
 <li><input disabled="" type="checkbox"> 为插件 SDK 工作创建第一批 <code>good first issue</code> 条目（至少 5 个）</li>
 <li><input disabled="" type="checkbox"> 将 <code>Good First Issue Index</code> 添加为置顶 issue，并附上当前适合新手的 issue 链接</li>
 <li><input disabled="" type="checkbox"> 建立想法推广阈值，并将第一个讨论想法推广为问题</li>
-<li><input disabled="" type="checkbox"> 记录核心团队成员扩展流程——邀请新核心团队成员的标准</li>
+<li><input disabled="" type="checkbox"> Document the Core Team expansion process: criteria for inviting new Core Team members</li>
 </ul>
 <p><strong>成功信号：</strong> 至少有一名外部贡献者（不在当前团队中）通过一个 good first issue 提交了 PR。Discussions Ideas 分类有活跃的社区参与。</p>
 <hr>
-<h3 id="第-4-阶段--v100--可持续治理"><a class="header" href="#第-4-阶段--v100--可持续治理">第 4 阶段 · v1.0.0 — “可持续治理”</a></h3>
-<p>到 v1.0.0 版本时，治理模型应实现自维持——团队无需再为此操心，它应能自动运作。</p>
+<h3 id="phase-4--v100-sustainable-governance"><a class="header" href="#phase-4--v100-sustainable-governance">Phase 4 · v1.0.0: “Sustainable Governance”</a></h3>
+<p>By v1.0.0, the governance model should be self-sustaining: the team should not need to think about it, it should just work.</p>
 <ul>
 <li><input disabled="" type="checkbox"> 根据实际效果，审查并更新治理文档</li>
 <li><input disabled="" type="checkbox"> 确定发布周期（发布的频率以及由谁负责发布）</li>
@@ -1202,27 +1278,27 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 <p><strong>成功信号：</strong> 过去六个月的开发历史显示，团队持续使用该流水线。问题在 3 天内被分类处理，PR 在 5 天内完成审查，每次合并都会更新 CHANGELOG。</p>
 <hr>
 <h2 id="附录-a术语表"><a class="header" href="#附录-a术语表">附录 A：术语表</a></h2>
-<p><strong>待办事项梳理</strong>——一项定期的团队活动（通常每周或每两周一次），团队在此活动中审查待办事项列表，重新排列各项优先级，关闭过期的项目，并确保顶部的项目已“定义”好，随时可以开始处理。</p>
-<p><strong>分支保护</strong> — 一项 GitHub 功能，可防止直接推送到受保护的分支，并在合并前强制执行要求（如代码审查、CI 检查）。</p>
-<p><strong>CODEOWNERS</strong> — 一个 GitHub 文件，当包含其负责的文件被更改时，会自动在 PR 中请求指定人员或团队的审查。</p>
-<p><strong>完成定义</strong> — 一份共享的检查清单，明确规定了工作项“完成”的具体含义。如果没有统一的完成定义，“完成”对每个人来说意味着不同的事情。</p>
-<p><strong>惰性共识</strong> — 一种决策方式，即除非在规定的时间内有人提出异议，否则所提议的行动将自动执行。这种方式减少了为常规决策要求明确批准的开销。</p>
-<p><strong>精英治理</strong> —— 一种治理模式，权力和影响力通过实际贡献获得，而非基于资历或头衔。在开源项目中常见。</p>
-<p><strong>里程碑</strong> — GitHub 的一项功能，用于按发布目标将问题和拉取请求分组。里程碑代表软件的一个版本。</p>
-<p><strong>T恤衫尺码</strong> — 一种估算技术，使用抽象的尺码（XS、S、M、L、XL）而不是数字的故事点。在没有历史校准数据的情况下更容易使用，并且适用于处于早期阶段的团队。</p>
-<p><strong>分类</strong> — 审查新提交的问题以确认其有效性，分配标签和优先级，将其链接到里程碑，并确定它们属于待办事项列表还是应该被关闭的过程。</p>
+<p><strong>Backlog grooming</strong>: A regular team activity (typically weekly or bi-weekly) in which the team reviews the backlog, reprioritizes items, closes stale ones, and ensures that the top items are “Defined” and ready to be picked up.</p>
+<p><strong>Branch protection</strong>: A GitHub feature that prevents direct pushes to protected branches and enforces requirements (reviews, CI checks) before merging.</p>
+<p><strong>CODEOWNERS</strong>: A GitHub file that automatically requests reviews from specified individuals or teams when files they own are changed in a PR.</p>
+<p><strong>Definition of Done</strong>: A shared checklist that specifies exactly what “done” means for a work item. Without a shared definition, “done” means something different to everyone.</p>
+<p><strong>Lazy consensus</strong>: A decision-making approach in which a proposed action proceeds unless someone objects within a defined time period. Reduces the overhead of requiring explicit approval for routine decisions.</p>
+<p><strong>Meritocracy</strong>: A governance model in which authority and influence are earned through demonstrated contribution, not through seniority or title. Standard in open source projects.</p>
+<p><strong>Milestone</strong>: A GitHub feature that groups issues and PRs by release target. A milestone represents a version of the software.</p>
+<p><strong>T-shirt sizing</strong>: An estimation technique that uses abstract sizes (XS, S, M, L, XL) rather than numeric story points. Easier to use without historical calibration data and sufficient for teams at an early stage.</p>
+<p><strong>Triage</strong>: The process of reviewing new issues to confirm they are valid, assign labels and priority, link them to milestones, and determine whether they belong in the backlog or should be closed.</p>
 <hr>
 <h2 id="附录-b延伸阅读"><a class="header" href="#附录-b延伸阅读">附录 B：延伸阅读</a></h2>
 <ul>
-<li><strong>GitHub Projects 文档</strong> — https://docs.github.com/en/issues/planning-and-tracking-with-projects — GitHub Projects v2 功能的完整参考。</li>
-<li><strong>GitHub Discussions 文档</strong> — https://docs.github.com/en/discussions — GitHub Discussions 的设置指南和治理选项。</li>
-<li><strong>CODEOWNERS 语法参考</strong> — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners — CODEOWNERS 文件的完整语法。</li>
-<li><strong>《Producing Open Source Software》</strong> — Karl Fogel — 关于如何运营开源项目的权威书籍。免费在线阅读：https://producingoss.com。其中关于治理、贡献者管理和沟通的章节具有直接的应用价值。</li>
-<li><strong>《开源治理模式简介》</strong> — Apache 软件基金会的治理文档是成熟开源项目如何规范化权威和决策流程的一个良好范例：https://www.apache.org/foundation/governance/</li>
-<li><strong>Vale 散文检查工具</strong> — <a href="https://vale.sh">Vale</a> — 在文档 RFC 中引用；与 <code>good first issue</code> 文档改进工作流集成。</li>
+<li><a href="https://docs.github.com/en/issues/planning-and-tracking-with-projects">GitHub Projects documentation</a>: Complete reference for GitHub Projects v2 features.</li>
+<li><a href="https://docs.github.com/en/discussions">GitHub Discussions documentation</a>: Setup guide and governance options for GitHub Discussions.</li>
+<li><a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners">CODEOWNERS syntax reference</a>: The full syntax for CODEOWNERS files.</li>
+<li><strong>“Producing Open Source Software”</strong>: Karl Fogel: The definitive book on running an open source project. Free online at <a href="https://producingoss.com">producingoss.com</a>. Chapters on governance, contributor management, and communication are directly applicable.</li>
+<li><strong>“An Introduction to Open Source Governance Models”</strong>: The Apache Software Foundation’s governance documentation is a good model for how a mature open source project formalizes authority and decision-making: <a href="https://www.apache.org/foundation/governance/">https://www.apache.org/foundation/governance/</a></li>
+<li><strong>Vale prose linter</strong>: <a href="https://vale.sh">Vale</a>: Referenced in the documentation RFC; integrates with the <code>good first issue</code> documentation improvement workflow.</li>
 </ul>
 <hr>
-<p><em>本提案是在 ZeroClaw v0.6.8 以及此前两份架构与文档 RFC 的背景下制定的。鉴于本项目由学生主导，且社区仍处于早期发展阶段，此处提出的治理模型有意保持轻量级。该模型旨在具备可扩展性——随着团队规模的扩大逐步增加流程，而非一次性全部引入。</em></p>
+<p><em>This proposal was developed in the context of ZeroClaw v0.6.8 and the two preceding architecture and documentation RFCs. The governance model proposed here is intentionally lightweight for a student-led project at an early stage of community growth. It is designed to scale: adding process as the team grows, not all at once.</em></p>
 <p>最好的治理模型是团队真正会遵循的最简单模型。从这里开始，根据你所学到的进行调整。</p>
 
                     </main>

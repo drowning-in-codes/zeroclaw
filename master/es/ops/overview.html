@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,73 +292,96 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="operaciones--descripción-general"><a class="header" href="#operaciones--descripción-general">Operaciones — Descripción general</a></h1>
+                        <h1 id="operations-overview"><a class="header" href="#operations-overview">Operations: Overview</a></h1>
 <p>Cómo ejecutar ZeroClaw en producción. La superficie es intencionalmente pequeña: un binario, un archivo de configuración, un espacio de trabajo SQLite. La mayoría de las “operaciones” son “systemd y journald”.</p>
 <p>Esta sección cubre:</p>
 <ul>
-<li><a href="./service.html">Servicio y demonio</a> — mantener el proceso en ejecución</li>
-<li><a href="./observability.html">Registros y observabilidad</a> — lectura de lo que hizo el agente</li>
-<li><a href="./troubleshooting.html">Resolución de problemas</a> — cuando las cosas fallan</li>
-<li><a href="./network-deployment.html">Despliegue de red</a> — exponer el gateway, túneles, proxies inversos</li>
+<li><a href="./service.html">Service &amp; daemon</a>: keeping the process alive</li>
+<li><a href="./observability.html">Logs &amp; observability</a>: reading what the agent did</li>
+<li><a href="./cost-tracking.html">Cost tracking</a>: token spend and per-model cost</li>
+<li><a href="./troubleshooting.html">Troubleshooting</a>: when things break</li>
+<li><a href="./network-deployment.html">Network deployment</a>: exposing the gateway, tunnels, reverse proxies</li>
 </ul>
 <h2 id="la-forma-de-un-despliegue"><a class="header" href="#la-forma-de-un-despliegue">La forma de un despliegue</a></h2>
 <p>Una instalación típica de ZeroClaw siempre activa es:</p>
-<pre><code>zeroclaw service (systemd / launchctl / Windows Service)
-  ├── zeroclaw daemon                 — the long-running process
-  │   ├── gateway listener (:42617)   — REST / WebSocket / webhooks
-  │   ├── channel pollers             — Telegram, IMAP, Nostr relays, etc.
-  │   ├── channel listeners           — Discord / Slack / Matrix / WebSocket
-  │   ├── cron scheduler              — scheduled SOPs and jobs
-  │   └── agent loop (per session)    — provider call + tool execution
-  ├── SQLite workspace                — ~/.zeroclaw/workspace/
-  ├── config.toml                     — ~/.zeroclaw/config.toml
-  ├── tool-receipts log               — ~/.zeroclaw/workspace/receipts/
-  └── platform logs                   — journald / launchctl / Event Log
+<!-- Canonical deployment-shape diagram. Edit here; reuse via {{#include}}. -->
+<pre><code class="language-text">zeroclaw service                          — systemd / launchctl / Windows Service
+└── zeroclaw daemon                       — the single long-running process
+    ├── gateway listener  :42617          — REST / WebSocket / webhook intake
+    ├── channel pollers                   — Telegram, IMAP, Nostr relays (outbound poll)
+    ├── channel listeners                 — Discord / Slack / Matrix / WebSocket (inbound stream)
+    ├── cron scheduler                    — scheduled SOPs and jobs
+    └── agent loop  (one per session)     — provider call + tool execution
+                                            ▲ driven by any listener, poller,
+                                              gateway request, or cron fire
+
+on disk (everything but the binary can move)
+├── ~/.zeroclaw/config.toml               — configuration
+├── ~/.zeroclaw/.secret_key               — master key for the encrypted secrets store
+└── ~/.zeroclaw/data/                     — runtime state
+    ├── memory/                           — agent memory backend
+    ├── sessions/                         — per-session conversation stores
+    └── state/                            — scheduler, cost, health, misc runtime state
+
+logs                                      — journald / launchctl / Windows Event Log (platform-native)
 </code></pre>
-<p>Todo excepto el binario es móvil: la ruta del espacio de trabajo es configurable, las rutas de configuración se resuelven por entorno (Homebrew vs. bootstrap vs. XDG) y los destinos de registro son nativos de la plataforma por defecto.</p>
+<p>Everything except the binary can move. The data dir defaults to <code>~/.zeroclaw/data/</code> (the legacy <code>~/.zeroclaw/workspace/</code> name is still accepted); config paths resolve per environment (Homebrew vs. bootstrap vs. XDG), and log destinations are platform-native by default.</p>
 <h2 id="qué-monitorear"><a class="header" href="#qué-monitorear">Qué monitorear</a></h2>
 <p>Cuatro señales son importantes:</p>
 <h3 id="1-estado-de-servicio"><a class="header" href="#1-estado-de-servicio">1. Estado de servicio</a></h3>
 <p>¿Está el proceso en ejecución?</p>
-<pre><code class="language-bash"># Linux
-systemctl --user is-active zeroclaw
-
-# macOS
-launchctl list | grep -c com.zeroclaw.daemon
-
-# Windows
-sc query ZeroClaw | findstr STATE
+<div class="os-tabs-src">
+<h4 id="linux"><a class="header" href="#linux">Linux</a></h4>
+<pre><code class="language-sh">systemctl --user is-active zeroclaw
 </code></pre>
+<h4 id="macos"><a class="header" href="#macos">macOS</a></h4>
+<pre><code class="language-sh">launchctl list | grep -c com.zeroclaw.daemon
+</code></pre>
+<h4 id="windows"><a class="header" href="#windows">Windows</a></h4>
+<pre><code class="language-cmd">schtasks /Query /TN "ZeroClaw Daemon" /FO LIST | findstr Status
+</code></pre>
+</div>
+
 <p>Si se está reiniciando repetidamente, consulta <a href="./troubleshooting.html">Solución de problemas → El demonio se reinicia constantemente</a>.</p>
-<h3 id="2-estado-del-canal"><a class="header" href="#2-estado-del-canal">2. Estado del canal</a></h3>
-<p>¿Están conectados los canales? La puerta de enlace expone <code>/health/channels</code>:</p>
-<pre><code class="language-bash">curl -s http://localhost:42617/health/channels | jq
+<h3 id="2-channel-and-component-health"><a class="header" href="#2-channel-and-component-health">2. Channel and component health</a></h3>
+<p>The gateway exposes a component health snapshot at <code>/health</code> (public, no secrets) and <code>/api/health</code> (authenticated). Channels, providers, and other long-running components register themselves in the <code>components</code> map as they start, report OK, or error.</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">curl -s http://localhost:42617/health | jq
 </code></pre>
+</div>
+
 <pre><code class="language-json">{
-  "telegram": {"estado": "conectado", `last_event_ago_secs`: 12},
-  "discord":  {"estado": "conectado", `last_event_ago_secs`: 4},
-  "correo electrónico":    {"estado": "sondeo",   `next_poll_in_secs`: 42},
-  "matriz":   {"estado": desconectado, "error": "401 No autorizado"}
+  "estado": "ok",
+  "paired": true,
+  "require_pairing": true,
+  "runtime": {
+    "pid": 4821,
+    "updated_at": "2026-06-08T09:00:00+00:00",
+    "uptime_seconds": 3600,
+    "components": {
+      "channel:telegram": {"estado": "ok", "updated_at": "…", "last_ok": "…", "last_error": null, "restart_count": 0},
+      "channel:matrix":   {"estado": "error", "updated_at": "…", "last_ok": "…", "last_error": "401 No autorizado", "restart_count": 3}
+    }
+  }
 }
 </code></pre>
-<p>Monitorea <code>status != "connected"</code> en los canales basados en push.</p>
+<p>Each component carries <code>status</code> (<code>starting</code> / <code>ok</code> / <code>error</code>), <code>last_ok</code>, <code>last_error</code>, and <code>restart_count</code>. Watch for <code>status: "error"</code> and climbing <code>restart_count</code>.</p>
 <h3 id="3-fiabilidad-del-proveedor"><a class="header" href="#3-fiabilidad-del-proveedor">3. Fiabilidad del proveedor</a></h3>
-<p>¿Están teniendo éxito las llamadas a los modelos de lenguaje grandes (LLM)? <code>/health/providers</code>:</p>
-<pre><code class="language-bash">curl -s http://localhost:42617/health/providers | jq
+<p>Providers surface as components in the same <code>/health</code> snapshot. For request-level signal (latency, success rate, token counts), scrape <code>/metrics</code> (see below) and read <code>zeroclaw_llm_requests_total</code> and <code>zeroclaw_request_latency_seconds</code>.</p>
+<h3 id="4-tool-call-volume-and-metrics"><a class="header" href="#4-tool-call-volume-and-metrics">4. Tool-call volume and metrics</a></h3>
+<p><code>/metrics</code> returns Prometheus text exposition. It requires <code>[observability] backend = "prometheus"</code> in config; without it the endpoint returns a one-line “backend not enabled” hint.</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">curl -s http://localhost:42617/metrics
 </code></pre>
-<pre><code class="language-json">{
-  "claude": {"ok": true,  `last_latency_ms`: 1240, "error_rate_1h": 0.0},
-  "local":  {"ok": true,  `last_latency_ms`: 3890, "error_rate_1h": 0.0}
-}
+</div>
+
+<pre><code>zeroclaw_tool_calls_total{success="true",tool="shell"} 342
+zeroclaw_tool_calls_total{success="false",tool="shell"} 6
+zeroclaw_tool_calls_total{success="true",tool="file_write"} 89
 </code></pre>
-<h3 id="4-volumen-de-llamadas-a-herramientas-y-bloques"><a class="header" href="#4-volumen-de-llamadas-a-herramientas-y-bloques">4. Volumen de llamadas a herramientas y bloques</a></h3>
-<p><code>/metrics/tools</code> (formato Prometheus):</p>
-<pre><code>zeroclaw_tool_calls_total{tool="shell",outcome="success"} 342
-zeroclaw_tool_calls_total{tool="shell",outcome="blocked"} 4
-zeroclaw_tool_calls_total{tool="shell",outcome="denied"} 2
-zeroclaw_tool_calls_total{tool="file_write",outcome="success"} 89
-</code></pre>
-<p>Los bloqueos y denegaciones valen la pena revisarlos: si el agente está golpeando repetidamente el mismo bloqueo de política, o bien tu política es incorrecta o tu agente se está comportando mal.</p>
+<p>The <code>zeroclaw_tool_calls_total</code> counter is labelled by <code>tool</code> and <code>success</code> (<code>"true"</code>/<code>"false"</code>). A rising <code>success="false"</code> count for one tool is worth looking at: either a policy block, a misbehaving agent, or a flaky tool. Other useful series include <code>zeroclaw_llm_requests_total</code>, <code>zeroclaw_errors_total</code>, <code>zeroclaw_active_sessions</code>, and <code>zeroclaw_tokens_input_total</code> / <code>zeroclaw_tokens_output_total</code>.</p>
 <h2 id="capacidad"><a class="header" href="#capacidad">Capacidad</a></h2>
 <p>Una única instancia de ZeroClaw puede manejar:</p>
 <ul>
@@ -290,31 +389,30 @@ zeroclaw_tool_calls_total{tool="file_write",outcome="success"} 89
 <li>Llamadas a herramientas a la velocidad que el proveedor y el sandbox permitan</li>
 <li>Bucles de agente de larga duración (cadenas de herramientas de 20+ llamadas)</li>
 </ul>
-<p>Escala lateralmente ejecutando una instancia por espacio de trabajo. No intentes ejecutar dos demonios en el mismo espacio de trabajo: el modelo de escritor único de SQLite generará contención de bloqueos y, en última instancia, corrupción.</p>
-<p>Para el alojamiento multiinquilino, consulte la propuesta en #2765 (cerrada, histórica — la arquitectura para el enrutamiento multi-espacio de trabajo en proceso).</p>
+<p>Scale laterally by running one instance per workspace. Don’t try to run two daemons on the same workspace: SQLite’s single-writer model will produce lock contention and ultimately corruption.</p>
+<p>For multi-tenant hosting, see the proposal in #2765 (closed, historical, the architecture for in-process multi-workspace routing).</p>
 <h2 id="copias-de-seguridad"><a class="header" href="#copias-de-seguridad">Copias de seguridad</a></h2>
 <p>Qué respaldar:</p>
 <ul>
-<li><code>~/.zeroclaw/config.toml</code> — contiene las credenciales del canal (cifradas si se usa un almacén de secretos)</li>
-<li><code>~/.zeroclaw/workspace/*.db</code> — Memoria de conversaciones SQLite</li>
-<li><code>~/.zeroclaw/secrets.key</code> — clave maestra para el almacén de secretos cifrados (si se utiliza). <strong>Sin ella, los secretos de la configuración no se pueden recuperar.</strong></li>
-<li><code>~/.zeroclaw/workspace/receipts/</code> — registro de tool-receipts</li>
+<li><code>~/.zeroclaw/data/memory/*.db</code>: SQLite conversation memory (<code>brain.db</code>, plus <code>audit.db</code>)</li>
+<li><code>~/.zeroclaw/data/sessions/</code>: persisted session state</li>
+<li><code>~/.zeroclaw/.secret_key</code>: master key for the encrypted secrets store (if used). <strong>Without it, the config’s encrypted secrets are unrecoverable.</strong></li>
 </ul>
 <p>Un simple <code>tar czf zeroclaw-$(date +%F).tar.gz ~/.zeroclaw</code> cubre todo. Restic, borg o Duplicacy funcionan bien para copias de seguridad incrementales.</p>
-<p><strong>No respaldes <code>~/.zeroclaw/workspace/cache/</code></strong> — es regenerable y puede ser grande.</p>
+<p><code>~/.zeroclaw/data/memory/response_cache.db</code> is a regenerable LLM response cache; it’s safe to include in a full-directory backup or to exclude to save space. Tool receipts are in-band HMAC tokens in the conversation history (see <a href="../security/tool-receipts.html">Tool receipts</a>), not an on-disk log, so there is nothing separate to back up for them.</p>
 <h2 id="actualizaciones"><a class="header" href="#actualizaciones">Actualizaciones</a></h2>
-<p>El servicio no se actualiza automáticamente. Suscríbete al feed de lanzamientos (lanzamientos de GitHub o el canal de Discord <code>#releases</code> — consulta <a href="../contributing/communication.html">Contribuir → Comunicación</a>). Frecuencia típica de actualización:</p>
+<p>The service does not auto-update. Subscribe to the release feed (GitHub releases or the Discord <code>#releases</code> channel: see <a href="../contributing/communication.html">Contributing → Communication</a>). Typical update cadence:</p>
 <ol>
 <li>Leer las notas de la versión</li>
 <li>Haz una copia de seguridad de <code>~/.zeroclaw/</code></li>
 <li>Actualiza el binario (<code>brew upgrade</code>, vuelve a ejecutar el bootstrap o <code>cargo install --force</code>)</li>
 <li><code>zeroclaw service restart</code></li>
-<li>Verifica que los endpoints <code>/health/*</code> devuelvan “green”</li>
+<li>Verify the <code>/health</code> endpoint reports <code>status: "ok"</code> with no component in <code>error</code></li>
 </ol>
 <p>Si la nueva versión requiere migraciones de configuración, el registro de inicio emite una advertencia y el binario suele migrar automáticamente. Comprueba <code>zeroclaw config list</code> para verificar algunos valores después de la actualización, y <code>zeroclaw config migrate</code> para aplicar manualmente cualquier migración de esquema pendiente.</p>
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
-<li><a href="../setup/service.html">Configuración → Gestión de servicios</a> — instalar/desinstalar/registrar por plataforma</li>
+<li><a href="../setup/service.html">Setup → Service management</a>: install/remove/logs per platform</li>
 <li><a href="./observability.html">Registros y observabilidad</a></li>
 <li><a href="./troubleshooting.html">Resolución de problemas</a></li>
 <li><a href="./network-deployment.html">Despliegue de red</a></li>

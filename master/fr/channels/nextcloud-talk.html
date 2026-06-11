@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,18 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="nextcloud-talk"><a class="header" href="#nextcloud-talk">Nextcloud Talk</a></h1>
-<p>Intégration de Nextcloud Talk via le protocole webhook du bot Talk. Auto-hébergé, fédéré et capable de chiffrement de bout en bout — une autre option de communication souveraine à côté de <a href="./matrix.html">Matrix</a> et <a href="./mattermost.html">Mattermost</a>.</p>
+<p>Nextcloud Talk integration via the Talk Bot webhook protocol. Self-hosted, federated, and E2E-capable: another sovereign-communication option alongside <a href="./matrix.html">Matrix</a> and <a href="./mattermost.html">Mattermost</a>.</p>
+<h2 id="who-can-talk-to-the-agent"><a class="header" href="#who-can-talk-to-the-agent">Who can talk to the agent</a></h2>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for nextcloud sets <code>channel</code> to <code>nextcloud</code>, lists the allowed senders in <code>external_peers</code> (for nextcloud, the Nextcloud actor ID; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
 <h2 id="ce-que-fait-cette-intégration"><a class="header" href="#ce-que-fait-cette-intégration">Ce que fait cette intégration</a></h2>
 <ul>
 <li>Reçoit les événements entrants Talk via <code>POST /nextcloud-talk</code> sur la passerelle</li>
@@ -227,30 +314,187 @@
 <h2 id="prérequis"><a class="header" href="#prérequis">Prérequis</a></h2>
 <ul>
 <li><strong>Serveur Nextcloud</strong> avec l’application Talk activée (v17 ou une version ultérieure est recommandée)</li>
-<li><strong>Compte de bot</strong> dans les paramètres de Talk — donnez-lui un nom d’affichage (par ex. <code>zeroclaw-bot</code>)</li>
+<li><strong>Bot account</strong> in Talk settings, give it a display name (e.g. <code>zeroclaw-bot</code>)</li>
 <li><strong>Bot app token</strong> depuis l’interface d’administration de Talk pour l’authentification bearer de l’API OCS (utilisé pour les réponses sortantes)</li>
 <li><strong>Clé secrète du webhook</strong> depuis l’interface d’administration de Talk si vous souhaitez vérifier la signature (fortement recommandé)</li>
-<li><strong>Passerelle accessible publiquement</strong> — consultez <a href="../setup/container.html">Configuration → Conteneur</a> pour les options de tunnel si vous l’hébergez vous-même.</li>
+<li><strong>Publicly-reachable gateway</strong>: see <a href="../setup/container.html">Setup → Container</a> for tunnel options if self-hosted</li>
 </ul>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<pre><code class="language-toml">[channels.nextcloud_talk]
-enabled = true
-base_url = "https://cloud.example.com"
-app_token = "..."                              # jeton bearer de l'API OCS (jeton d'application du bot)
-webhook_secret = "..."                         # secret partagé pour la vérification du webhook HMAC-SHA256
-bot_name = "zeroclaw-bot"                      # nom d'affichage ; filtre les propres publications du bot
-allowed_users = ["*"]                          # ID des acteurs ; "*" = autoriser tout le monde (à utiliser uniquement pour un premier test)
-proxy_url = ""                                 # surcharge facultative du proxy par canal
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>app_token</code>* 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>—</code></span></summary>
+<p>Bot app token used for OCS API bearer auth.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.app_token</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.app_token</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.app_token    # masked input, stored encrypted
 </code></pre>
-<p>Remplacement de l’environnement : <code>ZEROCLAW_NEXTCLOUD_TALK_WEBHOOK_SECRET</code> a la priorité sur la valeur de configuration. Utile pour faire tourner les secrets sans modifier la configuration.</p>
-<p>Référence complète du champ : <a href="../reference/config.html">Config</a>.</p>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__app_token=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>base_url</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p>Nextcloud base URL (e.g. <code>"https://cloud.example.com"</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.base_url</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.base_url</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.base_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__base_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>bot_name</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Display name of the bot in Nextcloud Talk (e.g. “zeroclaw”). Used to filter out the bot’s own messages and prevent feedback loops. If not set, defaults to an empty string (no self-message filtering by name).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.bot_name</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.bot_name</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.bot_name &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__bot_name=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>draft_update_interval_ms</code> <span class="cfg-field-meta"><code>integer</code> · default <code>1000</code></span></summary>
+<p>Minimum interval in milliseconds between consecutive OCS edit calls per room when <code>stream_mode = "partial"</code>. Default: 1000 ms.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.draft_update_interval_ms</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.draft_update_interval_ms</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.draft_update_interval_ms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__draft_update_interval_ms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>proxy_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Per-channel proxy URL (http, https, socks5, socks5h). Overrides the global <code>[proxy]</code> setting for this channel only.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.proxy_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__proxy_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>stream_mode</code> <span class="cfg-field-meta"><code>StreamMode</code> · default <code>"off"</code></span></summary>
+<p>Controls whether and how streaming draft updates are delivered. - <code>"off"</code> (default): responses are sent as a single final message. - <code>"partial"</code>: a placeholder is posted first and edited incrementally as tokens arrive, making long responses visible in real time.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.stream_mode</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.stream_mode</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.stream_mode &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__stream_mode=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>webhook_secret</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Shared secret for webhook signature verification. Can also be set via <code>ZEROCLAW_NEXTCLOUD_TALK_WEBHOOK_SECRET</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> and set the <code>channels.nextcloud_talk.&lt;alias&gt;.webhook_secret</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.nextcloud_talk.&lt;alias&gt;.webhook_secret</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.nextcloud_talk.&lt;alias&gt;.webhook_secret    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__nextcloud_talk__&lt;alias&gt;__webhook_secret=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<p>The channel is read from the <code>default</code> alias. Set it through any config surface:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/nextcloud_talk"><code>/config/channels/nextcloud_talk</code></a> in the web dashboard.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Channels</strong>.</p>
+</div>
+
+<p><code>webhook_secret</code> can also be supplied at runtime via the generic env override <code>ZEROCLAW_channels__nextcloud_talk__default__webhook_secret</code>, useful for rotating it without editing the config.</p>
 <h2 id="point-de-terminaison-de-passerelle"><a class="header" href="#point-de-terminaison-de-passerelle">Point de terminaison de passerelle</a></h2>
-<pre><code class="language-bash">zeroclaw daemon
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon
 </code></pre>
+</div>
+
 <p>Configurez l’URL du webhook de votre bot Talk pour qu’elle pointe vers :</p>
 <pre><code>https://&lt;your-public-url&gt;/nextcloud-talk
 </code></pre>
-<p>Développement local ? Configurez <code>[tunnel]</code> dans votre fichier de configuration (ngrok, Cloudflare ou Tailscale) et le gateway s’expose au démarrage — voir <a href="../ops/network-deployment.html">Opérations → Déploiement réseau</a>.</p>
+<p>Local development? Configure <code>[tunnel]</code> in your config (ngrok, Cloudflare, or Tailscale) and the gateway exposes itself on startup: see <a href="../ops/network-deployment.html">Operations → Network deployment</a>.</p>
 <h2 id="vérification-de-la-signature"><a class="header" href="#vérification-de-la-signature">Vérification de la signature</a></h2>
 <p>Lorsque <code>webhook_secret</code> est défini, les requêtes entrantes doivent inclure :</p>
 <ul>
@@ -262,10 +506,10 @@ proxy_url = ""                                 # surcharge facultative du proxy 
 if X-Nextcloud-Talk-Signature != expected_sig:
     return 401
 </code></pre>
-<p>Sans secret, aucune vérification — ne pas exposer cet endpoint publiquement dans ce mode.</p>
+<p>Without a secret, no verification: don’t expose this endpoint publicly in that mode.</p>
 <h2 id="routage-des-messages"><a class="header" href="#routage-des-messages">Routage des messages</a></h2>
 <ul>
-<li><strong>Les événements d’origine bot</strong> (<code>actorType = "bots"</code>) sont ignorés — cela permet d’éviter les boucles de rétroaction.</li>
+<li><strong>Bot-originated events</strong> (<code>actorType = "bots"</code>) are ignored: prevents feedback loops</li>
 <li><strong>Les événements système</strong> (entrées, sorties, modifications d’appartenance) sont ignorés</li>
 <li><strong>Les événements non liés à un message</strong> sont ignorés</li>
 <li>Les <strong>messages utilisateur</strong> sont envoyés à la boucle de l’agent.</li>
@@ -273,31 +517,31 @@ if X-Nextcloud-Talk-Signature != expected_sig:
 </ul>
 <h2 id="validation-rapide"><a class="header" href="#validation-rapide">Validation rapide</a></h2>
 <ol>
-<li>Définissez <code>allowed_users = ["*"]</code> pour les premiers tests.</li>
+<li>Set <code>external_peers = ["*"]</code> in the peer group for first-time testing</li>
 <li>Envoyer un message de test dans la salle Talk configurée</li>
 <li>Confirmez que ZeroClaw reçoit et répond dans la même salle.</li>
-<li>Resserrez <code>allowed_users</code> aux identifiants explicites des acteurs (par exemple <code>["alice", "bob"]</code>).</li>
+<li>Tighten the peer group to explicit actor IDs (e.g. <code>["alice", "bob"]</code>)</li>
 </ol>
 <h2 id="dépannage"><a class="header" href="#dépannage">Dépannage</a></h2>
 <ul>
-<li><strong><code>404 Nextcloud Talk non configuré</code></strong> — section <code>[channels.nextcloud_talk]</code> manquante ou <code>enabled = false</code></li>
-<li><strong><code>401 Signature invalide</code></strong> — secret non conforme, en-tête aléatoire incorrect ou bug dans la signature du corps. Vérifiez que le corps brut est bien signé (et non le JSON analysé).</li>
-<li><strong>Aucune réponse, webhook <code>200</code></strong> — événement filtré. Vérifiez les journaux pour « actorType = bots » ou « user not in allowed_users ».</li>
-<li><strong>Réponses envoyées mais qui semblent incorrectes</strong> — vérifiez le contexte du fil ; les réponses Talk sont actuellement uniquement de niveau racine</li>
+<li><strong><code>404 Nextcloud Talk not configured</code></strong>: <code>[channels.nextcloud_talk.default]</code> section missing or <code>enabled = false</code></li>
+<li><strong><code>401 Invalid signature</code></strong>: secret mismatch, wrong random header, or body-signing bug. Check the raw body is being signed (not the parsed JSON)</li>
+<li><strong>No reply, webhook <code>200</code></strong>: event was filtered. Check logs for “actorType = bots” or a sender not in the peer set</li>
+<li><strong>Replies delivered but look wrong</strong>: check thread context; Talk replies are currently root-level only</li>
 </ul>
 <h2 id="diffusion-en-continu"><a class="header" href="#diffusion-en-continu">Diffusion en continu</a></h2>
 <p>Nextcloud Talk ne prend pas en charge les modifications de messages via l’API Bot, donc les mises à jour de brouillons en continu sont désactivées pour ce canal. Les réponses sont envoyées uniquement à la fin du flux.</p>
 <h2 id="notes-dauto-hébergement"><a class="header" href="#notes-dauto-hébergement">Notes d’auto-hébergement</a></h2>
 <ul>
 <li>TLS : terminaison au niveau de votre proxy inverse ; la vérification de la signature du webhook fonctionne sur la boucle de bouclage HTTP-vers-conteneur</li>
-<li>L’API OCS est authentifiée via un jeton Bearer — utilisez le jeton de l’application bot depuis l’interface d’administration de Talk</li>
+<li>The OCS API is authenticated via Bearer token: use the bot app token from the Talk admin UI</li>
 <li>Les limites de taux dépendent du serveur Nextcloud ; le bot par défaut ne les atteint pas dans des cadences de conversation normales.</li>
 <li>Proxy par canal : définissez <code>proxy_url</code> pour remplacer le paramètre global <code>[proxy]</code> uniquement pour Nextcloud Talk (<code>http://</code>, <code>https://</code>, <code>socks5://</code>, <code>socks5h://</code>)</li>
 </ul>
 <h2 id="voir-aussi"><a class="header" href="#voir-aussi">Voir aussi</a></h2>
 <ul>
-<li><a href="./matrix.html">Matrix</a> — un E2EE plus riche mais avec une complexité opérationnelle accrue</li>
-<li><a href="./mattermost.html">Mattermost</a> — posture d’hébergement auto-géré similaire, protocole différent</li>
+<li><a href="./matrix.html">Matrix</a>: richer E2EE but more operational complexity</li>
+<li><a href="./mattermost.html">Mattermost</a>: similar self-hosted posture, different protocol</li>
 <li><a href="./overview.html">Chaînes → Vue d’ensemble</a></li>
 </ul>
 

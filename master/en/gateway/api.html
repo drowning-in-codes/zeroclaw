@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -250,7 +326,7 @@ path doesn’t exist in the schema.</li>
 <p><code>OPTIONS</code> returns capabilities. <code>GET /api/config/prop</code> and <code>GET /api/config/list</code>
 return the user’s current values. Forms in the dashboard issue <code>OPTIONS</code> once
 at load time to learn types and constraints, then <code>GET</code> to populate fields,
-then <code>PUT</code>/<code>PATCH</code> to write. There is no whole-file <code>GET /api/config</code> —
+then <code>PUT</code>/<code>PATCH</code> to write. There is no whole-file <code>GET /api/config</code>,
 deliberately. Walk the per-property surface; the schema is the source of truth
 for what fields exist.</p>
 <p>CORS preflight requests (those carrying <code>Access-Control-Request-Method</code>) get
@@ -275,7 +351,7 @@ returned.</p>
 </tbody>
 </table>
 </div>
-<h2 id="atomic-batch-writes--json-patch"><a class="header" href="#atomic-batch-writes--json-patch">Atomic batch writes — JSON Patch</a></h2>
+<h2 id="atomic-batch-writes-json-patch"><a class="header" href="#atomic-batch-writes-json-patch">Atomic batch writes: JSON Patch</a></h2>
 <p><code>PATCH /api/config</code> accepts a JSON Patch document (RFC 6902). The supported op
 subset is <code>add</code>, <code>replace</code>, <code>remove</code>, <code>test</code>. Each op runs against an
 in-memory copy of the config; once every op has applied, <code>Config::validate()</code>
@@ -284,7 +360,7 @@ swapped in. If any op or the final validation fails, on-disk and in-memory
 state are unchanged.</p>
 <p><code>move</code> and <code>copy</code> return <code>400 op_not_supported</code> because safe reference-graph
 rewriting is not part of this surface. <code>test</code> against a <code>#[secret]</code> path is
-rejected with <code>secret_test_forbidden</code> — a differential outcome would be the
+rejected with <code>secret_test_forbidden</code>: a differential outcome would be the
 only signal a client could read, and that would leak the value.</p>
 <p>Path syntax: JSON Pointer (<code>/agents/researcher/model_provider</code>) or the
 dotted form (<code>agents.researcher.model_provider</code>). Both are accepted; the
@@ -292,10 +368,10 @@ server normalises.</p>
 <p>The CLI counterpart is <code>zeroclaw config patch &lt;file-or-stdin&gt;</code>, which applies
 the same op set against the local Config and returns the same structured
 response shape (<code>--json</code> for scripts).</p>
-<h2 id="secrets--write-only-over-http"><a class="header" href="#secrets--write-only-over-http">Secrets — write-only over HTTP</a></h2>
+<h2 id="secrets-write-only-over-http"><a class="header" href="#secrets-write-only-over-http">Secrets: write-only over HTTP</a></h2>
 <p>Secret fields (those marked <code>#[secret]</code> or <code>#[derived_from_secret]</code> in the
 schema) are <strong>never</strong> readable over HTTP in any form. Responses for secrets
-carry <code>{populated: bool}</code> only — no value, no length, no masked stand-in, no
+carry <code>{populated: bool}</code> only, no value, no length, no masked stand-in, no
 hash. This is enforced at the response layer regardless of which endpoint is
 called.</p>
 <p><code>PUT</code> and <code>PATCH</code> write the new secret value and respond with
@@ -328,7 +404,7 @@ for the Scalar API explorer. Schema definitions and “Try it out” forms come
 from the same <code>schemars</code> annotations the daemon uses, so the documentation
 cannot lie about the runtime surface.</p>
 <p>The explorer’s authentication panel binds to the <code>bearerAuth</code> scheme declared
-in the spec — paste your pairing-derived bearer token there before issuing
+in the spec, paste your pairing-derived bearer token there before issuing
 live calls. The CLI shortcut for the URL is <code>zeroclaw config docs</code>.</p>
 <p>If the Scalar bundle can’t load from the CDN (offline / air-gapped install),
 the page degrades gracefully and points you at the raw spec at

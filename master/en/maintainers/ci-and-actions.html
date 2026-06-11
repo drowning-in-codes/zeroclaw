@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,26 +293,36 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="ci--actions"><a class="header" href="#ci--actions">CI &amp; Actions</a></h1>
-<p>Every workflow lives in <code>.github/workflows/</code>. The sections below group them by trigger — automatic on git events, or manual via <code>workflow_dispatch</code>.</p>
+<p>Every workflow lives in <code>.github/workflows/</code>. The sections below group them by trigger: automatic on git events, or manual via <code>workflow_dispatch</code>.</p>
 <h2 id="automatic-workflows"><a class="header" href="#automatic-workflows">Automatic workflows</a></h2>
 <h3 id="quality-gate-ciyml"><a class="header" href="#quality-gate-ciyml">Quality Gate (<code>ci.yml</code>)</a></h3>
 <p>Fires on every PR targeting <code>master</code> and on trusted pushes to <code>master</code>.
 Composite job with multiple matrix legs:</p>
 <ul>
-<li><strong>fmt</strong> — <code>cargo fmt --all -- --check</code></li>
-<li><strong>lint</strong> — <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code></li>
-<li><strong>build</strong> — matrix: <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
-<li><strong>check</strong> — all features + no-default-features</li>
-<li><strong>check-32bit</strong> — <code>i686-unknown-linux-gnu</code> with no default features</li>
-<li><strong>bench</strong> — benchmarks compile check</li>
-<li><strong>test</strong> — <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> on Linux</li>
-<li><strong>security</strong> — <code>cargo deny check</code></li>
+<li><strong>fmt</strong>: <code>cargo fmt --all -- --check</code></li>
+<li><strong>lint</strong>: <code>cargo clippy --workspace --exclude zeroclaw-desktop --all-targets --features ci-all -- -D warnings</code>, plus two architecture guards (<code>cargo test --test architecture</code>): config-write isolation and Fluent coverage (no bare user-facing strings)</li>
+<li><strong>build</strong>: matrix: <code>x86_64-unknown-linux-gnu</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code></li>
+<li><strong>check</strong>: all features + no-default-features</li>
+<li><strong>check-32bit</strong>: <code>i686-unknown-linux-gnu</code> with no default features</li>
+<li><strong>bench</strong>: benchmarks compile check</li>
+<li><strong>test</strong>: <code>cargo nextest run --locked --workspace --exclude zeroclaw-desktop</code> on Linux</li>
+<li><strong>security</strong>: <code>cargo deny check</code></li>
+<li><strong>nix-eval</strong>: evaluates the NixOS module assertions (<code>nixos-module-eval</code> flake check)</li>
+<li><strong>docs-style</strong>: markdown lint + em-dash prose check via <code>scripts/ci/docs_quality_gate.sh</code></li>
 </ul>
-<p><code>fmt</code> runs first as the cheap serial gate. The Rust-heavy jobs fan out after formatting passes, and <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
+<p><code>fmt</code> runs first as the cheap serial gate. Every other job declares <code>needs: [fmt]</code> and fans out after formatting passes; <code>CI Required Gate</code> aggregates every result. Branch protection pins the composite gate job. A PR cannot merge until this is green. The <code>master</code> push run keeps the same quality signal while seeding trusted Rust caches for later PR runs.</p>
 <h3 id="daily-advisory-scan-daily-audityml"><a class="header" href="#daily-advisory-scan-daily-audityml">Daily Advisory Scan (<code>daily-audit.yml</code>)</a></h3>
-<p>Runs <code>cargo audit</code> nightly against the dependency tree. Opens an issue on findings. No action unless a vulnerability is reported.</p>
+<p>Runs <code>cargo deny check advisories</code> daily at 09:00 UTC against the dependency tree. Opens an issue on findings. No action unless a vulnerability is reported.</p>
 <h3 id="pr-path-labeler-pr-path-labeleryml"><a class="header" href="#pr-path-labeler-pr-path-labeleryml">PR Path Labeler (<code>pr-path-labeler.yml</code>)</a></h3>
-<p>Auto-applies scope and risk labels based on changed file paths. Runs silently on every PR — if a PR is missing labels, check whether the paths in <code>.github/labeler.yml</code> cover the changes.</p>
+<p>Auto-applies path and scope labels based on changed files. It runs on PR open, reopen, and every pushed update to the PR branch. Because <code>sync-labels: true</code> is enabled, labels defined in <code>.github/labeler.yml</code> are recalculated from the current PR file set.</p>
+<p>This workflow does not currently apply <code>risk:*</code>, <code>size:*</code>, <code>type:*</code>, contributor-tier, status, resolution, stale, or pickup labels. If a PR is missing a path/scope label, check whether the paths in <code>.github/labeler.yml</code> cover the changes.</p>
+<p>Dependabot has separate label configuration in <code>.github/dependabot.yml</code> for its own PRs. Cargo update PRs start with <code>dependencies</code>; GitHub Actions and Docker update PRs start with <code>ci</code> and <code>dependencies</code>.</p>
+<h3 id="validate-pr-title-pr-titleyml"><a class="header" href="#validate-pr-title-pr-titleyml">Validate PR title (<code>pr-title.yml</code>)</a></h3>
+<p>Runs on every PR open/edit/synchronize. Runs the validator unit tests (<code>scripts/check-pr-title.test.sh</code>) and checks the PR title against Conventional Commits (<code>scripts/check-pr-title.sh</code>).</p>
+<h3 id="deploy-mdbook-docs-to-pages-docs-deployyml"><a class="header" href="#deploy-mdbook-docs-to-pages-docs-deployyml">Deploy mdBook docs to Pages (<code>docs-deploy.yml</code>)</a></h3>
+<p>Triggered on tag push (and <code>workflow_dispatch</code>); builds and publishes versioned docs to the <code>gh-pages</code> branch. See <a href="./release-runbook.html#step-7-versioned-documentation-deployment">Release Runbook → Versioned documentation deployment</a> for the version-floor and bootstrap rules.</p>
+<h3 id="docker-image-pr-check-docker-image-pryml"><a class="header" href="#docker-image-pr-check-docker-image-pryml">Docker Image PR Check (<code>docker-image-pr.yml</code>)</a></h3>
+<p>Runs only when Docker image or release-Docker context files change. It prepares a smoke <code>docker-ctx</code> with the same helper used by the stable release workflow, then builds the default and Debian compatibility images without pushing either image. This catches image dependency and <code>COPY</code> path breakage before release without giving PR runs registry write permission or running on every PR.</p>
 <h3 id="discord-release-discord-releaseyml"><a class="header" href="#discord-release-discord-releaseyml">Discord Release (<code>discord-release.yml</code>)</a></h3>
 <p>Fires after a successful stable release. Posts the release notes to the community Discord.</p>
 <h3 id="tweet-release-tweet-releaseyml"><a class="header" href="#tweet-release-tweet-releaseyml">Tweet Release (<code>tweet-release.yml</code>)</a></h3>
@@ -244,10 +330,10 @@ Composite job with multiple matrix legs:</p>
 <p>Docs are built and published as part of the release pipeline rather than on every <code>master</code> push. Translation is a local-only workflow: run <code>cargo mdbook sync --provider &lt;name&gt;</code> for dedicated translation-cache PRs, new locales, and release translation passes. Routine English docs PRs may defer broad generated <code>.po</code> churn. See <a href="./docs-and-translations.html">Docs &amp; Translations</a> for details.</p>
 <h2 id="manual-workflows"><a class="header" href="#manual-workflows">Manual workflows</a></h2>
 <h3 id="cross-platform-build-cross-platform-build-manualyml"><a class="header" href="#cross-platform-build-cross-platform-build-manualyml">Cross-Platform Build (<code>cross-platform-build-manual.yml</code>)</a></h3>
-<p>Manual trigger for building release binaries across the full target matrix (Linux GNU/MUSL, macOS Intel/ARM, Windows, additional ARM Linux targets). Use this to verify a branch compiles cleanly on non-Linux targets before tagging.</p>
+<p>Manual trigger for building release binaries across the full target matrix: Linux x86_64/aarch64 GNU plus armv7 and arm hard-float, macOS Intel/ARM, Windows x86_64, and <code>aarch64-linux-android</code> (built with the NDK). Use this to verify a branch compiles cleanly on non-Linux targets before tagging.</p>
 <h3 id="release-stable-release-stable-manualyml"><a class="header" href="#release-stable-release-stable-manualyml">Release Stable (<code>release-stable-manual.yml</code>)</a></h3>
-<p>Manual trigger for the full release pipeline. Builds all targets, creates the GitHub Release, publishes to crates.io, pushes Docker images, and invokes downstream workflows. Three environment gates require maintainer approval mid-run: <code>github-releases</code>, <code>crates-io</code>, <code>docker</code>.</p>
-<p>See the release runbook in the repo’s <code>docs/maintainers/</code> directory for the full procedure (not yet migrated into this mdBook).</p>
+<p>Manual trigger for the full release pipeline. Builds all targets, creates the GitHub Release, pushes Docker images to GHCR, triggers the website redeploy, and invokes the distribution sub-workflows (Scoop, AUR, Homebrew, Discord, tweet). Two environment gates require maintainer approval mid-run: <code>github-releases</code> (the <code>publish</code> job) and <code>docker</code>.</p>
+<p>See the <a href="./release-runbook.html">Release Runbook</a> for the full procedure.</p>
 <h3 id="package-publishers"><a class="header" href="#package-publishers">Package Publishers</a></h3>
 <p>Each fires on <code>workflow_dispatch</code> with a version input. They are also invoked from the release workflow after a successful publish.</p>
 <div class="table-wrapper">
@@ -271,22 +357,23 @@ Composite job with multiple matrix legs:</p>
 <tbody>
 <tr><td><code>AUR_SSH_KEY</code></td><td><code>pub-aur.yml</code></td></tr>
 <tr><td><code>DISCORD_WEBHOOK_URL</code></td><td><code>discord-release.yml</code></td></tr>
-<tr><td><code>TWITTER_*</code> tokens</td><td><code>tweet-release.yml</code></td></tr>
-<tr><td><code>HOMEBREW_CORE_TOKEN</code></td><td><code>pub-homebrew-core.yml</code></td></tr>
-<tr><td><code>CARGO_REGISTRY_TOKEN</code></td><td><code>release-stable-manual.yml</code></td></tr>
-<tr><td><code>DOCKER_HUB_TOKEN</code></td><td><code>release-stable-manual.yml</code></td></tr>
-<tr><td><code>GITHUB_TOKEN</code> (automatic)</td><td>All workflows that push commits or open PRs</td></tr>
+<tr><td><code>TWITTER_ACCESS_TOKEN</code>, <code>TWITTER_ACCESS_TOKEN_SECRET</code>, <code>TWITTER_CONSUMER_API_KEY</code>, <code>TWITTER_CONSUMER_API_SECRET_KEY</code></td><td><code>tweet-release.yml</code></td></tr>
+<tr><td><code>HOMEBREW_CORE_BOT_TOKEN</code>, <code>HOMEBREW_UPSTREAM_PR_TOKEN</code></td><td><code>pub-homebrew-core.yml</code></td></tr>
+<tr><td><code>SCOOP_BUCKET_TOKEN</code></td><td><code>pub-scoop.yml</code></td></tr>
+<tr><td><code>WEBSITE_REPO_PAT</code></td><td><code>release-stable-manual.yml</code> (triggers the website repo redeploy)</td></tr>
+<tr><td><code>GITHUB_TOKEN</code> (automatic)</td><td>All workflows that push commits, open PRs, or push images to GHCR</td></tr>
 </tbody>
 </table>
 </div>
+<p>Docker images push to GHCR using the automatic <code>GITHUB_TOKEN</code>; there is no separate registry token. The release pipeline does not publish to crates.io, so no <code>CARGO_REGISTRY_TOKEN</code> is required.</p>
 <h2 id="build-cache-behavior"><a class="header" href="#build-cache-behavior">Build cache behavior</a></h2>
-<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The lightweight <code>fmt</code> job does not. These behaviors are worth knowing when triaging cache-related flakes:</p>
+<p>Most Rust-heavy jobs in <code>ci.yml</code> use <code>Swatinem/rust-cache@v2</code>. The <code>fmt</code>, <code>nix-eval</code>, and <code>docs-style</code> jobs (none of which compile the workspace) do not. These behaviors are worth knowing when triaging cache-related flakes:</p>
 <ul>
 <li><strong>Cache writes are master-only.</strong> <code>save-if</code> is conditioned on <code>github.ref == 'refs/heads/master'</code>, so PR runs read the master-seeded cache but never update it. PR branches can’t pollute the shared cache with branch-specific artifacts. The <code>push</code> trigger on <code>master</code> is what gives the workflow a trusted cache-writing run after merges.</li>
 <li><strong>Cache saves on failure.</strong> <code>cache-on-failure: true</code> is set on every job, so a partial run still seeds the next attempt warm.</li>
-<li><strong>Windows build cache is enabled.</strong> The Windows build leg now runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
+<li><strong>Windows build cache is enabled.</strong> The Windows build leg runs the same pinned Rust cache action as Linux and macOS. If Windows cache behavior flakes or regresses, revert the workflow change and document the failing restore/save evidence in the cache issue.</li>
 <li><strong>Incremental compilation is disabled.</strong> <code>CARGO_INCREMENTAL: 0</code> at the workflow level. Incremental builds inflate cache size and produce non-reproducible artifacts under partial-stale conditions.</li>
-<li><strong><code>cargo-deny</code> is not cached.</strong> The <code>security</code> job installs it fresh from source on every run. A future improvement is <code>taiki-e/install-action</code>, which already caches <code>cargo-nextest</code>.</li>
+<li><strong><code>cargo-deny</code> and <code>cargo-nextest</code> are installed fresh each run.</strong> The <code>security</code> job runs <code>cargo install cargo-deny --locked</code>; the <code>test</code> job pulls the <code>cargo-nextest</code> binary from <code>get.nexte.st</code>. Neither is cached, so both add a fixed install cost to every run. Switching either to <code>taiki-e/install-action</code> would let them be cached, but that action is not in the allowlist today.</li>
 </ul>
 <h2 id="when-the-gate-goes-red"><a class="header" href="#when-the-gate-goes-red">When the gate goes red</a></h2>
 <div class="table-wrapper">
@@ -304,44 +391,51 @@ Composite job with multiple matrix legs:</p>
 </table>
 </div>
 <h2 id="allowed-actions"><a class="header" href="#allowed-actions">Allowed actions</a></h2>
-<p>The repository runs Actions in <code>selected</code> mode — only the actions in this allowlist may run. The allowlist must stay tight; new third-party actions need explicit maintainer approval before being added.</p>
+<p>The repository runs Actions in <code>selected</code> mode, only the actions in this allowlist may run. The allowlist must stay tight; new third-party actions need explicit maintainer approval before being added.</p>
+<p>All third-party refs are pinned to a full commit SHA with a trailing version comment; the version column below records that comment.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Action</th><th>Used in</th><th>Purpose</th></tr>
 </thead>
 <tbody>
-<tr><td><code>actions/checkout@v4</code></td><td>All workflows</td><td>Repository checkout</td></tr>
-<tr><td><code>actions/upload-artifact@v4</code></td><td>release</td><td>Upload build artifacts</td></tr>
-<tr><td><code>actions/download-artifact@v4</code></td><td>release</td><td>Download build artifacts for packaging</td></tr>
-<tr><td><code>actions/labeler@v5</code></td><td><code>pr-path-labeler.yml</code></td><td>Apply path/scope labels from <code>.github/labeler.yml</code></td></tr>
-<tr><td><code>dtolnay/rust-toolchain@stable</code></td><td>All workflows</td><td>Install Rust toolchain</td></tr>
-<tr><td><code>Swatinem/rust-cache@v2</code></td><td>All workflows</td><td>Cargo build/dependency caching</td></tr>
-<tr><td><code>softprops/action-gh-release@v2</code></td><td>release</td><td>Create GitHub Releases</td></tr>
-<tr><td><code>docker/setup-buildx-action@v3</code></td><td>release</td><td>Docker Buildx setup</td></tr>
-<tr><td><code>docker/login-action@v3</code></td><td>release</td><td>GHCR authentication</td></tr>
-<tr><td><code>docker/build-push-action@v6</code></td><td>release</td><td>Multi-platform image build and push</td></tr>
+<tr><td><code>actions/checkout</code> (<code>v6.0.2</code>)</td><td>Most workflows</td><td>Repository checkout</td></tr>
+<tr><td><code>actions/cache</code> (<code>v5.0.5</code>)</td><td><code>tweet-release.yml</code></td><td>Generic dependency caching</td></tr>
+<tr><td><code>actions/setup-node</code> (<code>v6.4.0</code>)</td><td><code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code></td><td>Node toolchain for the web-dashboard build</td></tr>
+<tr><td><code>actions/upload-artifact</code> (<code>v7.0.1</code>)</td><td><code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code></td><td>Upload build artifacts</td></tr>
+<tr><td><code>actions/download-artifact</code> (<code>v8.0.1</code>)</td><td><code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code></td><td>Download build artifacts for packaging</td></tr>
+<tr><td><code>actions/labeler</code> (<code>v6.1.0</code>)</td><td><code>pr-path-labeler.yml</code></td><td>Apply path/scope labels from <code>.github/labeler.yml</code></td></tr>
+<tr><td><code>dtolnay/rust-toolchain</code> (<code>stable</code>)</td><td><code>ci.yml</code>, <code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code>, <code>daily-audit.yml</code>, <code>docs-deploy.yml</code></td><td>Install Rust toolchain</td></tr>
+<tr><td><code>Swatinem/rust-cache</code> (<code>v2.9.1</code>)</td><td><code>ci.yml</code>, <code>release-stable-manual.yml</code>, <code>cross-platform-build-manual.yml</code>, <code>docs-deploy.yml</code></td><td>Cargo build/dependency caching</td></tr>
+<tr><td><code>docker/setup-buildx-action</code> (<code>v4.0.0</code>)</td><td><code>release-stable-manual.yml</code></td><td>Docker Buildx setup</td></tr>
+<tr><td><code>docker/login-action</code> (<code>v4.1.0</code>)</td><td><code>release-stable-manual.yml</code></td><td>GHCR authentication</td></tr>
+<tr><td><code>docker/build-push-action</code> (<code>v7.1.0</code>)</td><td><code>release-stable-manual.yml</code></td><td>Multi-platform image build and push</td></tr>
 </tbody>
 </table>
 </div>
+<p>The GitHub Release itself is created with <code>gh release create</code> inside the <code>publish</code> job, not a release action.</p>
 <p>Equivalent allowlist patterns (kept narrow on purpose):</p>
 <pre><code>actions/*
 dtolnay/rust-toolchain@*
 Swatinem/rust-cache@*
-softprops/action-gh-release@*
 docker/*
 </code></pre>
 <p>Export the current effective policy:</p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/actions/permissions
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/actions/permissions
 gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 </code></pre>
+</div>
+
 <p>Any PR that adds or changes a <code>uses:</code> action source must include an allowlist impact note in its body. Avoid broad wildcard exceptions; expand the allowlist only for verified missing actions.</p>
 <h2 id="maintenance-rules"><a class="header" href="#maintenance-rules">Maintenance rules</a></h2>
 <ul>
 <li>Keep <code>CI Required Gate</code> deterministic and small. Adding jobs to the gate needs a clear quality argument.</li>
 <li>All third-party action refs must be pinned to a full commit SHA (per the allowlist policy above).</li>
-<li>Keep <code>ci.yml</code>, <code>dev/ci.sh</code>, and <code>.githooks/pre-push</code> aligned — the same quality gates run locally and in CI.</li>
-<li><code>docs-quality</code> checks are not in the required gate. Run them locally with <code>bash scripts/ci/docs_quality_gate.sh</code>.</li>
+<li>Keep <code>ci.yml</code>, <code>dev/ci.sh</code>, and <code>.githooks/pre-push</code> aligned, the same quality gates run locally and in CI.</li>
+<li>Keep <code>scripts/ci/prepare_docker_context.sh</code>, <code>docker-image-pr.yml</code>, and the Docker job in <code>release-stable-manual.yml</code> aligned so PR validation exercises the same context shape the release workflow publishes.</li>
+<li>The <code>docs-style</code> gate job runs <code>bash scripts/ci/docs_quality_gate.sh</code> (markdown lint + em-dash prose check). Run the same script locally before pushing docs changes.</li>
 </ul>
 <h2 id="emergency-rollback"><a class="header" href="#emergency-rollback">Emergency rollback</a></h2>
 <p>If the allowlist locks out a critical action mid-incident:</p>
@@ -350,7 +444,7 @@ gh api repos/zeroclaw-labs/zeroclaw/actions/permissions/selected-actions
 <li>Restore <code>selected</code> allowlist after identifying the missing entry.</li>
 <li>Record the incident and the final allowlist delta.</li>
 </ol>
-<p>This is the only justified path to <code>all</code> mode — and it should never outlast the incident.</p>
+<p>This is the only justified path to <code>all</code> mode, and it should never outlast the incident.</p>
 
                     </main>
 

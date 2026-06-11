@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,11 +295,6 @@
                         <h1 id="沙盒化"><a class="header" href="#沙盒化">沙盒化</a></h1>
 <p>运行时可以将工具调用封装在操作系统级别的沙箱中，从而将文件系统访问限制在工作区内，并移除对父进程机密信息的访问权限。这与自治系统和命令允许列表不同：后者是决定工具是否可以运行的_策略_层；而沙箱是_机制_层，用于在工具运行时限制其可以访问的范围。</p>
 <p>沙盒设置位于风险配置文件中。每个 agent 通过 <code>agents.&lt;alias&gt;.risk_profile</code> 指向一个风险配置文件；agent 的沙盒启用状态/后端将从该配置文件中读取。</p>
-<pre><code class="language-toml">[risk_profiles.assistant]
-sandbox_enabled = true
-sandbox_backend = "auto"     # "auto" | "landlock" | "firejail" | "bubblewrap" | "docker" | "sandbox-exec" | "none"
-firejail_args   = []          # 当 sandbox_backend = "firejail" 时的额外参数
-</code></pre>
 <p><code>sandbox_enabled = false</code>（或 <code>sandbox_backend = "none"</code>）会为在此配置文件下运行的工具禁用沙箱。请参阅规范的<a href="../providers/configuration.html#minimal-working-example">最小可运行示例</a>，了解风险配置文件如何嵌入到配置的其余部分中。</p>
 <h2 id="自动检测"><a class="header" href="#自动检测">自动检测</a></h2>
 <p><code>sandbox_backend = "auto"</code> 在启动时选择最佳可用后端：</p>
@@ -244,14 +315,14 @@ firejail_args   = []          # 当 sandbox_backend = "firejail" 时的额外参
 <h2 id="沙箱所限制的内容"><a class="header" href="#沙箱所限制的内容">沙箱所限制的内容</a></h2>
 <h3 id="文件系统"><a class="header" href="#文件系统">文件系统</a></h3>
 <ul>
-<li><strong>读取权限</strong> — 限制在工作区、<code>/usr</code>、<code>/lib</code>、<code>/etc</code>（只读）以及明确列出的额外路径范围内。</li>
-<li><strong>写入访问权限</strong> — 仅限工作区和 <code>/tmp</code>。</li>
-<li><strong>禁止路径</strong> — <code>[risk_profiles.&lt;alias&gt;].forbidden_paths</code> 中列出的任何路径。</li>
+<li><strong>Read access</strong>: restricted to the workspace, <code>/usr</code>, <code>/lib</code>, <code>/etc</code> (read-only), and explicitly-listed extra paths.</li>
+<li><strong>Write access</strong>: restricted to the workspace and <code>/tmp</code>.</li>
+<li><strong>Forbidden paths</strong>: anything listed in <code>[risk_profiles.&lt;alias&gt;].forbidden_paths</code>.</li>
 </ul>
 <h3 id="网络"><a class="header" href="#网络">网络</a></h3>
 <p>默认情况下，沙盒化工具拥有完整的网络出站能力，但不允许入站监听。各后端的注意事项如下：</p>
 <ul>
-<li>Landlock 不控制网络——它仅限于文件系统。</li>
+<li>Landlock does not control network, it is filesystem-only.</li>
 <li>配置后，Bubblewrap 和 Firejail 可以阻止网络访问。</li>
 <li>当 <code>[runtime].kind = "docker"</code> 时，Docker 容器网络模式遵循 <code>[runtime.docker].network</code> 设置。</li>
 </ul>
@@ -261,57 +332,56 @@ firejail_args   = []          # 当 sandbox_backend = "firejail" 时的额外参
 <p>沙箱仅传递 <code>[risk_profiles.&lt;alias&gt;].shell_env_passthrough</code> 中列出的环境变量。继承的密钥除非显式传递，否则不会进入沙箱化的工具。</p>
 <h3 id="进程限制"><a class="header" href="#进程限制">进程限制</a></h3>
 <p>每个工具的实际运行超时设置位于该工具自身的配置块中（<code>[shell_tool].timeout_secs</code> 等）。Docker 专属限制（内存、CPU）则位于 <code>[runtime.docker]</code> 中，前提是该代理的运行时类型设置为 <code>docker</code>：</p>
-<pre><code class="language-toml">[runtime]
-kind = "docker"
-
-[runtime.docker]
-image            = "alpine:3.20"
-network          = "none"
-memory_limit_mb  = 512
-cpu_limit        = 1.0
-read_only_rootfs = true
-mount_workspace  = true
-</code></pre>
 <h2 id="各后端的说明"><a class="header" href="#各后端的说明">各后端的说明</a></h2>
 <h3 id="landlock"><a class="header" href="#landlock">Landlock</a></h3>
 <p>Linux 原生路径。零配置，内核强制实施，开销极低。需要内核 5.13 或更高版本。</p>
 <p>限制：</p>
 <ul>
-<li>无网络隔离——Landlock 仅控制文件系统访问。</li>
+<li>No network confinement: Landlock only controls filesystem access.</li>
 <li><code>forbidden_paths</code> 是通过基于路径的规则强制执行的，而非基于 inode，因此巧妙构造的符号链接有时可以绕过限制（我们会在交给 Landlock 之前解析链接以缓解此问题）。</li>
 </ul>
 <h3 id="bubblewrap-bwrap"><a class="header" href="#bubblewrap-bwrap">Bubblewrap (<code>bwrap</code>)</a></h3>
 <p>基于用户命名空间的 Flatpak 沙箱。可限制文件系统访问并阻止网络连接。需要安装 <code>bubblewrap</code>。</p>
-<pre><code class="language-bash">sudo apt install bubblewrap       # Debian/Ubuntu
-sudo pacman -S bubblewrap         # Arch
-sudo dnf install bubblewrap       # Fedora
+<div class="os-tabs-src">
+<h4 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h4>
+<pre><code class="language-sh">sudo apt install bubblewrap
 </code></pre>
+<h4 id="arch"><a class="header" href="#arch">Arch</a></h4>
+<pre><code class="language-sh">sudo pacman -S bubblewrap
+</code></pre>
+<h4 id="fedora"><a class="header" href="#fedora">Fedora</a></h4>
+<pre><code class="language-sh">sudo dnf install bubblewrap
+</code></pre>
+</div>
+
 <h3 id="firejail"><a class="header" href="#firejail">Firejail</a></h3>
 <p>基于 SUID 的沙箱。较旧但广泛可用。</p>
-<pre><code class="language-bash">sudo apt install firejail
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">sudo apt install firejail
 </code></pre>
+</div>
+
 <p>Firejail 的默认配置文件权限较为宽松；ZeroClaw 会应用自定义配置文件。可在风险配置文件上通过 <code>firejail_args</code> 传递额外参数。</p>
 <h3 id="docker"><a class="header" href="#docker">Docker</a></h3>
 <p>可在任何支持 Docker 的环境中运行。Docker 运行时类型（<code>[runtime] kind = "docker"</code>）会在临时容器中运行每次 shell 调用；有关镜像和资源控制，请参阅上方的 <code>[runtime.docker]</code> 配置块。</p>
-<pre><code class="language-bash">docker build -t zeroclaw-sandbox:local dev/sandbox/   # 构建捆绑的工具包镜像
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">docker build -t zeroclaw-sandbox:local dev/sandbox/   # 构建捆绑的工具包镜像
 </code></pre>
-<pre><code class="language-toml">[runtime]
-kind = "docker"
+</div>
 
-[runtime.docker]
-image = "zeroclaw-sandbox:local"
-</code></pre>
 <p>优点：隔离性强，适用于任何操作系统。缺点：每次调用时容器启动开销较大（100–500 毫秒）。最适合对开销可接受的生产环境部署。</p>
 <h3 id="安全带-macos"><a class="header" href="#安全带-macos">安全带 (macOS)</a></h3>
-<p>原生 macOS 沙箱（<code>sandbox-exec</code>）。配置文件采用 SBPL 格式——ZeroClaw 为工具运行内置了一个配置文件。适用于 macOS 10.11 及以上版本。</p>
-<p>限制：某些 CLI 工具（较旧版本的 <code>git</code>、部分通过 Homebrew 链接的二进制文件）无法与 Seatbelt 的文件访问规则正常配合。如果你在 macOS 上看到 agent 的 shell 调用出现 “Operation not permitted” 错误，则说明该工具需要更广泛的文件系统访问权限——可考虑切换到 Docker。</p>
+<p>Native macOS sandbox (<code>sandbox-exec</code>). Profiles are SBPL: ZeroClaw bundles one for tool runs. Works on macOS 10.11+.</p>
+<p>Limitation: some CLI tools (older <code>git</code>, some Homebrew-linked binaries) don’t cooperate with Seatbelt’s file-access rules. If you see “Operation not permitted” errors from the agent’s shell calls on macOS, the tool needs broader filesystem access: consider switching to Docker.</p>
 <h3 id="none"><a class="header" href="#none"><code>none</code></a></h3>
 <p>无沙盒机制。工具以 ZeroClaw 服务用户的完整权限运行。这正是 YOLO 模式所启用的特性。明确、显著且有意为之。</p>
 <h2 id="故障排除"><a class="header" href="#故障排除">故障排除</a></h2>
 <ul>
-<li>启动时出现 <strong>“Sandbox backend unavailable”</strong>（沙箱后端不可用）——请检查 <code>zeroclaw service status</code> 和系统日志；自动检测日志会记录它尝试过哪些后端。</li>
-<li><strong>在开发环境中正常、在服务环境中失败的工具</strong>——服务用户通常与 CLI 用户不同。请验证两者都具备所需的沙箱相关权限（Landlock：无；Bubblewrap：启用用户命名空间；Docker：将服务用户加入 <code>docker</code> 组）。</li>
-<li><strong>工具调用缓慢</strong>：在 Docker 运行时中，首次调用会拉取镜像，后续调用速度很快。可使用 <code>docker pull &lt;image&gt;</code> 预先拉取镜像。</li>
+<li><strong>“Sandbox backend unavailable”</strong> on startup: check <code>zeroclaw service status</code> and the journal; the auto-detect logs which backends it tried.</li>
+<li><strong>Tools working on dev, failing in service</strong>: the service user often differs from the CLI user. Verify both have whatever sandbox-adjacent permissions are needed (Landlock: nothing; Bubblewrap: userns enabled; Docker: service user in <code>docker</code> group).</li>
+<li><strong>Slow tool invocations</strong> on the Docker runtime: first invocation pulls the image, subsequent are fast. Pre-pull with <code>docker pull &lt;image&gt;</code>.</li>
 </ul>
 <h2 id="代码参考"><a class="header" href="#代码参考">代码参考</a></h2>
 <ul>

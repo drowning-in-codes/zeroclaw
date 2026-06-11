@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,37 +293,53 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="pr-审查协议"><a class="header" href="#pr-审查协议">PR 审查协议</a></h1>
-<p>这是在 <code>zeroclaw-labs/zeroclaw</code> 仓库中审查拉取请求（Pull Request）时遵循的流程。该流程由 <code>github-pr-review-session</code> 技能加载，并由人工审查者阅读——对双方都具有权威性。</p>
+<p>This is the procedure followed when reviewing a pull request in <code>zeroclaw-labs/zeroclaw</code>. It’s loaded by the <code>github-pr-review-session</code> skill and read by human reviewers, it’s authoritative for both.</p>
 <p>假设 <code>gh</code> CLI 已可用并已认证。</p>
 <h2 id="获取订单"><a class="header" href="#获取订单">获取订单</a></h2>
 <p>运行所有这些命令。数据将指导后续每一步操作。</p>
 <ol>
 <li>
 <p><strong>PR 概述</strong></p>
-<pre><code class="language-bash">gh pr view &lt;number&gt; --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh pr view &lt;number&gt; --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 <p>描述、标签、关联问题、验证证据。</p>
 </li>
 <li>
 <p><strong>顶级对话</strong></p>
-<pre><code class="language-bash">gh pr view &lt;number&gt; --comments --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">gh pr view &lt;number&gt; --comments --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 </li>
 <li>
 <p><strong>内联线程（每条回复链）</strong></p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/comments --paginate
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/comments --paginate
 </code></pre>
-<p>在判断某个话题是否开放或已解决之前，请阅读完整的回复链。注意作者在回复中做出的承诺——这些承诺是关键的支撑点。</p>
+</div>
+
+<p>Read full reply chains before drawing any conclusion about whether something is open or settled. Note author commitments made in replies, they’re load-bearing.</p>
 </li>
 <li>
 <p><strong>正式评审</strong></p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/reviews --paginate
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/reviews --paginate
 </code></pre>
+</div>
+
 <p>注意哪些 <code>CHANGES_REQUESTED</code> 仍然处于活动状态（未被后续的 <code>APPROVED</code> 或 <code>DISMISSED</code> 取代）。检查您是否已经审查过此 PR。</p>
 </li>
 <li>
 <p><strong>相关基础文档</strong></p>
-<p>始终阅读 FND-005（贡献文化）。对于其他内容，请使用下方的相关性表格——阅读适用于该 PR 范围的内容。已批准的版本为本地文件；无需调用 API。</p>
+<p>Always read FND-005 (Contribution Culture). For others, use the relevance table below, read what applies to the PR’s scope. The ratified versions are local files; no API call needed.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -266,8 +358,12 @@
 </li>
 <li>
 <p><strong>差异</strong></p>
-<pre><code class="language-bash">gh pr diff &lt;number&gt; --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">gh pr diff &lt;number&gt; --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 <p>阅读完整的差异。将步骤 3 中作者的承诺与实际交付的内容进行交叉核对。与变更所落地的本地仓库进行交叉核对。</p>
 </li>
 </ol>
@@ -301,11 +397,11 @@
 <h2 id="反馈分类"><a class="header" href="#反馈分类">反馈分类</a></h2>
 <p>审查正文和行内评论中的发现使用此 PR 审查等级，改编自 FND-005。<code>✅ [resolved]</code> 条目用于在重新审查时确认已处理的发现。</p>
 <ul>
-<li><strong>🔴 [阻塞]</strong> — 必须在合并前解决。谨慎使用；每个阻塞项都必须是真实的，否则其重要性将失去意义。</li>
-<li><strong>🟡 [warning]</strong> — 需要处理；不阻塞，但审查者希望作者查看。</li>
-<li><strong>🔵 [suggestion]</strong> — 可选。作者可以接受或跳过。</li>
-<li><strong>🟢 [表扬]</strong> — 做得好的地方。具体的表扬能明确哪些做法值得重复。泛泛的“做得好”没有任何指导意义。</li>
-<li><strong>✅ [已解决]</strong> — 明确表明之前的发现已在后续提交中得到解决。在重新审查时使用此标记，以表明作者的工作已被记录。</li>
+<li><strong>🔴 [blocking]</strong>: must be addressed before merge. Use sparingly; every blocker is real or the scale loses meaning.</li>
+<li><strong>🟡 [warning]</strong>: should be addressed; not blocking but the reviewer wants the author to look.</li>
+<li><strong>🔵 [suggestion]</strong>: optional. Author can accept or pass.</li>
+<li><strong>🟢 [praise]</strong>: what’s working. Specific praise teaches what to repeat. Generic “great work” teaches nothing.</li>
+<li><strong>✅ [resolved]</strong>: explicitly acknowledging that a prior finding has been addressed in a later commit. Use this when you’re re-reviewing, it shows the author their work registered.</li>
 </ul>
 <h2 id="审核正文-markdown-格式"><a class="header" href="#审核正文-markdown-格式">审核正文 Markdown 格式</a></h2>
 <p>正式审查机构的发现应使用以分类表情符号开头的 H3 标题。这样可以方便快速浏览严重程度和所需操作。</p>
@@ -341,16 +437,20 @@
 <ul>
 <li><strong>内联差异评论</strong>用于标记每一处与特定行相关的 🔴 阻断、🟡 警告或 🔵 建议类问题。将反馈锚定到代码，便于作者就地解决。</li>
 <li><strong>审查正文</strong>，用于整体结论、理解摘要、对其他 PR 的交叉引用，以及不属于特定行的模板级问题。</li>
-<li><strong>裸提交哈希</strong>（切勿用反引号包裹——GitHub 会自动链接裸哈希；反引号会阻止自动链接）。</li>
+<li><strong>Bare commit hashes</strong> (never wrap in backticks: GitHub auto-links bare hashes; backticks block the auto-link).</li>
 <li>所有评论内容（聊天、正文、行内）中的 <strong><code>@</code>-前缀用户名</strong>，例如 <code>@WareWolf-MoonWall</code>，而非 <code>WareWolf-MoonWall</code>。</li>
 </ul>
 <h2 id="发布"><a class="header" href="#发布">发布</a></h2>
-<p>首先，将评论正文写入 <code>tmp/review-&lt;number&gt;.md</code> 文件——这是已发布内容的权威来源，并允许用户在发布前进行检查。然后：</p>
-<pre><code class="language-bash">gh pr review &lt;number&gt; --repo zeroclaw-labs/zeroclaw \
+<p>Write the review body to a file under <code>tmp/review-&lt;number&gt;.md</code> first: this is the source of truth for what was posted and lets the user inspect before publishing. Then:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">gh pr review &lt;number&gt; --repo zeroclaw-labs/zeroclaw \
   &lt;--approve | --request-changes | --comment&gt; \
   --body-file tmp/review-&lt;number&gt;.md
 </code></pre>
-<p><strong>始终显示完整草稿，并在发布前获得人类的明确批准。</strong> “下一步”或“继续”等延续性词语不算作批准——只有明确的“是”/“批准”/“开始”才算。</p>
+</div>
+
+<p>Always show the full draft and get explicit approval from the human before posting. Continuation words like “next” or “move on” don’t count as approval, only an unambiguous “yes” / “approve” / “go” does.</p>
 <h2 id="发布后"><a class="header" href="#发布后">发布后</a></h2>
 <p>如果存在会话级交接文件（<code>tmp/handoff.md</code>），请根据裁决结果、已审查的 HEAD 提交以及待处理事项更新该文件。交接文件的作用是让新会话能够无缝接续，而无需重新阅读整个对话。</p>
 <h2 id="永不"><a class="header" href="#永不">永不</a></h2>

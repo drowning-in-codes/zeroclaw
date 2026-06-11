@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -231,7 +307,7 @@
 <li><code>OPTIONS /api/config</code> devuelve el JSON Schema para el tipo de configuración completa y un encabezado <code>Allow</code> que lista los métodos admitidos en el recurso. Estático por compilación; los clientes deben almacenar en caché según el encabezado <code>ETag</code>.</li>
 <li><code>OPTIONS /api/config/prop?path=&lt;dotted&gt;</code> devuelve el fragmento de esquema para una ruta específica con <code>Allow: GET, PUT, DELETE, OPTIONS</code>. Devuelve 404 si la ruta no existe en el esquema.</li>
 </ul>
-<p><code>OPTIONS</code> devuelve las capacidades. <code>GET /api/config/prop</code> y <code>GET /api/config/list</code> devuelven los valores actuales del usuario. Los formularios del panel emiten <code>OPTIONS</code> una vez al cargarse para conocer los tipos y las restricciones, luego <code>GET</code> para rellenar los campos, y por último <code>PUT</code>/<code>PATCH</code> para escribir. No existe un <code>GET /api/config</code> para el archivo completo, deliberadamente. Recorre la superficie por propiedad; el esquema es la fuente de verdad sobre qué campos existen.</p>
+<p><code>OPTIONS</code> returns capabilities. <code>GET /api/config/prop</code> and <code>GET /api/config/list</code> return the user’s current values. Forms in the dashboard issue <code>OPTIONS</code> once at load time to learn types and constraints, then <code>GET</code> to populate fields, then <code>PUT</code>/<code>PATCH</code> to write. There is no whole-file <code>GET /api/config</code>, deliberately. Walk the per-property surface; the schema is the source of truth for what fields exist.</p>
 <p>Las solicitudes preflight de CORS (aquellas que incluyen <code>Access-Control-Request-Method</code>) reciben la respuesta preflight estándar y se interrumpen antes de que se devuelva el cuerpo del esquema.</p>
 <h2 id="crud-por-propiedad"><a class="header" href="#crud-por-propiedad">CRUD por propiedad</a></h2>
 <div class="table-wrapper">
@@ -252,13 +328,13 @@
 </tbody>
 </table>
 </div>
-<h2 id="escrituras-por-lotes-atómicas--json-patch"><a class="header" href="#escrituras-por-lotes-atómicas--json-patch">Escrituras por lotes atómicas — JSON Patch</a></h2>
+<h2 id="atomic-batch-writes-json-patch"><a class="header" href="#atomic-batch-writes-json-patch">Atomic batch writes: JSON Patch</a></h2>
 <p><code>PATCH /api/config</code> acepta un documento JSON Patch (RFC 6902). El subconjunto de operaciones admitidas es <code>add</code>, <code>replace</code>, <code>remove</code>, <code>test</code>. Cada operación se ejecuta sobre una copia en memoria de la configuración; una vez aplicadas todas las operaciones, <code>Config::validate()</code> se ejecuta una vez sobre el resultado. Si la validación es correcta, el nuevo estado se persiste y se intercambia. Si alguna operación o la validación final falla, el estado en disco y en memoria permanecen sin cambios.</p>
-<p><code>move</code> y <code>copy</code> devuelven <code>400 op_not_supported</code> porque la reescritura segura del grafo de referencias no forma parte de esta superficie. <code>test</code> contra una ruta <code>#[secret]</code> se rechaza con <code>secret_test_forbidden</code>: un resultado diferencial sería la única señal que un cliente podría leer, y eso filtraría el valor.</p>
+<p><code>move</code> and <code>copy</code> return <code>400 op_not_supported</code> because safe reference-graph rewriting is not part of this surface. <code>test</code> against a <code>#[secret]</code> path is rejected with <code>secret_test_forbidden</code>: a differential outcome would be the only signal a client could read, and that would leak the value.</p>
 <p>Sintaxis de ruta: JSON Pointer (<code>/agents/researcher/model_provider</code>) o la forma con puntos (<code>agents.researcher.model_provider</code>). Ambas se aceptan; el servidor las normaliza.</p>
 <p>El equivalente en la CLI es <code>zeroclaw config patch &lt;file-or-stdin&gt;</code>, que aplica el mismo conjunto de operaciones sobre el Config local y devuelve la misma estructura de respuesta estructurada (<code>--json</code> para scripts).</p>
-<h2 id="secretos--solo-escritura-sobre-http"><a class="header" href="#secretos--solo-escritura-sobre-http">Secretos — solo escritura sobre HTTP</a></h2>
-<p>Los campos secretos (los marcados con <code>#[secret]</code> o <code>#[derived_from_secret]</code> en el esquema) <strong>nunca</strong> se pueden leer mediante HTTP de ninguna forma. Las respuestas para los secretos solo incluyen <code>{populated: bool}</code>: sin valor, sin longitud, sin sustituto enmascarado, sin hash. Esto se aplica en la capa de respuesta independientemente del endpoint que se invoque.</p>
+<h2 id="secrets-write-only-over-http"><a class="header" href="#secrets-write-only-over-http">Secrets: write-only over HTTP</a></h2>
+<p>Secret fields (those marked <code>#[secret]</code> or <code>#[derived_from_secret]</code> in the schema) are <strong>never</strong> readable over HTTP in any form. Responses for secrets carry <code>{populated: bool}</code> only, no value, no length, no masked stand-in, no hash. This is enforced at the response layer regardless of which endpoint is called.</p>
 <p><code>PUT</code> y <code>PATCH</code> escriben el nuevo valor del secreto y responden con <code>{populated: true}</code>; <code>DELETE</code> lo borra y responde con <code>{populated: false}</code>. No existe ninguna ruta HTTP para recuperar un secreto por ningún medio.</p>
 <h2 id="códigos-de-error-estables"><a class="header" href="#códigos-de-error-estables">Códigos de error estables</a></h2>
 <p>Los errores devuelven JSON con un campo <code>code</code> estable más un <code>message</code> legible para humanos. Los frontends y scripts coinciden con el código; la UI coincide con la ruta.</p>
@@ -282,7 +358,7 @@
 </div>
 <h2 id="exploración-en-vivo"><a class="header" href="#exploración-en-vivo">Exploración en vivo</a></h2>
 <p>Una vez que un gateway esté en ejecución, navega a <code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> para acceder al explorador de API de Scalar. Las definiciones de esquema y los formularios de “Try it out” provienen de las mismas anotaciones de <code>schemars</code> que utiliza el daemon, por lo que la documentación no puede mentir sobre la superficie en tiempo de ejecución.</p>
-<p>El panel de autenticación del explorador se vincula al esquema <code>bearerAuth</code> declarado en la especificación: pega ahí tu token bearer derivado del emparejamiento antes de realizar llamadas en vivo. El atajo de la CLI para la URL es <code>zeroclaw config docs</code>.</p>
+<p>The explorer’s authentication panel binds to the <code>bearerAuth</code> scheme declared in the spec, paste your pairing-derived bearer token there before issuing live calls. The CLI shortcut for the URL is <code>zeroclaw config docs</code>.</p>
 <p>Si el bundle de Scalar no puede cargarse desde la CDN (instalación offline / air-gapped), la página se degrada correctamente y te dirige al spec sin procesar en <code>/api/openapi.json</code> para que puedas usar cualquier visor compatible (Insomnia, Postman, Swagger UI, etc.).</p>
 
                     </main>

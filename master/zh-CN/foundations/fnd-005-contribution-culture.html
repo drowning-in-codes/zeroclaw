@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,17 +292,17 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-005贡献文化人类协作ai-伙伴关系与团队成长"><a class="header" href="#fnd-005贡献文化人类协作ai-伙伴关系与团队成长">FND-005：贡献文化——人类协作、AI 伙伴关系与团队成长</a></h1>
-<h3 id="从-v070-开始--类型文化--修订版-1"><a class="header" href="#从-v070-开始--类型文化--修订版-1">从 v0.7.0 开始 · 类型：文化 · 修订版 1</a></h3>
+                        <h1 id="fnd-005-contribution-culture-human-collaboration-ai-partnership-and-team-growth"><a class="header" href="#fnd-005-contribution-culture-human-collaboration-ai-partnership-and-team-growth">FND-005: Contribution Culture: Human Collaboration, AI Partnership, and Team Growth</a></h1>
 <blockquote>
+<p>从 v0.7.0 开始 · 类型：文化 · 修订版 1</p>
 <p><strong>规范参考</strong> · 团队已批准 · 修订版 1 讨论线程及完整修订历史：<a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5615">#5615</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>在你们阅读此内容之前，给团队的一条提示。</strong></p>
-<p>这是 ZeroClaw 成熟度框架的第五份文档。其余四份分别涉及架构、文档、治理和工程基础设施——这些是使项目得以运行的结构层。本份文档则聚焦于前四份文档所默认假设但从未明确教授的内容：如何协作。</p>
+<p>This is the fifth document in ZeroClaw’s maturity framework. The other four address architecture, documentation, governance, and engineering infrastructure, the structural layers that make a project work. This one addresses something those four take for granted but never explicitly teach: how to work together.</p>
 <p>其他 RFC 中的工具和流程的效果，完全取决于使用它们的团队。一个完美的 CI 流水线无法帮助那些无法提供诚实反馈的团队。一个清晰的架构无法在无法进行建设性分歧的团队中存活。一个治理模型也无法在从未被教导过“所有权”含义的人中建立主人翁意识。</p>
-<p>本文档旨在打造这样一支团队——不仅具备技术能力，还要懂得如何给予和接受反馈、如何寻求帮助、如何负责任地使用强大的工具，以及如何随着时间共同成长。这些都是可以学习的技能。没有人天生就完全具备这些能力。本文档清晰地列出了这些技能，让你能够在有意义的实际工作场景中，开始有意识地练习它们。</p>
+<p>This document is about building that team, not just technically capable individuals, but people who know how to give and receive feedback, how to ask for help, how to use powerful tools responsibly, and how to grow together over time. These are learnable skills. Nobody arrives with them fully formed. This document names them clearly enough that you can start practicing them deliberately, here, in the context of real work that matters.</p>
 <p>本文档中的内容并非对您个人身份或起点的批评，而是我们共同致力于实现的目标的路线图。</p>
 </blockquote>
 <hr>
@@ -238,11 +314,11 @@
 <tr><th>RFC</th><th>范围</th><th>问题</th></tr>
 </thead>
 <tbody>
-<tr><td>有意架构 — 微内核过渡</td><td>我们正在构建的内容及其结构</td><td>#5574</td></tr>
+<tr><td>Intentional Architecture: Microkernel Transition</td><td>我们正在构建的内容及其结构</td><td>#5574</td></tr>
 <tr><td>文档标准与知识架构</td><td>我们如何记录我们所构建的内容</td><td>#5576</td></tr>
 <tr><td>团队组织与项目治理</td><td>我们如何协调和做出决策</td><td>#5577</td></tr>
-<tr><td>工程基础设施 — CI/CD 流水线</td><td>我们如何可靠地构建、测试和发布</td><td>#5579</td></tr>
-<tr><td><strong>贡献文化——人类协作与 AI 伙伴关系</strong></td><td><strong>我们如何协作与成长</strong></td><td><strong>FND-005</strong></td></tr>
+<tr><td>Engineering Infrastructure: CI/CD Pipeline</td><td>我们如何可靠地构建、测试和发布</td><td>#5579</td></tr>
+<tr><td><strong>Contribution Culture: Human Collaboration and AI Partnership</strong></td><td><strong>我们如何协作与成长</strong></td><td><strong>FND-005</strong></td></tr>
 </tbody>
 </table>
 </div>
@@ -278,7 +354,7 @@
 <h2 id="1-本文档的存在原因"><a class="header" href="#1-本文档的存在原因">1. 本文档的存在原因</a></h2>
 <p>大多数贡献指南会告诉你如何提交 PR。它们会说明使用哪些标签、如何运行测试套件，以及提交信息中应包含的内容。这些都很重要，我们也有相关的文档来涵盖这些内容。</p>
 <p>本文档涵盖的是另一方面的内容：那些决定一群有才华的人能否成为一个高效团队，还是仅仅成为共享同一个代码库的个体集合的技能。</p>
-<p>这些是可学习的技能。它们不是非有即无的人格特质，也不是随着技术能力自动获得的东西。它们需要通过实践——在反馈中，随着时间的推移——来学习，就像学习任何其他技能一样。大多数软件工程教育几乎完全专注于技术层面，而将人际层面留给偶然。结果是，许多具备技术能力的人最终加入了协作不佳的团队，却不清楚缺失了什么，也不知道如何改进。</p>
+<p>These are learnable skills. They are not personality traits you either have or do not have. They are not things that come automatically with technical ability. They are practiced, slowly, with feedback, over time, the same way any other skill is learned. Most software engineering education focuses almost entirely on the technical layer and leaves the human layer to chance. The result is that a lot of technically capable people end up in teams that do not work well together, without any clear understanding of what is missing or how to fix it.</p>
 <p>本文档的目标是清晰地命名这些技能，以便你能够在重要的实际工作背景下，开始有意识地练习它们。</p>
 <hr>
 <h2 id="2-工作前的工作"><a class="header" href="#2-工作前的工作">2. 工作前的工作</a></h2>
@@ -294,13 +370,13 @@
 <p>该层次结构在架构 RFC（#5574）中有完整描述。这里重要的是其背后的原则：<strong>你做出的每一个决策都应该能够追溯至顶层。</strong></p>
 <p>在实践中，这意味着在开始构建之前，先问自己：</p>
 <ul>
-<li><strong>我在解决什么问题？</strong> 不是“我在关闭哪个工单”，而是这个问题对某人来说实际解决了什么？</li>
+<li><strong>What problem am I solving?</strong> Not “what ticket am I closing”: what actual problem does this solve for someone?</li>
 <li><strong>这是否符合架构要求？</strong> 如果你无法描述它在系统结构中的位置，说明你对系统的理解还不够深入，不足以对其进行修改。</li>
 <li><strong>完成的标准是什么？</strong> 在编写代码之前，先写出验收标准。“它能运行”不是一个验收标准。“用户无需 Rust 工具链即可安装插件并正常运行”才是。</li>
-<li><strong>谁需要了解这些信息？</strong> 那些会影响他人工作，或需要团队共同做出决策的变更，在实施前就需要让相关人员知晓，而不是事后才告知。</li>
+<li><strong>Who needs to know about this?</strong> Changes that touch other people’s work, or that make decisions the whole team should make, need visibility before implementation, not after.</li>
 </ul>
 <p>这不是官僚主义，而是“构建某物”与“构建正确之物”之间的区别。这也直接适用于你如何使用 AI 工具，我们将在第 4 节中详细讨论。</p>
-<p>跳过这一步的真实情况是：你构建了一个能运行的东西，提交了一个 PR，然后在代码审查中发现它解决的是错误的问题，或者以与之前其他地方的决策相冲突的方式解决了正确的问题。这会浪费你的时间、审查者的时间，并延迟依赖于此工作的人。前期工作不是多余的——它是保护你自己努力的方式。</p>
+<p>The honest version of what happens when you skip this step: you build something that works, open a PR, and then learn in the review that it solves the wrong problem, or solves the right problem in a way that conflicts with a decision that was already made somewhere else. That wastes your time, the reviewer’s time, and delays the people who depend on the work. The pre-work is not extra. It is how you protect your own effort.</p>
 <hr>
 <h2 id="3-与人协作"><a class="header" href="#3-与人协作">3. 与人协作</a></h2>
 <h3 id="提供反馈"><a class="header" href="#提供反馈">提供反馈</a></h3>
@@ -308,22 +384,22 @@
 <p><strong>具体说明。</strong> 模糊的反馈只会带来焦虑，却缺乏明确的方向。</p>
 <blockquote>
 <p>❌ “这很难阅读。”</p>
-<p>✅ “此函数处理了三个不同的关注点——输入验证、业务逻辑和格式化响应。建议将它们拆分，使每个函数只负责一件事。这样更易于测试各个部分，也能一目了然地了解每个函数的作用。”</p>
+<p>✅ “This function is handling three separate concerns: input validation, business logic, and formatting the response. Consider splitting them so each function does one thing. That makes it easier to test each piece and easier to understand at a glance what each one does.”</p>
 </blockquote>
 <p>第二个版本更长，但它教会了读者一些东西。读者现在知道了问题是什么、为什么重要以及该如何解决。</p>
 <p><strong>解释原理，而不仅仅是结论。</strong> 如果你要求某人做出更改，请告诉他们原因。“将 X 更改为 Y”只能产生修复效果；而“将 X 更改为 Y，因为 Z”则能产生理解，这种理解会在接下来十个适用相同原理的情境中发挥作用。</p>
 <p><strong>将工作与人分开。</strong> “这个方法有问题”和“你犯了一个错误”并不是同一回事。前者是关于代码的，后者则是针对个人的。请确保你的反馈集中在工作上。</p>
-<p><strong>指出做得好的地方。</strong> 这并非关于客气，而是关于有用。当你告诉某人他们做对了什么，并解释为什么正确时，你是在教他们重复哪些模式。泛泛的赞美（“做得好！”）毫无教育意义。具体的赞美（“将其提取到独立的 crate 中是正确的决定，因为这意味着我们现在可以独立测试这段逻辑，而无需启动整个 agent 循环”）则传授了原则并强化了该决策。</p>
+<p><strong>Name what is good.</strong> This is not about being nice. It is about being useful. When you tell someone what they got right and explain why it is right, you teach them what patterns to repeat. Generic praise (“great work!”) teaches nothing. Specific praise (“extracting this into its own crate was the right call because it means we can now test this logic in isolation without standing up the whole agent loop”) teaches the principle and reinforces the decision.</p>
 <p><strong>使用反馈分类法。</strong> 第 5 节中的分类法为每条评论赋予明确的权重。如果审阅者将阻塞性问题与次要建议混在一起而不加以区分，就会迫使作者去猜测哪些内容真正需要修改。不要让人去猜。</p>
 <hr>
 <h3 id="接收反馈"><a class="header" href="#接收反馈">接收反馈</a></h3>
 <p>这对大多数人来说比提供反馈更难，而且诚实地说明原因很有价值。</p>
-<p>当你花几个小时在某件事上——解决问题、做出决策、编写代码——而有人告诉你它有问题时，自然的反应是觉得批评是针对你个人的。其实不是。批评针对的是工作本身。学会将这两者区分开来是一项技能，需要不断练习。</p>
+<p>When you have spent hours on something, working through a problem, making decisions, writing the code, and someone tells you it has issues, the natural human response is to feel like the criticism is about you. It is not. It is about the work. Learning to hold those two things as separate is a skill, and it takes practice.</p>
 <p>以下是一些有帮助的事项：</p>
-<p><strong>在回复反馈之前，请先阅读反馈内容。</strong> 不仅仅是摘要行——而是整个评论，包括解释部分。许多反馈回复是在人们尚未充分理解原因的情况下，针对结论做出的反应。在决定你对“是什么”的感受之前，请先理解“为什么”。</p>
+<p><strong>Read the feedback before you respond to it.</strong> Not just the summary line, the whole comment, including the explanation. Many feedback responses are written in reaction to the verdict before the person has absorbed the reasoning. Read the why before you decide how you feel about the what.</p>
 <p><strong>区分“我不同意”和“我不理解”。</strong> 这两种情况需要不同的回应方式。如果你不理解反馈内容，请提出澄清性问题；如果你理解反馈但不同意，请提供证据明确表达你的观点。这两种情况都是良好的结果。而当你有疑问时保持沉默，或者明明不同意却只说“好吧，行”，则毫无帮助。</p>
-<p><strong>你不必同意每一条反馈才能从中学习。</strong> 有时反馈是错误的。有时它反映的权衡取舍与你所优化的不同。你可以提出反对意见——详见“建设性地不同意”部分。但即使你最终拒绝的反馈，也值得在决定拒绝之前充分理解。</p>
-<p><strong>闭环沟通。</strong> 当有人花时间审查你的工作时，请在他们提出反馈后告知他们你已根据反馈进行了修改。你不必过度感谢——只需简单说明“已在最新提交中处理”即可。这能让他们感到自己的时间没有白费，并推动 PR 继续推进。</p>
+<p><strong>You do not have to agree with every piece of feedback to learn from it.</strong> Sometimes feedback is wrong. Sometimes it reflects a different set of tradeoffs than the ones you were optimising for. You are allowed to push back. See Disagreeing productively below. But even feedback you ultimately reject is worth understanding fully before you decide to reject it.</p>
+<p><strong>Close the loop.</strong> When someone takes time to review your work, tell them when you have addressed their feedback. You do not have to thank them effusively. A simple “addressed in the latest commit” is enough. It tells them their time was worthwhile and keeps the PR moving.</p>
 <p><strong>对你的代码的反馈并不反映你的价值。</strong> 这听起来显而易见。但当你身处其中时，却并不明显。每一位经验丰富的工程师都会接受更有经验的人的代码审查，而这个过程每次都会让人感到不适。这种不适感正是学习的感觉。它不会消失；你只是逐渐学会与之共处。</p>
 <hr>
 <h3 id="请求帮助"><a class="header" href="#请求帮助">请求帮助</a></h3>
@@ -331,41 +407,41 @@
 <p><strong>陷入困境而不求助的代价，几乎总是高于求助的代价。</strong> 花三个小时在一个只需五分钟对话就能解决的问题上打转，意味着你和团队的时间白白浪费了。知道何时求助是一种技能，而不是弱点。</p>
 <p>一个良好的帮助请求包含三个部分：</p>
 <ol>
-<li><strong>你正在尝试做什么。</strong> 不仅仅是“它坏了”——你的目标是什么？</li>
+<li><strong>What you are trying to do.</strong> Not just “it’s broken”: what is the goal?</li>
 <li><strong>你已经尝试过的操作。</strong> 这表明你已投入精力解决问题，并为提供帮助的人提供了一个非零的起点。</li>
 <li><strong>你具体卡在哪里。</strong> “我不知道哪里出了问题”与“我知道哪里出了问题，但不知道如何修复”以及“我修复了问题，但不知道为什么我的修复有效”是不同的问题。</li>
 </ol>
 <p>包含这三个部分的问题求助会得到更快的解答，并且能让你学到更多，因为提供帮助的人可以准确地了解你当前的情况。</p>
-<p><strong>在可以公开提问时，请公开提问。</strong> 在共享频道或 PR 中提出的问题，能让所有有相同疑问的人受益。而私下提问仅对你个人有益。当然，有些情况下私下沟通是合适的——比如敏感反馈、个人情况等——但关于代码库的技术问题，几乎总是更适合公开提问。</p>
+<p><strong>Ask publicly when you can.</strong> A question asked in a shared channel or on a PR benefits everyone who has the same question later. A question asked privately benefits only you. There are times when private is right, sensitive feedback, personal circumstances, but technical questions about the codebase are almost always better asked in the open.</p>
 <p><strong>不知道某件事并不丢人。</strong> 没有人无所不知。那些看似无所不知的工程师，是在漫长的时间里不断提问，才积累了这些答案。而通往这一境界的唯一途径，就是开始提问。</p>
 <hr>
 <h3 id="建设性地表达不同意见"><a class="header" href="#建设性地表达不同意见">建设性地表达不同意见</a></h3>
-<p>架构上的分歧是健康的。它意味着人们关心系统的构建方式，并且正在关注所做出的决策。一个没有人提出异议的团队，并不是一个所有人都同意的团队，而是一个人们不再积极参与的团队。</p>
+<p>Architecture disagreements are healthy. They mean people care about how the system is built and are paying attention to the decisions being made. A team where nobody disagrees is not a team where everyone agrees. It is a team where people have stopped engaging.</p>
 <p>建设性分歧与无建设性分歧之间的差异通常在于表述方式。</p>
 <p><strong>先提出关切，而非结论。</strong></p>
 <blockquote>
 <p>❌ “这种方法是不正确的。”</p>
-<p>✅ “我对这种方法有一个顾虑——具体来说，如果我们将网关直接连接到这里的运行时，就会违反 RFC §4.2 中的依赖规则。我们可以讨论一下是否有办法在不产生这种耦合的情况下实现相同的结果吗？”</p>
+<p>✅ “I have a concern about this approach: specifically, if we wire the gateway directly into the runtime here, we break the dependency rule in RFC §4.2. Can we talk through whether there is a way to achieve the same result without that coupling?”</p>
 </blockquote>
 <p>第二个版本会打开一个对话。第一个版本会关闭一个对话。</p>
 <p><strong>提供证据。</strong> 基于测量事实、特定 RFC 章节或具体故障场景的架构分歧是一种贡献。而基于“我就是觉得”的架构分歧则是一种观点。两者都值得表达，但只有一种能推动对话快速进展。</p>
-<p><strong>真正愿意承认自己可能是错的。</strong> 如果你带着“自己一定是对的”这种心态去参与争论，那就不算是在交流——而是在游说。人们能分辨出其中的差别，这会让对方更不愿意认真对待你的观点。我们的目标是为项目争取最好的结果，而不是为了证明自己是对的。</p>
-<p><strong>当团队做出决定时，与团队保持一致。</strong> 你可以在记录中注明你的异议——在 issue、RFC 评论或 PR 讨论中——然后按照已决定的方案进行开发。这不是妥协，而是团队运作的方式。一个不断重新争论已决事项的团队是无法交付成果的。</p>
+<p><strong>Be genuinely open to being wrong.</strong> If you go into a disagreement having already decided you are right, you are not having a conversation. You are lobbying. People can tell the difference, and it makes them less likely to engage seriously with your concerns. The goal is the best outcome for the project, not being right.</p>
+<p><strong>When the team decides, move with the team.</strong> You can note your dissent on the record. in the issue, in the RFC comments, in the PR thread, and then you build what was decided. This is not capitulation. It is how teams function. A team that keeps relitigating settled decisions does not ship.</p>
 <p><strong>有些决策是可逆的，有些则不可逆。</strong> 明确你正在讨论的是哪一类决策。命名决策是可逆的，而一旦写入生产环境二进制文件并持续使用两年的协议决策则不可逆。请据此合理分配你的精力。</p>
 <hr>
 <h3 id="所有权"><a class="header" href="#所有权">所有权</a></h3>
 <p>“所有权”是一个经常被使用但缺乏明确定义的词。以下是它在该项目中的实际含义：</p>
 <p><strong>拥有者意味着你在被要求之前就能看到问题。</strong> 这意味着阅读涉及你负责区域的 PR，并注意到作者未察觉的副作用。这意味着看到一个没有分配负责人的后续问题并主动接手。这意味着不等待被指示。</p>
-<p><strong>所有权意味着你的承诺具有分量。</strong> 如果你以个人名义提交一个后续问题，那么这个问题就是你的承诺。不是“有人应该做这件事”，而是“你会去做”。如果情况发生变化，你无法继续，你要尽早说明，并找到交接人。一个充斥着已提交却被遗忘、且附有姓名的问题的跟踪系统，是一个失效的信任记录。</p>
-<p><strong>所有权不是“我完成了我的部分”。</strong> 而是“我关心整个系统是否正常运行”。你可以拥有一个 crate，同时并不对运行该 crate 的系统是否健康漠不关心。你可以负责一个功能，同时并不对用户能否真正使用它漠不关心。狭隘的所有权——“我完成了我的部分，其余的问题归别人管”——会导致系统虽然在技术上有每个部分的负责人，但在功能上却没有任何人对整体负责。</p>
+<p><strong>Ownership means your word means something.</strong> If you file a follow-up issue with your name on it, that issue is your commitment. Not “someone should do this”: you will do this. If circumstances change and you cannot, you say so early and you find a handoff. A tracker full of filed-and-forgotten issues with names attached is a broken trust register.</p>
+<p><strong>Ownership is not “I did my part.”</strong> It is “I care whether the whole thing works.” You can own a crate without being indifferent to whether the system that crate lives in is healthy. You can own a feature without being indifferent to whether users can actually use it. Narrow ownership, “I did my bit, the rest is someone else’s problem”, produces systems that technically have owners for every piece and functionally have no one responsible for anything.</p>
 <p><strong>所有权包括后续跟进。</strong> 发布代码并不是所有权的终点，而是责任的开始——确保代码正常运行、修复出现的问题，并教会接下来在该领域工作的人你所学到的经验。</p>
 <hr>
 <h3 id="支持正在挣扎的人"><a class="header" href="#支持正在挣扎的人">支持正在挣扎的人</a></h3>
 <p>在这个项目的某个阶段，你可能会比线程中的其他人更有经验。也许你在这里的时间更长，也许你恰好了解他们正在处理的代码部分，也许你之前见过这种特定的故障模式。</p>
 <p>你如何使用这个职位很重要。</p>
 <p><strong>不要只是替他们修复问题。</strong> 在不解释问题所在或你的解决方案为何有效的前提下，直接给出一段可运行的代码，虽然能促成 PR 合并，但无法带来任何学习价值。下次他们遇到类似问题时，依然会陷入同样的困境。请多花五分钟时间，说明你发现的问题以及修复方案背后的原理。</p>
-<p><strong>以教学为目的进行审查。</strong> 一个糟糕的 PR 不仅仅是一个需要关闭的问题——它是一个教学机会。一个轻率的审查（“这不符合架构”）不如一个指出遗漏内容、解释其违反的原则，并引导贡献者进一步学习的审查有用。额外的努力是对贡献者的投资，使他们从那时起写出更好的 PR。</p>
-<p><strong>如果有人被卡住且没有寻求帮助，请主动说些什么。</strong> 有时人们不求助是因为他们不想显得自己遇到了困难；有时他们不确定该向谁请教；有时他们卡得太久，以至于已经没意识到自己有多卡。一句轻声的“这个看起来已经打开有一段时间了——有什么我可以帮忙解决的吗？”几乎不费什么力气，却可能对正在原地打转的人意义重大。</p>
+<p><strong>Review with intent to teach.</strong> A bad PR is not just a problem to close. It is a teaching opportunity. A dismissive review (“this doesn’t follow the architecture”) is less useful than a review that names what was missed, explains the principle it violates, and points to where the contributor can learn more. The extra effort is an investment in a contributor who writes better PRs from that point forward.</p>
+<p><strong>If someone is blocked and not asking for help, say something.</strong> Sometimes people do not ask because they do not want to look like they are struggling. Sometimes they are not sure who to ask. Sometimes they have been struggling long enough that they have stopped noticing how stuck they are. A quiet “looks like this one has been open for a while. is there anything I can help unblock?” costs almost nothing and can mean everything to someone who is spinning.</p>
 <p><strong>营造“不知道也没关系”的安全感。</strong> 如果团队成员因为不了解某些事情而感到被评判，他们就会假装自己知道。这会导致更糟糕的决策，而不是更好的决策。那些能够让大家安心地说“我不知道，让我去查一下”的团队，会比那些每个人都表现得自信满满的团队做出更好的决策。</p>
 <hr>
 <h2 id="4-使用-ai"><a class="header" href="#4-使用-ai">4. 使用 AI</a></h2>
@@ -374,9 +450,9 @@
 <p>以下是与 AI 高效协作的最实用思维框架：</p>
 <p><strong>与 AI 协作的技能与向人委派任务相同。</strong></p>
 <p>当你将工作委托给同事或初级工程师时，你会提供上下文。你会解释目标、约束条件、什么是好的标准以及边界在哪里。你不会只是说“给我做一个功能”，而是会说：这是用户想要做的事情，这是它如何与系统契合，我们将如何知道它已经完成，以及你不应该做的事情。</p>
-<p>然后——至关重要地——你要审查返回的内容。你不能在不阅读的情况下接受初级工程师的 PR。你要检查它是否完成了要求的工作，是否符合架构，是否有测试覆盖，错误处理是否正确。你要提供反馈。你可能需要多次迭代。</p>
+<p>Then, critically, you review what comes back. You do not accept a junior engineer’s PR without reading it. You check whether it does what was asked, whether it fits the architecture, whether it has test coverage, whether the error handling is correct. You give feedback. You may iterate.</p>
 <p>AI 工具的工作原理完全相同。你得到的结果质量几乎完全取决于你输入的内容质量。模糊的提示词会产生模糊的输出。而包含清晰上下文、具体约束条件和明确验收标准的提示词，则能生成真正有用的、可作为起点的输出。</p>
-<p>那些在使用 AI 工具时遇到困难的人，通常还在努力学会如何向任何人——无论是人类还是 AI——给出清晰的指令。而那些能够充分利用 AI 工具的人，往往在提出需求之前就已经清楚自己想要什么。</p>
+<p>The engineers who struggle with AI tools are usually the ones who are still learning to give clear direction to anything: human or AI. The engineers who thrive with them are the ones who already know what they want before they ask for it.</p>
 <p>这种心智模型也意味着输出结果由你负责。你不能提交 PR 并说“是 AI 写的”。你审核了它，你提交了 PR。这是你的工作。</p>
 <hr>
 <h3 id="ai-在实现层工作"><a class="header" href="#ai-在实现层工作">AI 在实现层工作</a></h3>
@@ -391,13 +467,13 @@ Documentation   ← AI can draft. You must review for accuracy.
 Release         ← Human judgment required.
 </code></pre>
 <p>一个 AI 工具会生成一个实现你所描述功能的函数。但它不会告诉你该函数应该属于当前 crate 还是另一个 crate。它不会指出该方法与三个月前做出的架构决策相矛盾。它不会询问你是否考虑过安全影响。它也不会注意到你正在解决的是一个错误的问题。</p>
-<p>ZeroClaw 本身就是一个有用的例子。其初始代码库是通过 AI 辅助引导生成的。正如架构 RFC 所述，结果是“功能令人印象深刻，但架构是偶然形成的”。代码在今天确实能完成它需要完成的任务——但它并非经过设计，而是逐渐累积而成的。这并不是 AI 工具的失败，而是使用实现层工具却未先完成赋予实现方向所需的愿景、架构和设计工作所导致的可预见结果。</p>
+<p>ZeroClaw itself is a useful example. The initial codebase was bootstrapped with AI assistance. The result, as the architecture RFC describes it, is “impressively functional but architecturally accidental.” The code does what it needs to do today, but it was not designed, it accumulated. That is not a failure of AI tools. It is a predictable outcome of using implementation-layer tooling without first doing the vision, architecture, and design work that gives implementation its direction.</p>
 <p>解决方案不是少用 AI，而是始终在要求 AI 构建任何内容之前，自己完成顶层层级的工作。</p>
 <hr>
 <h3 id="放大不是魔法"><a class="header" href="#放大不是魔法">放大不是魔法</a></h3>
 <p>AI 工具放大了你现有的能力。这是对其作用的诚实描述。</p>
-<p>如果你拥有清晰的愿景、明确的架构、可以明确表述的质量标准，以及批判性地评估输出的能力——AI 就是一个真正的力量倍增器。你会更快地推进工作，探索更多的选项，编写更多的测试，起草更多的文档。</p>
-<p>如果你不具备这些能力——AI 会生成大量看似合理但无法自洽的代码。它会生成通过测试但并未验证任何有意义内容的测试用例。它会生成描述代码而非意图的文档。它会生成本地一致但全局不连贯的架构。</p>
+<p>If you have a clear vision, a defined architecture, quality criteria you can articulate, and the ability to evaluate output critically. AI is a genuine force multiplier. You move faster. You explore more options. You write more tests. You draft more documentation.</p>
+<p>If you do not have those things. AI generates a lot of code that looks convincing and does not hold together. It generates tests that pass without testing anything meaningful. It generates documentation that describes the code but not the intent. It generates architecture that is locally consistent and globally incoherent.</p>
 <p>这种放大是中性化的。它以同样的热情放大好的输入和坏的输入。</p>
 <p>这意味着在 AI 辅助工作流中，最有价值的技能不是提示工程，而是评估输出的能力。这要求你在提出任何请求之前，就清楚什么是好的结果。而这又让你一次次回到决策层级的顶端。</p>
 <p>在使用 AI 工具实现某个功能之前，一个有用的自检步骤是：</p>
@@ -411,17 +487,17 @@ Release         ← Human judgment required.
 <hr>
 <h3 id="审查纪律"><a class="header" href="#审查纪律">审查纪律</a></h3>
 <p>AI 生成的代码需要与人工编写的代码相同的审查纪律。在某些方面，它甚至需要更多的审查，因为你需要检查的问题范围更广。</p>
-<p>在审查 AI 生成的输出（无论是你自己的还是他人的）时，请检查以下内容：</p>
+<p>When you review AI-generated output, your own or someone else’s, check for:</p>
 <p><strong>架构契合度。</strong> 这是否遵循了依赖规则？它是否位于正确的 crate 中？它是否引入了设计明确避免的耦合？</p>
 <p><strong>边界情况的正确性。</strong> AI 模型在常见情况下表现良好，但在边界情况下经常出错。检查当输入为空、为 null、格式错误或达到最大预期大小时会发生什么。检查当依赖项不可用时会发生什么。</p>
 <p><strong>安全影响。</strong> AI 工具默认不具备安全思维。它们会生成接受未验证用户输入的代码、记录敏感值、使用已弃用的密码学原语、以及在不检查文件路径的情况下打开文件路径。你必须明确引入安全视角。</p>
-<p><strong>测试质量。</strong> AI 生成的测试经常测试的是实现细节，而非行为。一个断言函数返回特定内部结构体值的测试并不是行为测试——它只是实现的一个快照，一旦实现发生变化，该测试就会失败。请问：这个测试验证的是系统是否满足了用户或调用者的需求，还是仅仅验证了代码当前是如何实现的？</p>
+<p><strong>Test quality.</strong> AI-generated tests frequently test the implementation rather than the behaviour. A test that asserts a function returns a specific internal struct value is not a behaviour test. It is a snapshot of the implementation that will break whenever the implementation changes. Ask: does this test verify that the system does what the user or caller needs, or does it verify that the code does what it currently does?</p>
 <p><strong>完整性。</strong> AI 工具倾向于优化看似完整的代码。它们会生成详尽处理正常路径的代码，而对错误路径的处理则较为表面。请检查错误是否以真正对调用者有用的方式被传播、处理或暴露出来。</p>
 <hr>
 <h3 id="这对你的职业生涯意味着什么"><a class="header" href="#这对你的职业生涯意味着什么">这对你的职业生涯意味着什么</a></h3>
-<p>这里所描述的技能——清晰地给出方向、批判性地评估输出、理解某个组件在更大系统中的作用、在构建之前知道什么是好的——这些并不是 AI 特有的技能。它们是让一个人成为高效工程师、高效技术负责人，并最终成为高效工程经理的技能。</p>
+<p>The skills being described here: giving direction clearly, evaluating output critically, understanding where a component fits in a larger system, knowing what good looks like before you build, are not AI-specific skills. They are the skills that make someone an effective engineer, an effective tech lead, and eventually an effective engineering manager.</p>
 <p>在一个被 AI 生成代码充斥的世界里，最有价值的工程师并不是那些能够最快编写最多代码的人，而是那些能够判断代码是否正确的人。这需要系统思维、架构判断力，以及根据内化的标准来评估工作的能力。</p>
-<p>你在这里练习的一切——在实现之前理解 RFC，在构建之前问“为什么”，以审查初级工程师 PR 的同样眼光来审查 AI 的输出——都是对这种判断力的练习。它会不断积累。每一次你认真参与架构的 PR，都是一个数据点，让下一次架构决策变得更加容易。</p>
+<p>Everything you practice here: understanding the RFC before you implement, asking “why” before you build, reviewing AI output with the same eye you would bring to a junior engineer’s PR, is practice for that kind of judgment. It compounds. Every PR where you engage seriously with the architecture is a data point that makes the next architectural decision easier.</p>
 <p>本项目的贡献者拥有一个独特的优势：你正在一个真实的系统上构建这些习惯，面对真实的架构约束，并且会有人审查你的工作并解释原因。这种组合非常罕见，值得认真对待。</p>
 <hr>
 <h2 id="5-反馈分类法"><a class="header" href="#5-反馈分类法">5. 反馈分类法</a></h2>
@@ -433,7 +509,7 @@ Release         ← Human judgment required.
 <p>这不是礼貌。泛泛的赞美（如“做得好！”）无法带来任何学习。具体的赞美并附带解释，能够阐明做得好的地方背后的原则，这些原则适用于未来同一类别的每一个决策。</p>
 <p><strong>表彰不需要任何操作。</strong> 其目的是强化。</p>
 <blockquote>
-<p>示例：“将工具调用解析器提取到其自己的 crate 中是正确的决定——这段代码对代理状态没有任何依赖，现在可以独立测试。你添加的 91 个测试正是那种当此逻辑位于 <code>loop_.rs</code> 内部时无法实现的覆盖范围。”</p>
+<p><em>Example: “Extracting the tool call parser into its own crate was the right call: this code has zero dependencies on agent state and is now independently testable. The 91 tests you added are exactly the kind of coverage that would be impossible to achieve when this logic lived inside <code>loop_.rs</code>.”</em></p>
 </blockquote>
 <hr>
 <h3 id="-阻塞"><a class="header" href="#-阻塞">🔴 阻塞</a></h3>
@@ -442,26 +518,26 @@ Release         ← Human judgment required.
 <li><strong>架构违规</strong>：代码违反了设计中明确禁止的依赖边界，或与 RFC 或 ADR 中记录的决策相矛盾。</li>
 <li><strong>质量回退</strong>：新行为缺少测试覆盖、安全问题、契约兼容性破坏，或引入缺陷的代码。</li>
 </ul>
-<p>阻塞性评论解释了问题是什么、为什么重要，以及在可能的情况下，解决路径是什么样的。阻塞性评论不是对作者的评判。它是代码库及其依赖者的责任。</p>
+<p>A blocking comment explains what the issue is, why it matters, and, where possible, what a resolution path looks like. A blocking comment is not a judgment of the author. It is the reviewer’s responsibility to the codebase and the users who depend on it.</p>
 <p><strong>作者不应将阻塞性评论视为拒绝。</strong> 这是一个具体且可解决的问题。解决它并继续前进。</p>
 <hr>
 <h3 id="-条件"><a class="header" href="#-条件">🟡 条件</a></h3>
 <p>可以接受推迟处理，但前提是必须有一个已跟踪的问题（tracked issue）并指定了负责人。这种条件性要求是审查者所说的：“我相信这个问题会得到解决，但在合并之前，我需要这个承诺有记录。”</p>
 <p>阻塞式与条件式的区别通常在于时机和风险。下一个 PR 中将交付的缺失功能是条件式。而存在安全漏洞的缺失功能则是阻塞式。</p>
-<p><strong>没有指定负责人的条件性延期并不是延期，而是一种愿望。</strong> 没有明确负责人的已跟踪问题往往会无限期地保持开放状态。当评审者将某项任务标记为条件性延期时，他们是在要求一个明确的承诺，而不是一个理论上的未来意图。</p>
+<p><strong>A conditional deferral without an assignee is not a deferral. It is a wish.</strong> Tracked issues with no owner tend to stay open indefinitely. When a reviewer marks something conditional, they are asking for a named commitment, not a theoretical future intention.</p>
 <hr>
 <h3 id="-团队决策"><a class="header" href="#-团队决策">🔵 团队决策</a></h3>
-<p>该 PR 引出了一个应由团队共同决策的问题，而非由单个审查者或作者单方面回答。团队决策涉及影响项目方向、架构或用户的权衡，这些决策属于团队整体。</p>
-<p>使用此标签是评审者避免让个别贡献者因涉及共同方向的问题而受阻的方法。它使决策浮出水面，框定权衡取舍，并邀请团队参与评估——同时不会让作者觉得他们的 PR 因超出其控制范围的事项而被阻塞。</p>
+<p>A question the PR surfaces that no single reviewer or author should answer unilaterally. Team decisions involve tradeoffs that affect the project’s direction, its architecture, or its users, and they belong to the group.</p>
+<p>Using this label is how reviewers avoid holding up individual contributors with questions that are really about shared direction. It surfaces the decision, frames the tradeoffs, and asks the team to weigh in, without making the author feel like their PR is blocked on something that is not in their control.</p>
 <p><strong>团队决策应在 PR 线程中以书面形式记录，并由需要对结果负责的人员作出。</strong> 任何未在 PR 线程中体现的私下讨论，对于后续查阅历史记录的人来说，都不存在。</p>
 <hr>
 <h2 id="6-给评审者和导师的说明"><a class="header" href="#6-给评审者和导师的说明">6. 给评审者和导师的说明</a></h2>
-<p>如果你处于审查他人工作的位置——无论是作为代码所有者、更有经验的贡献者，还是仅仅因为在这里待得更久——这一节就是为你准备的。</p>
-<p><strong>你正在塑造协作的样貌。</strong> 你写的每一次评审都在教导作者如何开展评审。你在 PR 讨论中提出的每一个问题都在向新贡献者展示哪些问题值得提出。你无法置身事外——唯一的选择是有意为之还是无意为之。</p>
+<p>If you are in a position of reviewing someone else’s work, whether as a code owner, a more experienced contributor, or simply someone who has been here longer, this section is for you.</p>
+<p><strong>You are modelling what collaboration looks like.</strong> Every review you write teaches the author how to review. Every question you ask in a PR thread teaches newer contributors what questions are worth asking. You cannot opt out of this: the only choice is whether to do it intentionally or accidentally.</p>
 <p><strong>细致是对作者的尊重。</strong> 一份详尽且阐明其推理过程的审查，比草率的批准更能体现对作者付出的尊重。作者为这项工作投入了时间，他们理应了解代码为何尚未达到合并标准，以及可以从这次审查中获得哪些改进方向。</p>
-<p><strong>每次代码审查的目标，是让作者比审查前获得更强的能力。</strong> 不仅仅是为了合并一个 PR，不是为了展示你自身的知识，也不是为了强制执行规则。而是让作者带走一些可以实际使用的东西——一个原则、一种模式、对某个权衡的理解——这些都能应用到当前 PR 之外的情境中。</p>
-<p><strong>命名模式，而不仅仅是实例。</strong> 当你提出修改请求时，请解释其背后的原则。“将此变量重命名为描述其内容的名称”不如“变量名应从调用者的角度描述其目的，而非实现细节——该函数的调用者真正关心的是这个值代表什么？”第二种方式适用于作者将来编写的每一个函数中的每一个变量。</p>
-<p><strong>诚实地说明你的偏好和硬性要求。</strong> “我会这样写”并不等同于“必须修改”。如果你是在表达偏好，请明确说明。如果你是在引用硬性要求——例如架构、安全性或兼容性——请指出具体原因。无法区分审稿人偏好与架构必要性的作者，要么会修改所有内容，要么什么都不改。这两种情况对他们都没有好处。</p>
+<p><strong>The goal of every review interaction is to leave the author better equipped than they were before.</strong> Not just to produce a merged PR. Not to demonstrate your own knowledge. Not to enforce rules. To leave the author with something they can use: a principle, a pattern, an understanding of a tradeoff, that applies beyond the immediate PR.</p>
+<p><strong>Name the pattern, not just the instance.</strong> When you ask for a change, explain the principle behind it. “Rename this variable to something that describes what it contains” is less useful than “variable names should describe their purpose from the caller’s perspective, not the implementation’s: what does the caller of this function actually care that this value represents?” The second version applies to every variable in every function the author will ever write.</p>
+<p><strong>Be honest about what is your preference and what is a requirement.</strong> “I would write this differently” is not the same as “this must change.” If you are expressing a preference, say so. If you are citing a hard requirement: architecture, security, compatibility, cite the specific reason. Authors who cannot tell the difference between reviewer preference and architectural necessity will either change everything or change nothing. Neither serves them well.</p>
 <p><strong>你正在帮助构建的团队，就是你将加入的团队。</strong> 你今天投入的细致、教育性的审查工作，会逐步培养出一个能写出更优质代码、提出更高质量 PR，并对他人进行更深思熟虑审查的贡献者。这会让整个项目变得更好。同时，它也会让你的工作更轻松，因为你身边的同事都在不断成长。</p>
 <p>这不是软技能，而是工程工作。</p>
 <hr>

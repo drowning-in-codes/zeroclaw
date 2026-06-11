@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -224,7 +300,7 @@
 </blockquote>
 <hr>
 <h2 id="herramienta-crateszeroclaw-apisrctoolrs"><a class="header" href="#herramienta-crateszeroclaw-apisrctoolrs">Herramienta (<code>crates/zeroclaw-api/src/tool.rs</code>)</a></h2>
-<p>Las herramientas son las manos del agente: le permiten interactuar con el mundo.</p>
+<p>Tools are the agent’s hands: they let it interact with the world.</p>
 <p><strong>Métodos requeridos</strong>: <code>name()</code>, <code>description()</code>, <code>parameters_schema()</code>, <code>execute()</code>. El método <code>spec()</code> tiene una implementación predeterminada que compone los anteriores.</p>
 <p>Registra tu herramienta en <code>crates/zeroclaw-tools/src/lib.rs</code> a través de <code>default_tools()</code>.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -592,7 +668,7 @@ impl Memory for InMemoryBackend {
 <p>Unas pocas invariantes que se cumplen en todas las extensiones. Romperlas suele ser la causa de PRs de limpieza transversal más adelante, así que internalízalas desde el principio:</p>
 <ul>
 <li><strong>Extiende primero por rasgo + cableado de fábrica.</strong> Agregar un nuevo proveedor/canal/herramienta/periférico implica implementar un rasgo y registrarlo en la fábrica correspondiente. Evita reescrituras entre módulos para lo que debería ser una característica aislada.</li>
-<li><strong>La dirección de las dependencias se dirige hacia los contratos.</strong> Las integraciones concretas dependen de los rasgos de <code>zeroclaw-api</code>, el esquema de <code>zeroclaw-config</code> y las utilidades de <code>zeroclaw-infra</code>, pero no entre sí. El código del proveedor no importa los detalles internos del canal; el código de las herramientas no modifica directamente la política de la puerta de enlace.</li>
+<li><strong>Dependency direction goes inward to contracts.</strong> Concrete integrations depend on <code>zeroclaw-api</code> traits, <code>zeroclaw-config</code> schema, and <code>zeroclaw-infra</code> utilities, not on each other. Provider code does not import channel internals; tool code does not mutate gateway policy directly.</li>
 <li><strong>Las responsabilidades de los módulos se mantienen con un único propósito.</strong> La orquestación está en <code>zeroclaw-runtime/src/agent/</code>, el transporte en <code>zeroclaw-channels/</code>, la E/S de modelos en <code>zeroclaw-providers/</code>, la política en <code>zeroclaw-runtime/src/security/</code> y la ejecución en <code>zeroclaw-tools/</code>.</li>
 <li><strong>Regla de los tres para abstracciones compartidas.</strong> Introduce nuevos tipos compartidos solo después de que un tercer llamador real se materialice. Las abstracciones prematuras acumulan peso que los futuros colaboradores deben sortear.</li>
 <li><strong>Las claves de configuración son un contrato público.</strong> Los cambios en el esquema deben incluir valores predeterminados, impacto en la compatibilidad y una ruta de migración/reversión documentada en el PR.</li>
@@ -601,7 +677,7 @@ impl Memory for InMemoryBackend {
 <p>Cualquier herramienta que gestione un estado compartido de larga duración (limitadores de tasa, grupos de conexiones, credenciales en caché, canales de difusión) sigue un pequeño contrato que mantiene intactas las garantías de aislamiento por cliente del daemon:</p>
 <ul>
 <li><strong>Patrón de manejo de <code>Arc&lt;RwLock&lt;T&gt;&gt;</code>.</strong> Acepta manejadores durante la construcción; no crees estado mutable global o estático dentro de una herramienta. Las pruebas necesitan instanciar herramientas con estado aislado, y el demonio necesita construir múltiples instancias para el espaciamiento de nombres.</li>
-<li><strong><code>ClientId</code> es proporcionado por el daemon.</strong> Úsalo para crear un espacio de nombres por cliente. Nunca construyas claves de identidad dentro de una herramienta: el daemon es el propietario de la identidad y la herramienta la consume.</li>
+<li><strong><code>ClientId</code> is daemon-supplied.</strong> Use it to namespace per-client state. Never construct identity keys inside a tool; the daemon owns identity and the tool consumes it.</li>
 <li><strong>El estado de seguridad se aísla por cliente.</strong> Las credenciales, cuotas y cualquier información que pueda filtrarse entre sesiones se mantienen por <code>ClientId</code>. El estado de visualización/difusión puede compartirse, con un prefijo de espacio de nombres opcional para mayor claridad en el seguimiento.</li>
 <li><strong>La validación en caché se invalida al cambiar la configuración.</strong> Las herramientas deben volver a validar antes de la próxima ejecución cuando se active la señal de cambio de configuración. El demonio emite la señal; la herramienta se suscribe.</li>
 </ul>

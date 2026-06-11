@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,7 +292,7 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="zeroclaw-on-nucleo-f401re--step-by-step-guide"><a class="header" href="#zeroclaw-on-nucleo-f401re--step-by-step-guide">ZeroClaw on Nucleo-F401RE — Step-by-Step Guide</a></h1>
+                        <h1 id="zeroclaw-on-nucleo-f401re-step-by-step-guide"><a class="header" href="#zeroclaw-on-nucleo-f401re-step-by-step-guide">ZeroClaw on Nucleo-F401RE: Step-by-Step Guide</a></h1>
 <p>Run ZeroClaw on your Mac or Linux host. Connect a Nucleo-F401RE via USB. Control GPIO (LED, pins) via Telegram or CLI.</p>
 <hr>
 <h2 id="get-board-info-via-telegram-no-firmware-needed"><a class="header" href="#get-board-info-via-telegram-no-firmware-needed">Get Board Info via Telegram (No Firmware Needed)</a></h2>
@@ -230,10 +306,14 @@
 <p>The agent uses the <code>hardware_board_info</code> tool to return chip name, architecture, and memory map. With the <code>probe</code> feature, it reads live data via USB/SWD; otherwise it returns static datasheet info.</p>
 <p><strong>Config:</strong> Use <code>zeroclaw config set peripherals.boards.0.board nucleo-f401re</code>, <code>transport serial</code>, and <code>path &lt;your-serial-port&gt;</code>. See the <a href="../reference/config.html">Config reference</a> for all fields.</p>
 <p><strong>CLI alternative:</strong></p>
-<pre><code class="language-bash">cargo build --features hardware,probe
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo build --features hardware,probe
 zeroclaw hardware info
 zeroclaw hardware discover
 </code></pre>
+</div>
+
 <hr>
 <h2 id="whats-included-no-code-changes-needed"><a class="header" href="#whats-included-no-code-changes-needed">What’s Included (No Code Changes Needed)</a></h2>
 <p>ZeroClaw includes everything for Nucleo-F401RE:</p>
@@ -243,7 +323,7 @@ zeroclaw hardware discover
 <tr><th>Component</th><th>Location</th><th>Purpose</th></tr>
 </thead>
 <tbody>
-<tr><td>Firmware</td><td><code>firmware/nucleo/</code></td><td>Embassy Rust — USART2 (115200), gpio_read, gpio_write</td></tr>
+<tr><td>Firmware</td><td><code>firmware/nucleo/</code></td><td>Embassy Rust: USART2 (115200), gpio_read, gpio_write</td></tr>
 <tr><td>Serial peripheral</td><td><code>crates/zeroclaw-hardware/src/peripherals/serial.rs</code></td><td>JSON-over-serial protocol (same as Arduino/ESP32)</td></tr>
 <tr><td>Flash command</td><td><code>zeroclaw peripheral flash-nucleo</code></td><td>Builds firmware, flashes via probe-rs</td></tr>
 </tbody>
@@ -266,14 +346,22 @@ zeroclaw hardware discover
 </ol>
 <h3 id="12-flash-via-zeroclaw"><a class="header" href="#12-flash-via-zeroclaw">1.2 Flash via ZeroClaw</a></h3>
 <p>From the zeroclaw repo root:</p>
-<pre><code class="language-bash">zeroclaw peripheral flash-nucleo
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">zeroclaw peripheral flash-nucleo
 </code></pre>
+</div>
+
 <p>This builds <code>firmware/nucleo</code> and runs <code>probe-rs run --chip STM32F401RETx</code>. The firmware runs immediately after flashing.</p>
 <h3 id="13-manual-flash-alternative"><a class="header" href="#13-manual-flash-alternative">1.3 Manual Flash (Alternative)</a></h3>
-<pre><code class="language-bash">cd firmware/nucleo
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">cd firmware/nucleo
 cargo build --release --target thumbv7em-none-eabihf
 probe-rs run --chip STM32F401RETx target/thumbv7em-none-eabihf/release/nucleo
 </code></pre>
+</div>
+
 <hr>
 <h2 id="phase-2-find-serial-port"><a class="header" href="#phase-2-find-serial-port">Phase 2: Find Serial Port</a></h2>
 <ul>
@@ -283,14 +371,22 @@ probe-rs run --chip STM32F401RETx target/thumbv7em-none-eabihf/release/nucleo
 <p>USART2 (PA2/PA3) is bridged to the ST-Link’s virtual COM port, so the host sees one serial device.</p>
 <hr>
 <h2 id="phase-3-configure-zeroclaw"><a class="header" href="#phase-3-configure-zeroclaw">Phase 3: Configure ZeroClaw</a></h2>
-<p>Enable <code>[peripherals]</code> and add a <code>[[peripherals.boards]]</code> entry for the Nucleo (<code>board = "nucleo-f401re"</code>, <code>transport = "serial"</code>, <code>path = "/dev/cu.usbmodem101"</code> — adjust to your serial port). See the <a href="../reference/config.html">Config reference</a> for all fields.</p>
+<p>Enable <code>[peripherals]</code> and add a <code>[[peripherals.boards]]</code> entry for the Nucleo (<code>board = "nucleo-f401re"</code>, <code>transport = "serial"</code>, <code>path = "/dev/cu.usbmodem101"</code>, adjust to your serial port). See the <a href="../reference/config.html">Config reference</a> for all fields.</p>
 <hr>
 <h2 id="phase-4-run-and-test"><a class="header" href="#phase-4-run-and-test">Phase 4: Run and Test</a></h2>
-<pre><code class="language-bash">zeroclaw daemon --host 127.0.0.1 --port 42617
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon --host 127.0.0.1 --port 42617
 </code></pre>
+</div>
+
 <p>Or use the agent directly:</p>
-<pre><code class="language-bash">zeroclaw agent -a assistant --message "Turn on the LED on pin 13"
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">zeroclaw agent -a assistant --message "Turn on the LED on pin 13"
 </code></pre>
+</div>
+
 <p>Pin 13 = PA5 = User LED (LD2) on Nucleo-F401RE.</p>
 <hr>
 <h2 id="summary-commands"><a class="header" href="#summary-commands">Summary: Commands</a></h2>
@@ -311,11 +407,11 @@ probe-rs run --chip STM32F401RETx target/thumbv7em-none-eabihf/release/nucleo
 <hr>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <ul>
-<li><strong>flash-nucleo unrecognized</strong> — Build from repo: <code>cargo run --features hardware -- peripheral flash-nucleo</code>. The subcommand is only in the repo build, not in crates.io installs.</li>
-<li><strong>probe-rs not found</strong> — <code>cargo install probe-rs-tools --locked</code> (the <code>probe-rs</code> crate is a library; the CLI is in <code>probe-rs-tools</code>)</li>
-<li><strong>No probe detected</strong> — Ensure Nucleo is connected. Try another USB cable/port.</li>
-<li><strong>Serial port not found</strong> — On Linux, add user to <code>dialout</code>: <code>sudo usermod -a -G dialout $USER</code>, then log out/in.</li>
-<li><strong>GPIO commands ignored</strong> — Check <code>path</code> in config matches your serial port. Run <code>zeroclaw peripheral list</code> to verify.</li>
+<li><strong>flash-nucleo unrecognized</strong>: Build from repo: <code>cargo run --features hardware -- peripheral flash-nucleo</code>. The subcommand is only in the repo build, not in crates.io installs.</li>
+<li><strong>probe-rs not found</strong>: <code>cargo install probe-rs-tools --locked</code> (the <code>probe-rs</code> crate is a library; the CLI is in <code>probe-rs-tools</code>)</li>
+<li><strong>No probe detected</strong>: Ensure Nucleo is connected. Try another USB cable/port.</li>
+<li><strong>Serial port not found</strong>: On Linux, add user to <code>dialout</code>: <code>sudo usermod -a -G dialout $USER</code>, then log out/in.</li>
+<li><strong>GPIO commands ignored</strong>: Check <code>path</code> in config matches your serial port. Run <code>zeroclaw peripheral list</code> to verify.</li>
 </ul>
 
                     </main>

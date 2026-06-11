@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,20 +295,24 @@
                         <h1 id="语言和翻译"><a class="header" href="#语言和翻译">语言和翻译</a></h1>
 <p>ZeroClaw 的界面字符串（CLI 消息、命令帮助以及 <code>zerocode</code> TUI）可以使用英语以外的语言显示。英语始终内置，其他语言按需下载。</p>
 <h2 id="设置语言"><a class="header" href="#设置语言">设置语言</a></h2>
-<p>ZeroClaw 从你的配置中读取顶层的 <code>locale</code> 键。将其设置为区域设置代码，例如 <code>ja</code>、<code>fr</code> 或 <code>zh-CN</code>：</p>
-<pre><code class="language-toml"># ~/.zeroclaw/config.toml
-locale = "ja"
-</code></pre>
-<p>如果未设置 <code>locale</code>，ZeroClaw 将使用您操作系统的语言，并在没有可用翻译时回退到英语。</p>
+<p>ZeroClaw reads a top-level <code>locale</code> key from your config. Set it to a locale code such as <code>ja</code>, <code>fr</code>, or <code>zh-CN</code>. If <code>locale</code> is unset, ZeroClaw uses your operating system’s language and falls back to English when no translation is available.</p>
 <h2 id="获取你的语言文件"><a class="header" href="#获取你的语言文件">获取你的语言文件</a></h2>
 <p>英语已内置于二进制文件中。对于其他任何语言，您只需获取一次翻译文件：</p>
-<pre><code class="language-bash">zeroclaw locales fetch ja
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw locales fetch ja
 </code></pre>
+</div>
+
 <p>这将从 ZeroClaw 项目下载日语翻译文件，并将其安装到 <code>~/.zeroclaw/data/ftl/ja/</code> 目录下，ZeroClaw 会在启动时从该位置查找这些文件。安装完成后请重启 ZeroClaw（以及 <code>zerocode</code>）以使其生效。</p>
 <p>以相同方式获取任何语言区域：</p>
-<pre><code class="language-bash">zeroclaw locales fetch fr        # 法语
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">zeroclaw locales fetch fr        # 法语
 zeroclaw locales fetch zh-CN     # 简体中文
 </code></pre>
+</div>
+
 <h3 id="仅获取部分语言"><a class="header" href="#仅获取部分语言">仅获取部分语言</a></h3>
 <p>默认情况下，<code>fetch</code> 会下载该区域设置的所有目录。如需仅下载部分目录，请传入 <code>--catalog</code> 并附带以逗号分隔的列表：</p>
 <div class="table-wrapper">
@@ -247,10 +327,14 @@ zeroclaw locales fetch zh-CN     # 简体中文
 </tbody>
 </table>
 </div>
-<pre><code class="language-bash">zeroclaw locales fetch ja --catalog cli            # 仅 CLI 字符串
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">zeroclaw locales fetch ja --catalog cli            # 仅 CLI 字符串
 zeroclaw locales fetch ja --catalog cli,zerocode   # CLI + TUI
 </code></pre>
-<p>如果某个目录尚未翻译为你的语言，<code>fetch</code> 会跳过它并告知你——已存在的目录仍会被安装。</p>
+</div>
+
+<p>If a catalogue has not been translated for your language yet, <code>fetch</code> skips it and tells you: the catalogues that do exist are still installed.</p>
 <h2 id="文件存放位置"><a class="header" href="#文件存放位置">文件存放位置</a></h2>
 <div class="table-wrapper">
 <table>

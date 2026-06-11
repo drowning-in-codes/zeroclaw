@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,16 +292,15 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="el-marco-de-madurez-de-zeroclaw"><a class="header" href="#el-marco-de-madurez-de-zeroclaw">El Marco de Madurez de ZeroClaw</a></h1>
+                        <h1 id="el-zeroclaw-maturity-framework"><a class="header" href="#el-zeroclaw-maturity-framework">El ZeroClaw Maturity Framework</a></h1>
 <p><em>Una carta para quien encuentre esto.</em></p>
 <hr>
-<p>Si estás leyendo esto, has llegado a una carpeta que representa algo de lo que este equipo está genuinamente orgulloso — no porque los documentos aquí sean perfectos, sino porque son honestos.</p>
+<p>If you are reading this, you have found your way into a folder that represents something this team is genuinely proud of, not because the documents here are perfect, but because they are honest.</p>
 <p>ZeroClaw comenzó como algo accidental. Se desarrolló a partir de una base de código existente, moldeada por herramientas de IA que trabajaban más rápido de lo que cualquiera podía comprender completamente, y creció hasta convertirse en una base de código impresionante y funcional, pero con una arquitectura no planificada. Nadie eligió ese resultado. Se acumuló. La mayoría del software lo hace.</p>
-<p>Lo que ocurrió después es menos común. Un pequeño equipo —muchos de ellos estudiantes, ingenieros en etapas tempranas de su carrera y personas que aprenden en público por primera vez— decidió detenerse y observar con claridad lo que habían construido, y luego optó por construir de manera diferente. No descartando el trabajo previo, sino desarrollando una intención más clara alrededor de él. Estos documentos son el registro de esa decisión.</p>
-<p>La serie se llama Marco de Madurez porque eso es exactamente lo que es: un conjunto de documentos fundamentales que describen cómo este equipo piensa en construir software juntos. No son reglas a seguir, sino formas de pensar que deben internalizarse. No es un proceso a cumplir, sino un conjunto de modelos mentales que te acompañan — a través de cada idioma, cada herramienta, cada equipo al que te unirás — porque se trata de oficio, juicio y cuidado, no de ninguna tecnología específica.</p>
-<p>Estas fueron escritas para un equipo de personas con una amplia gama de experiencia. Algunas habían acumulado décadas de práctica profesional. Otras estaban escribiendo su primer código de producción. Todos trabajaban en un momento en que las herramientas de IA se estaban volviendo lo suficientemente potentes como para cambiar lo que era posible, y cuando la pregunta sobre cómo trabajar bien junto a esas herramientas seguía siendo completamente abierta. Fueron escritas por personas que creían que invertir en las personas era una mejor inversión que invertir en código, porque las personas llevan consigo lo que aprenden, mientras que el código no.</p>
+<p>What happened next is less common. A small team, many of them students, early-career engineers, and people learning in public for the first time, chose to stop and look clearly at what they had built, and then chose to build differently. Not by throwing away the work that came before, but by growing intention around it. These documents are the record of that choice.</p>
+<p>The series is called the Maturity Framework because that is exactly what it is: a set of foundational documents that describe how this team thinks about building software together. Not rules to follow, but thinking to internalize. Not a process to comply with, but a set of mental models that travel with you, through every language, every tool, every team you will ever join, because they are about craft and judgment and care, not about any specific technology.</p>
+<p>They were written for a team of people with a wide range of experience. Some brought decades of professional practice. Some were writing their first production code. All of them were working at a moment when AI tools were becoming powerful enough to change what was possible, and when the question of how to work well alongside those tools was genuinely open. They were written by people who believed that investing in people was a better investment than investing in code, because people carry what they learn forward, and code does not.</p>
 <hr>
-<h2 id="orden-de-lectura"><a class="header" href="#orden-de-lectura">Orden de lectura</a></h2>
 <p>Léelos en este orden si es posible. Cada documento se basa en los anteriores, y la secuencia cuenta una historia. Puedes entrar en cualquier punto y aprender algo útil, pero leerlos desde el principio te da la visión completa: desde la forma de la arquitectura, hasta cómo registramos, coordinamos, enviamos y colaboramos, hasta lo que significa escribir bien el código a nivel de oración.</p>
 <p>Si estás intentando decidir qué base aplica a un cambio específico, comienza con el <a href="../contributing/architecture-map.html">mapa de arquitectura y contribución</a>.</p>
 <div class="table-wrapper">
@@ -234,28 +309,26 @@
 <tr><th>#</th><th>Documento</th><th>Lo que responde</th><th>Hilo de discusión</th></tr>
 </thead>
 <tbody>
-<tr><td>1</td><td><a href="./fnd-001-intentional-architecture.html">Arquitectura Intencional — Transición a Microkernel</a></td><td>¿Qué estamos construyendo y qué forma debería tener?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5574">#5574</a></td></tr>
+<tr><td>1</td><td><a href="./fnd-001-intentional-architecture.html">Intentional Architecture: Microkernel Transition</a></td><td>¿Qué estamos construyendo y qué forma debería tener?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5574">#5574</a></td></tr>
 <tr><td>2</td><td><a href="./fnd-002-documentation-standards.html">Estándares de Documentación y Arquitectura del Conocimiento</a></td><td>¿Cómo registramos y transferimos lo que sabemos?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5576">#5576</a></td></tr>
 <tr><td>3</td><td><a href="./fnd-003-governance.html">Organización del equipo y gobernanza del proyecto</a></td><td>¿Cómo coordinamos y tomamos decisiones juntos?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5577">#5577</a></td></tr>
-<tr><td>4</td><td><a href="./fnd-004-engineering-infrastructure.html">Infraestructura de Ingeniería — Pipeline de CI/CD</a></td><td>¿Cómo construimos, probamos y desplegamos de manera confiable?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5579">#5579</a></td></tr>
-<tr><td>5</td><td><a href="./fnd-005-contribution-culture.html">Cultura de Contribución — Colaboración Humana y Alianza con IA</a></td><td>¿Cómo trabajamos juntos y crecemos?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5615">#5615</a></td></tr>
-<tr><td>6</td><td><a href="./fnd-006-zero-compromise-in-practice.html">Cero Compromiso en la Práctica — Salud del Código, Disciplina de Errores y el Estándar de Preparación para Producción</a></td><td>¿Cómo escribimos código que perdure?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5653">#5653</a></td></tr>
+<tr><td>4</td><td><a href="./fnd-004-engineering-infrastructure.html">Engineering Infrastructure: CI/CD Pipeline</a></td><td>¿Cómo construimos, probamos y desplegamos de manera confiable?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5579">#5579</a></td></tr>
+<tr><td>5</td><td><a href="./fnd-005-contribution-culture.html">Contribution Culture: Human Collaboration and AI Partnership</a></td><td>¿Cómo trabajamos juntos y crecemos?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5615">#5615</a></td></tr>
+<tr><td>6</td><td><a href="./fnd-006-zero-compromise-in-practice.html">Zero Compromise in Practice: Code Health, Error Discipline, and the Production Readiness Standard</a></td><td>¿Cómo escribimos código que perdure?</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5653">#5653</a></td></tr>
 </tbody>
 </table>
 </div>
-<p>Los primeros cinco documentos responden a preguntas estructurales y humanas. El sexto responde a la pregunta que subyace en todas ellas: dada la estructura, dado el equipo, dados las herramientas, ¿qué significa escribir el código de manera adecuada?</p>
+<p>The first five documents answer structural and human questions. The sixth answers the question that sits inside all of them: given the structure, given the team, given the tools: what does it mean to write the code well?</p>
 <hr>
-<h2 id="cómo-llegaron-estos-documentos-aquí"><a class="header" href="#cómo-llegaron-estos-documentos-aquí">Cómo llegaron estos documentos aquí</a></h2>
-<p>Cada documento de esta serie comenzó como un problema de GitHub — una RFC, abierta a la discusión, el desafío y el refinamiento por parte de todo el equipo. Los hilos de discusión vinculados arriba son el registro vivo de ese proceso: las preguntas planteadas, la oposición ofrecida y el pensamiento que dio forma a la versión final.</p>
-<p>Los archivos de esta carpeta son las versiones ratificadas: documentos que el equipo discutió, respaldó y eligió como referencias canónicas. Se encuentran en este repositorio, versionados junto con el código, porque el pensamiento que representan influye en cada decisión tomada dentro de él. Un asistente de IA que lea esta base de código, un nuevo colaborador que esté aprendiendo a desenvolverse o un mantenedor que revise una decisión tomada hace dos años deberían poder trazar una línea desde el código hasta el razonamiento que lo moldeó.</p>
-<p>Los issues de GitHub permanecen abiertos como registros de discusión permanentes. Si tienes una pregunta, un desacuerdo o una perspectiva que estos documentos no capturan, el lugar adecuado para ello es uno de esos hilos — o, si estás leyendo esto mucho después de que esas conversaciones hayan cerrado, una nueva discusión en la comunidad. Estos documentos son referencias, no veredictos. La conversación que iniciaron está destinada a continuar.</p>
+<p>Each document in this series began as a GitHub issue, an RFC, open for discussion, challenge, and refinement by the whole team. The linked discussion threads above are the living record of that process: the questions asked, the pushback offered, and the thinking that shaped the final form.</p>
+<p>The files in this folder are the ratified versions, documents the team discussed, stood behind, and chose to carry forward as canonical references. They live in this repository, versioned alongside the code, because the thinking they represent influences every decision made within it. An AI assistant reading this codebase, a new contributor finding their footing, or a maintainer revisiting a decision made two years ago should all be able to trace a line from the code back to the reasoning that shaped it.</p>
+<p>The GitHub issues remain open as permanent discussion records. If you have a question, a disagreement, or a perspective these documents do not capture, the right place for it is one of those threads, or, if you are reading this long after those conversations closed, a new discussion in the community. These documents are references, not verdicts. The conversation they started is meant to continue.</p>
 <hr>
-<h2 id="una-nota-para-los-futuros-colaboradores"><a class="header" href="#una-nota-para-los-futuros-colaboradores">Una nota para los futuros colaboradores</a></h2>
 <p>Es posible que te unas a este proyecto años después de que se escribieron. Las herramientas habrán cambiado. La base de código se verá diferente. Algunas de las cosas descritas aquí habrán sido superadas, refinadas o reemplazadas por documentos posteriores.</p>
-<p>El juicio que estos documentos intentan desarrollar en ti no ha cambiado y no cambiará. Las preguntas que plantean —qué debe ocurrir cuando esto falla, qué promete esta interfaz, qué demuestra realmente mi prueba, qué necesitaría saber la persona que herede este problema— no son preguntas de Rust ni de software. Son preguntas sobre cómo construir cosas en las que otras personas puedan confiar. Esas preguntas son las mismas en cada lenguaje, cada sistema y cada disciplina en la que trabajarás. Se acumulan silenciosamente, en segundo plano, mientras practiques hacerlas.</p>
+<p>The judgment these documents are trying to develop in you has not changed, and will not. The questions they are asking: what should happen when this fails, what does this interface promise, what does my test actually prove, what would the person who inherits this problem need to know, are not Rust questions or software questions. They are questions about how to build things that other people can trust. Those questions are the same in every language, every system, and every discipline you will ever work in. They compound quietly, in the background, for as long as you practice asking them.</p>
 <p>Esa es la inversión que esta serie está haciendo en ti. Bienvenido al equipo.</p>
 <hr>
-<p><em>El Marco de Madurez de ZeroClaw es un cuerpo de trabajo en constante evolución. Se agregan nuevos documentos cuando el equipo ha aprendido algo que vale la pena preservar. Cada uno comienza como una discusión pública de RFC y gana su lugar aquí a través del mismo proceso que los seis anteriores: conversación abierta, desacuerdo honesto y la decisión colectiva del equipo de llevarlo adelante.</em></p>
+<p><em>El ZeroClaw Maturity Framework es un cuerpo de trabajo en constante evolución. Se agregan nuevos documentos cuando el equipo ha aprendido algo que vale la pena preservar. Cada uno comienza como una discusión pública de RFC y gana su lugar aquí a través del mismo proceso que los seis anteriores: conversación abierta, desacuerdo honesto y la decisión colectiva del equipo de llevarlo adelante.</em></p>
 
                     </main>
 

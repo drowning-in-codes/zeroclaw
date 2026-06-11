@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="プライバシーとpiiの規律"><a class="header" href="#プライバシーとpiiの規律">プライバシーとPIIの規律</a></h1>
-<p>ZeroClaw のアーティファクトは公開されています — git の履歴、リリース、フィクスチャ、スナップショット、ドキュメントブック、レンダリングされたすべてのローカライズ版など。コミットしたものはすべてプロジェクトに永久に付属します。プライバシーはベストエフォートではなく、マージゲートとして扱ってください。</p>
+<p>ZeroClaw artifacts are public, git history, releases, fixtures, snapshots, the docs book, every rendered locale. Anything you commit ships with the project forever. Treat privacy as a merge gate, not best-effort.</p>
 <h2 id="これらをコミットしないでください"><a class="header" href="#これらをコミットしないでください">これらをコミットしないでください</a></h2>
 <p>コード、ドキュメント、テスト、フィクスチャ、スナップショット、ログ、例、エラーメッセージ、コミットメッセージ内では:</p>
 <ul>
@@ -245,16 +321,20 @@
 </tbody>
 </table>
 </div>
-<p>テスト名、アサーションメッセージ、フィクスチャの内容は、一人称の表現や特定のアイデンティティに焦点を当てた表現を避け、客観的でシステム中心の記述を維持してください。</p>
+<p>Test names, assertion messages, and fixture content stay impersonal and system-focused: avoid first-person language and identity-specific framing.</p>
 <h2 id="アイデンティティを参照する必要がある場合"><a class="header" href="#アイデンティティを参照する必要がある場合">アイデンティティを参照する必要がある場合</a></h2>
-<p>テストやドキュメントで本当にロールに準拠した識別子が必要な場合は、<code>ZeroClawAgent</code>、<code>ZeroClawOperator</code>、<code>ZeroClawMaintainer</code> のように ZeroClaw スコープのロールのみを使用してください。実在する名前（仮名であっても）を借用しないでください。仮名も時間が経つと実在する名前とみなされる可能性があります。</p>
-<p>GitHub の PR/issue のコメントにおける <code>@</code>-メンションは異なります — 貢献者のハンドル名で呼びかけることは GitHub で人々と会話する方法であり、<code>@WareWolf-MoonWall</code> はプライバシー違反ではありません。このルールは、PR/issue スレッドでの会話ではなく、<strong>リポジトリに保存されているコンテンツ</strong>（コード、テスト、フィクスチャ、ドキュメント）に関するものです。</p>
+<p>If a test or doc genuinely needs a role-shaped identity, use ZeroClaw-scoped roles only: <code>ZeroClawAgent</code>, <code>ZeroClawOperator</code>, <code>ZeroClawMaintainer</code>. Don’t borrow real names, even pseudonyms: pseudonyms drift back into being real over time.</p>
+<p>GitHub <code>@</code>-mentions in PR/issue comments are different: addressing a contributor by their handle is how you talk to people on GitHub, and <code>@WareWolf-MoonWall</code> is not a privacy violation. The rule is about <strong>content stored in the repo</strong> (code, tests, fixtures, docs), not about conversation in PR/issue threads.</p>
 <h2 id="外部インシデントの再現"><a class="header" href="#外部インシデントの再現">外部インシデントの再現</a></h2>
 <p>テストフィクスチャでインシデントのトレース、ログペイロード、または外部のレスポンスをキャプチャする場合は、コミットする前に機密情報を削除し、匿名化してください。実際のセッション ID、実際のユーザー ID、実際のホスト名、および実際の認証トークンは、すべてスクラビング処理を通過させる必要があります。コミットされるのは機密情報を削除したバージョンであり、元のデータは git に含めないようにしてください。</p>
 <h2 id="プッシュ前のチェックリスト"><a class="header" href="#プッシュ前のチェックリスト">プッシュ前のチェックリスト</a></h2>
 <p>プッシュする前に、ステージされた差分をスキャンして、アイデンティティの漏洩がないか確認してください：</p>
-<pre><code class="language-bash">git diff --cached
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">git diff --cached
 </code></pre>
+</div>
+
 <p>確認する形状：</p>
 <ul>
 <li>メールアドレスのように見えるもの</li>
@@ -262,9 +342,9 @@
 <li>トークンかもしれない長いランダムな文字列</li>
 <li>プロジェクトスコープのプレースホルダー由来ではなく、あなた自身の名前でもない名前</li>
 </ul>
-<p>CIの実行で実際の値（スナップショット内の実際のセッションID、識別情報を含む実際のユーザーエージェント文字列など）がキャプチャされ、コミットされた場合、それはプライバシーインシデントです。問題をオープンし、スクラブし、直近にコミットされた場合は強制プッシュし、<code>master</code> ブランチにコミットされた場合はメンテナーに連絡してください。</p>
+<p>If a CI run captured a real value (a real session ID in a snapshot, a real user agent string with identifying info, etc.) and got committed, it’s a privacy incident: open an issue, scrub, force-push if it just landed, and contact the maintainers if it landed on <code>master</code>.</p>
 <h2 id="なぜこれが厳格なのか"><a class="header" href="#なぜこれが厳格なのか">なぜこれが厳格なのか</a></h2>
-<p>最後のカテゴリ — 実名を誤ってコミットしてしまう — は元に戻すのが難しいです。実名やメールアドレスが <code>master</code> にコミットされると、フォーク、ミラー、クローンに即座に伝播します。squash や force-push は公開ブランチは修正できますが、コピーには届きません。最もコストの低い対策は pre-commit スキャンです。それ以降の対策はすべて被害軽減に過ぎません。</p>
+<p>The last category, accidentally committing a real identity, is hard to undo. Once a real name or email lands on <code>master</code> it propagates through forks, mirrors, and clones immediately. Squashing or force-pushing fixes the public branch but doesn’t reach the copies. The cheapest fix is the pre-commit scan; everything after that is harm reduction.</p>
 
                     </main>
 

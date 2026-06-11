@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,24 +295,24 @@
                         <h1 id="通信"><a class="header" href="#通信">通信</a></h1>
 <p>在哪里提问、提交错误报告、提议功能，以及如何联系团队。</p>
 <p><strong>如果您只是想与我们交流，请使用 Discord。</strong> 对于需要持久记录的内容（如 bug、功能请求、设计讨论、RFC），请使用 GitHub。</p>
-<h2 id="discord--联系团队的最佳场所"><a class="header" href="#discord--联系团队的最佳场所">Discord — 联系团队的最佳场所</a></h2>
+<h2 id="discord-best-place-to-reach-the-team"><a class="header" href="#discord-best-place-to-reach-the-team">Discord: best place to reach the team</a></h2>
 <p>实时聊天。这是维护者日常交流的地方；获得人工回复的最快途径。</p>
 <p>频道：</p>
 <ul>
-<li><code>#general</code> — 默认房间</li>
-<li><code>#help</code> — “我无法让 X 正常工作”的帖子；快速解决问题的最快方式</li>
-<li><code>#dev</code> — 进行中的开发讨论</li>
-<li><code>#releases</code> — 公告、发行说明、破坏性变更预警告</li>
+<li><code>#general</code>: the default room</li>
+<li><code>#help</code>: “I can’t get X working” threads; the fastest way to unblock</li>
+<li><code>#dev</code>: in-flight development discussion</li>
+<li><code>#releases</code>: announcements, release notes, breaking-change pre-warnings</li>
 </ul>
 <p><a href="https://github.com/zeroclaw-labs/zeroclaw">仓库 README 中的邀请链接。</a></p>
-<p><strong>Discord 是临时的</strong> —— 如果对话中发现了 bug 或提出了功能建议，请随后将其记录为 GitHub Issue，以确保信息得以持久保存。Discord 用于交流，GitHub 用于留存记录。</p>
+<p><strong>Discord is ephemeral</strong>: if the conversation leads to a bug or a feature idea, capture it as a GitHub issue afterwards so the record persists. Discord is for conversation; GitHub is for memory.</p>
 <p>当 Discord 产生项目必须记录的内容时，使用 GitHub 进行交接。当讨论串产生可复现的 bug、具体的功能范围、架构或治理决策、维护者承诺、负责人分配、里程碑决策、阻塞项、临时解决方案、验证证据、发布影响说明或过期豁免原因时，创建或更新 issue、discussion、PR 评论或维护者文档。交接内容只需包含决策、证据、负责人（如有），以及足够的上下文，使另一位维护者无需重读聊天记录即可继续工作。</p>
 <h2 id="github-问题"><a class="header" href="#github-问题">GitHub 问题</a></h2>
 <p>用于跟踪错误、功能请求以及任何需要记录的事项。</p>
 <ul>
-<li><strong>错误报告</strong> — 使用错误模板（<code>.github/ISSUE_TEMPLATE/bug_report.yml</code>）。请包含 <code>zeroclaw --version</code>、操作系统信息以及 <code>zeroclaw doctor</code> 的输出结果。</li>
-<li><strong>功能请求</strong> — 请使用功能模板（<code>.github/ISSUE_TEMPLATE/feature_request.yml</code>）。重点关注用户价值和约束条件；实现细节留给 RFC 或 PR 讨论。</li>
-<li><strong>RFC</strong> — 请参阅 <a href="./rfcs.html">RFC 流程</a>。</li>
+<li><strong>Bug reports</strong>: use the bug template (<code>.github/ISSUE_TEMPLATE/bug_report.yml</code>). Include <code>zeroclaw --version</code>, OS, and the output of <code>zeroclaw doctor</code>.</li>
+<li><strong>Feature requests</strong>: use the feature template (<code>.github/ISSUE_TEMPLATE/feature_request.yml</code>). Focus on user value and constraints; implementation details are for RFCs or PR discussion.</li>
+<li><strong>RFCs</strong>: see <a href="./rfcs.html">RFC process</a>.</li>
 </ul>
 <p>在提交之前请先搜索。重复的问题会被合并；搜索框是你的好帮手。</p>
 <h2 id="github-讨论"><a class="header" href="#github-讨论">GitHub 讨论</a></h2>
@@ -259,17 +335,17 @@
 </tbody>
 </table>
 </div>
-<p>谨慎使用 <code>@</code>-mention —— 仅在问题确实需要维护者关注时才 CC 维护者。默认情况下，让团队进行分诊。</p>
+<p><code>@</code>-mention sparingly, CC maintainers only when the issue genuinely needs their attention. Default to letting the team triage.</p>
 <h2 id="安全问题"><a class="header" href="#安全问题">安全问题</a></h2>
 <p>请勿为安全漏洞提交公开问题。</p>
-<p>电子邮件：<code>security@zeroclaw.dev</code></p>
+<p>Report privately through GitHub’s <a href="https://github.com/zeroclaw-labs/zeroclaw/security/advisories/new">private vulnerability reporting</a> (Security Advisories).</p>
 <p>包含：</p>
 <ul>
 <li>受影响的版本</li>
 <li>复现（请提供最小示例）</li>
 <li>影响评估</li>
 </ul>
-<p>我们承诺在 48 小时内确认收到报告，并在 14 天内发布补丁和安全公告，以处理严重问题。我们感谢协调披露。</p>
+<p>We aim to acknowledge within 48 hours, assess within 1 week, and ship a fix within 2 weeks for critical issues. Coordinated disclosure is appreciated.</p>
 <p>有关完整策略，请参阅仓库根目录下的 <code>SECURITY.md</code>。</p>
 <h2 id="发布说明"><a class="header" href="#发布说明">发布说明</a></h2>
 <p>订阅 GitHub 版本更新源，以便在新版本发布时收到通知：</p>
@@ -280,14 +356,14 @@
 <h2 id="商业支持"><a class="header" href="#商业支持">商业支持</a></h2>
 <p>未提供。ZeroClaw 由社区维护。如果您需要大规模部署并希望获得 SLA 支持，可以直接赞助维护者，或通过核心团队资助专门的支援方案。请通过 <code>hello@zeroclaw.dev</code> 联系我们。</p>
 <h2 id="反馈"><a class="header" href="#反馈">反馈</a></h2>
-<p>开放式反馈——比如“我尝试做 X，但感觉不太对”、UX 观察、方向性思考——最适合以 Discord <code>#general</code> 或 <code>#dev</code> 频道中的讨论串形式呈现。团队更有可能在那里看到并讨论这些内容。如果讨论串演变为具体的内容，请将其移至 GitHub Discussion 或 issue。</p>
+<p>Open-ended feedback, “I tried to do X and it felt wrong”, UX observations, direction thoughts, lands best as a thread in Discord <code>#general</code> or <code>#dev</code>. The team is more likely to see and discuss it there. If the thread turns into something concrete, move it to a GitHub Discussion or issue.</p>
 <h2 id="贡献者认可"><a class="header" href="#贡献者认可">贡献者认可</a></h2>
-<p>所有合并了 PR 的人都会出现在仓库的贡献者列表中。对于重要的贡献——新功能、RFC、重大 bug 修复——你的用户名会出现在发布说明中。</p>
+<p>Everyone who’s had a PR merged appears in the contributors list on the repo. For substantial contributions, features, RFCs, significant bug fixes, your handle shows up in the release notes.</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
 <li><a href="./how-to.html">如何贡献</a></li>
 <li><a href="./rfcs.html">RFC 流程</a></li>
-<li><a href="../philosophy.html">哲学</a> — 项目试图成为的样子，以便你了解其范围</li>
+<li><a href="../philosophy/index.html">Philosophy</a>: what the project is trying to be, so you know what’s in scope</li>
 </ul>
 
                     </main>

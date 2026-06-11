@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -546,7 +622,7 @@
 <p>Muestra el código de emparejamiento para conectar nuevos clientes sin reiniciar la puerta de enlace. Requiere que la puerta de enlace esté en ejecución.</p>
 <p>With –new, generates a fresh pairing code even if the gateway was previously paired (useful for adding additional clients). This does NOT revoke existing tokens.</p>
 <p>With –rotate, revokes ALL paired bearer tokens, clears the device registry, and issues a fresh code. Use this after a suspected token leak when you do not know which token was compromised; every client must re-pair.</p>
-<p>With –rotate-device <id>, revokes just that device’s bearer token and issues a fresh code for re-pairing that one device.</id></p>
+<p>With –rotate-device ID, revokes just that device’s bearer token and issues a fresh code for re-pairing that one device.</p>
 <p>Examples: zeroclaw gateway get-paircode               # show current pairing code zeroclaw gateway get-paircode –new         # add another client (no revocation) zeroclaw gateway get-paircode –rotate      # revoke ALL tokens, then issue a code zeroclaw gateway get-paircode –rotate-device dash-1  # revoke one device’s token zeroclaw gateway get-paircode –new –port 3001 # target alternate-port gateway</p>
 <p><strong>Uso:</strong> <code>zeroclaw gateway get-paircode [OPTIONS]</code></p>
 <p><strong>Opciones:</strong></p>
@@ -1398,7 +1474,7 @@
 <li><code>get</code> — Obtener el valor de una propiedad de configuración</li>
 <li><code>set</code> — Establece una propiedad de configuración (los campos secretos solicitan automáticamente una entrada enmascarada)</li>
 <li><code>init</code> — Inicializa las secciones no configuradas con los valores predeterminados (enabled=false)</li>
-<li><code>migrate</code> — Migrar config.toml a la versión actual del esquema en disco (conserva los comentarios)</li>
+<li><code>migrate</code> — Migrate the on-disk config to the current schema version (preserves comments)</li>
 <li><code>patch</code> — Aplica un documento JSON Patch (RFC 6902) de forma atómica. Refleja <code>PATCH /api/config</code></li>
 <li><code>docs</code> — Muestra la URL del explorador de API (más una sugerencia si el daemon no se está ejecutando)</li>
 <li><code>generate</code> — Genera una configuración canónica en cualquier versión de esquema compatible en stdout</li>
@@ -1455,7 +1531,7 @@
 <li><code>--json</code> — Emite un envoltorio JSON estructurado ({initialized: […]}) en lugar de texto sin formato</li>
 </ul>
 <h2 id="zeroclaw-config-migrate"><a class="header" href="#zeroclaw-config-migrate"><code>zeroclaw config migrate</code></a></h2>
-<p>Migrar config.toml a la versión actual del esquema en disco (conserva los comentarios)</p>
+<p>Migrate the on-disk config to the current schema version (preserves comments)</p>
 <p><strong>Uso:</strong> <code>zeroclaw config migrate [OPTIONS]</code></p>
 <p><strong>Opciones:</strong></p>
 <ul>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,16 +292,16 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-002-intentional-documentation--standards-structure-and-i18n-strategy"><a class="header" href="#fnd-002-intentional-documentation--standards-structure-and-i18n-strategy">FND-002: Intentional Documentation — Standards, Structure, and i18n Strategy</a></h1>
-<h3 id="starting-v070--type-documentation--rev-1"><a class="header" href="#starting-v070--type-documentation--rev-1">Starting v0.7.0 · Type: Documentation · Rev. 1</a></h3>
+                        <h1 id="fnd-002-intentional-documentation-standards-structure-and-i18n-strategy"><a class="header" href="#fnd-002-intentional-documentation-standards-structure-and-i18n-strategy">FND-002: Intentional Documentation: Standards, Structure, and i18n Strategy</a></h1>
 <blockquote>
+<p>Starting v0.7.0 · Type: Documentation · Rev. 1</p>
 <p><strong>Canonical reference</strong> · Ratified by the team · Rev. 1
 Discussion thread and full revision history: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5576">#5576</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>A note to the team before you read this.</strong></p>
-<p>Documentation is not what you write after the code is done. It is a product surface in its own right — the interface between the project and every person who will ever contribute to it, use it, or build on it. A codebase with no documentation forces every new person to rediscover everything from scratch. A codebase with bad documentation is often worse, because it gives people false confidence. This RFC proposes treating documentation with the same intentionality we are applying to the architecture: Vision first, then structure, then content.</p>
+<p>Documentation is not what you write after the code is done. It is a product surface in its own right, the interface between the project and every person who will ever contribute to it, use it, or build on it. A codebase with no documentation forces every new person to rediscover everything from scratch. A codebase with bad documentation is often worse, because it gives people false confidence. This RFC proposes treating documentation with the same intentionality we are applying to the architecture: Vision first, then structure, then content.</p>
 </blockquote>
 <hr>
 <h2 id="table-of-contents"><a class="header" href="#table-of-contents">Table of Contents</a></h2>
@@ -247,7 +323,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <p>Documentation problems almost always come from skipping a question that should have been asked before writing the first sentence: <strong>what kind of document is this, and who is it for?</strong></p>
 <p>Without an answer to that question, documentation accumulates as a pile of pages that are all slightly different shapes of the same vague category: “stuff about the project.” Setup guides live next to architecture decisions. User-facing how-tos sit alongside internal coding standards. Thirty language translations of the README compete for space with the single security policy document. Nobody can find anything, everything goes stale at a different rate, and every PR that touches documentation becomes a negotiation about which pages need updating.</p>
 <p>The fix is not to write more documentation. The fix is to decide, before writing anything, what type of artifact you are creating. Type determines format, audience, location, lifecycle, and who is responsible for keeping it current. Once type is established, the rest follows naturally.</p>
-<p>This RFC adopts the <strong>EA Artifacts on a Page</strong> framework by Svyatoslav Kotusev (https://eaonapage.com) as the classification lens for all ZeroClaw documentation. The framework is evidence-based, deliberately non-prescriptive, and maps directly onto the kinds of documents an open source infrastructure project actually needs.</p>
+<p>This RFC adopts the <strong>EA Artifacts on a Page</strong> framework by Svyatoslav Kotusev (<a href="https://eaonapage.com">https://eaonapage.com</a>) as the classification lens for all ZeroClaw documentation. The framework is evidence-based, deliberately non-prescriptive, and maps directly onto the kinds of documents an open source infrastructure project actually needs.</p>
 <p>The core principle, borrowed from the broader development philosophy this team is adopting:</p>
 <blockquote>
 <p><strong>Documents, like code, should trace a line upward through Vision → Architecture → Design → Implementation. If you cannot name the artifact type and its audience before writing, you are not ready to write.</strong></p>
@@ -284,7 +360,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 </ul>
 <p>All three live in <code>docs/</code> with no structural distinction between them. The result is a flat pile with a hand-maintained <code>SUMMARY.md</code> that someone has to update every time anything changes.</p>
 <h3 id="23-the-adr-gap"><a class="header" href="#23-the-adr-gap">2.3 The ADR Gap</a></h3>
-<p>The project has exactly one Architecture Decision Record: <code>ADR-004-tool-shared-state-ownership.md</code>. It is excellent — well-structured, code-referenced, specific. But the project has made at least five or six architectural decisions of equal or greater consequence that have never been recorded:</p>
+<p>The project has exactly one Architecture Decision Record: <code>ADR-004-tool-shared-state-ownership.md</code>. It is excellent: well-structured, code-referenced, specific. But the project has made at least five or six architectural decisions of equal or greater consequence that have never been recorded:</p>
 <ul>
 <li>The choice of Rust over TypeScript</li>
 <li>The trait-driven extensibility model</li>
@@ -294,7 +370,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 </ul>
 <p>Without these records, every new contributor must rediscover the reasoning through code archaeology. Every AI coding assistant that reads the codebase gets the <em>what</em> but not the <em>why</em>. This is one of the most expensive forms of undocumented technical debt.</p>
 <h3 id="24-what-is-already-good"><a class="header" href="#24-what-is-already-good">2.4 What Is Already Good</a></h3>
-<p>The <code>docs-contract.md</code> concept — treating documentation as a governed product surface — is the right instinct. It just needs the right rules. The <code>AGENTS.md</code> at the root is excellent and sets the right precedent for AI-assisted development. ADR-004 proves the team can write high-quality architectural records.</p>
+<p>The <code>docs-contract.md</code> concept, treating documentation as a governed product surface, is the right instinct. It just needs the right rules. The <code>AGENTS.md</code> at the root is excellent and sets the right precedent for AI-assisted development. ADR-004 proves the team can write high-quality architectural records.</p>
 <hr>
 <h2 id="3-a-classification-framework-ea-artifacts-on-a-page"><a class="header" href="#3-a-classification-framework-ea-artifacts-on-a-page">3. A Classification Framework: EA Artifacts on a Page</a></h2>
 <p>The <strong>EA Artifacts on a Page</strong> framework defines five families of architecture artifacts. Every document in the ZeroClaw repository should belong to one of these families, and that family determines everything about where it lives, how it is formatted, and when it becomes stale.</p>
@@ -324,7 +400,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <h2 id="4-the-i18n-problem"><a class="header" href="#4-the-i18n-problem">4. The i18n Problem</a></h2>
 <h3 id="41-the-argument-for-removal"><a class="header" href="#41-the-argument-for-removal">4.1 The Argument for Removal</a></h3>
 <p>The case for removing all non-English content from the repository rests on four pillars:</p>
-<p><strong>1. The audience has on-demand translation.</strong> ZeroClaw’s primary users are people running an AI assistant. Every such person has access to instant, high-quality machine translation — either through the agent they are running, through their browser, or through any of dozens of free translation services. The practical benefit of shipping translations in the repository is marginal.</p>
+<p><strong>1. The audience has on-demand translation.</strong> ZeroClaw’s primary users are people running an AI assistant. Every such person has access to instant, high-quality machine translation, either through the agent they are running, through their browser, or through any of dozens of free translation services. The practical benefit of shipping translations in the repository is marginal.</p>
 <p><strong>2. The translations are almost certainly stale.</strong> Machine-translated content was likely generated once and has not been kept synchronised with the English source. Stale documentation is worse than no documentation for AI-assisted development, because language models will confidently derive incorrect conclusions from outdated information.</p>
 <p><strong>3. The contributor tax is real and measurable.</strong> The <code>docs-contract.md</code> parity requirement means every documentation PR must touch up to six language versions. This makes documentation contributions expensive and discourages exactly the kind of small, incremental improvements (fixing a typo, clarifying a step, updating a stale reference) that keep documentation healthy.</p>
 <p><strong>4. Localization is community work, not core project work.</strong> The communities best positioned to maintain Japanese documentation are Japanese-speaking contributors. Putting localized content in the main repository with a parity requirement places the burden on the core maintainers instead of the communities who benefit. The GitHub Wiki inverts this correctly: community members can edit and maintain their language’s pages without opening PRs.</p>
@@ -351,7 +427,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <p><strong>Create</strong> a <code>Translations</code> page on the GitHub Wiki with a table of available languages, their completeness, and the contributors maintaining them</p>
 </li>
 <li>
-<p><strong>Optionally:</strong> add a <code>zeroclaw docs --translate</code> CLI feature that uses the configured LLM provider to translate any doc page on demand — a natural fit for a product whose entire purpose is AI assistance</p>
+<p><strong>Optionally:</strong> add a <code>zeroclaw docs --translate</code> CLI feature that uses the configured LLM provider to translate any doc page on demand, a natural fit for a product whose entire purpose is AI assistance</p>
 </li>
 </ol>
 <h3 id="44-the-agentsmd-impact"><a class="header" href="#44-the-agentsmd-impact">4.4 The AGENTS.md Impact</a></h3>
@@ -364,7 +440,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 </blockquote>
 <p>This is not a fuzzy rule. Apply it literally.</p>
 <p>An ADR records why a specific architectural decision was made at a specific point in time. If the code changes, the ADR still accurately describes what was decided and when. The code may have evolved away from it, but the record remains accurate. → <strong>Repository.</strong></p>
-<p>A setup guide for configuring the Telegram channel describes steps a user takes against the current version of the software. If the configuration format changes, the guide becomes wrong. → <strong>This sounds like it should be in the repo — but it shouldn’t.</strong> Setup guides should update on their own timeline, not be coupled to code commits. The right model is: the API reference (which maps directly to configuration structs) lives in the repo, and the setup guide that walks a user through using that API lives on the Wiki, updated by anyone when the steps change.</p>
+<p>A setup guide for configuring the Telegram channel describes steps a user takes against the current version of the software. If the configuration format changes, the guide becomes wrong. → <strong>This sounds like it should be in the repo, but it shouldn’t.</strong> Setup guides should update on their own timeline, not be coupled to code commits. The right model is: the API reference (which maps directly to configuration structs) lives in the repo, and the setup guide that walks a user through using that API lives on the Wiki, updated by anyone when the steps change.</p>
 <h3 id="52-the-split-in-practice"><a class="header" href="#52-the-split-in-practice">5.2 The Split in Practice</a></h3>
 <p><strong>Stays in the repository (<code>docs/book/src/</code>):</strong></p>
 <div class="table-wrapper">
@@ -456,7 +532,7 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <hr>
 <h2 id="6-adr-standards"><a class="header" href="#6-adr-standards">6. ADR Standards</a></h2>
 <h3 id="61-the-format"><a class="header" href="#61-the-format">6.1 The Format</a></h3>
-<p>All Architecture Decision Records use the <strong>Nygard format</strong>, extended with YAML frontmatter for machine readability. ADR-004 is the existing model — this section formalizes it.</p>
+<p>All Architecture Decision Records use the <strong>Nygard format</strong>, extended with YAML frontmatter for machine readability. ADR-004 is the existing model. This section formalizes it.</p>
 <p>Every ADR has three sections and five frontmatter fields:</p>
 <pre><code>---
 id: ADR-NNN
@@ -525,7 +601,7 @@ Links to the relevant code files, issues, and external resources.
 <h2 id="7-agentsmd-as-the-ai-development-layer"><a class="header" href="#7-agentsmd-as-the-ai-development-layer">7. AGENTS.md as the AI Development Layer</a></h2>
 <h3 id="71-the-pattern"><a class="header" href="#71-the-pattern">7.1 The Pattern</a></h3>
 <p>The root <code>AGENTS.md</code> is the project’s strongest existing contribution to AI-assisted development. It tells AI coding assistants the commands to run, the architecture to respect, the risk tiers to apply, and the anti-patterns to avoid. It works because it is specific, opinionated, and short.</p>
-<p>As the workspace decomposes into crates (per the microkernel architecture RFC), each crate should have its own <code>AGENTS.md</code>. This is the mechanism by which architectural boundaries become enforceable at the AI-assistance layer — not just at compile time through crate dependencies, but at the reasoning layer before any code is written.</p>
+<p>As the workspace decomposes into crates (per the microkernel architecture RFC), each crate should have its own <code>AGENTS.md</code>. This is the mechanism by which architectural boundaries become enforceable at the AI-assistance layer, not just at compile time through crate dependencies, but at the reasoning layer before any code is written.</p>
 <h3 id="72-what-each-crate-agentsmd-contains"><a class="header" href="#72-what-each-crate-agentsmd-contains">7.2 What Each Crate AGENTS.md Contains</a></h3>
 <p>Keep them short. An <code>AGENTS.md</code> that is longer than 60 lines will not be read. Each file answers five questions:</p>
 <pre><code class="language-markdown"># &lt;crate-name&gt;
@@ -710,7 +786,7 @@ Cargo.lock
 <hr>
 <h2 id="9-the-replacement-docs-contract"><a class="header" href="#9-the-replacement-docs-contract">9. The Replacement docs-contract</a></h2>
 <p>The legacy <code>docs/contributing/docs-contract.md</code> encoded an i18n parity requirement and a directory structure that this RFC supersedes. It has been removed; this section is its replacement.</p>
-<p>The replacement governs three things: artifact classification, the repo/wiki split, and ADR governance. It says nothing about i18n — locale parity is now handled by the <a href="../maintainers/docs-and-translations.html">Maintainers → Docs &amp; Translations</a> page.</p>
+<p>The replacement governs three things: artifact classification, the repo/wiki split, and ADR governance. It says nothing about i18n: locale parity is now handled by the <a href="../maintainers/docs-and-translations.html">Maintainers → Docs &amp; Translations</a> page.</p>
 <p><strong>Replacement docs-contract:</strong></p>
 <pre><code class="language-markdown"># Documentation Contract
 
@@ -763,7 +839,7 @@ precede implementation by multiple releases.
 <h2 id="10-standards-we-should-adopt"><a class="header" href="#10-standards-we-should-adopt">10. Standards We Should Adopt</a></h2>
 <p>These documentation-specific standards complement the broader standards proposed in the architecture RFC.</p>
 <h3 id="diátaxis-framework-documentation-structure"><a class="header" href="#diátaxis-framework-documentation-structure">Diátaxis Framework (Documentation Structure)</a></h3>
-<p><strong>What it is:</strong> Diátaxis (https://diataxis.fr) is a systematic framework for technical documentation that divides content into four types: tutorials, how-to guides, reference, and explanation. It is the documentation framework behind the Python documentation, Django docs, and many others. It is highly compatible with the EA Artifacts approach — they answer different questions (Diátaxis: how to structure the content of a document; EA Artifacts: what type of document is this and where does it live).</p>
+<p><strong>What it is:</strong> Diátaxis (<a href="https://diataxis.fr">https://diataxis.fr</a>) is a systematic framework for technical documentation that divides content into four types: tutorials, how-to guides, reference, and explanation. It is the documentation framework behind the Python documentation, Django docs, and many others. It is highly compatible with the EA Artifacts approach: they answer different questions (Diátaxis: how to structure the content of a document; EA Artifacts: what type of document is this and where does it live).</p>
 <p><strong>How it applies:</strong> User-facing documentation on the Wiki should follow Diátaxis structure. Code-adjacent documentation in the repository follows EA Artifacts. The two frameworks operate at different levels and do not conflict.</p>
 <div class="table-wrapper">
 <table>
@@ -789,17 +865,17 @@ relates-to:
   - crates/zeroclaw-api
 ---
 </code></pre>
-<p>A CI check should verify that all documents in <code>docs/</code> have valid frontmatter. This prevents documents from being written without first declaring their type and status — enforcing the classification discipline at the tooling level.</p>
+<p>A CI check should verify that all documents in <code>docs/</code> have valid frontmatter. This prevents documents from being written without first declaring their type and status, enforcing the classification discipline at the tooling level.</p>
 <h3 id="commonmark--github-flavored-markdown"><a class="header" href="#commonmark--github-flavored-markdown">CommonMark + GitHub Flavored Markdown</a></h3>
 <p>All documentation uses CommonMark (the standardized Markdown specification) with GitHub Flavored Markdown extensions (tables, task lists, fenced code blocks, Mermaid diagrams). No custom extensions, no MDX, no ReStructuredText. Mermaid diagrams are preferred over image files for architecture diagrams because they version cleanly with the code.</p>
 <h3 id="vale-for-prose-linting"><a class="header" href="#vale-for-prose-linting">Vale for Prose Linting</a></h3>
-<p><strong>What it is:</strong> Vale (https://vale.sh) is a prose linter — it checks writing style, consistency, and readability using configurable rules. It can enforce things like: always use “you” not “the user”, avoid passive voice in imperative sections, use consistent terminology (“plugin” not “extension” not “module”).</p>
+<p><strong>What it is:</strong> Vale (<a href="https://vale.sh">https://vale.sh</a>) is a prose linter: it checks writing style, consistency, and readability using configurable rules. It can enforce things like: always use “you” not “the user”, avoid passive voice in imperative sections, use consistent terminology (“plugin” not “extension” not “module”).</p>
 <p><strong>Why it matters:</strong> The current documentation is inconsistent in tone, terminology, and style. Some pages say “plugin”, some say “module”, some say “extension”. Vale makes these rules automatic and enforces them at CI time, the same way Clippy enforces code quality.</p>
 <hr>
 <h2 id="11-phased-roadmap"><a class="header" href="#11-phased-roadmap">11. Phased Roadmap</a></h2>
 <p>The documentation migration follows the same Strangler Fig pattern as the architecture migration: incremental, always in a working state, no big-bang rewrites.</p>
 <hr>
-<h3 id="phase-1--v070--clean-the-root"><a class="header" href="#phase-1--v070--clean-the-root">Phase 1 · v0.7.0 — “Clean the Root”</a></h3>
+<h3 id="phase-1--v070-clean-the-root"><a class="header" href="#phase-1--v070-clean-the-root">Phase 1 · v0.7.0: “Clean the Root”</a></h3>
 <p><strong>Deliverables:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> Remove all <code>README.*.md</code> files from the repo root (keep only <code>README.md</code>)</li>
@@ -819,7 +895,7 @@ relates-to:
 <li>GitHub Wiki is live and publicly linked from README</li>
 </ul>
 <hr>
-<h3 id="phase-2--v070v080--write-the-missing-adrs"><a class="header" href="#phase-2--v070v080--write-the-missing-adrs">Phase 2 · v0.7.0–v0.8.0 — “Write the Missing ADRs”</a></h3>
+<h3 id="phase-2--v070v080-write-the-missing-adrs"><a class="header" href="#phase-2--v070v080-write-the-missing-adrs">Phase 2 · v0.7.0–v0.8.0: “Write the Missing ADRs”</a></h3>
 <p><strong>Deliverables:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> Write ADR-001 through ADR-003 and ADR-005 through ADR-007 (retroactive, see Section 6.3)</li>
@@ -838,7 +914,7 @@ relates-to:
 <li>No dead links in <code>docs/</code></li>
 </ul>
 <hr>
-<h3 id="phase-3--v080v090--the-ai-layer"><a class="header" href="#phase-3--v080v090--the-ai-layer">Phase 3 · v0.8.0–v0.9.0 — “The AI Layer”</a></h3>
+<h3 id="phase-3--v080v090-the-ai-layer"><a class="header" href="#phase-3--v080v090-the-ai-layer">Phase 3 · v0.8.0–v0.9.0: “The AI Layer”</a></h3>
 <p><strong>Deliverables:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> Write <code>AGENTS.md</code> for each new crate as the workspace decomposes (per architecture RFC phases)</li>
@@ -855,7 +931,7 @@ relates-to:
 <li>Plugin SDK documentation is sufficient for an external contributor to write a working tool plugin</li>
 </ul>
 <hr>
-<h3 id="phase-4--v100--the-stable-platform"><a class="header" href="#phase-4--v100--the-stable-platform">Phase 4 · v1.0.0 — “The Stable Platform”</a></h3>
+<h3 id="phase-4--v100-the-stable-platform"><a class="header" href="#phase-4--v100-the-stable-platform">Phase 4 · v1.0.0: “The Stable Platform”</a></h3>
 <p><strong>Deliverables:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> Mark ADR-001 through ADR-007 as <code>accepted</code> (not <code>proposed</code>) once the corresponding code is shipped</li>
@@ -873,22 +949,22 @@ relates-to:
 </ul>
 <hr>
 <h2 id="appendix-a-glossary"><a class="header" href="#appendix-a-glossary">Appendix A: Glossary</a></h2>
-<p><strong>ADR (Architecture Decision Record)</strong> — An immutable record of a significant architectural decision: the context that prompted it, what was decided, and the consequences. ADRs do not change once accepted; superseded decisions are recorded as new ADRs.</p>
-<p><strong>Diátaxis</strong> — A systematic framework for technical documentation structure that divides content into tutorials (learning), how-to guides (goal-oriented), reference (information), and explanation (understanding). See https://diataxis.fr.</p>
-<p><strong>EA Artifacts on a Page</strong> — A classification framework for enterprise architecture documents developed by Svyatoslav Kotusev. Classifies artifacts into five families: Considerations, Landscapes, Outlines, Designs, and Standards. See https://eaonapage.com.</p>
-<p><strong>Frontmatter</strong> — YAML metadata at the top of a Markdown file, delimited by <code>---</code>. Makes documents machine-readable and queryable by tools, CI checks, and AI assistants.</p>
-<p><strong>Nygard Format</strong> — The ADR format introduced by Michael Nygard: three sections (Context, Decision, Consequences) that capture the essential reasoning without unnecessary ceremony.</p>
-<p><strong>Strangler Fig Pattern</strong> — A migration strategy in which new structure is built incrementally around the old, replacing it piece by piece rather than all at once. The system remains functional throughout the migration.</p>
-<p><strong>Vale</strong> — A prose linter for technical documentation. Enforces style, consistency, and readability rules at CI time, the way Clippy enforces Rust code quality. See https://vale.sh.</p>
+<p><strong>ADR (Architecture Decision Record)</strong>: An immutable record of a significant architectural decision: the context that prompted it, what was decided, and the consequences. ADRs do not change once accepted; superseded decisions are recorded as new ADRs.</p>
+<p><strong>Diátaxis</strong>: A systematic framework for technical documentation structure that divides content into tutorials (learning), how-to guides (goal-oriented), reference (information), and explanation (understanding). See <a href="https://diataxis.fr">https://diataxis.fr</a>.</p>
+<p><strong>EA Artifacts on a Page</strong>: A classification framework for enterprise architecture documents developed by Svyatoslav Kotusev. Classifies artifacts into five families: Considerations, Landscapes, Outlines, Designs, and Standards. See <a href="https://eaonapage.com">https://eaonapage.com</a>.</p>
+<p><strong>Frontmatter</strong>: YAML metadata at the top of a Markdown file, delimited by <code>---</code>. Makes documents machine-readable and queryable by tools, CI checks, and AI assistants.</p>
+<p><strong>Nygard Format</strong>: The ADR format introduced by Michael Nygard: three sections (Context, Decision, Consequences) that capture the essential reasoning without unnecessary ceremony.</p>
+<p><strong>Strangler Fig Pattern</strong>: A migration strategy in which new structure is built incrementally around the old, replacing it piece by piece rather than all at once. The system remains functional throughout the migration.</p>
+<p><strong>Vale</strong>: A prose linter for technical documentation. Enforces style, consistency, and readability rules at CI time, the way Clippy enforces Rust code quality. See <a href="https://vale.sh">https://vale.sh</a>.</p>
 <hr>
 <h2 id="appendix-b-further-reading"><a class="header" href="#appendix-b-further-reading">Appendix B: Further Reading</a></h2>
 <ul>
-<li><strong>Diátaxis documentation framework</strong> — https://diataxis.fr — The definitive reference for structuring technical documentation by type.</li>
-<li><strong>EA Artifacts on a Page (v2.2)</strong> — https://eaonapage.com — The classification framework used in Section 3.</li>
-<li><strong>“Docs for Developers”</strong> — Jared Bhatti et al. — A practical guide to technical documentation written by engineers who have maintained large documentation systems.</li>
-<li><strong>Vale documentation</strong> — https://vale.sh/docs — Setup guide and configuration reference for the prose linter proposed in Section 10.</li>
-<li><strong>Michael Nygard on ADRs</strong> — https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions — The original post that introduced the ADR format used in Section 6.</li>
-<li><strong>GitHub Wikis documentation</strong> — https://docs.github.com/en/communities/documenting-your-project-with-wikis — Reference for setting up and governing the GitHub Wiki proposed in Section 5.</li>
+<li><a href="https://diataxis.fr">Diátaxis documentation framework</a>: The definitive reference for structuring technical documentation by type.</li>
+<li><a href="https://eaonapage.com">EA Artifacts on a Page (v2.2)</a>: The classification framework used in Section 3.</li>
+<li><strong>“Docs for Developers”</strong>: Jared Bhatti et al.: A practical guide to technical documentation written by engineers who have maintained large documentation systems.</li>
+<li><a href="https://vale.sh/docs">Vale documentation</a>: Setup guide and configuration reference for the prose linter proposed in Section 10.</li>
+<li><a href="https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions">Michael Nygard on ADRs</a>: The original post that introduced the ADR format used in Section 6.</li>
+<li><a href="https://docs.github.com/en/communities/documenting-your-project-with-wikis">GitHub Wikis documentation</a>: Reference for setting up and governing the GitHub Wiki proposed in Section 5.</li>
 </ul>
 <hr>
 <p><em>This proposal was developed from direct analysis of the ZeroClaw documentation system at v0.6.8. The metrics cited (169 i18n files, 2.2 MB, 31 language README variants) are based on direct measurement. The recommendations reflect established practices in technical documentation for open source infrastructure projects, adapted to the specific constraints and goals of ZeroClaw.</em></p>

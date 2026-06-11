@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,18 +293,20 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="crate"><a class="header" href="#crate">Crate</a></h1>
-<p>L’espace de travail est divisé en couches. Les crates Edge communiquent avec l’extérieur ; les crates core orchestrent ; les crates support fournissent des utilitaires. Chaque crate dispose de sa propre documentation rustdoc — voir <a href="../api.html">API (rustdoc)</a>.</p>
+<p>The workspace is split into layers. Edge crates talk to the outside world; core crates orchestrate; support crates provide utilities. Each crate has its own rustdoc, see <a href="../api.html">API (rustdoc)</a>.</p>
 <h2 id="couche--core"><a class="header" href="#couche--core">Couche : Core</a></h2>
 <h3 id="zeroclaw-runtime"><a class="header" href="#zeroclaw-runtime"><code>zeroclaw-runtime</code></a></h3>
-<p>La boucle d’agent, l’application de la politique de sécurité, le moteur SOP, le planificateur cron, les sections d’onboarding et la couche RPC pour zerocode. Dépend de tous les autres crates core et edge.</p>
+<p>The agent loop, security-policy enforcement, SOP engine, cron scheduler, SubAgent lifecycle, and RPC layer for zerocode. Depends on every other core and edge crate.</p>
 <p>Sous-modules notables :</p>
 <ul>
-<li><code>agent/</code> — la boucle principale de requête/réponse, le streaming, l’orchestration des appels d’outils</li>
-<li><code>security/</code> — types de politiques, détection de bac à sable, OTP, arrêt d’urgence</li>
-<li><code>sop/</code> — Moteur de procédures opérationnelles standard (voir <a href="../sop/index.html">SOP → Vue d’ensemble</a>)</li>
-<li><code>onboard/</code> — les sections d’intégration interactives (<code>mod.rs</code>, ainsi que les interfaces utilisateur par forme dans <code>ui/</code>)</li>
-<li><code>memory/</code> — enveloppe <code>zeroclaw-memory</code> avec une mise en cache au niveau du runtime et des plans de consolidation</li>
-<li><code>service/</code> — intégration avec systemd / launchctl / Service Windows</li>
+<li><code>agent/</code>: the main request/response loop, streaming, tool-call orchestration</li>
+<li><code>security/</code>: policy types, sandbox detection, OTP, emergency stop</li>
+<li><code>sop/</code>: Standard Operating Procedure engine (see <a href="../sop/index.html">SOP → Overview</a>)</li>
+<li><code>subagent/</code>: SubAgent spawning and lifecycle (see <a href="../agents/delegation.html">Delegation &amp; SubAgents</a>)</li>
+<li><code>cron/</code>, <code>daemon/</code>, <code>heartbeat/</code>: scheduling and long-running process management</li>
+<li><code>skillforge/</code>, <code>skills/</code>: skill compilation and execution</li>
+<li><code>service/</code>: systemd / launchctl / Windows Service integration</li>
+<li><code>rpc/</code>: the RPC layer for zerocode</li>
 </ul>
 <h3 id="zeroclaw-config"><a class="header" href="#zeroclaw-config"><code>zeroclaw-config</code></a></h3>
 <p>Schéma TOML et sa validation. Gère :</p>
@@ -240,11 +318,13 @@
 </ul>
 <p>Toutes les clés de configuration visibles par l’utilisateur sont documentées dans <a href="../reference/config.html">Référence → Config</a>, qui est générée à partir de ce crate.</p>
 <h3 id="zeroclaw-api"><a class="header" href="#zeroclaw-api"><code>zeroclaw-api</code></a></h3>
-<p>L’ABI du noyau. Définit trois traits publics :</p>
+<p>The kernel ABI. Defines the core public traits, including:</p>
 <ul>
-<li><code>Provider</code> — Interface client LLM avec indicateurs de capacité de streaming</li>
-<li><code>Channel</code> — surface de messagerie entrante/sortante</li>
-<li><code>Tool</code> — capacités appelables par l’agent</li>
+<li><code>ModelProvider</code>: LLM client interface with streaming capability flags</li>
+<li><code>Channel</code>: inbound/outbound messaging surface</li>
+<li><code>Tool</code>: agent-callable capabilities</li>
+<li><code>Memory</code>: conversation storage and retrieval</li>
+<li><code>Observer</code>: typed metrics/observability sink</li>
 </ul>
 <p>L’exécution ne dépend que de ces traits, et non des implémentations concrètes. C’est ce qui permet d’ajouter des fournisseurs, des canaux ou des outils en implémentant un trait plutôt qu’en modifiant le noyau.</p>
 <h2 id="couche--arête"><a class="header" href="#couche--arête">Couche : Arête</a></h2>
@@ -252,16 +332,16 @@
 <p>Toutes les implémentations de clients LLM ainsi que les wrappers de routage et de réessai. Voir <a href="../providers/overview.html">Fournisseurs de modèles → Vue d’ensemble</a> pour la liste.</p>
 <p>Structure :</p>
 <ul>
-<li><code>traits.rs</code> — réexportations depuis <code>zeroclaw-api</code> plus des utilitaires internes au fournisseur</li>
-<li><code>anthropic.rs</code>, <code>openai.rs</code>, <code>ollama.rs</code>, … — un fichier par fournisseur natif</li>
-<li><code>compatible.rs</code> — une seule implémentation compatible OpenAI réutilisée par plus de 20 fournisseurs (Groq, Mistral, xAI, Venice, etc.)</li>
-<li><code>router.rs</code> — sélection de la route du modèle par appel basée sur des indices</li>
-<li><code>reliable.rs</code> — wrapper de nouvelle tentative / temporisation / rotation de clé API pour un même fournisseur</li>
-<li><code>streaming.rs</code> — Analyse SSE, estimation des jetons, deltas d’appel d’outil</li>
+<li><code>traits.rs</code>: re-exports from <code>zeroclaw-api</code> plus provider-internal helpers</li>
+<li><code>anthropic.rs</code>, <code>openai.rs</code>, <code>ollama.rs</code>, …: one file per native provider</li>
+<li><code>compatible.rs</code>: a single OpenAI-compatible implementation reused by 20+ providers (Groq, Mistral, xAI, Venice, etc.)</li>
+<li><code>router.rs</code>: hint-based per-call model route selection</li>
+<li><code>reliable.rs</code>: same-provider retry / backoff / API-key rotation wrapper</li>
+<li><code>streaming.rs</code>: SSE parsing, token estimation, tool-call deltas</li>
 </ul>
 <h3 id="zeroclaw-channels"><a class="header" href="#zeroclaw-channels"><code>zeroclaw-channels</code></a></h3>
 <p>Plus de 30 intégrations de messagerie. Consultez <a href="../channels/overview.html">Channels → Vue d’ensemble</a> pour le catalogue.</p>
-<p>Tous les canaux implémentent le trait <code>Channel</code> de <code>zeroclaw-api</code>. Chaque canal est conditionné par une fonctionnalité — une compilation minimale inclut uniquement les canaux que vous compilez.</p>
+<p>All channels implement the <code>Channel</code> trait from <code>zeroclaw-api</code>. Each is feature-gated, a minimal build includes only the channels you compile in.</p>
 <p>Le sous-module <code>orchestrator/</code> gère le streaming des messages, les mises à jour des brouillons, les divisions en plusieurs messages et le serveur ACP.</p>
 <h3 id="zeroclaw-gateway"><a class="header" href="#zeroclaw-gateway"><code>zeroclaw-gateway</code></a></h3>
 <p>Passerelle HTTP/WebSocket. Expose l’exécution via :</p>
@@ -274,7 +354,7 @@
 <p>L’appairage est requis par défaut ; <code>[gateway.allow_public_bind = true]</code> permet la liaison à <code>0.0.0.0</code>.</p>
 <h3 id="zeroclaw-tools"><a class="header" href="#zeroclaw-tools"><code>zeroclaw-tools</code></a></h3>
 <p>Outils appelables que l’agent invoque. À ne pas confondre avec les sous-commandes CLI <code>zeroclaw</code>.</p>
-<p>Inclus : <code>browser</code>, <code>http</code>, <code>pdf_extract</code>, <code>web_search</code>, <code>shell</code>, <code>file_read</code>, <code>file_write</code>, <code>hardware_probe</code>, et plus encore. Voir <a href="../tools/overview.html">Outils → Vue d’ensemble</a>.</p>
+<p>Includes: <code>browser</code>, <code>http_request</code>, <code>pdf_read</code>, <code>web_search</code>, <code>shell</code>, <code>file_read</code>, <code>file_write</code>, hardware probes (<code>hardware_board_info</code>, <code>hardware_memory_read</code>), and more. See <a href="../tools/overview.html">Tools → Overview</a>.</p>
 <p>Chaque outil est enregistré via une fabrique et décrit au modèle à l’aide de chaînes de caractères localisées via Fluent.</p>
 <h2 id="couche--prise-en-charge"><a class="header" href="#couche--prise-en-charge">Couche : Prise en charge</a></h2>
 <h3 id="zeroclaw-memory"><a class="header" href="#zeroclaw-memory"><code>zeroclaw-memory</code></a></h3>
@@ -295,28 +375,29 @@
 <h3 id="zeroclaw-plugins"><a class="header" href="#zeroclaw-plugins"><code>zeroclaw-plugins</code></a></h3>
 <p>Chargeur de plugins dynamique pour les implémentations d’outils hors processus. Consultez <a href="../developing/plugin-protocol.html">Développement → Protocole des plugins</a>.</p>
 <h3 id="zeroclaw-hardware"><a class="header" href="#zeroclaw-hardware"><code>zeroclaw-hardware</code></a></h3>
-<p>Abstraction matérielle — GPIO, I2C, SPI, USB. Dépendant de la plateforme. Voir <a href="../hardware/index.html">Matériel → Vue d’ensemble</a>.</p>
+<p>Hardware abstraction: GPIO, I2C, SPI, USB. Platform-gated. See <a href="../hardware/index.html">Hardware → Overview</a>.</p>
 <h3 id="zeroclaw-log"><a class="header" href="#zeroclaw-log"><code>zeroclaw-log</code></a></h3>
-<p>La surface d’émission unique pour chaque événement de journal dans l’espace de travail. Détient le schéma JSONL sur disque (<code>LogEvent</code>), le registre d’attribution lié aux alias (<code>ATTRIBUTION_FIELDS</code> + <code>COMPOSITE_PREFIXES</code>), le Layer <code>tracing-subscriber</code> qui capture chaque appel <code>tracing::*</code>, les macros <code>record!</code> / <code>scope!</code> / <code>spawn!</code>, le writer à rognage continu, le lecteur de curseur paginé derrière <code>/api/logs</code>, et le pont vers l’<code>Observer</code> typé pour les consommateurs Prometheus / OTel. Voir <a href="./logging.html"><code>architecture/logging.md</code></a>.</p>
+<p>The single emission surface for every log event in the workspace. Owns the on-disk JSONL schema (<code>LogEvent</code>), the alias-bound attribution registry (<code>ATTRIBUTION_FIELDS</code> + <code>COMPOSITE_PREFIXES</code>), the <code>tracing-subscriber</code> Layer that captures every <code>tracing::*</code> call, the <code>record!</code> and <code>scope!</code> macros, the rolling-trim writer, the paginated cursor reader behind <code>/api/logs</code>, and the bridge to the typed <code>Observer</code> for Prometheus / OTel consumers. See <a href="./logging.html"><code>architecture/logging.md</code></a>.</p>
+<h3 id="zeroclaw-spawn"><a class="header" href="#zeroclaw-spawn"><code>zeroclaw-spawn</code></a></h3>
+<p>The sanctioned wrapper around <code>tokio::spawn</code>. Provides the <code>spawn!</code> macro, which instruments every background task with the caller’s current attribution span so a <code>record!</code> emitted inside the spawned future inherits the parent’s <code>agent_alias</code> / <code>channel</code> / <code>session_key</code>. Call sites use <code>spawn!</code> instead of <code>tokio::spawn</code> directly.</p>
 <h3 id="zeroclaw-infra"><a class="header" href="#zeroclaw-infra"><code>zeroclaw-infra</code></a></h3>
-<p>Prise en charge au niveau du processus : debouncers, watchdogs, le backend de session SQLite. Ce n’est pas une couche de traçage/métriques — c’est <code>zeroclaw-log</code>.</p>
+<p>Process-level support: debouncers, watchdogs, the SQLite session backend. Not a tracing/metrics layer, that’s <code>zeroclaw-log</code>.</p>
 <h3 id="zeroclaw-macros"><a class="header" href="#zeroclaw-macros"><code>zeroclaw-macros</code></a></h3>
 <p>Générer des macros pour le schéma de configuration, l’enregistrement des outils et l’enregistrement des canaux. Réduit le code répétitif dans l’ensemble de l’espace de travail.</p>
 <h3 id="zerocode"><a class="header" href="#zerocode"><code>zerocode</code></a></h3>
-<p>Interface utilisateur terminal. Facultatif — compiler avec <code>--features tui</code>.</p>
+<p>Terminal UI, built as a separate app under <code>apps/zerocode/</code>. It is its own workspace member with no <code>zeroclaw-*</code> crate dependency (see <a href="../maintainers/docs-and-translations.html">Docs &amp; Translations → zerocode strings</a> for its independent i18n catalogue).</p>
 <h3 id="aardvark-sys-robot-kit"><a class="header" href="#aardvark-sys-robot-kit"><code>aardvark-sys</code>, <code>robot-kit</code></a></h3>
 <p>Prise en charge du matériel spécialisé utilisée par le sous-module <code>hardware</code>. Hors de portée sauf si vous configurez des périphériques spécifiques.</p>
 <h2 id="drapeaux-de-fonctionnalité"><a class="header" href="#drapeaux-de-fonctionnalité">Drapeaux de fonctionnalité</a></h2>
 <p>La feuille de route du micro-noyau (RFC #5574) définit une taxonomie des indicateurs de fonctionnalité. Pour l’utilisateur, cela se traduit concrètement par :</p>
 <ul>
-<li><code>default</code> — une configuration de base sensée</li>
-<li><code>ci-all</code> — tout activé, pour CI</li>
-<li><code>channel-&lt;nom&gt;</code> — activation par canal (par ex. <code>channel-matrix</code>, <code>channel-discord</code>)</li>
-<li><code>provider-&lt;name&gt;</code> — activation par fournisseur</li>
-<li><code>hardware</code> — activer le sous-système matériel</li>
-<li><code>tui</code> — interface utilisateur terminal</li>
+<li><code>default</code>: a sensible core build</li>
+<li><code>ci-all</code>: everything on, for CI</li>
+<li><code>channel-&lt;name&gt;</code>: opt-in per channel (e.g. <code>channel-matrix</code>, <code>channel-discord</code>)</li>
+<li><code>hardware</code>: enable hardware subsystem</li>
+<li><code>gateway</code>, <code>acp-bridge</code>, <code>whatsapp-web</code>: opt-in capability groups</li>
 </ul>
-<p>Exécutez <code>cargo metadata --format-version 1 | jq '.workspace_members'</code> ou lisez le fichier <code>Cargo.toml</code> de niveau supérieur pour obtenir la liste complète.</p>
+<p>Providers are not feature-gated; they all compile in. Channel selection is the main per-build knob. Read the top-level <code>Cargo.toml</code> <code>[features]</code> table for the full list.</p>
 
                     </main>
 

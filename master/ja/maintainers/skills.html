@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="claude-code-スキル"><a class="header" href="#claude-code-スキル">Claude Code スキル</a></h1>
-<p>このリポジトリには、<code>.claude/skills/</code> 配下に <a href="https://docs.claude.com/en/docs/agents/skills">Claude Code スキル</a> のセットが含まれており、PR レビュー、イシューのトリアージ、squash-merging、変更ログの生成など、メンテナワークフローの重い部分を自動化します。</p>
+<p>The repo ships a set of <a href="https://docs.claude.com/en/docs/agents/skills">Claude Code skills</a> under <code>.claude/skills/</code> that automate the heavier parts of the maintainer workflow: PR reviews, issue triage, squash-merging, changelog generation, and more.</p>
 <p>各スキルは独自のディレクトリに配置され、<code>SKILL.md</code> ファイルが含まれています。Claude Code はリポジトリを開いた際にこれらのスキルを自動的に読み込み、自然な言語で望む内容を説明するか、明示的な参照（例：<code>/squash-merge 1234</code>）によって呼び出すことができます。</p>
 <h2 id="利用可能なスキル"><a class="header" href="#利用可能なスキル">利用可能なスキル</a></h2>
 <div class="table-wrapper">
@@ -226,12 +302,12 @@
 <tr><th>スキル</th><th>これを使用する際</th></tr>
 </thead>
 <tbody>
-<tr><td><code>github-pr-review-session</code></td><td>特定のPRのレビューやレビューキューの処理 — レビュー本文をドラフトし、ソースと照合して <code>gh</code> を介して WareWolf-MoonWall として投稿</td></tr>
+<tr><td><code>github-pr-review-session</code></td><td>Reviewing a specific PR or working through the review queue: drafts the review body, cross-checks against source, posts via <code>gh</code> under the active account holder’s identity</td></tr>
 <tr><td><code>github-issue-triage</code></td><td>バックログの掃除を行い、古い/重複したイシューを閉じ、ラベルを適用し、RFC の古いイシューポリシーを適用します。</td></tr>
 <tr><td><code>github-issue</code></td><td>構造化されたイシュー（バグレポートまたは機能リクエスト）を提出する</td></tr>
 <tr><td><code>github-pr</code></td><td>完全に埋められたテンプレート本文を持つPRを開くか更新する</td></tr>
 <tr><td><code>squash-merge</code></td><td>承認されたPRを<code>master</code>にマージし、コミット履歴を保持して紫色の<strong>Merged</strong>バッジを表示</td></tr>
-<tr><td><code>changelog-generation</code></td><td>リリース用の <code>CHANGELOG-next.md</code> を準備する — 最後のタグ以降のマージを要約</td></tr>
+<tr><td><code>changelog-generation</code></td><td>Preparing <code>CHANGELOG-next.md</code> for a release: summarises merges since the last tag</td></tr>
 <tr><td><code>skill-creator</code></td><td>スキル自体の作成、編集、またはベンチマーク</td></tr>
 <tr><td><code>zeroclaw</code></td><td>実行中のZeroClawインスタンスの操作（CLI + ゲートウェイAPI）</td></tr>
 </tbody>
@@ -243,13 +319,13 @@
 </code></pre>
 <p>このスキルは <code>AGENTS.md</code>、レビュアーのプレイブック、およびPRの差分とコミットを読み取り、レビューをドラフトします。以下を使用します：</p>
 <ul>
-<li>各 <code>[blocking]</code> / <code>[suggestion]</code> / <code>[question]</code> の発見に対して<strong>インラインコメント</strong></li>
-<li><strong>レビュー本文</strong>は、全体の判断とテンプレートレベルの問題のみを対象とします。</li>
-<li><strong>Bare commit hashes</strong> (never wrapped in backticks — GitHub auto-links them)</li>
+<li><strong>Inline diff comments</strong> for every 🔴 blocking, 🟡 warning, or 🔵 suggestion finding tied to a specific line</li>
+<li><strong>Review body</strong> for overall verdict, comprehension summary, cross-references, and template-level issues not tied to a line</li>
+<li><strong>Bare commit hashes</strong> (never wrapped in backticks: GitHub auto-links them)</li>
 <li><strong>@プレフィックス付きユーザー名</strong> はすべてのレビューコンテンツに含まれます</li>
 </ul>
-<p>発見事項は家の階層システムに従います: <code>[blocking]</code> は PR をブロックし、<code>[suggestion]</code> は任意、<code>[question]</code> は明確化を求めます。</p>
-<p>このスキルは、投稿する前に承認用のドラフトを常に表示します。レビューは、ボットではなく、人間のレビュアーのアイデンティティの下に投稿されます。</p>
+<p>Findings follow the <a href="../contributing/pr-review-protocol.html#feedback-taxonomy">feedback taxonomy</a>: 🔴 [blocking] holds the PR, 🟡 [warning] should be addressed, 🔵 [suggestion] is optional, 🟢 [praise] names what works, and ✅ [resolved] acknowledges an addressed finding on re-review. The <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a> is canonical for the tiers and the review-body Markdown format.</p>
+<p>The skill always shows a draft for approval before posting. Reviews are posted under the human reviewer’s identity, not as a bot.</p>
 <p>変更後の再レビュー:</p>
 <pre><code>&gt; re-review 1234
 </code></pre>
@@ -257,15 +333,15 @@
 <pre><code>&gt; go through the queue
 </code></pre>
 <h2 id="イシューのトリアージワークフロー"><a class="header" href="#イシューのトリアージワークフロー">イシューのトリアージワークフロー</a></h2>
-<p><code>github-issue-triage</code> スキルは、定義された権限の範囲内で自律的なバックログの掃引を実行します。モード:</p>
+<p>The <code>github-issue-triage</code> skill runs autonomous backlog sweeps within defined authority bounds. With no argument it runs an <strong>accounting</strong> pass (backlog state, then prompts for a mode); otherwise the modes are:</p>
 <ul>
-<li><strong>トライアージパス</strong> — ラベル付け、関連するPRへのリンク、必要に応じて <code>needs-author-action</code> を適用</li>
-<li><strong>古いパス</strong> — ポリシーの閾値を超えてアイドル状態になっている問題を閉じる</li>
-<li><strong>修正しない</strong> — 受け入れられない問題を閉じ、簡潔な理由を記載</li>
-<li><strong>特定の課題</strong> — 番号で単一の課題を処理</li>
+<li><strong>Triage</strong>: process issues with no triage labels: classify, apply labels, link to open PRs, flag thin bug reports, redirect security issues</li>
+<li><strong>Sweep</strong>: full backlog pass in priority order (fixed-by-merged-PR → duplicates → <code>r:support</code> → stale candidates)</li>
+<li><strong>Stale</strong>: RFC stale-policy enforcement (<code>status:stale</code> then close per the policy window and exclusion rules)</li>
+<li><strong>Won’t-fix</strong>: close issues that violate a named core engineering constraint, citing the constraint and its <code>AGENTS.md</code>/RFC reference</li>
+<li><strong>Single</strong>: handle one issue by number or URL</li>
 </ul>
-<p>ラベルの定義は <a href="./labels.html">Labels</a> にあります。Stale 手順は issue-triage スキルのプロトコルに記載されており、レビュアー側のコンテキストは <a href="./reviewer-playbook.html#issue-triage">Reviewer playbook → Issue triage</a> にあります。このスキルは、曖昧な点があれば対応する前にユーザーへエスカレーションします。</p>
-<p>マージコンフリクトがあるPRには、<code>feedback_conflicts_label_only</code> に従い、<code>needs-author-action</code> のみ付与されます。レビューや差分コメントは行われません。</p>
+<p>Label definitions live in <a href="./labels.html">Labels</a>; the triage labels the skill applies (<code>r:needs-repro</code>, <code>r:support</code>, <code>stale-candidate</code>, the <code>status:*</code> lifecycle labels, and the resolution labels) are all defined there. Stale procedure lives in the issue-triage skill protocol, with reviewer-side context in <a href="./reviewer-playbook.html#issue-triage">Reviewer playbook → Issue triage</a>. The skill escalates ambiguity to the user before acting.</p>
 <h2 id="スクワッシュマージ戦略"><a class="header" href="#スクワッシュマージ戦略">スクワッシュマージ戦略</a></h2>
 <p>ZeroClaw はすべての PR に対して squash-merge を使用します。<code>squash-merge</code> スキルは、紫色の <strong>Merged</strong> バッジと、本文に完全なコミット履歴を含む conventional-commits 形式の squash メッセージを生成します。</p>
 <h3 id="このスキルが存在する理由"><a class="header" href="#このスキルが存在する理由">このスキルが存在する理由</a></h3>
@@ -275,10 +351,10 @@
 <li>本文書の書式が不整合</li>
 <li>プロジェクトの規約に一致しません</li>
 </ul>
-<p>squash を master に直接プッシュすると、PR のマージ処理がバイパスされます。その結果、PR は「Closed」と表示され、紫色のバッジが表示されず、関連するイシューの自動クローズやマージの関連付けも行われません。このスキルは、バッジと正しくフォーマットされたコミットを取得するために <code>gh pr merge --subject --body</code> を使用します。</p>
+<p>Direct-pushing a squash to master bypasses the PR merge mechanism: the PR shows “Closed” instead of “Merged” (no purple badge, no linked issue auto-close, no merge association). The skill uses <code>gh pr merge --subject --body</code> to get both the badge and the correctly formatted commit.</p>
 <h3 id="フォーマット"><a class="header" href="#フォーマット">フォーマット</a></h3>
 <ul>
-<li><strong>件名:</strong> <code>&lt;PRのタイトル&gt; (#&lt;番号&gt;)</code> — conventional commits に準拠する必要があります（<code>feat(scope): …</code>、<code>fix: …</code> など）。</li>
+<li><strong>Subject:</strong> <code>&lt;PR title&gt; (#&lt;number&gt;)</code>: must be conventional commits (<code>feat(scope): …</code>, <code>fix: …</code>, etc.)</li>
 <li><strong>本文（複数コミットPR）:</strong> PRブランチからの <code>- &lt;短いSHA&gt; &lt;コミット件名&gt;</code> の箇条書きリスト</li>
 <li><strong>本文 (単一コミットPR):</strong> 完全なコミット本文、または本文がない場合は空白</li>
 </ul>
@@ -302,7 +378,7 @@
 <h2 id="変更ログの生成"><a class="header" href="#変更ログの生成">変更ログの生成</a></h2>
 <p><code>changelog-generation</code> は、最後のタグ以降にマージされた PR を <code>gh</code> でクエリし、conventional-commits のプレフィックスごとにグループ化して、ハウススタイルの changelog にフォーマットすることで、リリース用の <code>CHANGELOG-next.md</code> を生成します。<code>release-stable-manual.yml</code> をディスパッチする前に、リリースの手順書の一部として使用してください。</p>
 <h2 id="スキルを編集する"><a class="header" href="#スキルを編集する">スキルを編集する</a></h2>
-<p>スキルは、YAML フロントマター付きのプレーンな Markdown です。<code>description</code> フィールドは、Claude Code がスキルをトリガーするかどうかを判断するために使用されます。具体的で、明確なトリガーフレーズ（例：<code>"review 1234"</code>、<code>"triage issues"</code> など）を含めてください。編集には <code>skill-creator</code> を使用してください。これにより、構造が強制され、トリガーの精度を測定するための評価が実行されます。</p>
+<p>Skills are plain Markdown with YAML frontmatter. Their <code>description</code> field is what Claude Code uses to decide when to trigger them: be specific and include concrete trigger phrases (<code>"review 1234"</code>, <code>"triage issues"</code>, etc.). Use <code>skill-creator</code> to edit them; it enforces the structure and helps run evals to measure trigger accuracy.</p>
 <p>スキルの動作がドキュメントで説明されている内容と異なる場合（例：レビュアーのプレイブックが変更された場合）、そのスキル<strong>および</strong>それを参照しているドキュメントを更新してください。スキルの <code>SKILL.md</code> は自動化にとっての正典であり、コントリビューションに関するドキュメントは人間にとっての正典です。</p>
 
                     </main>

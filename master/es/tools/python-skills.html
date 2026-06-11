@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -238,45 +314,30 @@
 </tbody>
 </table>
 </div>
-<p>Los archivos auxiliares de Python no requieren <code>allow_scripts = true</code>. Habilita los archivos auxiliares tipo shell solo después de haber revisado el código fuente de la skill:</p>
-<pre><code class="language-toml">[skills]
-allow_scripts = true
-</code></pre>
-<p>Permitir el intérprete en el perfil de riesgo utilizado por el agente:</p>
-<pre><code class="language-toml">[agents.assistant]
-risk_profile = "assistant"
-
-[risk_profiles.assistant]
-allowed_commands = ["python3", "python"]
-</code></pre>
-<p><code>allowed_commands</code> es una lista de permitidos estricta de ejecutables cuando no está vacía. La política del shell aún verifica patrones destructivos y riesgos de argumentos del intérprete por encima de esa lista de permitidos.</p>
+<p>Python helper files do not require <code>allow_scripts = true</code>. Enable shell-like helper files only after you have reviewed the skill source, and allow the interpreter (<code>python</code>, <code>python3</code>, <code>pip</code>) in the risk profile’s <code>allowed_commands</code>. <code>allowed_commands</code> is a strict executable allowlist when it is non-empty. The shell policy still checks destructive patterns and interpreter argument risks on top of that allowlist.</p>
 <p>Es preferible instalar paquetes de Python en el momento de la compilación de la imagen, en un entorno virtual local revisado o en otro paso de configuración fuera del turno del agente. Añade <code>pip</code> a un perfil de confianza solo cuando la instalación de paquetes en tiempo de ejecución sea una parte intencionada de ese despliegue.</p>
 <h2 id="lo-que-permanece-bloqueado"><a class="header" href="#lo-que-permanece-bloqueado">Lo que permanece bloqueado</a></h2>
 <p>ZeroClaw bloquea deliberadamente la ejecución de intérpretes en línea como:</p>
-<pre><code class="language-bash">python3 -c print("hello")
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">python3 -c print("hello")
 python3 -m http.server
 python3 -m pip install requests
 node -e 'console.log(process.env)'
 </code></pre>
+</div>
+
 <p>En el caso de las skills de Python, coloca el código en un archivo de script auditable y ejecuta ese archivo:</p>
-<pre><code class="language-bash">python3 skills/portfolio/run.py
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">python3 skills/portfolio/run.py
 </code></pre>
+</div>
+
 <p>Esto hace que el archivo ejecutable sea revisable por la ruta de auditoría de skills y evita convertir una cadena de comando de shell en un contenedor de código arbitrario.</p>
 <p>Los prefijos de variables de entorno como <code>PYTHONPATH=... python3 script.py</code> también son sensibles a las políticas. Prefiere un script contenedor, un entorno virtual local del proyecto o una configuración explícita dentro del script cuando necesites una configuración estable del entorno de ejecución.</p>
 <h2 id="patrón-a-native-python-de-confianza"><a class="header" href="#patrón-a-native-python-de-confianza">Patrón A: Native Python de confianza</a></h2>
 <p>Use la ejecución nativa cuando las skills son de confianza y quieres que utilicen la instalación de Python del host, los paquetes, los permisos del sistema de archivos y la red.</p>
-<pre><code class="language-toml">[agents.assistant]
-risk_profile = "assistant"
-
-[runtime]
-kind = "native"
-
-[risk_profiles.assistant]
-level = "supervised"
-allowed_commands = ["python3", "python"]
-sandbox_enabled = false
-sandbox_backend = "none"
-</code></pre>
 <p>Esto es apropiado para desarrollo local, una estación de trabajo de un solo usuario o un laboratorio doméstico donde escribiste el skill. Elimina el aislamiento a nivel de sistema operativo para las ejecuciones de herramientas bajo ese perfil, por lo que los permisos normales de usuario y las comprobaciones de políticas de ZeroClaw son las medidas de protección restantes.</p>
 <p>No utilice este patrón para skills de terceros sin revisar ni para implementaciones multiinquilino.</p>
 <h2 id="patrón-b-imagen-de-tiempo-de-ejecución-de-docker-personalizada"><a class="header" href="#patrón-b-imagen-de-tiempo-de-ejecución-de-docker-personalizada">Patrón B: Imagen de tiempo de ejecución de Docker personalizada</a></h2>
@@ -293,41 +354,18 @@ RUN pip install --no-cache-dir \
 WORKDIR /workspace
 </code></pre>
 <p>Constrúyelo:</p>
-<pre><code class="language-bash">docker build -f Dockerfile.skill-exec -t zeroclaw-python-skills:local .
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">docker build -f Dockerfile.skill-exec -t zeroclaw-python-skills:local .
 </code></pre>
-<p>Apunta ZeroClaw a la imagen:</p>
-<pre><code class="language-toml">[agents.assistant]
-risk_profile = "assistant"
+</div>
 
-[runtime]
-kind = "docker"
-
-[runtime.docker]
-image = "zeroclaw-python-skills:local"
-network = "none"
-read_only_rootfs = true
-mount_workspace = true
-
-[risk_profiles.assistant]
-level = "supervised"
-allowed_commands = ["python3", "python"]
-sandbox_enabled = false
-sandbox_backend = "none"
-</code></pre>
-<p><code>runtime.kind = "docker"</code> ejecuta invocaciones de shell en un contenedor efímero. Las configuraciones específicas de Docker para imagen, red, memoria, CPU, rootfs de solo lectura y montaje del workspace se encuentran en <code>[runtime.docker]</code>.</p>
-<p>La línea <code>sandbox_backend = "none"</code> evita envolver el runtime de Docker en un segundo contenedor de sandbox separado. En este patrón, el runtime de Docker es el límite de ejecución para las invocaciones de shell integradas, y <code>[runtime.docker]</code> es donde se configuran los límites de imagen y contenedor.</p>
-<p>Si una skill necesita HTTP saliente, cambia <code>runtime.docker.network</code> deliberadamente, por ejemplo:</p>
-<pre><code class="language-toml">[runtime.docker]
-network = "bridge"
-</code></pre>
-<p>Si una skill necesita escribir cachés de paquetes, informes o estado temporal fuera del workspace montado, evalúa si debería escribir en <code>/workspace</code> en su lugar, y luego flexibiliza <code>read_only_rootfs</code> solo cuando eso no sea suficiente.</p>
+<p>Point ZeroClaw at the image via <code>runtime.kind = "docker"</code>, which runs shell invocations in an ephemeral container. Docker-specific image, network, memory, CPU, read-only rootfs, and workspace mount settings live under <code>runtime.docker</code>.</p>
+<p>Set <code>sandbox_backend = "none"</code> to avoid wrapping the Docker runtime in a second, separate sandbox container. In this pattern the Docker runtime is the execution boundary for built-in shell invocations, and <code>runtime.docker</code> is where the image and container limits are configured.</p>
+<p>If a skill needs outbound HTTP, change <code>runtime.docker.network</code> deliberately. If a skill needs to write package caches, reports, or temporary state outside the mounted workspace, review whether it should instead write under <code>/workspace</code>, then relax <code>read_only_rootfs</code> only when that is not enough.</p>
 <h2 id="montajes-del-espacio-de-trabajo"><a class="header" href="#montajes-del-espacio-de-trabajo">Montajes del espacio de trabajo</a></h2>
 <p>Cuando <code>runtime.docker.mount_workspace = true</code>, ZeroClaw monta el workspace configurado en <code>/workspace</code> dentro del contenedor y establece allí el directorio de trabajo del contenedor. Los scripts de skills deben usar rutas relativas al workspace siempre que sea posible.</p>
-<p>Si la ruta de tu espacio de trabajo debe restringirse aún más, configura:</p>
-<pre><code class="language-toml">[runtime.docker]
-allowed_workspace_roots = ["/srv/zeroclaw-workspaces"]
-</code></pre>
-<p>ZeroClaw valida la ruta del workspace del host contra esa lista de permitidos antes de añadir el montaje de volumen de Docker.</p>
+<p>If your workspace path must be constrained further, configure the workspace allowlist. ZeroClaw validates the host workspace path against that allowlist before adding the Docker volume mount.</p>
 <h2 id="elegir-un-patrón"><a class="header" href="#elegir-un-patrón">Elegir un patrón</a></h2>
 <ul>
 <li>Usa Python nativo de confianza cuando hayas escrito o revisado las skills y quieras la menor latencia en un host de un solo usuario.</li>

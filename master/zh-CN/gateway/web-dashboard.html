@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,16 +295,20 @@
                         <h1 id="web-仪表盘gatewayweb_dist_dir"><a class="header" href="#web-仪表盘gatewayweb_dist_dir">Web 仪表盘（<code>gateway.web_dist_dir</code>）</a></h1>
 <p>网关守护进程将其 HTTP API 内置于二进制文件中，但 Web 仪表板的 HTML/JS/CSS 则以磁盘文件形式存放于由 Vite 生成的 <code>web/dist/</code> 目录中。<code>gateway.web_dist_dir</code> 设置（及其 schema 镜像环境变量覆盖项 <code>ZEROCLAW_gateway__web_dist_dir</code>）用于告知守护进程该目录的位置。当该设置和已知的回退位置均不包含已构建的 <code>index.html</code> 时，网关将以 <strong>API-only mode</strong> 启动，仪表板 URL 会返回“不可用“消息。</p>
 <h2 id="太长不看"><a class="header" href="#太长不看">太长不看</a></h2>
-<pre><code class="language-toml"># config.toml
-[gateway]
-web_dist_dir = "/absolute/path/to/zeroclaw/web/dist"   # 注意：不要使用 ~，不要使用 $HOME
-</code></pre>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
 <pre><code class="language-sh"># 等效的环境变量覆盖（仅存于内存中，从不持久化）
 export ZEROCLAW_gateway__web_dist_dir="/absolute/path/to/zeroclaw/web/dist"
 </code></pre>
+</div>
+
 <p>然后构建一次 bundle：</p>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh">cargo web build
 </code></pre>
+</div>
+
 <p>……并重启守护进程。启动日志将从</p>
 <pre><code class="language-text">Web dashboard: not available — no web/dist found. Build with `cargo web build` …
 </code></pre>
@@ -238,14 +318,14 @@ export ZEROCLAW_gateway__web_dist_dir="/absolute/path/to/zeroclaw/web/dist"
 <h2 id="该设置的作用"><a class="header" href="#该设置的作用">该设置的作用</a></h2>
 <p><code>gateway.web_dist_dir</code> 是一个 <code>Option&lt;String&gt;</code>，指向包含已构建的 <code>index.html</code> 的目录。在网关启动时，守护进程会：</p>
 <ol>
-<li>从 <code>config.toml</code> 读取值（或使用环境变量覆盖值）。</li>
+<li>Reads the configured value (or the env-var override).</li>
 <li>验证目录在本机上存在<strong>且</strong>包含 <code>index.html</code>。</li>
-<li>如果是 — 从该路径提供仪表板服务。</li>
-<li>如果不存在 — 记录一条 WARN 日志（“此机器上的路径不包含 <code>index.html</code>；回退到自动检测”），并尝试下方的自动检测候选项。</li>
-<li>如果自动检测也未找到任何内容，网关将以仅 API 模式运行，<code>GET /</code> 将返回一条“不可用“消息并指引回此处。</li>
+<li>If yes, serves the dashboard from that path.</li>
+<li>If no, logs a WARN (“path doesn’t contain <code>index.html</code> on this machine; falling back to auto-detect”) and tries the auto-detect candidates below.</li>
+<li>If auto-detect also turns up nothing, the gateway runs in API-only mode and <code>GET /</code> returns a “not available” message that points back here.</li>
 </ol>
 <p>该值被视为一种提示，而非强制要求。失效的路径（拼写错误、从其他机器复制的特定主机路径、缺失的构建）会降级为自动检测，而不会导致每个仪表盘请求崩溃。</p>
-<h2 id="默认--自动检测顺序"><a class="header" href="#默认--自动检测顺序">默认 — 自动检测顺序</a></h2>
+<h2 id="default-auto-detect-order"><a class="header" href="#default-auto-detect-order">Default: auto-detect order</a></h2>
 <p>当 <code>gateway.web_dist_dir</code> 未设置（或设置为不包含 <code>index.html</code> 的路径）时，守护进程会按顺序探测以下位置，并从第一个包含 <code>index.html</code> 的位置提供服务：</p>
 <div class="table-wrapper">
 <table>
@@ -261,15 +341,19 @@ export ZEROCLAW_gateway__web_dist_dir="/absolute/path/to/zeroclaw/web/dist"
 </tbody>
 </table>
 </div>
-<p>如果你使用的是这些发行版之一，并且仪表盘“开箱即用“，那么你完全不需要设置 <code>gateway.web_dist_dir</code>——自动检测已经找到了它。</p>
+<p>If you’re on one of those distributions and the dashboard “just works”, you don’t need to set <code>gateway.web_dist_dir</code> at all, the auto-detect found it.</p>
 <h2 id="如何获取-webdist"><a class="header" href="#如何获取-webdist">如何获取 <code>web/dist</code></a></h2>
 <p>你有三个选项。请选择与你安装 ZeroClaw 的方式相匹配的选项。</p>
 <h3 id="a-源码检出开发者打包者"><a class="header" href="#a-源码检出开发者打包者">A) 源码检出（开发者/打包者）</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
 <pre><code class="language-sh">git clone https://github.com/zeroclaw-labs/zeroclaw.git
 cd zeroclaw
 cargo web build           # `cargo run -p xtask --bin web -- build` 的别名
                           # 首次运行时自动执行 `npm install`
 </code></pre>
+</div>
+
 <p>软件包会生成到 <code>web/dist/</code> 目录。请将 <code>web_dist_dir</code> 指向该目录的绝对路径，或者从仓库根目录运行守护进程，让自动检测的候选项 1 自动识别它。</p>
 <p>完整的 <code>cargo web</code> 子命令集（<code>dev</code>、<code>check</code>、<code>gen-api</code> 等）记录在<a href="../developing/web.html">构建 web 仪表板</a>中。</p>
 <h3 id="b-预构建的发布工件"><a class="header" href="#b-预构建的发布工件">B) 预构建的发布工件</a></h3>
@@ -280,11 +364,11 @@ cargo web build           # `cargo run -p xtask --bin web -- build` 的别名
 <p>该值按照标准的配置层级顺序进行解析：</p>
 <ol>
 <li><code>ZEROCLAW_gateway__web_dist_dir</code>（架构镜像环境变量，参见<a href="../reference/env-vars.html">环境变量</a>）</li>
-<li><code>config.toml</code> 中的 <code>gateway.web_dist_dir</code></li>
+<li>The configured <code>gateway.web_dist_dir</code></li>
 <li>自动检测（上述五个候选项）</li>
 </ol>
-<p>环境变量覆盖仅作用于内存中的 <code>Config</code>；它们绝不会写回 <code>config.toml</code>。</p>
-<h2 id="模式映射语法--派生-zeroclaw_gateway__web_dist_dir"><a class="header" href="#模式映射语法--派生-zeroclaw_gateway__web_dist_dir">模式映射语法 — 派生 <code>ZEROCLAW_gateway__web_dist_dir</code></a></h2>
+<p>Env-var overrides apply to the in-memory <code>Config</code> only; they are never persisted.</p>
+<h2 id="schema-mirror-grammar-deriving-zeroclaw_gateway__web_dist_dir"><a class="header" href="#schema-mirror-grammar-deriving-zeroclaw_gateway__web_dist_dir">Schema-mirror grammar: deriving <code>ZEROCLAW_gateway__web_dist_dir</code></a></h2>
 <p>通用运算符覆盖语法（参见<a href="../reference/env-vars.html">环境变量</a>）会将带点号的 TOML 路径机械地映射为环境变量名称：</p>
 <pre><code class="language-text">TOML path:  gateway.web_dist_dir
             ─────── ─────────────
@@ -295,26 +379,23 @@ Env var:    ZEROCLAW_gateway__web_dist_dir
             prefix          path-separator  field-name
                             (`.` → `__`)    (unchanged)
 </code></pre>
-<p>相同的三个步骤可为所有其他网关参数生成环境变量名称——例如 <code>gateway.request_timeout_secs</code> 会变成 <code>ZEROCLAW_gateway__request_timeout_secs</code>。</p>
+<p>The same three steps produce env-var names for every other gateway knob, e.g. <code>gateway.request_timeout_secs</code> becomes <code>ZEROCLAW_gateway__request_timeout_secs</code>.</p>
 <h2 id="常见陷阱"><a class="header" href="#常见陷阱">常见陷阱</a></h2>
 <h3 id="不要使用--或-home"><a class="header" href="#不要使用--或-home">不要使用 <code>~</code> 或 <code>$HOME</code></a></h3>
-<p>网关<strong>不会</strong>展开字面意义上的波浪号（~）：</p>
-<pre><code class="language-toml"># 错误 —— 网关会查找一个名称就是 "~" 的目录
-web_dist_dir = "~/zeroclaw/web/dist"
-</code></pre>
-<pre><code class="language-toml"># 正确
-web_dist_dir = "/home/alice/zeroclaw/web/dist"
-</code></pre>
-<p>Shell 变量（<code>$HOME</code>、<code>%USERPROFILE%</code>）同样不会被展开。如果你以这种方式设置该值，请在环境变量中预先展开它们：</p>
+<p>A literal tilde is <strong>not</strong> expanded by the gateway; use an absolute path for <code>gateway.web_dist_dir</code>. Shell variables (<code>$HOME</code>, <code>%USERPROFILE%</code>) are likewise not expanded; pre-expand them in the env var if you set the value that way:</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
 <pre><code class="language-sh">export ZEROCLAW_gateway__web_dist_dir="$HOME/zeroclaw/web/dist"   # shell 展开 $HOME
 </code></pre>
-<p>配套 <a href="https://github.com/zeroclaw-labs/zeroclaw/pull/6961">PR #6961</a> 在 <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/6079">issue #6079</a> 中跟踪的针对性检查——“看起来像是未展开的 <code>~</code> / <code>$VAR</code>——请在写入此值前先对其执行 <a href="https://crates.io/crates/shellexpand"><code>shellexpand</code></a>”——同时添加到了 <code>zeroclaw doctor</code> 和 <code>zeroclaw self-test</code>，作为 Warn 级别的诊断。这两个命令在当前 <code>master</code> 上都不会暴露该问题——在 #6961 合入之前，请自行展开 <code>~</code> / <code>$VAR</code> 后再写入 <code>gateway.web_dist_dir</code>（例如写 <code>/home/alice/zeroclaw/web/dist</code> 而不是 <code>~/zeroclaw/web/dist</code>）。</p>
+</div>
+
+<p>Companion <a href="https://github.com/zeroclaw-labs/zeroclaw/pull/6961">PR #6961</a> adds the targeted “looks like an unexpanded <code>~</code> / <code>$VAR</code>, <a href="https://crates.io/crates/shellexpand"><code>shellexpand</code></a> it before writing this value” check tracked in <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/6079">issue #6079</a> to both <code>zeroclaw doctor</code> and <code>zeroclaw self-test</code> as a Warn-severity diagnostic. Neither command surfaces it on current <code>master</code>, until #6961 lands, expand <code>~</code> / <code>$VAR</code> yourself before writing <code>gateway.web_dist_dir</code> (for example write <code>/home/alice/zeroclaw/web/dist</code> instead of <code>~/zeroclaw/web/dist</code>).</p>
 <h3 id="相对路径基于-cwd-解析而非配置文件"><a class="header" href="#相对路径基于-cwd-解析而非配置文件">相对路径基于 CWD 解析，而非配置文件</a></h3>
-<p><code>web_dist_dir = "web/dist"</code> 是相对于守护进程启动时的工作目录进行解析的——而非相对于 <code>config.toml</code> 的位置。如果你将配置文件部署到另一台主机，或从其他目录调用守护进程（例如通过 systemd），相对路径形式将会指向错误的位置。<strong>请在 <code>config.toml</code> 中使用绝对路径。</strong></p>
+<p><code>web_dist_dir = "web/dist"</code> is interpreted relative to the daemon’s working directory at start time, not relative to the config location. If you ship a config to another host or invoke the daemon from a different directory (e.g. via systemd), the relative form will look in the wrong place. <strong>Use absolute paths for <code>web_dist_dir</code>.</strong></p>
 <h3 id="启动时出现stale-path警告"><a class="header" href="#启动时出现stale-path警告">启动时出现“Stale path”警告</a></h3>
 <pre><code class="language-text">WARN gateway.web_dist_dir points at a path that doesn't contain index.html
 on this machine; falling back to auto-detect. Update or remove the setting
-in config.toml to silence this warning.
+to silence this warning.
 </code></pre>
 <p>这表示该路径语法上有效，但文件尚不存在。你可以运行 <code>cargo web build</code>、修正路径，或者完全移除该设置并交由自动检测处理。</p>
 <h3 id="启动时显示web-dashboard-not-available"><a class="header" href="#启动时显示web-dashboard-not-available">启动时显示“Web dashboard: not available”</a></h3>
@@ -322,12 +403,12 @@ in config.toml to silence this warning.
 `cargo web build` and point gateway.web_dist_dir at the resulting
 web/dist directory.
 </code></pre>
-<p>API 端点仍然可用——仅缺少 HTML/JS 包。请构建它（上述选项 A/B/C）或设置路径。</p>
+<p>API endpoints still work, only the HTML/JS bundle is missing. Build it (option A/B/C above) or set the path.</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
-<li><a href="../reference/env-vars.html">环境变量</a> — 完整的架构镜像语法</li>
-<li><a href="./api.html">网关 HTTP API</a> — 仪表板与之通信的对象</li>
-<li><a href="../developing/web.html">构建 Web 仪表板</a> — <code>cargo web</code> 子命令及其生成的内容</li>
+<li><a href="../reference/env-vars.html">Environment variables</a>: full schema-mirror grammar</li>
+<li><a href="./api.html">Gateway HTTP API</a>: what the dashboard talks to</li>
+<li><a href="../developing/web.html">Building the web dashboard</a>: <code>cargo web</code> subcommands and what gets generated</li>
 </ul>
 
                     </main>
@@ -338,7 +419,7 @@ web/dist directory.
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../providers/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../agents/overview.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -352,7 +433,7 @@ web/dist directory.
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../providers/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../agents/overview.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,15 +292,15 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-002-意図的なドキュメント--標準構造および-i18n-戦略"><a class="header" href="#fnd-002-意図的なドキュメント--標準構造および-i18n-戦略">FND-002: 意図的なドキュメント — 標準、構造、および i18n 戦略</a></h1>
-<h3 id="v070-以降--タイプ-ドキュメント--rev-1"><a class="header" href="#v070-以降--タイプ-ドキュメント--rev-1">v0.7.0 以降 · タイプ: ドキュメント · Rev. 1</a></h3>
+                        <h1 id="fnd-002-intentional-documentation-standards-structure-and-i18n-strategy"><a class="header" href="#fnd-002-intentional-documentation-standards-structure-and-i18n-strategy">FND-002: Intentional Documentation: Standards, Structure, and i18n Strategy</a></h1>
 <blockquote>
+<p>v0.7.0 以降 · タイプ: ドキュメント · Rev. 1</p>
 <p><strong>正規の参照</strong> · チームによって承認済み · Rev. 1 議論スレッドおよび完全な改訂履歴: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5576">#5576</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>これを読む前にチームへの注意。</strong></p>
-<p>ドキュメントは、コードが完成してから後から書くものではありません。それはそれ自体が一つの製品面であり、プロジェクトと、それに貢献する人、利用する人、あるいはそれを基に構築する人との間のインターフェースです。ドキュメントがないコードベースでは、新しい参加者はすべてをゼロから再発見せざるを得ません。一方、ドキュメントが不十分なコードベースはさらに問題で、誤った自信を与えてしまうことがあります。このRFCでは、アーキテクチャに適用しているのと同じ意図を持ってドキュメントを扱うことを提案します。まずビジョン、次に構造、そしてコンテンツです。</p>
+<p>Documentation is not what you write after the code is done. It is a product surface in its own right, the interface between the project and every person who will ever contribute to it, use it, or build on it. A codebase with no documentation forces every new person to rediscover everything from scratch. A codebase with bad documentation is often worse, because it gives people false confidence. This RFC proposes treating documentation with the same intentionality we are applying to the architecture: Vision first, then structure, then content.</p>
 </blockquote>
 <hr>
 <h2 id="目次"><a class="header" href="#目次">目次</a></h2>
@@ -246,7 +322,7 @@
 <p>ドキュメントの問題は、最初の文を書く前に尋ねるべき質問を省略したことに起因することがほとんどです。<strong>このドキュメントはどのような種類のもので、誰を対象としているのか？</strong></p>
 <p>この問いに対する答えがないと、ドキュメントはすべて「プロジェクトに関するもの」という曖昧なカテゴリのわずかに異なる形状のページの山として蓄積していきます。セットアップガイドはアーキテクチャの決定事項の隣に置かれ、ユーザー向けのハウツーは内部のコーディング基準の隣に並んでいます。READMEの30言語版が、単一のセキュリティポリシー文書とスペースを争っています。誰も何も見つからず、すべてが異なるペースで古くなり、ドキュメントに触れるすべてのPRが、どのページを更新する必要があるかについての交渉になります。</p>
 <p>修正策は、さらにドキュメントを書くことではありません。修正策は、何も書き始める前に、作成するアーティファクトのタイプを決定することです。タイプは、フォーマット、対象者、場所、ライフサイクル、そしてそれを最新に保つ責任者を決定します。タイプが確立されれば、残りのことは自然と整います。</p>
-<p>このRFCは、Svyatoslav Kotusevによる<strong>EA Artifacts on a Page</strong>フレームワーク（https://eaonapage.com）を、ZeroClawのドキュメントすべての分類の視点として採用します。このフレームワークは証拠に基づいており、意図的に非指示的であり、オープンソースインフラストラクチャプロジェクトが実際に必要とする種類のドキュメントに直接マッピングされます。</p>
+<p>This RFC adopts the <strong>EA Artifacts on a Page</strong> framework by Svyatoslav Kotusev (<a href="https://eaonapage.com">https://eaonapage.com</a>) as the classification lens for all ZeroClaw documentation. The framework is evidence-based, deliberately non-prescriptive, and maps directly onto the kinds of documents an open source infrastructure project actually needs.</p>
 <p>このチームが採用している広範な開発哲学から借用した核心原則：</p>
 <blockquote>
 <p><strong>コードと同様に、ドキュメントも Vision → Architecture → Design → Implementation へと上向きに追跡できるものでなければなりません。書く前に、アーティファクトのタイプとその対象読者を明確にできない場合は、まだ書く準備ができていません。</strong></p>
@@ -283,7 +359,7 @@
 </ul>
 <p>これら3つはすべて <code>docs/</code> にあり、それらの間に構造的な区別はありません。その結果、手動でメンテナンスする必要がある <code>SUMMARY.md</code> を持つ平坦な構造になり、何か変更があるたびに誰かが更新する必要があります。</p>
 <h3 id="23-adrギャップ"><a class="header" href="#23-adrギャップ">2.3 ADRギャップ</a></h3>
-<p>このプロジェクトには、まさに1つのアーキテクチャ意思決定記録（ADR）があります：<code>ADR-004-tool-shared-state-ownership.md</code>。これは非常に優れており、構造的に整っており、コード参照があり、具体的です。しかし、このプロジェクトは少なくとも5つから6つの同等またはそれ以上の重大なアーキテクチャ意思決定を行っており、それらは一度も記録されていません：</p>
+<p>The project has exactly one Architecture Decision Record: <code>ADR-004-tool-shared-state-ownership.md</code>. It is excellent: well-structured, code-referenced, specific. But the project has made at least five or six architectural decisions of equal or greater consequence that have never been recorded:</p>
 <ul>
 <li>RustをTypeScriptよりも選択する理由</li>
 <li>トレイト駆動の拡張性モデル</li>
@@ -293,7 +369,7 @@
 </ul>
 <p>これらの記録がないと、新しいコントリビューターはコード考古学を通じて理由を再発見しなければなりません。コードベースを読み取るすべてのAIコーディングアシスタントは「何を」は理解できますが、「なぜ」は理解できません。これは最も高価な形式のドキュメント化されていない技術的負債の一つです。</p>
 <h3 id="24-すでに良い点"><a class="header" href="#24-すでに良い点">2.4 すでに良い点</a></h3>
-<p><code>docs-contract.md</code>の概念——ドキュメントを管理された製品面として捉える——は正しい直感です。適切なルールさえ整えば、完璧です。ルートの <code>AGENTS.md</code> は非常に優れており、AI支援開発における適切な先例を示しています。ADR-004は、チームが高品質なアーキテクチャ記録を作成できることを証明しています。</p>
+<p>The <code>docs-contract.md</code> concept, treating documentation as a governed product surface, is the right instinct. It just needs the right rules. The <code>AGENTS.md</code> at the root is excellent and sets the right precedent for AI-assisted development. ADR-004 proves the team can write high-quality architectural records.</p>
 <hr>
 <h2 id="3-分類フレームワーク1ページ上のeaアーティファクト"><a class="header" href="#3-分類フレームワーク1ページ上のeaアーティファクト">3. 分類フレームワーク：1ページ上のEAアーティファクト</a></h2>
 <p><strong>EA Artifacts on a Page</strong> フレームワークは、アーキテクチャアーティファクトの5つのファミリーを定義しています。ZeroClaw リポジトリ内のすべてのドキュメントは、これらのファミリーのいずれかに属しており、そのファミリーがドキュメントの保存場所、フォーマット、および古さの基準を決定します。</p>
@@ -323,7 +399,7 @@
 <h2 id="4-i18nの問題"><a class="header" href="#4-i18nの問題">4. i18nの問題</a></h2>
 <h3 id="41-削除の論拠"><a class="header" href="#41-削除の論拠">4.1 削除の論拠</a></h3>
 <p>リポジトリから英語以外のコンテンツをすべて削除する根拠は、4つの柱に支えられています。</p>
-<p><strong>1. 視聴者はオンデマンド翻訳を利用可能</strong> ZeroClaw の主要ユーザーは AI アシスタントを実行している人々です。そのような人々はすべて、実行中のエージェント、ブラウザ、または数十の無料翻訳サービスのいずれかを通じて、即時かつ高品質な機械翻訳にアクセスできます。リポジトリに翻訳を同梱することの実際の利点は限定的です。</p>
+<p><strong>1. The audience has on-demand translation.</strong> ZeroClaw’s primary users are people running an AI assistant. Every such person has access to instant, high-quality machine translation, either through the agent they are running, through their browser, or through any of dozens of free translation services. The practical benefit of shipping translations in the repository is marginal.</p>
 <p><strong>2. 翻訳は古くなっている可能性が高いです。</strong> マシン翻訳されたコンテンツは一度生成されただけで、英語のソースと同期されていません。AI支援開発において、古いドキュメントはドキュメントがないよりも悪いです。なぜなら、言語モデルは古い情報から誤った結論を自信を持って導き出すからです。</p>
 <p><strong>3. コントリビューター税は現実的で測定可能です。</strong> <code>docs-contract.md</code> のパリティ要件により、ドキュメントのPRは最大6つの言語版にまたがって変更を行う必要があります。これにより、ドキュメントへの貢献のコストが高くなり、ドキュメントを健全に保つために不可欠な小さなインクリメンタルな改善（タイプミス修正、手順の明確化、古い参照の更新など）が抑制されます。</p>
 <p><strong>4. ローカライゼーションはコミュニティの取り組みであり、コアプロジェクトの作業ではありません。</strong> 日本語のドキュメントを維持するのに最も適した立場にあるのは、日本語を話すコントリビューターです。ローカライズされたコンテンツをメインリポジトリに配置し、同等性の要件を課すことは、恩恵を受けるコミュニティではなく、コアメンテナーに負担を強いることになります。GitHub Wiki はこれを正しく逆転させています。コミュニティメンバーは、PR を開くことなく、自言語のページを編集・維持できます。</p>
@@ -350,7 +426,7 @@
 <p>GitHub Wiki に <code>Translations</code> ページを作成し、利用可能な言語の一覧、その進捗状況、およびそれらを管理している貢献者を含む表を追加してください。</p>
 </li>
 <li>
-<p><strong>オプション:</strong> 設定されたLLMプロバイダを使用して、ドキュメントページをオンデマンドで翻訳する <code>zeroclaw docs --translate</code> CLI機能を追加する — これはAI支援を目的とした製品にとって自然な機能です。</p>
+<p><strong>Optionally:</strong> add a <code>zeroclaw docs --translate</code> CLI feature that uses the configured LLM provider to translate any doc page on demand, a natural fit for a product whose entire purpose is AI assistance</p>
 </li>
 </ol>
 <h3 id="44-agentsmd-の影響"><a class="header" href="#44-agentsmd-の影響">4.4 AGENTS.md の影響</a></h3>
@@ -363,7 +439,7 @@
 </blockquote>
 <p>これはファジールールではありません。これを文字通りに適用してください。</p>
 <p>ADR は、特定の時点での特定のアーキテクチャの決定がなぜ行われたかを記録します。コードが変更されても、ADR は決定された内容と時期を正確に記述し続けます。コードはそこから進化しているかもしれませんが、記録自体は正確です。→ <strong>リポジトリ。</strong></p>
-<p>Telegram チャンネルの設定に関するセットアップガイドは、現在のソフトウェアのバージョンに対してユーザーが行う手順を説明しています。設定フォーマットが変更されると、ガイドは正しくなくなります。→ <strong>これはリポジトリに含まれるべきように思えますが、実際には含めるべきではありません。</strong> セットアップガイドは独自のタイムラインで更新されるべきであり、コードコミットに依存すべきではありません。正しいモデルは、API リファレンス（設定構造体と直接マッピングされる）はリポジトリに、その API を使用する方法をユーザーに案内するセットアップガイドは Wiki に配置し、手順が変更された際に誰でも更新できるようにすることです。</p>
+<p>A setup guide for configuring the Telegram channel describes steps a user takes against the current version of the software. If the configuration format changes, the guide becomes wrong. → <strong>This sounds like it should be in the repo, but it shouldn’t.</strong> Setup guides should update on their own timeline, not be coupled to code commits. The right model is: the API reference (which maps directly to configuration structs) lives in the repo, and the setup guide that walks a user through using that API lives on the Wiki, updated by anyone when the steps change.</p>
 <h3 id="52-実践における分割"><a class="header" href="#52-実践における分割">5.2 実践における分割</a></h3>
 <p><strong>リポジトリ内 (<code>docs/book/src/</code>) に保持:</strong></p>
 <div class="table-wrapper">
@@ -455,7 +531,7 @@
 <hr>
 <h2 id="6-adrの標準"><a class="header" href="#6-adrの標準">6. ADRの標準</a></h2>
 <h3 id="61-フォーマット"><a class="header" href="#61-フォーマット">6.1 フォーマット</a></h3>
-<p>すべてのアーキテクチャ決定記録（ADR）は、機械可読性を高めるためにYAMLフロントマターを追加した<strong>Nygard形式</strong>を使用しています。ADR-004は既存のモデルであり、このセクションでそれを正式に定義します。</p>
+<p>All Architecture Decision Records use the <strong>Nygard format</strong>, extended with YAML frontmatter for machine readability. ADR-004 is the existing model. This section formalizes it.</p>
 <p>各ADRには3つのセクションと5つのフロントmatterフィールドがあります：</p>
 <pre><code>---
 id: ADR-NNN
@@ -524,7 +600,7 @@ relates-to:
 <h2 id="7-ai開発レイヤーとしてのagentsmd"><a class="header" href="#7-ai開発レイヤーとしてのagentsmd">7. AI開発レイヤーとしてのAGENTS.md</a></h2>
 <h3 id="71-パターン"><a class="header" href="#71-パターン">7.1 パターン</a></h3>
 <p>ルート <code>AGENTS.md</code> は、プロジェクトが AI 支援開発に提供する最も強力な貢献です。これは AI コーディングアシスタントに対して、実行するコマンド、尊重すべきアーキテクチャ、適用すべきリスクティア、回避すべきアンチパターンを伝えます。これは具体的で、意見があり、簡潔であるため、機能しています。</p>
-<p>ワークスペースがマイクロカーネルアーキテクチャ RFC に基づいてクレートに分割される際、各クレートには独自の <code>AGENTS.md</code> を持つべきです。これは、アーキテクチャの境界が、コンパイル時のクレート依存関係だけでなく、コードが書かれる前の推論層でも強制されるための仕組みです。</p>
+<p>As the workspace decomposes into crates (per the microkernel architecture RFC), each crate should have its own <code>AGENTS.md</code>. This is the mechanism by which architectural boundaries become enforceable at the AI-assistance layer, not just at compile time through crate dependencies, but at the reasoning layer before any code is written.</p>
 <h3 id="72-各クレート-agentsmd-の内容"><a class="header" href="#72-各クレート-agentsmd-の内容">7.2 各クレート AGENTS.md の内容</a></h3>
 <p>短く保ってください。60行を超える <code>AGENTS.md</code> は読まれません。各ファイルは5つの質問に答えます：</p>
 <pre><code class="language-markdown"># &lt;crate-name&gt;
@@ -709,7 +785,7 @@ Cargo.lock
 <hr>
 <h2 id="9-置換ドキュメント契約"><a class="header" href="#9-置換ドキュメント契約">9. 置換ドキュメント契約</a></h2>
 <p>従来の <code>docs/contributing/docs-contract.md</code> は、この RFC で廃止された i18n パリティ要件とディレクトリ構造を定義していました。このファイルは削除され、このセクションがその代替となります。</p>
-<p>この置換は、アーティファクトの分類、リポジトリとWikiの分離、およびADRのガバナンスの3つを規定しています。i18nについては何も言及していません。ロケールの整合性は、<a href="../maintainers/docs-and-translations.html">Maintainers → Docs &amp; Translations</a> ページで処理されます。</p>
+<p>The replacement governs three things: artifact classification, the repo/wiki split, and ADR governance. It says nothing about i18n: locale parity is now handled by the <a href="../maintainers/docs-and-translations.html">Maintainers → Docs &amp; Translations</a> page.</p>
 <p><strong>置換ドキュメント契約:</strong></p>
 <pre><code class="language-markdown"># Documentation Contract
 
@@ -762,7 +838,7 @@ precede implementation by multiple releases.
 <h2 id="10-採用すべき基準"><a class="header" href="#10-採用すべき基準">10. 採用すべき基準</a></h2>
 <p>これらのドキュメント固有の基準は、アーキテクチャRFCで提案されたより広範な基準を補完するものです。</p>
 <h3 id="diátaxis-フレームワークドキュメント構造"><a class="header" href="#diátaxis-フレームワークドキュメント構造">Diátaxis フレームワーク（ドキュメント構造）</a></h3>
-<p><strong>概要:</strong> Diátaxis (https://diataxis.fr) は、コンテンツをチュートリアル、ハウツーガイド、リファレンス、解説の4つのタイプに分類する技術文書のための体系的なフレームワークです。これは Python ドキュメントや Django ドキュメントなど、多くのプロジェクトで採用されている文書フレームワークです。EA Artifacts アプローチと高い互換性があります。これらは異なる問いに答えるものです（Diátaxis: 文書のコンテンツをどのように構成するか；EA Artifacts: この文書のタイプは何か、そしてどこに配置するか）。</p>
+<p><strong>What it is:</strong> Diátaxis (<a href="https://diataxis.fr">https://diataxis.fr</a>) is a systematic framework for technical documentation that divides content into four types: tutorials, how-to guides, reference, and explanation. It is the documentation framework behind the Python documentation, Django docs, and many others. It is highly compatible with the EA Artifacts approach: they answer different questions (Diátaxis: how to structure the content of a document; EA Artifacts: what type of document is this and where does it live).</p>
 <p><strong>適用方法:</strong> ウィキ上のユーザー向けドキュメントはDiátaxis構造に従う必要があります。リポジトリ内のコードに隣接するドキュメントはEA Artifactsに従います。これら2つのフレームワークは異なるレベルで機能し、競合しません。</p>
 <div class="table-wrapper">
 <table>
@@ -788,17 +864,17 @@ precede implementation by multiple releases.
   - crates/zeroclaw-api
 ---
 </code></pre>
-<p><code>docs/</code> 内のすべてのドキュメントに有効なフロントマターが含まれていることを確認する CI チェックを実装してください。これにより、ドキュメントのタイプとステータスを最初に宣言せずに記述されることを防ぎ、ツールレベルで分類の規律を強制します。</p>
+<p>A CI check should verify that all documents in <code>docs/</code> have valid frontmatter. This prevents documents from being written without first declaring their type and status, enforcing the classification discipline at the tooling level.</p>
 <h3 id="commonmark--github-flavored-markdown"><a class="header" href="#commonmark--github-flavored-markdown">CommonMark + GitHub Flavored Markdown</a></h3>
 <p>すべてのドキュメントは、CommonMark（標準化されたMarkdown仕様）とGitHub Flavored Markdownの拡張機能（テーブル、タスクリスト、フェンシングされたコードブロック、Mermaidダイアグラム）を使用しています。カスタム拡張機能、MDX、ReStructuredTextは使用しません。アーキテクチャ図には画像ファイルよりもMermaidダイアグラムが推奨されます。これは、コードとバージョン管理がきれいに同期するためです。</p>
 <h3 id="prose-linting-用の-vale"><a class="header" href="#prose-linting-用の-vale">Prose Linting 用の Vale</a></h3>
-<p><strong>概要:</strong> Vale (https://vale.sh) はプロセのリンターであり、設定可能なルールを使用して、文章のスタイル、一貫性、読みやすさをチェックします。例えば、「ユーザー」ではなく「あなた」を使用する、命令的なセクションでは受動態を避ける、「拡張機能」や「モジュール」ではなく「プラグイン」など、用語の一貫性を強制することができます。</p>
+<p><strong>What it is:</strong> Vale (<a href="https://vale.sh">https://vale.sh</a>) is a prose linter: it checks writing style, consistency, and readability using configurable rules. It can enforce things like: always use “you” not “the user”, avoid passive voice in imperative sections, use consistent terminology (“plugin” not “extension” not “module”).</p>
 <p><strong>なぜ重要か:</strong> 現在のドキュメントは、トーン、用語、スタイルが一貫していません。一部のページでは「プラグイン」、一部では「モジュール」、一部では「拡張機能」と表記されています。Vale はこれらのルールを自動化し、Clippy がコード品質を強制するのと同じように、CI 時にそれらを強制します。</p>
 <hr>
 <h2 id="11-フェーズ別ロードマップ"><a class="header" href="#11-フェーズ別ロードマップ">11. フェーズ別ロードマップ</a></h2>
 <p>ドキュメントの移行は、アーキテクチャの移行と同じく、Strangler Fig パターンに従います。これは、段階的に行い、常に動作する状態を維持し、大規模な書き換えを避けるアプローチです。</p>
 <hr>
-<h3 id="フェーズ1--v070--ルートをクリーンにする"><a class="header" href="#フェーズ1--v070--ルートをクリーンにする">フェーズ1 · v0.7.0 — 「ルートをクリーンにする」</a></h3>
+<h3 id="phase-1--v070-clean-the-root"><a class="header" href="#phase-1--v070-clean-the-root">Phase 1 · v0.7.0: “Clean the Root”</a></h3>
 <p><strong>納品物:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> リポジトリのルートからすべての <code>README.*.md</code> ファイルを削除します（<code>README.md</code> のみを残します）。</li>
@@ -818,7 +894,7 @@ precede implementation by multiple releases.
 <li>GitHub Wikiが公開され、READMEから公開リンクされています</li>
 </ul>
 <hr>
-<h3 id="フェーズ2--v070v080--欠落しているadrを書く"><a class="header" href="#フェーズ2--v070v080--欠落しているadrを書く">フェーズ2 · v0.7.0–v0.8.0 — 「欠落しているADRを書く」</a></h3>
+<h3 id="phase-2--v070v080-write-the-missing-adrs"><a class="header" href="#phase-2--v070v080-write-the-missing-adrs">Phase 2 · v0.7.0–v0.8.0: “Write the Missing ADRs”</a></h3>
 <p><strong>納品物:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> ADR-001 から ADR-003、および ADR-005 から ADR-007 を作成してください（遡及適用、セクション 6.3 を参照）。</li>
@@ -837,7 +913,7 @@ precede implementation by multiple releases.
 <li><code>docs/</code> 内にリンク切れはありません</li>
 </ul>
 <hr>
-<h3 id="フェーズ3--v080v090--aiレイヤー"><a class="header" href="#フェーズ3--v080v090--aiレイヤー">フェーズ3 · v0.8.0–v0.9.0 — 「AIレイヤー」</a></h3>
+<h3 id="phase-3--v080v090-the-ai-layer"><a class="header" href="#phase-3--v080v090-the-ai-layer">Phase 3 · v0.8.0–v0.9.0: “The AI Layer”</a></h3>
 <p><strong>納品物:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> ワークスペースの分解（アーキテクチャ RFC のフェーズに従って）に応じて、各新規クレートごとに <code>AGENTS.md</code> を作成します。</li>
@@ -854,7 +930,7 @@ precede implementation by multiple releases.
 <li>プラグインSDKのドキュメントは、外部の貢献者が動作するツールプラグインを作成するのに十分な内容です。</li>
 </ul>
 <hr>
-<h3 id="フェーズ4--v100--安定したプラットフォーム"><a class="header" href="#フェーズ4--v100--安定したプラットフォーム">フェーズ4 · v1.0.0 — 「安定したプラットフォーム」</a></h3>
+<h3 id="phase-4--v100-the-stable-platform"><a class="header" href="#phase-4--v100-the-stable-platform">Phase 4 · v1.0.0: “The Stable Platform”</a></h3>
 <p><strong>納品物:</strong></p>
 <ul>
 <li><input disabled="" type="checkbox"> 対応するコードがリリースされたら、ADR-001 から ADR-007 を <code>proposed</code> ではなく <code>accepted</code> としてマークしてください。</li>
@@ -872,22 +948,22 @@ precede implementation by multiple releases.
 </ul>
 <hr>
 <h2 id="付録-a-用語集"><a class="header" href="#付録-a-用語集">付録 A: 用語集</a></h2>
-<p><strong>ADR（アーキテクチャ・デシジョン・レコード）</strong> — 重要なアーキテクチャの決定に関する不変の記録。その決定を促したコンテキスト、決定された内容、およびその結果が含まれます。ADRは一度承認されると変更されず、後から覆された決定は新しいADRとして記録されます。</p>
-<p><strong>Diátaxis</strong> — コンテンツをチュートリアル（学習）、ハウツーガイド（目標指向）、リファレンス（情報）、解説（理解）に分類する技術文書の構造に関する体系的なフレームワーク。詳細は https://diataxis.fr を参照してください。</p>
-<p><strong>ページ上のEAアーティファクト</strong> — Svyatoslav Kotusevによって開発されたエンタープライズアーキテクチャ文書の分類フレームワーク。アーティファクトを5つのファミリーに分類します：Considerations、Landscapes、Outlines、Designs、およびStandards。詳細は https://eaonapage.com を参照してください。</p>
-<p><strong>フロントmatter</strong> — Markdownファイルの先頭にあるYAMLメタデータで、<code>---</code>で区切られます。これにより、ドキュメントが機械可読かつツール、CIチェック、AIアシスタントによるクエリが可能になります。</p>
-<p><strong>Nygard形式</strong> — Michael Nygardによって導入されたADRの形式。文脈、決定、結果の3つのセクションで、不要な形式を省きながら本質的な推論を捉えます。</p>
-<p><strong>Strangler Fig パターン</strong> — 新しい構造を徐々に構築し、古い構造を一度にすべて置き換えるのではなく、少しずつ置き換えていく移行戦略。移行中はシステムが常に機能し続けます。</p>
-<p><strong>Vale</strong> — テクニカルドキュメント用のプロセスリンター。CI時にスタイル、一貫性、読みやすさのルールを適用し、ClippyがRustのコード品質を確保するのと同様の役割を果たします。詳細は https://vale.sh を参照してください。</p>
+<p><strong>ADR (Architecture Decision Record)</strong>: An immutable record of a significant architectural decision: the context that prompted it, what was decided, and the consequences. ADRs do not change once accepted; superseded decisions are recorded as new ADRs.</p>
+<p><strong>Diátaxis</strong>: A systematic framework for technical documentation structure that divides content into tutorials (learning), how-to guides (goal-oriented), reference (information), and explanation (understanding). See <a href="https://diataxis.fr">https://diataxis.fr</a>.</p>
+<p><strong>EA Artifacts on a Page</strong>: A classification framework for enterprise architecture documents developed by Svyatoslav Kotusev. Classifies artifacts into five families: Considerations, Landscapes, Outlines, Designs, and Standards. See <a href="https://eaonapage.com">https://eaonapage.com</a>.</p>
+<p><strong>Frontmatter</strong>: YAML metadata at the top of a Markdown file, delimited by <code>---</code>. Makes documents machine-readable and queryable by tools, CI checks, and AI assistants.</p>
+<p><strong>Nygard Format</strong>: The ADR format introduced by Michael Nygard: three sections (Context, Decision, Consequences) that capture the essential reasoning without unnecessary ceremony.</p>
+<p><strong>Strangler Fig Pattern</strong>: A migration strategy in which new structure is built incrementally around the old, replacing it piece by piece rather than all at once. The system remains functional throughout the migration.</p>
+<p><strong>Vale</strong>: A prose linter for technical documentation. Enforces style, consistency, and readability rules at CI time, the way Clippy enforces Rust code quality. See <a href="https://vale.sh">https://vale.sh</a>.</p>
 <hr>
 <h2 id="付録b-参考文献"><a class="header" href="#付録b-参考文献">付録B: 参考文献</a></h2>
 <ul>
-<li><strong>Diátaxis ドキュメントフレームワーク</strong> — https://diataxis.fr — 技術文書をタイプ別に構造化するための決定版リファレンス。</li>
-<li><strong>ページ上のEAアーティファクト（v2.2）</strong> — https://eaonapage.com — 第3節で使用される分類フレームワーク。</li>
-<li><strong>「開発者向けドキュメント」</strong> — Jared Bhatti 他 — 大規模なドキュメントシステムを運用してきたエンジニアたちが執筆した、実践的な技術ドキュメントのガイド。</li>
-<li><strong>Vale ドキュメント</strong> — https://vale.sh/docs — セクション10で提案されている文章用リンターのセットアップガイドおよび設定リファレンス。</li>
-<li><strong>ADRに関するマイケル・ナイガードの解説</strong> — https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions — 第6節で使用されているADR形式を最初に紹介したオリジナルの投稿。</li>
-<li><strong>GitHub Wikis のドキュメント</strong> — https://docs.github.com/en/communities/documenting-your-project-with-wikis — セクション5で提案されているGitHub Wikiのセットアップと運用に関するリファレンス。</li>
+<li><a href="https://diataxis.fr">Diátaxis documentation framework</a>: The definitive reference for structuring technical documentation by type.</li>
+<li><a href="https://eaonapage.com">EA Artifacts on a Page (v2.2)</a>: The classification framework used in Section 3.</li>
+<li><strong>“Docs for Developers”</strong>: Jared Bhatti et al.: A practical guide to technical documentation written by engineers who have maintained large documentation systems.</li>
+<li><a href="https://vale.sh/docs">Vale documentation</a>: Setup guide and configuration reference for the prose linter proposed in Section 10.</li>
+<li><a href="https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions">Michael Nygard on ADRs</a>: The original post that introduced the ADR format used in Section 6.</li>
+<li><a href="https://docs.github.com/en/communities/documenting-your-project-with-wikis">GitHub Wikis documentation</a>: Reference for setting up and governing the GitHub Wiki proposed in Section 5.</li>
 </ul>
 <hr>
 <p><em>この提案は、ZeroClawのドキュメントシステム（v0.6.8）の直接分析に基づいて作成されました。引用されている指標（169のi18nファイル、2.2 MB、31言語のREADMEバリアント）は直接測定に基づいています。推奨事項は、オープンソースインフラストラクチャプロジェクトの技術文書における確立されたプラクティスを反映しており、ZeroClawの特定の制約と目標に合わせて適応されています。</em></p>

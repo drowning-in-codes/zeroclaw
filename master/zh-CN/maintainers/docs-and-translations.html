@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -229,21 +305,18 @@
 </tbody>
 </table>
 </div>
-<p>它们分别填充并分别存储。两者均使用与提供商无关的填充流水线：在 <code>~/.zeroclaw/config.toml</code> 的 <code>[providers.models.&lt;kind&gt;.&lt;alias&gt;]</code> 下配置任意兼容 OpenAI 的端点，并向填充命令传递 <code>--model-provider &lt;alias&gt;</code>。任何已配置的别名均可选用——可使用裸别名（<code>--model-provider &lt;alias&gt;</code>），或在同一别名存在于多个 kind 下时使用 <code>kind.alias</code> 限定符（<code>--model-provider anthropic.&lt;alias&gt;</code>）。解析器直接从匹配到的条目读取 <code>uri</code>、<code>model</code> 和 <code>api_key</code>；缺失 <code>uri</code> 或 <code>model</code> 将导致致命错误，而非猜测默认值。</p>
-<p>通过 <a href="https://ollama.com">Ollama</a> 使用本地模型是一流的选项——无需 API 密钥，也没有按调用计费的成本。托管服务提供商对于发布级质量也是不错的选择。翻译是本地操作。运行 <code>cargo mdbook sync</code> 来生成专门的翻译缓存 PR、发布翻译流程以及新的语言区域；常规的英文文档 PR 可将大范围生成的 <code>.po</code> 变更推迟到专门的后续处理中。</p>
+<p>They are filled separately and stored separately. Both use a provider-agnostic fill pipeline: configure any OpenAI-compatible endpoint under <code>providers.models.&lt;kind&gt;.&lt;alias&gt;</code> and pass <code>--model-provider &lt;alias&gt;</code> to the fill commands. Any configured alias is choosable: a bare alias (<code>--model-provider &lt;alias&gt;</code>), or a <code>kind.alias</code> qualifier (<code>--model-provider anthropic.&lt;alias&gt;</code>) when the same alias exists under more than one kind. The resolver reads <code>uri</code>, <code>model</code>, and <code>api_key</code> straight from the matched entry; a missing <code>uri</code> or <code>model</code> is a hard error, not a guessed default.</p>
+<p>Local models via <a href="https://ollama.com">Ollama</a> are a first-class option: no API keys required, no per-call cost. A hosted provider is also fine for release-grade quality. Translation is a local operation. Run <code>cargo mdbook sync</code> for dedicated translation-cache PRs, release translation passes, and new locales; routine English docs PRs may defer broad generated <code>.po</code> churn to a focused follow-up.</p>
 <h2 id="提供程序配置"><a class="header" href="#提供程序配置">提供程序配置</a></h2>
-<p>Ollama 是目前文档的权威来源。请确保已安装 <a href="https://ollama.com/">Ollama</a> 并拉取了 <code>qwen3.6:35-a3b</code> 模型。然后，在 <code>~/.zeroclaw/config.toml</code>（或你已配置的配置目录）中：</p>
-<pre><code class="language-toml"># 通过 Ollama 在本地运行 —— 免费，在你的机器上运行
-[providers.models.ollama.local]
-uri   = "http://localhost:11434/v1/chat/completions"
-model = "qwen3.6:35b-a3b" # 当前首选模型
-</code></pre>
-<p><code>uri</code> 是完整的端点 URL，且为<strong>可选项</strong>——留空则使用提供商系列的默认端点（由运行时提供商栈解析）。仅在需要指向自托管网关或代理时才设置它。任何已配置的系列均可使用（Anthropic、OpenAI、OpenRouter、Ollama……）；翻译工具会构建真正的运行时提供商，因此每个系列的端点、身份验证标头和传输协议都会为你处理妥当——无需满足 OpenAI 兼容性要求。</p>
+<p>Ollama is the current canonical source for docs. Ensure you have <a href="https://ollama.com/">Ollama</a> installed and have <code>qwen3:30b-a3b</code> pulled, then configure an Ollama provider entry. <code>uri</code> is the full endpoint URL and is <strong>optional</strong>: leave it unset to use the provider family’s default endpoint (resolved by the runtime provider stack). Set it only to point at a self-hosted gateway or proxy. Any configured family works (Anthropic, OpenAI, OpenRouter, Ollama, …); the translation tools build the real runtime provider, so each family’s endpoint, auth header, and wire protocol are handled for you: no OpenAI-compatibility requirement.</p>
 <h2 id="在本地构建文档"><a class="header" href="#在本地构建文档">在本地构建文档</a></h2>
-<h1 id="在本地构建文档-1"><a class="header" href="#在本地构建文档-1">在本地构建文档</a></h1>
-<p>您正在阅读的文档站点是从 <code>docs/book/</code> 发布的。您可以在自己的机器上构建相同的站点——这对于离线阅读、在提交 PR 之前预览编辑内容或开发翻译非常有用。</p>
+<!-- Canonical local docs-build commands and tooling. Edit here; reuse via
+     {{#include}}. Shared by developing/building-docs and
+     maintainers/docs-and-translations. -->
 <h2 id="一键快速启动"><a class="header" href="#一键快速启动">一键快速启动</a></h2>
-<pre><code class="language-bash">cargo mdbook serve                       # 在 http://localhost:3000/en/ 提供所有语言环境
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook serve                       # 在 http://localhost:3000/en/ 提供所有语言环境
 cargo mdbook serve --locale ja           # 针对日语源码的实时重载
 cargo mdbook build                       # 将所有语言环境的静态构建放入 docs/book/book/
 cargo mdbook refs                        # 重新生成自动生成的参考页面
@@ -254,6 +327,8 @@ cargo mdbook sync --locale ja --force    # 强制重新翻译某个区域设置
 cargo mdbook stats                       # 按语言环境显示已翻译/模糊/未翻译的内容
 cargo mdbook check                       # 验证 .po 文件格式（在翻译 PR 之前运行）
 </code></pre>
+</div>
+
 <blockquote>
 <p>始终使用 <code>cargo mdbook …</code> 包装器。直接在 <code>docs/book/</code> 中运行 <code>mdbook build</code> 会跳过 xtask 步骤，而该步骤负责从 <code>locales.toml</code> 渲染 <code>theme/lang-switcher.js</code>，这会导致构建失败并报错 <code>failed to open theme/lang-switcher.js for hashing</code>。</p>
 </blockquote>
@@ -286,105 +361,48 @@ cargo mdbook check                       # 验证 .po 文件格式（在翻译 P
 </tbody>
 </table>
 </div>
-<p>这两个 <code>reference/*.md</code> 文件是从代码中实际的 <code>clap</code> 派生宏和 JSON 模式生成的——切勿手动编辑它们。请编辑相关 Rust 类型上的 <code>///</code> 文档注释。</p>
-<h2 id="如何保持翻译的时效性"><a class="header" href="#如何保持翻译的时效性">如何保持翻译的时效性</a></h2>
-<p>英文 Markdown 是唯有人类维护的源文件。翻译内容存储在 <code>docs/book/po/&lt;locale&gt;.po</code> 文件中，这些文件充当缓存——而非文档的副本。</p>
+<p>The two <code>reference/*.md</code> files are generated from the actual <code>clap</code> derives and JSON schema in the code, never edit them by hand. Edit the <code>///</code> doc comments on the relevant Rust types instead.</p>
+<p><code>cargo mdbook</code> is an alias for <code>cargo run -p xtask --bin mdbook --</code> (defined in the cargo config). For a lean contributor-facing version of this section, see <a href="../developing/building-docs.html">Building the docs locally</a>.</p>
+<h3 id="如何保持翻译的时效性"><a class="header" href="#如何保持翻译的时效性">如何保持翻译的时效性</a></h3>
 <p>当英文源文件发生变化时，<code>cargo mdbook sync</code> 会执行两个阶段：</p>
 <ol>
-<li><strong>提取</strong>：<code>mdbook-xgettext</code> 会从当前的英文源文件重新生成 <code>po/messages.pot</code></li>
-<li><strong>合并</strong>：<code>msgmerge</code> 会更新每个本地化版本的 <code>.po</code> 文件——新增的字符串会带有空的 <code>msgstr ""</code>；已更改的字符串会被标记为 <code>#, fuzzy</code>，并保留旧的翻译作为起点</li>
+<li><strong>Extract</strong>: <code>mdbook-xgettext</code> regenerates <code>po/messages.pot</code> from the current English source.</li>
+<li><strong>Merge</strong>: <code>msgmerge</code> updates each locale’s <code>.po</code> file, new strings get an empty <code>msgstr ""</code>; changed strings get marked <code>#, fuzzy</code> with the old translation preserved as a starting point.</li>
 </ol>
-<p>然后该命令会统计模糊匹配 + 未翻译的条目。如果存在差异且提供了 <code>--provider</code> 参数，<code>fill-translations</code> 工具仅翻译这些条目。<strong>未更改的字符串不会产生费用</strong> —— 由于 <code>.po</code> 文件缓存的存在，对未更改的源文件重新运行该操作将是一个空操作（no-op）。</p>
-<p>如果不使用 <code>--provider</code> 参数，<code>cargo mdbook sync</code> 仍会执行提取和合并操作，并报告有多少字符串需要翻译。缺少 <code>msgstr</code> 的字符串在渲染时会回退到英文——部分翻译是有效的。</p>
-<p><code>cargo mdbook sync</code> 使用稳定的输出规则（<code>msgcat --sort-output --no-wrap --add-location=file</code>）规范化生成的 gettext 目录。这样可以让 diff 聚焦于真正的源码变更，避免因小幅修改导致全局行号的大量变动。</p>
-<p>预期的不可避免的变动：</p>
-<ul>
-<li>标头元数据更新（例如 <code>POT-Creation-Date</code> / <code>PO-Revision-Date</code>）</li>
-<li>当字符串移动到不同的源文件时更新引用</li>
-<li>实际源字符串的添加、删除和编辑</li>
-</ul>
-<p>文档小幅修改后的快速稳定性检查：</p>
-<pre><code class="language-bash">cargo mdbook sync
-git diff --numstat -- docs/book/po
-</code></pre>
-<p>常规英文文档 PR 无需包含生成的 <code>.po</code> 文件改动，因为同步输出范围广、难以审查。保持文档 PR 聚焦于正文内容，将生成的目录刷新留待专门的翻译缓存 PR 处理，并在 PR 描述中予以说明：</p>
-<blockquote>
-<p>已跳过提交生成的 <code>.po</code> 更新：本次仅为英文文档改动，运行 <code>cargo mdbook sync</code> 会导致大范围的 gettext 目录变动。翻译缓存的更新将延后到专门的后续 PR 中处理。</p>
-</blockquote>
-<p>仅在满足以下条件之一时才包含 <code>.po</code> 更新：</p>
-<ul>
-<li>该 PR 专门用于翻译缓存或发布翻译流程。</li>
-<li>该 PR 添加了一个新的语言区域设置。</li>
-<li><code>cargo mdbook sync</code> 会生成一个小型、易于审查的 diff，仅限于 PR 所更改的字符串。</li>
-</ul>
-<h2 id="添加新的区域设置"><a class="header" href="#添加新的区域设置">添加新的区域设置</a></h2>
-<ol>
-<li>
-<p>在仓库根目录编辑 <code>locales.toml</code> 文件——这是你<strong>唯一</strong>需要修改的文件：</p>
-<pre><code class="language-toml">[[locale]]
-code = "xx"
-label = "语言名称"
-</code></pre>
-<p>其他所有内容（<code>lang-switcher.js</code>、CI、<code>cargo fluent fill</code>、<code>cargo mdbook sync</code>）都会自动从此文件读取。</p>
-</li>
-<li>
-<p>引导并填充文档翻译：</p>
-<pre><code class="language-bash">cargo mdbook sync --locale xx --provider ollama
-</code></pre>
-<p>如果 <code>.po</code> 文件不存在，它会自动引导，然后填充所有条目。</p>
-</li>
-<li>
-<p>验证并预览：</p>
-<pre><code class="language-bash">cargo mdbook check              # 在格式错误时退出非零状态
-cargo mdbook stats              # 显示覆盖率计数
-cargo mdbook serve --locale xx
-</code></pre>
-</li>
-</ol>
-<h2 id="发布翻译工作流"><a class="header" href="#发布翻译工作流">发布翻译工作流</a></h2>
-<p>在标记发布版本之前，请在本地运行完整的翻译流程，并提交更新后的 <code>.po</code> 文件。</p>
-<pre><code class="language-bash"># 快速增量传递（仅自上次发布以来新增或更改的字符串）
-cargo mdbook sync --provider ollama
-
-# 或者：质量通过 — 重新翻译所有内容
-cargo mdbook sync --provider ollama --force
-
-cargo mdbook check   # 提交前验证
-cargo mdbook stats   # 审查覆盖率
-</code></pre>
-<p>所使用的模型是 <code>config.toml</code> 中 <code>[providers.models.&lt;name&gt;]</code> 配置项所设置的模型。</p>
-<h2 id="提示"><a class="header" href="#提示">提示</a></h2>
-<ul>
-<li><strong>快速迭代文本内容：</strong> <code>cargo mdbook serve</code> 会在保存时自动重新构建。除非你更改了 CLI 标志或配置模式，否则可以跳过 <code>cargo mdbook refs</code>。</li>
-<li><strong>快速迭代翻译：</strong> 编辑 <code>po/&lt;locale&gt;.po</code> 并刷新浏览器——mdbook serve 会检测 <code>.po</code> 文件的更改并自动重新构建。</li>
-<li><strong>清理：</strong> <code>rm -rf docs/book/book target/doc</code> 会删除所有生成的内容。</li>
-<li><strong>零成本重新运行：</strong> 对未更改的英文源执行 <code>cargo mdbook sync</code> 只需几秒即可完成——无需调用 AI，无需成本。</li>
-</ul>
+<p>Then the command counts fuzzy + untranslated entries and, when <code>--model-provider</code> is given, fills only those. Unchanged strings cost nothing: the <code>.po</code> cache means re-running against unchanged source is a no-op. Without <code>--model-provider</code>, sync still runs extract + merge and reports the delta; strings without a <code>msgstr</code> fall back to English at render time.</p>
+<p>Sync normalizes catalogs with stable output rules (<code>msgcat --sort-output --no-wrap --add-location=file</code>), so diffs stay focused on real source changes. Unavoidable churn: header metadata (<code>POT-Creation-Date</code> etc.), reference-location updates when a string moves files, and actual source-string edits.</p>
+<p>Routine English docs PRs may defer broad <code>.po</code> churn to a focused follow-up. Include <code>.po</code> updates only when the PR is a translation-cache pass, a release-translation pass, adds a locale, or produces a small reviewable diff.</p>
 <h2 id="填充应用字符串fluent"><a class="header" href="#填充应用字符串fluent">填充应用字符串（Fluent）</a></h2>
 <p>应用字符串位于 <code>crates/zeroclaw-runtime/locales/</code> 中。英语是事实来源，并在编译时嵌入。</p>
 <blockquote>
-<p><strong>运行时加载注意事项（在依赖此项前请先验证）。</strong> 截至撰写本文时，只有 <code>en</code> 和 <code>zh-CN</code> 被接入运行时：<code>crates/zeroclaw-runtime/src/i18n.rs</code> 通过 <code>include_str!</code> 嵌入它们，而 <code>builtin_cli_ftl_source()</code> 对其他所有区域设置都返回 <code>None</code>。存在一条磁盘覆盖路径（<code>load_ftl_from_disk</code> → <code>workspace_dir_from_config</code>），但它解析的是一个顶层 <code>workspace_dir</code> 配置键，该键在 v0.8.0 中已不复存在，并会回退到 <code>~/.zeroclaw/workspace</code>，而 v0.8.0 并不会创建此目录。<strong>因此，一个新填充的 <code>ja/cli.ftl</code> 会被生成并提交，但在运行时实际上不会被加载</strong>，除非将该区域设置添加到 <code>builtin_cli_ftl_source()</code> 中，或者修复磁盘覆盖路径。请在 <code>i18n.rs</code> 中确认当前状态，而不要轻信此说明。</p>
+<p><strong>Runtime loading caveat (verify before relying on this).</strong> Only <code>en</code> and <code>zh-CN</code> are wired into the runtime as built-ins: <code>crates/zeroclaw-runtime/src/i18n.rs</code> embeds <code>en</code> via <code>include_str!</code>, and <code>builtin_cli_ftl_source()</code> returns the embedded <code>zh-CN</code> catalogue for <code>zh-CN</code> and <code>None</code> for every other locale. A disk-override path exists: <code>load_ftl_from_disk</code> resolves <code>zeroclaw_config::schema::ftl_locale_dir(locale)</code>, i.e. <code>&lt;config-dir&gt;/data/ftl/&lt;locale&gt;/cli.ftl</code> (the same location <code>zeroclaw locales fetch</code> populates). <strong>So a freshly filled <code>ja/cli.ftl</code> is generated and committed, but is not loaded at runtime</strong> unless either the locale is added to <code>builtin_cli_ftl_source()</code> or the filled <code>cli.ftl</code> is placed under <code>&lt;config-dir&gt;/data/ftl/ja/</code>. Confirm the current state in <code>i18n.rs</code> and <code>zeroclaw_config::schema::ftl_locale_dir</code> rather than trusting this note.</p>
+<p>The <code>apps/zerocode</code> TUI maintains an independent Fluent catalogue (<code>apps/zerocode/locales/</code>), see <a href="#zerocode-strings-fluent-independent">zerocode strings</a> below. <code>cargo fluent</code> walks <strong>both</strong> catalogue roots (runtime + zerocode), so every subcommand below covers both by default.</p>
 </blockquote>
-<blockquote>
-<p><code>apps/zerocode</code> TUI 维护着一个独立的 Fluent 目录（<code>apps/zerocode/locales/</code>）——参见下方的 <a href="#zerocode-strings-fluent-independent">zerocode strings</a>。<code>cargo fluent</code> 会遍历<strong>两个</strong>目录根（runtime + zerocode），因此下面的每个子命令默认都会同时涵盖两者。</p>
-</blockquote>
-<pre><code class="language-bash">cargo fluent stats                                                   # 各语言环境、各目录的覆盖率
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">cargo fluent stats                                                   # 各语言环境、各目录的覆盖率
 cargo fluent check                                                   # 校验两个语言目录的 .ftl 语法
 cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt;             # fill missing keys (default batch 50)
 cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --batch 10  # 更小批次：每个请求处理更少条目（缓解速率限制/截断问题）
 cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --force     # 重新翻译所有内容
 cargo fluent scan                                                    # 查找与 Rust 源码相比过期或缺失的密钥
 </code></pre>
-<p><strong>限定到单个目录</strong> — 每个子命令都接受 <code>--catalog &lt;runtime|zerocode&gt;</code>（默认：两者）。若仅翻译 TUI：</p>
-<pre><code class="language-bash">cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --catalog zerocode
+</div>
+
+<p><strong>Scoping to one catalogue</strong>: every subcommand takes <code>--catalog &lt;runtime|zerocode&gt;</code> (default: both). To translate only the TUI:</p>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --catalog zerocode
 cargo fluent check --catalog zerocode                                # 仅语法检查 zerocode
 </code></pre>
+</div>
+
 <p>未知的 <code>--catalog</code> 值会报错并列出有效的选项。</p>
-<p><code>fill</code> 会为每个包含 <code>en/</code> 目录的选定目录树根生成 <code>&lt;locale&gt;/&lt;domain&gt;.ftl</code> —— 包括运行时的 <code>cli.ftl</code>/<code>tools.ftl</code> 以及 zerocode 的 <code>zerocode.ftl</code>。</p>
-<p><strong>提供方解析与运行时共享。</strong> <code>--model-provider</code> 接受在 <code>[providers.models.&lt;kind&gt;.&lt;alias&gt;]</code> 下配置的任何别名——可以是裸别名（<code>&lt;alias&gt;</code>），或在存在歧义时使用 <code>kind.alias</code> 限定符（<code>anthropic.&lt;alias&gt;</code>）。该工具会构建实际的运行时提供方，因此端点、认证头和传输协议均按系列解析（Anthropic <code>/v1/messages</code> + <code>x-api-key</code>，OpenAI 兼容的 <code>/v1/chat/completions</code> + <code>Bearer</code> 等）——不做任何假设。加密的 <code>api_key</code> 值会通过规范的 <code>SecretStore</code> 解密。使用 <code>--config-dir &lt;dir&gt;</code>（与 <code>zeroclaw --config-dir</code> 对应）从非默认位置读取配置和 <code>.secret-key</code>；默认为 <code>~/.zeroclaw</code>，其次为 <code>~/.config/zeroclaw</code>。</p>
-<p><strong>批处理：</strong> <code>fill</code> 每批发送一个请求（将全部 N 个条目作为单个 JSON 对象）；<code>--batch</code> 可降低 N 值，以缓解服务商速率限制或长条目的响应截断问题。每批数据在发送下一个请求前都会写入磁盘，因此运行中途失败只会丢失正在处理的那一批。重新运行时会跳过目标 <code>.ftl</code> 文件中已存在的键，因此可自动续传——无需使用 <code>--force</code>。</p>
+<p><code>fill</code> generates <code>&lt;locale&gt;/&lt;domain&gt;.ftl</code> for every selected catalogue root that has an <code>en/</code> directory: the runtime’s <code>cli.ftl</code>/<code>tools.ftl</code> and zerocode’s <code>zerocode.ftl</code>.</p>
+<p><strong>Provider resolution is shared with the runtime.</strong> <code>--model-provider</code> accepts any alias configured under <code>[providers.models.&lt;kind&gt;.&lt;alias&gt;]</code>: a bare alias (<code>&lt;alias&gt;</code>) or a <code>kind.alias</code> qualifier (<code>anthropic.&lt;alias&gt;</code>) when ambiguous. The tool builds the actual runtime provider, so the endpoint, auth header, and wire protocol are resolved per family (Anthropic <code>/v1/messages</code> + <code>x-api-key</code>, OpenAI-compatible <code>/v1/chat/completions</code> + <code>Bearer</code>, etc.): nothing is assumed. Encrypted <code>api_key</code> values are decrypted through the canonical <code>SecretStore</code>. Use <code>--config-dir &lt;dir&gt;</code> (mirrors <code>zeroclaw --config-dir</code>) to read config + <code>.secret-key</code> from a non-default location; defaults to <code>~/.zeroclaw</code> then <code>~/.config/zeroclaw</code>.</p>
+<p><strong>Batching:</strong> <code>fill</code> sends one request per batch (all N entries as a single JSON object); <code>--batch</code> lowers N to ease provider rate limits or response truncation on long entries. Each batch is written to disk before the next request, so a mid-run failure only loses the in-flight batch. Re-running skips keys that already exist in the target <code>.ftl</code>, so resume is automatic: no <code>--force</code> needed.</p>
 <h2 id="zerocode-字符串fluent独立"><a class="header" href="#zerocode-字符串fluent独立">zerocode 字符串（Fluent，独立）</a></h2>
-<p><code>apps/zerocode</code> 拥有独立完整的 Fluent 配置，与上述运行时目录分离。TUI 有意与工作区的其余部分解耦——它不依赖任何 <code>zeroclaw-*</code> crate，其字符串与源代码放在一起，而非位于 <code>zeroclaw-runtime/locales/</code> 下。</p>
+<p><code>apps/zerocode</code> carries its own self-contained Fluent setup, separate from the runtime catalogues above. The TUI is intentionally decoupled from the rest of the workspace: it has no <code>zeroclaw-*</code> crate dependency, and its strings live next to its source rather than under <code>zeroclaw-runtime/locales/</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -403,62 +421,87 @@ cargo fluent check --catalog zerocode                                # 仅语法
 <h3 id="密钥命名空间"><a class="header" href="#密钥命名空间">密钥命名空间</a></h3>
 <p>所有 zerocode 键都以 <code>zc-</code> 为前缀，绝不会与运行时的 <code>cli-</code>、<code>channel-</code> 或 <code>tool-</code> 命名空间发生冲突。<code>zc-</code> 内部的命名约定为 <code>zc-&lt;pane&gt;-&lt;purpose&gt;</code>：</p>
 <ul>
-<li><code>zc-pane-&lt;name&gt;</code> — 顶层模式栏标签</li>
-<li><code>zc-app-&lt;purpose&gt;</code> — 由 <code>app.rs</code> 管理的字符串（对话框、帮助、状态）</li>
-<li><code>zc-&lt;pane&gt;-&lt;purpose&gt;</code> — 特定面板的局部字符串（<code>zc-dashboard-*</code>、<code>zc-chat-*</code>……）</li>
+<li><code>zc-pane-&lt;name&gt;</code>: top-level mode bar labels</li>
+<li><code>zc-app-&lt;purpose&gt;</code>: strings owned by <code>app.rs</code> (dialogs, help, status)</li>
+<li><code>zc-&lt;pane&gt;-&lt;purpose&gt;</code>: strings local to a specific pane (<code>zc-dashboard-*</code>, <code>zc-chat-*</code>, …)</li>
 </ul>
 <h3 id="和弦字面量不会被翻译"><a class="header" href="#和弦字面量不会被翻译">和弦字面量不会被翻译</a></h3>
 <p>像 <code>Ctrl+C</code>、<code>Esc</code>、<code>Shift+Up</code> 这样的组合键字形属于协议，而非自然语言。<code>HelpEntry</code> 和 <code>HelpNode</code> 构造函数将组合键向量作为 <code>&amp;'static str</code> 接收，将描述作为 <code>String</code> 接收，因此组合键字面量保持硬编码，而描述则通过 <code>t()</code> 传递。当文本中内嵌组合键时，请使用 <code>{ $keys }</code> Fluent 占位符，并在渲染时传入组合键，而不是在字面量周围拼接翻译后的文本。</p>
 <h3 id="区域设置解析"><a class="header" href="#区域设置解析">区域设置解析</a></h3>
-<p>Locale comes from a top-level <code>locale</code> field in <code>zerocode-config.toml</code>. When unset, <code>i18n::detect_locale()</code> reads a single file — <code>&lt;config-dir&gt;/zerocode-config.toml</code>, where the config dir is resolved as <code>--config-dir</code>, then <code>ZEROCLAW_CONFIG_DIR</code>, then <code>~/.zeroclaw</code> — and otherwise falls back to <code>en</code>. zerocode resolves its locale independently from its own <code>zerocode-config.toml</code>; it does not share the daemon’s lookup.</p>
+<p>Locale comes from a top-level <code>locale</code> field in zerocode’s config. When unset, <code>i18n::detect_locale()</code> reads the config dir resolved as <code>--config-dir</code>, then <code>ZEROCLAW_CONFIG_DIR</code>, then <code>~/.zeroclaw</code>, and otherwise falls back to <code>en</code>. zerocode resolves its locale independently from its own config; it does not share the daemon’s lookup.</p>
 <h3 id="添加字符串"><a class="header" href="#添加字符串">添加字符串</a></h3>
 <ol>
 <li>将键 + 英文值添加到 <code>apps/zerocode/locales/en/zerocode.ftl</code>。按源文件对键进行分组，并添加分区注释，使目录保持易于浏览。</li>
-<li>在源代码中将该字面量替换为 <code>crate::i18n::t("zc-…")</code>。对于枚举→标签的 <code>match</code> 分支，应从 <code>fluent_key()</code> 方法返回键常量（<code>&amp;'static str</code>），并在渲染处调用 <code>t()</code>——切勿对字符串进行 <code>match</code>。</li>
+<li>Replace the literal in the source with <code>crate::i18n::t("zc-…")</code>. For enum→label <code>match</code> arms, return the key constant (<code>&amp;'static str</code>) from a <code>fluent_key()</code> method and call <code>t()</code> at the render site, never <code>match</code> on a string.</li>
 <li><code>cargo check -p zerocode</code> 和 <code>i18n</code> 单元测试（<code>cargo test -p zerocode i18n</code>）会在编译/测试时捕获缺失的键。运行时缺失的键会渲染为 <code>{zc-key-name}</code> 并发出一次性的 stderr 警告。</li>
 </ol>
 <h3 id="正在填充翻译"><a class="header" href="#正在填充翻译">正在填充翻译</a></h3>
 <p><code>cargo fluent</code> 会同时遍历 zerocode 目录和运行时目录，因此无需手动操作。运行 <code>cargo fluent fill --locale &lt;code&gt; --model-provider &lt;alias&gt;</code> 会在填充运行时目录的同一过程中生成 <code>apps/zerocode/locales/&lt;code&gt;/zerocode.ftl</code>。<code>cargo fluent check</code> 和 <code>cargo fluent stats</code> 同样会报告 zerocode 的情况；<code>scan</code> 会为 <code>apps/</code> 建立索引，从而使 <code>zc-</code> 键引用能够解析到 zerocode 的源代码。生成的 <code>&lt;code&gt;/zerocode.ftl</code> 会在编译时内嵌到源代码树中，也可以放入上述任意磁盘搜索路径，以便通过 <code>--config-dir</code> 进行测试。</p>
 <h2 id="填充文档翻译gettext"><a class="header" href="#填充文档翻译gettext">填充文档翻译（gettext）</a></h2>
-<p>文档翻译位于 <code>docs/book/po/</code>。<code>cargo mdbook sync</code> 一步完成 extract → merge → strip obsolete → AI-fill 流程。如果不指定 <code>--model-provider</code>，sync 仍会运行 extract + merge 并报告需要翻译的字符串数量——未翻译的部分会在渲染时回退为英文。</p>
-<pre><code class="language-bash">cargo mdbook sync --model-provider anthropic.&lt;alias&gt;              # delta fill
+<p>Doc translations live in <code>docs/book/po/</code>. <code>cargo mdbook sync</code> runs extract → merge → strip obsolete → AI-fill in one step. Without <code>--model-provider</code>, sync still runs extract + merge and reports how many strings need translation: partial translations fall back to English at render time.</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook sync --model-provider anthropic.&lt;alias&gt;              # delta fill
 cargo mdbook sync --model-provider anthropic.&lt;alias&gt; --force      # 质量检查：重新翻译所有条目
 cargo mdbook sync --model-provider anthropic.&lt;alias&gt; --batch 1    # 每条记录后写入（最安全的恢复方式）
 cargo mdbook sync --locale ja --model-provider anthropic.&lt;alias&gt;  # single locale
 cargo mdbook sync --model-provider anthropic.&lt;alias&gt; --config-dir ~/.zeroclaw  # 限定别名 + 显式配置目录
 </code></pre>
-<p><code>--model-provider</code> 通过与 <code>cargo fluent</code> 相同的共享运行时提供方路径进行解析（任意已配置的系列/别名、按系列的端点 + 认证 + 通信协议、<code>SecretStore</code> 解密、<code>--config-dir</code> 支持）。与 <code>cargo fluent</code> 不同——后者将整个批次作为一个 JSON 对象发送——gettext 填充器<strong>对每个源字符串发出一个请求</strong>，以保持 <code>msgid → msgstr</code> 映射的明确性，因此 <code>--batch</code> 控制的是 <code>.po</code> 文件刷写到磁盘的频率（检查点间隔），而非请求大小。一个完整的目录区域设置需要数千个连续请求；对于日常的增量填充，廉价的本地 Ollama 别名是经济之选。</p>
+</div>
+
+<p><code>--model-provider</code> resolves through the same shared runtime provider path as <code>cargo fluent</code> (any configured family/alias, per-family endpoint + auth + wire protocol, <code>SecretStore</code> decryption, <code>--config-dir</code> support). Unlike <code>cargo fluent</code>, which sends a whole batch as one JSON object, the gettext filler issues <strong>one request per source string</strong> to keep the <code>msgid → msgstr</code> mapping unambiguous, so <code>--batch</code> controls how often the <code>.po</code> is flushed to disk (the checkpoint interval), not the request size. A full-catalogue locale is thousands of sequential requests; for routine delta fills a cheap local Ollama alias is the economical choice.</p>
 <p>该流水线具有内置的弹性：</p>
 <ul>
-<li><strong>泄漏检测</strong> — 如果模型返回的是其自身的指令而非翻译内容，该工具会通过响应长度比例和列表结构来检测这一模式，并尝试从响应的末尾恢复出正确的翻译内容；若恢复失败，则将该条目清空以便重新翻译。</li>
-<li><strong>增量写入</strong> — 每个批次完成后，<code>.po</code> 文件会被重新写入。如果在运行过程中按 Ctrl-C 中断，不会丢失截至该点的进度。</li>
-<li><strong>过时的剥离</strong> — <code>msgmerge</code> + <code>msgattrib --no-obsolete</code> 可防止已移除的源字符串作为 <code>#~</code> 条目不断累积。</li>
+<li><strong>Leak detection</strong>: if a model returns its own instructions instead of a translation, the tool detects the pattern (via response-length ratio and bullet-list structure), attempts to recover the real translation from the response tail, and blanks the entry for re-translation if recovery fails.</li>
+<li><strong>Protected literal checks</strong>: <code>cargo mdbook check</code> also rejects high-confidence literal corruption in generated <code>.po</code> files. Product names such as <code>ZeroClaw Maturity Framework</code>, command literals such as <code>zeroclaw daemon</code>, and fenced TOML section/key literals must stay byte-for-byte intact inside translations. Translate the surrounding prose, not the machine-facing text.</li>
+<li><strong>Incremental writes</strong>: after each batch, the <code>.po</code> file is rewritten. A Ctrl-C mid-run doesn’t lose the progress up to that point.</li>
+<li><strong>Obsolete stripping</strong>: <code>msgmerge</code> + <code>msgattrib --no-obsolete</code> keep removed source strings from accumulating as <code>#~</code> entries.</li>
 </ul>
 <p>维护者应接受 <a href="../developing/building-docs.html">Building the docs locally</a> 中记录的常规英文文档例外情况。仅当 PR 本身是翻译缓存更新、发布翻译更新、新语言区域变更，或生成的差异足够小可供审查时，才要求更新 <code>.po</code> 文件。</p>
-<h2 id="添加新的区域设置-1"><a class="header" href="#添加新的区域设置-1">添加新的区域设置</a></h2>
+<h2 id="添加新的区域设置"><a class="header" href="#添加新的区域设置">添加新的区域设置</a></h2>
 <ol>
 <li>
-<p>在仓库根目录编辑 <code>locales.toml</code> 文件——这是你<strong>唯一</strong>需要修改的文件：</p>
-<pre><code class="language-toml">[[locale]]
-code = "&lt;code&gt;"
-label = "语言名称"
-</code></pre>
+<p>Edit <code>locales.toml</code> at the repo root, the <strong>only</strong> file you need to touch:</p>
 </li>
 <li>
 <p>翻译应用字符串：</p>
-<pre><code class="language-bash">cargo fluent fill --locale &lt;code&gt; --provider ollama
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">cargo fluent fill --locale &lt;code&gt; --model-provider ollama
 </code></pre>
+</div>
+
 </li>
 <li>
 <p>引导并填充文档 <code>.po</code> 文件：</p>
-<pre><code class="language-bash">cargo mdbook sync --locale &lt;code&gt; --provider ollama
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook sync --locale &lt;code&gt; --model-provider ollama
 </code></pre>
+</div>
+
 </li>
 <li>
-<p>为实现 zerocode 一致性，请将 <code>apps/zerocode/locales/en/zerocode.ftl</code> 复制到 <code>apps/zerocode/locales/&lt;code&gt;/zerocode.ftl</code> 并手动翻译其中的值。<code>cargo fluent</code> 尚不支持处理 zerocode 目录；翻译完成后，可将该文件放入任意磁盘搜索路径，或内嵌到代码树中。</p>
+<p>The <code>cargo fluent fill</code> run in step 2 already generates <code>apps/zerocode/locales/&lt;code&gt;/zerocode.ftl</code> in the same pass, since <code>cargo fluent</code> walks both the runtime and zerocode catalogues. No manual zerocode step is needed; verify coverage with <code>cargo fluent stats</code>.</p>
 </li>
 </ol>
-<p>其他所有内容——<code>lang-switcher.js</code>、CI 部署目标列表、<code>cargo mdbook locales</code> 的输出——都会自动从 <code>locales.toml</code> 中读取。</p>
+<p>Everything else, <code>lang-switcher.js</code>, CI deploy target list, <code>cargo mdbook locales</code> output, reads from <code>locales.toml</code> automatically.</p>
+<h2 id="发布翻译工作流"><a class="header" href="#发布翻译工作流">发布翻译工作流</a></h2>
+<p>在标记发布版本之前，请在本地运行完整的翻译流程，并提交更新后的 <code>.po</code> 文件。</p>
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh"># 快速增量传递（仅自上次发布以来新增或更改的字符串）
+cargo mdbook sync --model-provider ollama
+
+# 或者：质量通过 — 重新翻译所有内容
+cargo mdbook sync --model-provider ollama --force
+
+cargo mdbook check   # 提交前验证
+cargo mdbook stats   # 审查覆盖率
+</code></pre>
+</div>
+
+<p>The model used is whatever is configured under <code>providers.models.&lt;name&gt;</code>.</p>
 <h2 id="模型质量说明"><a class="header" href="#模型质量说明">模型质量说明</a></h2>
 <p>翻译质量因语言和模型的不同而有显著差异。</p>
 <div class="table-wrapper">
@@ -467,8 +510,8 @@ label = "语言名称"
 <tr><th>区域设置</th><th>得到充分支持的</th><th>备注</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ja</code>, <code>zh-CN</code></td><td>Qwen3.6 系列，是否有任何前沿托管模型？</td><td>Qwen 以中文为首选；日语能力也很强</td></tr>
-<tr><td><code>es</code>, <code>fr</code></td><td>qwen3.6、mistral、gemma3、托管</td><td>罗曼语族在广泛范围内训练良好</td></tr>
+<tr><td><code>ja</code>, <code>zh-CN</code></td><td>qwen3 family, any frontier hosted model</td><td>Qwen 以中文为首选；日语能力也很强</td></tr>
+<tr><td><code>es</code>, <code>fr</code></td><td>qwen3, mistral, gemma3, hosted</td><td>罗曼语族在广泛范围内训练良好</td></tr>
 <tr><td>低资源语言环境</td><td>仅限托管的前沿模型</td><td>本地模型经常会出现幻觉</td></tr>
 </tbody>
 </table>

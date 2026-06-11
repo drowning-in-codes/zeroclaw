@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,19 +298,19 @@
 <p>このワークフローは、PRの量が多い場合でも以下の5つのことを維持するために存在します：</p>
 <ol>
 <li>マージのスループットは予測可能です。</li>
-<li>CIシグナルの品質は高いまま — フィードバックが速く、誤検知が低い。</li>
+<li>CI signal quality stays high, fast feedback, low false positives.</li>
 <li>セキュリティレビューは、リスクのある表面に対して明示的に行われます。</li>
 <li>変更は推論しやすく、元に戻しやすいです。</li>
 <li>リポジトリのアーティファクトには、個人データや機密データが含まれていません。</li>
 </ol>
 <p>これを提供する制御ループは、意図的に階層化されています：</p>
 <ul>
-<li><strong>インテーク分類</strong> — パス/サイズ/リスクのラベルが、PR を適切な深さにルーティングします。</li>
-<li><strong>決定論的検証</strong> — マージゲートは主観的なコメントではなく、再現可能なチェックに依存します。</li>
-<li><strong>リスクベースのレビュー深度</strong> — 高リスクのパスは詳細なレビューを行い、低リスクのパスは高速に処理します。</li>
-<li><strong>ロールバックファーストのマージ契約</strong> — 各マージパスには具体的な復旧ストーリーが含まれています。</li>
+<li><strong>Intake classification</strong>: path/size/risk labels route the PR to the right depth.</li>
+<li><strong>Deterministic validation</strong>: the merge gate depends on reproducible checks, not subjective comments.</li>
+<li><strong>Risk-based review depth</strong>: high-risk paths get deep review, low-risk paths stay fast.</li>
+<li><strong>Rollback-first merge contract</strong>: every merge path includes a concrete recovery story.</li>
 </ul>
-<p>自動化はインテークラベルとCIゲート処理を担当します。最終的なマージの責任は、人間のメンテナーとPRの著者が負います。</p>
+<p>Automation handles path/scope labels and CI gating. Risk, size, type, and contributor-tier labels are maintainer intake decisions unless a maintained workflow explicitly owns them. Final merge accountability stays with human maintainers and PR authors.</p>
 <h2 id="プロジェクトボードコントラクト"><a class="header" href="#プロジェクトボードコントラクト">プロジェクトボードコントラクト</a></h2>
 <p>Project ボードは自動化された計画用ボードであり、信頼できる PR レビューキューではありません。</p>
 <p>ボードは、Issueの準備状況、アクティブな担当者、ロードマップのグルーピング、依存関係、ブロッカーの状態、および陳腐化除外の理由を管理するために使用します。これらのシグナルは変化が緩やかなため、ボードのフィールドやプランニングレーンを有用な状態に保つことができます。</p>
@@ -293,9 +369,8 @@
 <li>マージ前にステータスチェックを必須にする。</li>
 <li><code>CI Required Gate</code> のチェックを必須にする。</li>
 <li>マージ前にプルリクエストのレビューを必須にする。</li>
-<li>保護されたパスに対して CODEOWNERS のレビューを要求する。</li>
-<li><code>.github/workflows/**</code> に対しては、<code>CI Required Gate</code>（<code>WORKFLOW_OWNER_LOGINS</code>）経由で所有者の承認を要求し、ブランチやルールセットのバイパスは組織の所有者に限定してください。</li>
-<li>デフォルトのワークフロー所有者の許可リストは、<code>WORKFLOW_OWNER_LOGINS</code> リポジトリ変数によって構成されます（現在のリストについては CODEOWNERS を参照してください）。</li>
+<li>Require CODEOWNERS review for protected paths. <code>.github/**</code> (including <code>.github/workflows/**</code>) is owned by the maintainers listed in <code>.github/CODEOWNERS</code>, so workflow changes need an owning maintainer’s review.</li>
+<li>Keep branch / ruleset bypass limited to org owners.</li>
 <li>新しいコミットがプッシュされたら、古い承認を無効にします。</li>
 <li>強制プッシュを制限する。</li>
 <li>すべてのコントリビューターのPRは <code>master</code> に直接ターゲットされます。</li>
@@ -305,9 +380,9 @@
 <ul>
 <li>PRテンプレートが完全に完了しました。</li>
 <li>スコープの境界を明確にする（何が変わったか／何が変わらなかったか）。</li>
-<li>検証証拠を添付しました — 実際のコマンド出力であり、「CIがチェックします」というものではありません。</li>
-<li>リスクのあるパスに対して、セキュリティとプライバシー、およびロールバックのフィールドが完了しました。</li>
-<li>プライバシーとデータ管理のルールが満たされました — 中立でプロジェクト固有のテスト文言です。<a href="../contributing/privacy.html">プライバシー</a> を参照してください。</li>
+<li>Validation evidence attached, actual command output, not “CI will check.”</li>
+<li>Security &amp; privacy, compatibility, and (for risky paths) rollback fields completed.</li>
+<li>Privacy and data-hygiene rules satisfied, neutral, project-scoped test wording. See <a href="../contributing/privacy.html">Privacy</a>.</li>
 <li>やむを得ない場合のアイデンティティに関連する表記には、ZeroClaw / プロジェクト固有のラベルを使用します。</li>
 </ul>
 <h2 id="完了の定義dod"><a class="header" href="#完了の定義dod">完了の定義（DoD）</a></h2>
@@ -330,7 +405,7 @@
 <li>ロールバックプランは明示的である。</li>
 <li>コミットタイトルは Conventional Commits に従います。</li>
 </ul>
-<p>コミット履歴を完全に保持したまま squash マージします。<code>squash-merge</code> スキルは、紫色の <strong>Merged</strong> バッジと conventional-commits 形式の本文を生成します。呼び出し方法については <a href="./skills.html">Skills</a> を参照してください。</p>
+<p>Squash-merge with full commit history preserved in the body. The <code>squash-merge</code> skill produces both the purple <strong>Merged</strong> badge and the conventional-commits formatted body, see <a href="./skills.html">Skills</a> for invocation.</p>
 <h2 id="ai--エージェントの貢献ポリシー"><a class="header" href="#ai--エージェントの貢献ポリシー">AI / エージェントの貢献ポリシー</a></h2>
 <p>AI支援のPRは歓迎します。レビューもエージェント支援で行うことができます。</p>
 <p><strong>必須:</strong></p>
@@ -361,21 +436,19 @@
 </ul>
 <p>スタックされた作業では、レビュー順序を決定論的にするために、明示的な <code>Depends on #...</code> を必要とします。</p>
 <p>置換には明示的な <code>Supersedes #...</code> が必要です。寄稿とテンプレートのルールについては、<a href="./superseding.html">PRの置換</a> を参照してください。</p>
-<p>レビュアー側のキュー管理 — バックログの整理順序、古いデータの処理、ラベルの管理 — は <a href="./reviewer-playbook.html">レビュアープレイブック</a> に記載されています。</p>
+<p>The reviewer-side queue management, backlog pruning order, stale handling, label hygiene, is in <a href="./reviewer-playbook.html">Reviewer Playbook</a>.</p>
 <h2 id="セキュリティと安定性のルール"><a class="header" href="#セキュリティと安定性のルール">セキュリティと安定性のルール</a></h2>
-<p>これらのパスは、より厳格なレビューと強力なテスト証拠が必要です：</p>
+<p>These paths require stricter review and stronger test evidence. The canonical high-risk path set is defined in <a href="./labels.html#risk-labels">Labels → Risk labels</a>. In review terms that set covers:</p>
 <ul>
-<li><code>crates/zeroclaw-runtime/src/security/</code></li>
-<li><code>crates/zeroclaw-runtime/</code> の残りの部分</li>
+<li><code>crates/zeroclaw-runtime/</code> (including <code>src/security/</code>)</li>
 <li><code>crates/zeroclaw-gateway/</code> (イングレス、認証、ペアリング)</li>
 <li><code>crates/zeroclaw-tools/</code> (実行可能なものすべて)</li>
-<li>ファイルシステムへのアクセス境界。</li>
-<li>ネットワークと認証の動作</li>
-<li><code>.github/workflows/</code> およびリリースパイプライン。</li>
+<li><code>.github/workflows/</code> and the release pipeline</li>
 </ul>
+<p>Filesystem access boundaries and network/authentication behavior inside those crates carry the same scrutiny even when the diff looks small.</p>
 <p><strong>リスクのあるPRに必要な最小限の要素:</strong> 脅威/リスクの記述、緩和策のノート、ロールバック手順。</p>
 <p><strong>高リスクなPRに推奨:</strong> 境界動作を実証する集中的なテスト、および期待される劣化を含む1つの明示的な失敗モードシナリオ。</p>
-<p>これらのパスにおけるエージェント支援による貢献については、レビュアーは著者がランタイムの動作や影響範囲について説明できることを確認します。単に検証出力を貼り付けるだけでなく、実際に説明できることが求められます。</p>
+<p>For agent-assisted contributions on these paths, reviewers also verify the author can talk through runtime behavior and blast radius, not just paste validation output.</p>
 <h2 id="障害復旧"><a class="header" href="#障害復旧">障害復旧</a></h2>
 <p>マージされたPRが回帰を引き起こした場合:</p>
 <ol>
@@ -386,12 +459,12 @@
 <p>完璧な修正を待つよりも、サービスの品質を迅速に回復させることを優先してください。</p>
 <h2 id="このページでカバーしていない内容"><a class="header" href="#このページでカバーしていない内容">このページでカバーしていない内容</a></h2>
 <ul>
-<li><strong>日々のレビューの仕組み</strong> — <a href="./reviewer-playbook.html">レビュアーのプレイブック</a> および <a href="../contributing/pr-review-protocol.html">PRレビュープロトコル</a> を参照してください。</li>
-<li><strong>ラベルの閾値と定義</strong> — <a href="./labels.html">ラベル</a> を参照してください。</li>
-<li><strong>プライバシーとPIIのルール</strong> — <a href="../contributing/privacy.html">プライバシー</a> を参照してください。</li>
-<li><strong>属性とテンプレートの置換</strong> — <a href="./superseding.html">PR の置換</a> を参照してください。</li>
-<li><strong>CIワークフローのインベントリとトライエージ</strong> — <a href="./ci-and-actions.html">CI &amp; Actions</a> を参照してください。</li>
-<li><strong>リリース手順</strong> — <a href="./release-runbook.html">リリースランブック</a> を参照してください。</li>
+<li><strong>Day-to-day review mechanics</strong>: see <a href="./reviewer-playbook.html">Reviewer Playbook</a> and <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a>.</li>
+<li><strong>Label thresholds and definitions</strong>: see <a href="./labels.html">Labels</a>.</li>
+<li><strong>Privacy and PII rules</strong>: see <a href="../contributing/privacy.html">Privacy</a>.</li>
+<li><strong>Supersede attribution and templates</strong>: see <a href="./superseding.html">Superseding PRs</a>.</li>
+<li><strong>CI workflow inventory and triage</strong>: see <a href="./ci-and-actions.html">CI &amp; Actions</a>.</li>
+<li><strong>Release procedure</strong>: see <a href="./release-runbook.html">Release Runbook</a>.</li>
 </ul>
 
                     </main>

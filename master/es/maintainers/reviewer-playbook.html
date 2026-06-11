@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -244,31 +320,31 @@
 <tbody>
 <tr><td><code>riesgo: bajo</code></td><td>Documentación, pruebas, tareas de mantenimiento, aislado sin ejecución en tiempo de ejecución</td><td>1 revisor + puerta de CI</td><td>Validación local coherente, sin ambigüedad de comportamiento</td></tr>
 <tr><td><code>riesgo: medio</code></td><td><code>crates/zeroclaw-providers/</code>, <code>crates/zeroclaw-channels/</code>, <code>crates/zeroclaw-memory/</code>, <code>crates/zeroclaw-config/</code></td><td>1 revisor consciente del subsistema + verificación del comportamiento</td><td>Prueba de escenario enfocado, efectos secundarios explícitos</td></tr>
-<tr><td><code>riesgo: alto</code></td><td><code>crates/zeroclaw-runtime/src/security/</code>, el resto de <code>crates/zeroclaw-runtime/</code>, <code>crates/zeroclaw-gateway/</code>, <code>crates/zeroclaw-tools/</code>, <code>.github/workflows/</code></td><td>Triaje rápido + revisión profunda + preparación para revertir</td><td>Verificaciones de seguridad y modos de fallo, claridad en el rollback</td></tr>
+<tr><td><code>riesgo: alto</code></td><td>The <a href="./labels.html#risk-labels">canonical high-risk path set</a> (runtime, gateway, tools, security, <code>.github/workflows/</code>)</td><td>Triaje rápido + revisión profunda + preparación para revertir</td><td>Verificaciones de seguridad y modos de fallo, claridad en el rollback</td></tr>
 </tbody>
 </table>
 </div>
 <p>Cuando haya incertidumbre, tratar como de mayor riesgo.</p>
-<p>Si la inferencia de riesgo del etiquetador de rutas es incorrecta en el contexto, aplica <code>risk: manual</code> y establece explícitamente la etiqueta final <code>risk:*</code> — manual congela cualquier recálculo automático futuro.</p>
+<p>Risk labels are currently manual. If future risk automation is restored, follow the <a href="./labels.html#automation-contract">labels automation contract</a>: apply <code>risk: manual</code> when a maintainer correction should not be overwritten on the next pushed update.</p>
 <p>Las etiquetas son metadatos del mantenedor. Si la etiqueta correcta es obvia y tienes permiso, corrígela tú mismo antes de finalizar la revisión. Pregunta al autor solo cuando la elección correcta de la etiqueta sea ambigua o no haya nadie con permisos sobre las etiquetas disponible.</p>
 <h2 id="flujo-de-trabajo-estándar"><a class="header" href="#flujo-de-trabajo-estándar">Flujo de trabajo estándar</a></h2>
 <h3 id="toma-de-datos-de-cinco-minutos"><a class="header" href="#toma-de-datos-de-cinco-minutos">Toma de datos de cinco minutos</a></h3>
 <p>Para cada nuevo PR, antes de leer cualquier código:</p>
 <ol>
 <li>Confirma que la plantilla del PR esté completa: resumen, evidencia de validación, seguridad y privacidad, compatibilidad, y rollback (para casos de media/alta prioridad).</li>
-<li>Confirme que las etiquetas están presentes y son plausibles — <code>size:*</code>, <code>risk:*</code>, etiquetas de alcance, nivel de colaborador donde corresponda.</li>
+<li>Confirm labels are present and plausible: <code>size:*</code>, <code>risk:*</code>, scope labels, contributor tier where applicable.</li>
 <li>Confirme el estado de la señal <code>CI Required Gate</code>.</li>
 <li>Confirmar que el alcance es una preocupación. Las PRs masivas con características mixtas se devuelven para su división, a menos que la mezcla esté explícitamente justificada.</li>
 <li>Confirma las reglas de privacidad / higiene de datos. Consulta <a href="../contributing/privacy.html">Privacidad</a> para el manual completo de reglas.</li>
 </ol>
-<p>Si alguna verificación de entrada falla, deja un único comentario con una lista de tareas accionable y detente. No realices una revisión profunda de un PR que no haya pasado la verificación de entrada: el proceso de ida y vuelta es más eficiente en esta capa que después de haber analizado el diff.</p>
+<p>If any intake check fails, leave one actionable checklist comment and stop. Don’t deep-review a PR that hasn’t passed intake: the back-and-forth is cheaper at this layer than after the diff has been reasoned about.</p>
 <h3 id="lista-de-verificación-de-carril-rápido-cada-pr"><a class="header" href="#lista-de-verificación-de-carril-rápido-cada-pr">Lista de verificación de carril rápido (cada PR)</a></h3>
 <ul>
 <li>El límite del alcance es explícito y creíble.</li>
 <li>Las validaciones están presentes y los resultados son coherentes.</li>
 <li>Los cambios en el comportamiento visible para el usuario están documentados.</li>
 <li>El autor demuestra comprensión del comportamiento y del alcance del impacto (especialmente en PRs asistidos por IA).</li>
-<li>La ruta de reversión es concreta, mientras que “revert” no lo es.</li>
+<li>Rollback path is concrete; “revert” is not concrete.</li>
 <li>La compatibilidad y el impacto de la migración son claros.</li>
 <li>No se filtraron datos personales ni sensibles en los artefactos de diff; las pruebas utilizan marcadores de posición neutros y específicos del proyecto.</li>
 <li>La nomenclatura y los límites de la arquitectura siguen los contratos del proyecto (<code>AGENTS.md</code>, <a href="../developing/extension-examples.html">Ejemplos de extensiones</a>).</li>
@@ -328,10 +404,10 @@
 <h2 id="anulación-de-automatización"><a class="header" href="#anulación-de-automatización">Anulación de automatización</a></h2>
 <p>Utilice esto cuando la salida de la automatización genere efectos secundarios en la revisión:</p>
 <ol>
-<li><strong>Etiqueta de riesgo incorrecta</strong> — agrega <code>risk: manual</code> y luego establece la etiqueta <code>risk:*</code> correspondiente.</li>
-<li><strong>Cierre automático incorrecto durante la triaje de incidencias</strong> — vuelve a abrir, elimina la etiqueta de ruta y deja un comentario aclaratorio.</li>
-<li><strong>Etiquetar como spam o ruido</strong> — mantener un único comentario del mantenedor canónico, eliminar las etiquetas de ruta redundantes.</li>
-<li><strong>Alcance ambiguo del PR</strong> — solicita una división antes de la revisión profunda; no intentes revisar dos aspectos diferentes al mismo tiempo.</li>
+<li><strong>Incorrect risk label</strong>: set the intended <code>risk:*</code> label. If future risk automation is active, also follow the <a href="./labels.html#automation-contract">labels automation contract</a> for <code>risk: manual</code>.</li>
+<li><strong>Incorrect auto-close on issue triage</strong>: reopen, remove the route label, leave one clarifying comment.</li>
+<li><strong>Label spam or noise</strong>: keep one canonical maintainer comment, remove redundant route labels.</li>
+<li><strong>Ambiguous PR scope</strong>: request a split before deep review; don’t try to review across two concerns at once.</li>
 </ol>
 <h2 id="entrega"><a class="header" href="#entrega">Entrega</a></h2>
 <p>Al pasar la revisión a otro mantenedor o agente durante el proceso, incluye:</p>
@@ -345,11 +421,11 @@
 <p>Esto mantiene baja la pérdida de contexto y evita que el siguiente revisor vuelva a realizar las mismas consultas que ya hiciste.</p>
 <h2 id="limpieza-semanal-de-la-cola"><a class="header" href="#limpieza-semanal-de-la-cola">Limpieza semanal de la cola</a></h2>
 <ul>
-<li>Walk the stale queue. Apply <code>status:no-stale</code> only when accepted or otherwise long-lived work has a recorded reason to stay open, a visible active owner or steward path, and no other stale exclusion already applies. Active release trackers and active RFC or design trackers may keep stale protection by default when the issue itself clearly identifies the active coordination or decision surface; revisit them when the milestone closes, the tracker drifts from live state, the RFC reaches a decision, is superseded, or closes, or the issue stops representing an active project decision surface. Until the stale-exemption audit lands, treat existing <code>status:no-stale</code> issues missing those facts as audit findings rather than automatic stale candidates.</li>
+<li>Walk the stale queue. Apply <code>status:no-stale</code> only under the rules in the <a href="./pr-workflow.html#issue-ownership-path">Project board contract</a>: when accepted or otherwise long-lived work has a recorded reason to stay open, a visible active owner or steward path, and no other stale exclusion already applies. Active release trackers and active RFC or design trackers may keep stale protection by default when the issue itself clearly identifies the active coordination or decision surface; revisit them when the milestone closes, the tracker drifts from live state, the RFC reaches a decision, is superseded, or closes, or the issue stops representing an active project decision surface. Until the stale-exemption audit lands, treat existing <code>status:no-stale</code> issues missing those facts as audit findings rather than automatic stale candidates.</li>
 <li>Prioriza primero los PRs de errores y seguridad con <code>tamaño: XS/S</code>.</li>
 <li>Convierte las preguntas recurrentes de soporte en mejoras de documentación y directrices para respuestas automáticas.</li>
 </ul>
-<p>El objetivo es una cola donde cada PR abierto está siendo revisado activamente, bloqueado por el autor o bloqueado por algo externo, nunca simplemente esperando porque nadie lo ha atendido.</p>
+<p>The goal is a queue where every open PR is either being actively reviewed, blocked on the author, or blocked on something external, never just sitting because nobody got to it.</p>
 
                     </main>
 

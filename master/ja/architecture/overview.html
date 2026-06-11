@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -234,7 +310,7 @@
     end
 
     subgraph Core["Core"]
-        RT["zeroclaw-runtime&lt;br/&gt;agent loop · security · SOP · cron · onboarding"]
+        RT["zeroclaw-runtime&lt;br/&gt;agent loop · security · SOP · cron · subagents"]
         MEM["zeroclaw-memory&lt;br/&gt;SQLite · embeddings · consolidation"]
         CFG["zeroclaw-config&lt;br/&gt;schema · autonomy · secrets"]
     end
@@ -258,9 +334,9 @@
 <tr><th>クレート</th><th>役割</th></tr>
 </thead>
 <tbody>
-<tr><td><code>zeroclaw-runtime</code></td><td>エージェントループ、セキュリティポリシーの適用、SOPエンジン、cronスケジューラ、オンボーディングセクション、zerocode用のRPCレイヤー</td></tr>
+<tr><td><code>zeroclaw-runtime</code></td><td>Agent loop, security policy enforcement, SOP engine, cron scheduler, SubAgents, RPC layer for zerocode</td></tr>
 <tr><td><code>zeroclaw-config</code></td><td>TOMLスキーマ、シークレットの暗号化、自律レベル、ワークスペース解決</td></tr>
-<tr><td><code>zeroclaw-api</code></td><td>公開トレイト — <code>Provider</code>、<code>Channel</code>、<code>Tool</code>。カーネル ABI</td></tr>
+<tr><td><code>zeroclaw-api</code></td><td>Public traits: <code>ModelProvider</code>, <code>Channel</code>, <code>Tool</code>, <code>Memory</code>, <code>Observer</code>. The kernel ABI</td></tr>
 <tr><td><code>zeroclaw-providers</code></td><td>すべてのLLMクライアント実装（Anthropic、OpenAI、Ollama、…）と、ヒントベースのルーターおよび同一プロバイダーのリトライラッパー</td></tr>
 <tr><td><code>zeroclaw-channels</code></td><td>30以上のメッセージングインテグレーション（Discord、Slack、Telegram、Matrix、メール、音声、…）</td></tr>
 <tr><td><code>zeroclaw-gateway</code></td><td>HTTP / WebSocket ゲートウェイ、Web ダッシュボード、Webhook イングレス</td></tr>
@@ -269,14 +345,16 @@
 <tr><td><code>zeroclaw-memory</code></td><td>会話の記憶、埋め込み、ベクトル検索</td></tr>
 <tr><td><code>zeroclaw-plugins</code></td><td>動的プラグインの読み込み</td></tr>
 <tr><td><code>zeroclaw-hardware</code></td><td>ハードウェア抽象化レイヤー (GPIO, I2C, SPI, USB)</td></tr>
-<tr><td><code>zeroclaw-infra</code></td><td>トレーシング、メトリクス、構造化ログ</td></tr>
+<tr><td><code>zeroclaw-infra</code></td><td>Process-level support: SQLite session backend, debouncers, stall watchdog</td></tr>
+<tr><td><code>zeroclaw-log</code></td><td>The single log-emission surface: JSONL schema, attribution, <code>record!</code>/<code>scope!</code> macros, <code>/api/logs</code> reader, <code>Observer</code> bridge</td></tr>
+<tr><td><code>zeroclaw-spawn</code></td><td>Sanctioned <code>tokio::spawn</code> wrapper (<code>spawn!</code> macro) that propagates attribution</td></tr>
 <tr><td><code>zeroclaw-macros</code></td><td>設定とツール登録のためのマクロを生成する</td></tr>
 <tr><td><code>zerocode</code></td><td>ターミナルUI</td></tr>
 <tr><td><code>aardvark-sys</code>, <code>robot-kit</code></td><td>専用ハードウェアのサポート</td></tr>
 </tbody>
 </table>
 </div>
-<p>マイクロカーネルのロードマップ（RFC #5574）では、<code>zeroclaw-runtime</code> のさらなる分割が進行中です。カーネル層はエージェントループとポリシーの適用に縮小され、その他の機能はすべて機能フラグの背後に移動します。</p>
+<p>The microkernel roadmap (RFC #5574) is actively splitting <code>zeroclaw-runtime</code> further: the kernel layer will shrink to the agent loop and policy enforcement, with everything else moving behind feature flags.</p>
 <h2 id="リクエストのライフサイクル短縮版"><a class="header" href="#リクエストのライフサイクル短縮版">リクエストのライフサイクル（短縮版）</a></h2>
 <pre class="mermaid">sequenceDiagram
     participant U as User
@@ -304,15 +382,15 @@
 <h2 id="拡張ポイント"><a class="header" href="#拡張ポイント">拡張ポイント</a></h2>
 <p>3つのトレイトベースの拡張ポイントが <code>zeroclaw-api</code> に存在します：</p>
 <ul>
-<li><strong><code>Provider</code></strong> — 新しいLLMエンドポイントのために実装します。<a href="../providers/custom.html">カスタムプロバイダー</a>を参照してください。</li>
-<li><strong><code>Channel</code></strong> — 新しいメッセージングプラットフォーム用に実装します。インバウンドとアウトバウンドは別のフックとして扱われます。</li>
-<li><strong><code>Tool</code></strong> — エージェントが呼び出すことができる新しい機能を実装します。<a href="../developing/plugin-protocol.html">開発 → プラグインプロトコル</a> を参照してください。</li>
+<li><strong><code>ModelProvider</code></strong>: implement for a new LLM endpoint. See <a href="../providers/custom.html">Custom providers</a>.</li>
+<li><strong><code>Channel</code></strong>: implement for a new messaging platform. Inbound and outbound are separate hooks.</li>
+<li><strong><code>Tool</code></strong>: implement for a new capability the agent can invoke. See <a href="../developing/plugin-protocol.html">Developing → Plugin protocol</a>.</li>
 </ul>
 <p>これら3つは起動時にファクトリ関数経由で登録されます。カーネルは具体的な型を認識しません。コンパイル時の機能フラグによって、どの実装が特定のバイナリに含まれるかが決定されます。</p>
 <h2 id="次の読み物"><a class="header" href="#次の読み物">次の読み物</a></h2>
 <ul>
-<li><a href="./crates.html">クレート</a> — クレートごとの詳細</li>
-<li><a href="./request-lifecycle.html">リクエストライフサイクル</a> — ストリーミング、ツール呼び出し、承認</li>
+<li><a href="./crates.html">Crates</a>: per-crate deep dive</li>
+<li><a href="./request-lifecycle.html">Request lifecycle</a>: streaming, tool calls, approvals</li>
 <li><a href="../providers/overview.html">モデルプロバイダー → 概要</a></li>
 <li><a href="../security/overview.html">セキュリティ → 概要</a></li>
 </ul>

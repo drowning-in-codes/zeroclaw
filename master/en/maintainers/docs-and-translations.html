@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -229,21 +305,18 @@
 </tbody>
 </table>
 </div>
-<p>They are filled separately and stored separately. Both use a provider-agnostic fill pipeline: configure any OpenAI-compatible endpoint in <code>~/.zeroclaw/config.toml</code> under <code>[providers.models.&lt;kind&gt;.&lt;alias&gt;]</code> and pass <code>--model-provider &lt;alias&gt;</code> to the fill commands. Any configured alias is choosable — a bare alias (<code>--model-provider &lt;alias&gt;</code>), or a <code>kind.alias</code> qualifier (<code>--model-provider anthropic.&lt;alias&gt;</code>) when the same alias exists under more than one kind. The resolver reads <code>uri</code>, <code>model</code>, and <code>api_key</code> straight from the matched entry; a missing <code>uri</code> or <code>model</code> is a hard error, not a guessed default.</p>
-<p>Local models via <a href="https://ollama.com">Ollama</a> are a first-class option — no API keys required, no per-call cost. A hosted provider is also fine for release-grade quality. Translation is a local operation. Run <code>cargo mdbook sync</code> for dedicated translation-cache PRs, release translation passes, and new locales; routine English docs PRs may defer broad generated <code>.po</code> churn to a focused follow-up.</p>
+<p>They are filled separately and stored separately. Both use a provider-agnostic fill pipeline: configure any OpenAI-compatible endpoint under <code>providers.models.&lt;kind&gt;.&lt;alias&gt;</code> and pass <code>--model-provider &lt;alias&gt;</code> to the fill commands. Any configured alias is choosable: a bare alias (<code>--model-provider &lt;alias&gt;</code>), or a <code>kind.alias</code> qualifier (<code>--model-provider anthropic.&lt;alias&gt;</code>) when the same alias exists under more than one kind. The resolver reads <code>uri</code>, <code>model</code>, and <code>api_key</code> straight from the matched entry; a missing <code>uri</code> or <code>model</code> is a hard error, not a guessed default.</p>
+<p>Local models via <a href="https://ollama.com">Ollama</a> are a first-class option: no API keys required, no per-call cost. A hosted provider is also fine for release-grade quality. Translation is a local operation. Run <code>cargo mdbook sync</code> for dedicated translation-cache PRs, release translation passes, and new locales; routine English docs PRs may defer broad generated <code>.po</code> churn to a focused follow-up.</p>
 <h2 id="provider-configuration"><a class="header" href="#provider-configuration">Provider configuration</a></h2>
-<p>Ollama is the current canonical source for docs. Ensure you have <a href="https://ollama.com/">Ollama</a> installed and have <code>qwen3.6:35-a3b</code> pulled. Then, in <code>~/.zeroclaw/config.toml</code> (or your established config home):</p>
-<pre><code class="language-toml"># Local via Ollama — free, runs on your machine
-[providers.models.ollama.local]
-uri   = "http://localhost:11434/v1/chat/completions"
-model = "qwen3.6:35b-a3b" # Current preferred model
-</code></pre>
-<p><code>uri</code> is the full endpoint URL and is <strong>optional</strong> — leave it unset to use the provider family’s default endpoint (resolved by the runtime provider stack). Set it only to point at a self-hosted gateway or proxy. Any configured family works (Anthropic, OpenAI, OpenRouter, Ollama, …); the translation tools build the real runtime provider, so each family’s endpoint, auth header, and wire protocol are handled for you — no OpenAI-compatibility requirement.</p>
+<p>Ollama is the current canonical source for docs. Ensure you have <a href="https://ollama.com/">Ollama</a> installed and have <code>qwen3:30b-a3b</code> pulled, then configure an Ollama provider entry. <code>uri</code> is the full endpoint URL and is <strong>optional</strong>: leave it unset to use the provider family’s default endpoint (resolved by the runtime provider stack). Set it only to point at a self-hosted gateway or proxy. Any configured family works (Anthropic, OpenAI, OpenRouter, Ollama, …); the translation tools build the real runtime provider, so each family’s endpoint, auth header, and wire protocol are handled for you: no OpenAI-compatibility requirement.</p>
 <h2 id="building-the-docs-locally"><a class="header" href="#building-the-docs-locally">Building the docs locally</a></h2>
-<h1 id="building-the-docs-locally-1"><a class="header" href="#building-the-docs-locally-1">Building the docs locally</a></h1>
-<p>The docs site you’re reading is published from <code>docs/book/</code>. You can build the same site on your own machine — useful for offline reading, previewing edits before opening a PR, or developing translations.</p>
+<!-- Canonical local docs-build commands and tooling. Edit here; reuse via
+     {{#include}}. Shared by developing/building-docs and
+     maintainers/docs-and-translations. -->
 <h2 id="one-command-quickstart"><a class="header" href="#one-command-quickstart">One-command quickstart</a></h2>
-<pre><code class="language-bash">cargo mdbook serve                       # serve all locales at http://localhost:3000/en/
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook serve                       # serve all locales at http://localhost:3000/en/
 cargo mdbook serve --locale ja           # live-reload against Japanese source
 cargo mdbook build                       # static build of every locale into docs/book/book/
 cargo mdbook refs                        # regenerate the auto-generated reference pages
@@ -254,6 +327,8 @@ cargo mdbook sync --locale ja --force    # force-retranslate one locale
 cargo mdbook stats                       # show translated/fuzzy/untranslated per locale
 cargo mdbook check                       # validate .po format (run before a translation PR)
 </code></pre>
+</div>
+
 <blockquote>
 <p>Always go through the <code>cargo mdbook …</code> wrapper. Running <code>mdbook build</code> directly from <code>docs/book/</code> skips the xtask step that renders <code>theme/lang-switcher.js</code> from <code>locales.toml</code>, which fails the build with <code>failed to open theme/lang-switcher.js for hashing</code>.</p>
 </blockquote>
@@ -286,105 +361,48 @@ cargo mdbook check                       # validate .po format (run before a tra
 </tbody>
 </table>
 </div>
-<p>The two <code>reference/*.md</code> files are generated from the actual <code>clap</code> derives and JSON schema in the code — never edit them by hand. Edit the <code>///</code> doc comments on the relevant Rust types instead.</p>
-<h2 id="how-translations-stay-current"><a class="header" href="#how-translations-stay-current">How translations stay current</a></h2>
-<p>English markdown is the only source maintained by humans. Translations are stored in <code>docs/book/po/&lt;locale&gt;.po</code> files, which act as a cache — not as copies of the docs.</p>
+<p>The two <code>reference/*.md</code> files are generated from the actual <code>clap</code> derives and JSON schema in the code, never edit them by hand. Edit the <code>///</code> doc comments on the relevant Rust types instead.</p>
+<p><code>cargo mdbook</code> is an alias for <code>cargo run -p xtask --bin mdbook --</code> (defined in the cargo config). For a lean contributor-facing version of this section, see <a href="../developing/building-docs.html">Building the docs locally</a>.</p>
+<h3 id="how-translations-stay-current"><a class="header" href="#how-translations-stay-current">How translations stay current</a></h3>
 <p>When English source changes, <code>cargo mdbook sync</code> runs two stages:</p>
 <ol>
-<li><strong>Extract</strong>: <code>mdbook-xgettext</code> regenerates <code>po/messages.pot</code> from the current English source</li>
-<li><strong>Merge</strong>: <code>msgmerge</code> updates each locale’s <code>.po</code> file — new strings get an empty <code>msgstr ""</code>; changed strings get marked <code>#, fuzzy</code> with the old translation preserved as a starting point</li>
+<li><strong>Extract</strong>: <code>mdbook-xgettext</code> regenerates <code>po/messages.pot</code> from the current English source.</li>
+<li><strong>Merge</strong>: <code>msgmerge</code> updates each locale’s <code>.po</code> file, new strings get an empty <code>msgstr ""</code>; changed strings get marked <code>#, fuzzy</code> with the old translation preserved as a starting point.</li>
 </ol>
-<p>Then the command counts fuzzy + untranslated entries. If there’s a delta and <code>--provider</code> is given, the <code>fill-translations</code> tool translates only those entries. <strong>Unchanged strings cost nothing</strong> — the <code>.po</code> file cache means re-running against unchanged source is a no-op.</p>
-<p>Without <code>--provider</code>, <code>cargo mdbook sync</code> still runs extract + merge and reports how many strings need translation. Strings without a <code>msgstr</code> fall back to English at render time — partial translations are valid.</p>
-<p><code>cargo mdbook sync</code> normalizes generated gettext catalogs with stable output rules (<code>msgcat --sort-output --no-wrap --add-location=file</code>). That keeps diffs focused on real source changes and avoids global line-number churn from small edits.</p>
-<p>Expected unavoidable churn:</p>
-<ul>
-<li>Header metadata updates (for example <code>POT-Creation-Date</code> / <code>PO-Revision-Date</code>)</li>
-<li>Reference updates when a string moves to a different source file</li>
-<li>Actual source-string additions, removals, and edits</li>
-</ul>
-<p>Quick stability check after a small docs edit:</p>
-<pre><code class="language-bash">cargo mdbook sync
-git diff --numstat -- docs/book/po
-</code></pre>
-<p>Routine English docs PRs do not need to include generated <code>.po</code> churn when the sync output is broad and hard to review. Keep the prose PR focused, leave the generated catalog refresh for a dedicated translation-cache PR, and say so in the PR body:</p>
-<blockquote>
-<p>Skipped committing generated <code>.po</code> updates: this is an English docs-only change, and <code>cargo mdbook sync</code> would produce broad gettext catalog churn. Translation-cache updates are deferred to a dedicated follow-up PR.</p>
-</blockquote>
-<p>Include <code>.po</code> updates only when one of these is true:</p>
-<ul>
-<li>The PR is specifically a translation-cache or release-translation pass.</li>
-<li>The PR adds a new locale.</li>
-<li><code>cargo mdbook sync</code> produces a small, reviewable diff limited to the strings changed by the PR.</li>
-</ul>
-<h2 id="adding-a-new-locale"><a class="header" href="#adding-a-new-locale">Adding a new locale</a></h2>
-<ol>
-<li>
-<p>Edit <code>locales.toml</code> at the repo root — the <strong>only</strong> file you need to touch:</p>
-<pre><code class="language-toml">[[locale]]
-code = "xx"
-label = "Language Name"
-</code></pre>
-<p>Everything else (<code>lang-switcher.js</code>, CI, <code>cargo fluent fill</code>, <code>cargo mdbook sync</code>) reads from this file automatically.</p>
-</li>
-<li>
-<p>Bootstrap and fill the docs translations:</p>
-<pre><code class="language-bash">cargo mdbook sync --locale xx --provider ollama
-</code></pre>
-<p>If the <code>.po</code> file doesn’t exist it’s bootstrapped automatically, then all entries are filled.</p>
-</li>
-<li>
-<p>Validate and preview:</p>
-<pre><code class="language-bash">cargo mdbook check              # exits non-zero on format errors
-cargo mdbook stats              # show coverage counts
-cargo mdbook serve --locale xx
-</code></pre>
-</li>
-</ol>
-<h2 id="release-translation-workflow"><a class="header" href="#release-translation-workflow">Release translation workflow</a></h2>
-<p>Before tagging a release, run a full translation pass locally and commit the updated <code>.po</code> files.</p>
-<pre><code class="language-bash"># Fast delta pass (only new or changed strings since last release)
-cargo mdbook sync --provider ollama
-
-# OR: quality pass — re-translate everything
-cargo mdbook sync --provider ollama --force
-
-cargo mdbook check   # validate before committing
-cargo mdbook stats   # review coverage
-</code></pre>
-<p>The model used is whatever is configured in <code>[providers.models.&lt;name&gt;]</code> in <code>config.toml</code>.</p>
-<h2 id="tips"><a class="header" href="#tips">Tips</a></h2>
-<ul>
-<li><strong>Fast iteration on prose:</strong> <code>cargo mdbook serve</code> auto-rebuilds on save. Skip <code>cargo mdbook refs</code> unless you’ve changed CLI flags or config schema.</li>
-<li><strong>Fast iteration on translations:</strong> edit <code>po/&lt;locale&gt;.po</code> and reload the browser — mdbook serve detects <code>.po</code> changes and rebuilds automatically.</li>
-<li><strong>Cleaning up:</strong> <code>rm -rf docs/book/book target/doc</code> removes everything generated.</li>
-<li><strong>Zero-cost re-runs:</strong> <code>cargo mdbook sync</code> against unchanged English source completes in seconds — no AI calls, no cost.</li>
-</ul>
+<p>Then the command counts fuzzy + untranslated entries and, when <code>--model-provider</code> is given, fills only those. Unchanged strings cost nothing: the <code>.po</code> cache means re-running against unchanged source is a no-op. Without <code>--model-provider</code>, sync still runs extract + merge and reports the delta; strings without a <code>msgstr</code> fall back to English at render time.</p>
+<p>Sync normalizes catalogs with stable output rules (<code>msgcat --sort-output --no-wrap --add-location=file</code>), so diffs stay focused on real source changes. Unavoidable churn: header metadata (<code>POT-Creation-Date</code> etc.), reference-location updates when a string moves files, and actual source-string edits.</p>
+<p>Routine English docs PRs may defer broad <code>.po</code> churn to a focused follow-up. Include <code>.po</code> updates only when the PR is a translation-cache pass, a release-translation pass, adds a locale, or produces a small reviewable diff.</p>
 <h2 id="filling-app-strings-fluent"><a class="header" href="#filling-app-strings-fluent">Filling app strings (Fluent)</a></h2>
 <p>App strings live in <code>crates/zeroclaw-runtime/locales/</code>. English is the source of truth and is embedded at compile time.</p>
 <blockquote>
-<p><strong>Runtime loading caveat (verify before relying on this).</strong> As of this writing, only <code>en</code> and <code>zh-CN</code> are wired into the runtime: <code>crates/zeroclaw-runtime/src/i18n.rs</code> embeds them via <code>include_str!</code>, and <code>builtin_cli_ftl_source()</code> returns <code>None</code> for every other locale. A disk-override path exists (<code>load_ftl_from_disk</code> → <code>workspace_dir_from_config</code>) but it resolves a top-level <code>workspace_dir</code> config key that no longer exists in v0.8.0 and falls back to <code>~/.zeroclaw/workspace</code>, which v0.8.0 does not create. <strong>So a freshly filled <code>ja/cli.ftl</code> is generated and committed, but is not actually loaded at runtime</strong> until either the locale is added to <code>builtin_cli_ftl_source()</code> or the disk-override path is repaired. Confirm the current state in <code>i18n.rs</code> rather than trusting this note.</p>
+<p><strong>Runtime loading caveat (verify before relying on this).</strong> Only <code>en</code> and <code>zh-CN</code> are wired into the runtime as built-ins: <code>crates/zeroclaw-runtime/src/i18n.rs</code> embeds <code>en</code> via <code>include_str!</code>, and <code>builtin_cli_ftl_source()</code> returns the embedded <code>zh-CN</code> catalogue for <code>zh-CN</code> and <code>None</code> for every other locale. A disk-override path exists: <code>load_ftl_from_disk</code> resolves <code>zeroclaw_config::schema::ftl_locale_dir(locale)</code>, i.e. <code>&lt;config-dir&gt;/data/ftl/&lt;locale&gt;/cli.ftl</code> (the same location <code>zeroclaw locales fetch</code> populates). <strong>So a freshly filled <code>ja/cli.ftl</code> is generated and committed, but is not loaded at runtime</strong> unless either the locale is added to <code>builtin_cli_ftl_source()</code> or the filled <code>cli.ftl</code> is placed under <code>&lt;config-dir&gt;/data/ftl/ja/</code>. Confirm the current state in <code>i18n.rs</code> and <code>zeroclaw_config::schema::ftl_locale_dir</code> rather than trusting this note.</p>
+<p>The <code>apps/zerocode</code> TUI maintains an independent Fluent catalogue (<code>apps/zerocode/locales/</code>), see <a href="#zerocode-strings-fluent-independent">zerocode strings</a> below. <code>cargo fluent</code> walks <strong>both</strong> catalogue roots (runtime + zerocode), so every subcommand below covers both by default.</p>
 </blockquote>
-<blockquote>
-<p>The <code>apps/zerocode</code> TUI maintains an independent Fluent catalogue (<code>apps/zerocode/locales/</code>) — see <a href="#zerocode-strings-fluent-independent">zerocode strings</a> below. <code>cargo fluent</code> walks <strong>both</strong> catalogue roots (runtime + zerocode), so every subcommand below covers both by default.</p>
-</blockquote>
-<pre><code class="language-bash">cargo fluent stats                                                   # coverage per locale, per catalogue
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">cargo fluent stats                                                   # coverage per locale, per catalogue
 cargo fluent check                                                   # validate .ftl syntax across both catalogues
 cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt;             # fill missing keys (default batch 50)
 cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --batch 10  # smaller batches: fewer entries per request (eases rate limits / truncation)
 cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --force     # retranslate everything
 cargo fluent scan                                                    # find stale or missing keys vs Rust source
 </code></pre>
-<p><strong>Scoping to one catalogue</strong> — every subcommand takes <code>--catalog &lt;runtime|zerocode&gt;</code> (default: both). To translate only the TUI:</p>
-<pre><code class="language-bash">cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --catalog zerocode
+</div>
+
+<p><strong>Scoping to one catalogue</strong>: every subcommand takes <code>--catalog &lt;runtime|zerocode&gt;</code> (default: both). To translate only the TUI:</p>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">cargo fluent fill --locale ja --model-provider anthropic.&lt;alias&gt; --catalog zerocode
 cargo fluent check --catalog zerocode                                # syntax-check only zerocode
 </code></pre>
+</div>
+
 <p>An unknown <code>--catalog</code> value errors with the valid choices.</p>
-<p><code>fill</code> generates <code>&lt;locale&gt;/&lt;domain&gt;.ftl</code> for every selected catalogue root that has an <code>en/</code> directory — the runtime’s <code>cli.ftl</code>/<code>tools.ftl</code> and zerocode’s <code>zerocode.ftl</code>.</p>
-<p><strong>Provider resolution is shared with the runtime.</strong> <code>--model-provider</code> accepts any alias configured under <code>[providers.models.&lt;kind&gt;.&lt;alias&gt;]</code> — a bare alias (<code>&lt;alias&gt;</code>) or a <code>kind.alias</code> qualifier (<code>anthropic.&lt;alias&gt;</code>) when ambiguous. The tool builds the actual runtime provider, so the endpoint, auth header, and wire protocol are resolved per family (Anthropic <code>/v1/messages</code> + <code>x-api-key</code>, OpenAI-compatible <code>/v1/chat/completions</code> + <code>Bearer</code>, etc.) — nothing is assumed. Encrypted <code>api_key</code> values are decrypted through the canonical <code>SecretStore</code>. Use <code>--config-dir &lt;dir&gt;</code> (mirrors <code>zeroclaw --config-dir</code>) to read config + <code>.secret-key</code> from a non-default location; defaults to <code>~/.zeroclaw</code> then <code>~/.config/zeroclaw</code>.</p>
-<p><strong>Batching:</strong> <code>fill</code> sends one request per batch (all N entries as a single JSON object); <code>--batch</code> lowers N to ease provider rate limits or response truncation on long entries. Each batch is written to disk before the next request, so a mid-run failure only loses the in-flight batch. Re-running skips keys that already exist in the target <code>.ftl</code>, so resume is automatic — no <code>--force</code> needed.</p>
+<p><code>fill</code> generates <code>&lt;locale&gt;/&lt;domain&gt;.ftl</code> for every selected catalogue root that has an <code>en/</code> directory: the runtime’s <code>cli.ftl</code>/<code>tools.ftl</code> and zerocode’s <code>zerocode.ftl</code>.</p>
+<p><strong>Provider resolution is shared with the runtime.</strong> <code>--model-provider</code> accepts any alias configured under <code>[providers.models.&lt;kind&gt;.&lt;alias&gt;]</code>: a bare alias (<code>&lt;alias&gt;</code>) or a <code>kind.alias</code> qualifier (<code>anthropic.&lt;alias&gt;</code>) when ambiguous. The tool builds the actual runtime provider, so the endpoint, auth header, and wire protocol are resolved per family (Anthropic <code>/v1/messages</code> + <code>x-api-key</code>, OpenAI-compatible <code>/v1/chat/completions</code> + <code>Bearer</code>, etc.): nothing is assumed. Encrypted <code>api_key</code> values are decrypted through the canonical <code>SecretStore</code>. Use <code>--config-dir &lt;dir&gt;</code> (mirrors <code>zeroclaw --config-dir</code>) to read config + <code>.secret-key</code> from a non-default location; defaults to <code>~/.zeroclaw</code> then <code>~/.config/zeroclaw</code>.</p>
+<p><strong>Batching:</strong> <code>fill</code> sends one request per batch (all N entries as a single JSON object); <code>--batch</code> lowers N to ease provider rate limits or response truncation on long entries. Each batch is written to disk before the next request, so a mid-run failure only loses the in-flight batch. Re-running skips keys that already exist in the target <code>.ftl</code>, so resume is automatic: no <code>--force</code> needed.</p>
 <h2 id="zerocode-strings-fluent-independent"><a class="header" href="#zerocode-strings-fluent-independent">zerocode strings (Fluent, independent)</a></h2>
-<p><code>apps/zerocode</code> carries its own self-contained Fluent setup, separate from the runtime catalogues above. The TUI is intentionally decoupled from the rest of the workspace — it has no <code>zeroclaw-*</code> crate dependency, and its strings live next to its source rather than under <code>zeroclaw-runtime/locales/</code>.</p>
+<p><code>apps/zerocode</code> carries its own self-contained Fluent setup, separate from the runtime catalogues above. The TUI is intentionally decoupled from the rest of the workspace: it has no <code>zeroclaw-*</code> crate dependency, and its strings live next to its source rather than under <code>zeroclaw-runtime/locales/</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -403,62 +421,87 @@ cargo fluent check --catalog zerocode                                # syntax-ch
 <h3 id="key-namespace"><a class="header" href="#key-namespace">Key namespace</a></h3>
 <p>All zerocode keys are prefixed <code>zc-</code> and never collide with the runtime’s <code>cli-</code>, <code>channel-</code>, or <code>tool-</code> namespaces. The convention inside <code>zc-</code> is <code>zc-&lt;pane&gt;-&lt;purpose&gt;</code>:</p>
 <ul>
-<li><code>zc-pane-&lt;name&gt;</code> — top-level mode bar labels</li>
-<li><code>zc-app-&lt;purpose&gt;</code> — strings owned by <code>app.rs</code> (dialogs, help, status)</li>
-<li><code>zc-&lt;pane&gt;-&lt;purpose&gt;</code> — strings local to a specific pane (<code>zc-dashboard-*</code>, <code>zc-chat-*</code>, …)</li>
+<li><code>zc-pane-&lt;name&gt;</code>: top-level mode bar labels</li>
+<li><code>zc-app-&lt;purpose&gt;</code>: strings owned by <code>app.rs</code> (dialogs, help, status)</li>
+<li><code>zc-&lt;pane&gt;-&lt;purpose&gt;</code>: strings local to a specific pane (<code>zc-dashboard-*</code>, <code>zc-chat-*</code>, …)</li>
 </ul>
 <h3 id="chord-literals-are-not-translated"><a class="header" href="#chord-literals-are-not-translated">Chord literals are not translated</a></h3>
 <p>Chord glyphs like <code>Ctrl+C</code>, <code>Esc</code>, <code>Shift+Up</code> are protocol, not language. The <code>HelpEntry</code> and <code>HelpNode</code> constructors take the chord vector as <code>&amp;'static str</code> and the description as <code>String</code>, so chord literals stay hard-coded while descriptions flow through <code>t()</code>. When prose embeds a chord inline, use a <code>{ $keys }</code> Fluent slot and pass the chord at render time rather than concatenating translated text around a literal.</p>
 <h3 id="locale-resolution"><a class="header" href="#locale-resolution">Locale resolution</a></h3>
-<p>Locale comes from a top-level <code>locale</code> field in <code>zerocode-config.toml</code>. When unset, <code>i18n::detect_locale()</code> reads a single file — <code>&lt;config-dir&gt;/zerocode-config.toml</code>, where the config dir is resolved as <code>--config-dir</code>, then <code>ZEROCLAW_CONFIG_DIR</code>, then <code>~/.zeroclaw</code> — and otherwise falls back to <code>en</code>. zerocode resolves its locale independently from its own <code>zerocode-config.toml</code>; it does not share the daemon’s lookup.</p>
+<p>Locale comes from a top-level <code>locale</code> field in zerocode’s config. When unset, <code>i18n::detect_locale()</code> reads the config dir resolved as <code>--config-dir</code>, then <code>ZEROCLAW_CONFIG_DIR</code>, then <code>~/.zeroclaw</code>, and otherwise falls back to <code>en</code>. zerocode resolves its locale independently from its own config; it does not share the daemon’s lookup.</p>
 <h3 id="adding-strings"><a class="header" href="#adding-strings">Adding strings</a></h3>
 <ol>
 <li>Add the key + English value to <code>apps/zerocode/locales/en/zerocode.ftl</code>. Group keys by source file with a section comment so the catalogue stays scannable.</li>
-<li>Replace the literal in the source with <code>crate::i18n::t("zc-…")</code>. For enum→label <code>match</code> arms, return the key constant (<code>&amp;'static str</code>) from a <code>fluent_key()</code> method and call <code>t()</code> at the render site — never <code>match</code> on a string.</li>
+<li>Replace the literal in the source with <code>crate::i18n::t("zc-…")</code>. For enum→label <code>match</code> arms, return the key constant (<code>&amp;'static str</code>) from a <code>fluent_key()</code> method and call <code>t()</code> at the render site, never <code>match</code> on a string.</li>
 <li><code>cargo check -p zerocode</code> and the <code>i18n</code> unit tests (<code>cargo test -p zerocode i18n</code>) catch missing keys at compile/test time. Missing keys at runtime render as <code>{zc-key-name}</code> and emit a one-shot stderr warning.</li>
 </ol>
 <h3 id="filling-translations"><a class="header" href="#filling-translations">Filling translations</a></h3>
 <p><code>cargo fluent</code> walks the zerocode catalogue alongside the runtime one, so no manual step is needed. Running <code>cargo fluent fill --locale &lt;code&gt; --model-provider &lt;alias&gt;</code> generates <code>apps/zerocode/locales/&lt;code&gt;/zerocode.ftl</code> in the same pass that fills the runtime catalogue. <code>cargo fluent check</code> and <code>cargo fluent stats</code> likewise report zerocode; <code>scan</code> indexes <code>apps/</code> so <code>zc-</code> key references resolve against zerocode’s source. The generated <code>&lt;code&gt;/zerocode.ftl</code> is embedded in-tree at compile time, or can be dropped into any of the disk-search paths above for testing with <code>--config-dir</code>.</p>
 <h2 id="filling-doc-translations-gettext"><a class="header" href="#filling-doc-translations-gettext">Filling doc translations (gettext)</a></h2>
-<p>Doc translations live in <code>docs/book/po/</code>. <code>cargo mdbook sync</code> runs extract → merge → strip obsolete → AI-fill in one step. Without <code>--model-provider</code>, sync still runs extract + merge and reports how many strings need translation — partial translations fall back to English at render time.</p>
-<pre><code class="language-bash">cargo mdbook sync --model-provider anthropic.&lt;alias&gt;              # delta fill
+<p>Doc translations live in <code>docs/book/po/</code>. <code>cargo mdbook sync</code> runs extract → merge → strip obsolete → AI-fill in one step. Without <code>--model-provider</code>, sync still runs extract + merge and reports how many strings need translation: partial translations fall back to English at render time.</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook sync --model-provider anthropic.&lt;alias&gt;              # delta fill
 cargo mdbook sync --model-provider anthropic.&lt;alias&gt; --force      # quality pass: retranslate all entries
 cargo mdbook sync --model-provider anthropic.&lt;alias&gt; --batch 1    # write after every entry (safest resume)
 cargo mdbook sync --locale ja --model-provider anthropic.&lt;alias&gt;  # single locale
 cargo mdbook sync --model-provider anthropic.&lt;alias&gt; --config-dir ~/.zeroclaw  # qualified alias + explicit config dir
 </code></pre>
-<p><code>--model-provider</code> resolves through the same shared runtime provider path as <code>cargo fluent</code> (any configured family/alias, per-family endpoint + auth + wire protocol, <code>SecretStore</code> decryption, <code>--config-dir</code> support). Unlike <code>cargo fluent</code> — which sends a whole batch as one JSON object — the gettext filler issues <strong>one request per source string</strong> to keep the <code>msgid → msgstr</code> mapping unambiguous, so <code>--batch</code> controls how often the <code>.po</code> is flushed to disk (the checkpoint interval), not the request size. A full-catalogue locale is thousands of sequential requests; for routine delta fills a cheap local Ollama alias is the economical choice.</p>
+</div>
+
+<p><code>--model-provider</code> resolves through the same shared runtime provider path as <code>cargo fluent</code> (any configured family/alias, per-family endpoint + auth + wire protocol, <code>SecretStore</code> decryption, <code>--config-dir</code> support). Unlike <code>cargo fluent</code>, which sends a whole batch as one JSON object, the gettext filler issues <strong>one request per source string</strong> to keep the <code>msgid → msgstr</code> mapping unambiguous, so <code>--batch</code> controls how often the <code>.po</code> is flushed to disk (the checkpoint interval), not the request size. A full-catalogue locale is thousands of sequential requests; for routine delta fills a cheap local Ollama alias is the economical choice.</p>
 <p>The pipeline has built-in resilience:</p>
 <ul>
-<li><strong>Leak detection</strong> — if a model returns its own instructions instead of a translation, the tool detects the pattern (via response-length ratio and bullet-list structure), attempts to recover the real translation from the response tail, and blanks the entry for re-translation if recovery fails.</li>
-<li><strong>Incremental writes</strong> — after each batch, the <code>.po</code> file is rewritten. A Ctrl-C mid-run doesn’t lose the progress up to that point.</li>
-<li><strong>Obsolete stripping</strong> — <code>msgmerge</code> + <code>msgattrib --no-obsolete</code> keep removed source strings from accumulating as <code>#~</code> entries.</li>
+<li><strong>Leak detection</strong>: if a model returns its own instructions instead of a translation, the tool detects the pattern (via response-length ratio and bullet-list structure), attempts to recover the real translation from the response tail, and blanks the entry for re-translation if recovery fails.</li>
+<li><strong>Protected literal checks</strong>: <code>cargo mdbook check</code> also rejects high-confidence literal corruption in generated <code>.po</code> files. Product names such as <code>ZeroClaw Maturity Framework</code>, command literals such as <code>zeroclaw daemon</code>, and fenced TOML section/key literals must stay byte-for-byte intact inside translations. Translate the surrounding prose, not the machine-facing text.</li>
+<li><strong>Incremental writes</strong>: after each batch, the <code>.po</code> file is rewritten. A Ctrl-C mid-run doesn’t lose the progress up to that point.</li>
+<li><strong>Obsolete stripping</strong>: <code>msgmerge</code> + <code>msgattrib --no-obsolete</code> keep removed source strings from accumulating as <code>#~</code> entries.</li>
 </ul>
 <p>Maintainers should accept the routine English docs exception documented in <a href="../developing/building-docs.html">Building the docs locally</a>. Ask for <code>.po</code> updates only when the PR is itself a translation-cache pass, a release translation pass, a new-locale change, or the generated diff is small enough to review.</p>
-<h2 id="adding-a-new-locale-1"><a class="header" href="#adding-a-new-locale-1">Adding a new locale</a></h2>
+<h2 id="adding-a-new-locale"><a class="header" href="#adding-a-new-locale">Adding a new locale</a></h2>
 <ol>
 <li>
-<p>Edit <code>locales.toml</code> at the repo root — the <strong>only</strong> file you need to touch:</p>
-<pre><code class="language-toml">[[locale]]
-code = "&lt;code&gt;"
-label = "Language Name"
-</code></pre>
+<p>Edit <code>locales.toml</code> at the repo root, the <strong>only</strong> file you need to touch:</p>
 </li>
 <li>
 <p>Translate the app strings:</p>
-<pre><code class="language-bash">cargo fluent fill --locale &lt;code&gt; --provider ollama
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">cargo fluent fill --locale &lt;code&gt; --model-provider ollama
 </code></pre>
+</div>
+
 </li>
 <li>
 <p>Bootstrap and fill the docs <code>.po</code> file:</p>
-<pre><code class="language-bash">cargo mdbook sync --locale &lt;code&gt; --provider ollama
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">cargo mdbook sync --locale &lt;code&gt; --model-provider ollama
 </code></pre>
+</div>
+
 </li>
 <li>
-<p>For zerocode parity, copy <code>apps/zerocode/locales/en/zerocode.ftl</code> to <code>apps/zerocode/locales/&lt;code&gt;/zerocode.ftl</code> and translate the values by hand. <code>cargo fluent</code> does not yet operate on the zerocode catalogue; the file can be dropped into any of the disk-search paths or embedded in-tree once translated.</p>
+<p>The <code>cargo fluent fill</code> run in step 2 already generates <code>apps/zerocode/locales/&lt;code&gt;/zerocode.ftl</code> in the same pass, since <code>cargo fluent</code> walks both the runtime and zerocode catalogues. No manual zerocode step is needed; verify coverage with <code>cargo fluent stats</code>.</p>
 </li>
 </ol>
-<p>Everything else — <code>lang-switcher.js</code>, CI deploy target list, <code>cargo mdbook locales</code> output — reads from <code>locales.toml</code> automatically.</p>
+<p>Everything else, <code>lang-switcher.js</code>, CI deploy target list, <code>cargo mdbook locales</code> output, reads from <code>locales.toml</code> automatically.</p>
+<h2 id="release-translation-workflow"><a class="header" href="#release-translation-workflow">Release translation workflow</a></h2>
+<p>Before tagging a release, run a full translation pass locally and commit the updated <code>.po</code> files.</p>
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh"># Fast delta pass (only new or changed strings since last release)
+cargo mdbook sync --model-provider ollama
+
+# OR: quality pass — re-translate everything
+cargo mdbook sync --model-provider ollama --force
+
+cargo mdbook check   # validate before committing
+cargo mdbook stats   # review coverage
+</code></pre>
+</div>
+
+<p>The model used is whatever is configured under <code>providers.models.&lt;name&gt;</code>.</p>
 <h2 id="model-quality-notes"><a class="header" href="#model-quality-notes">Model quality notes</a></h2>
 <p>Translation quality varies significantly by language and model.</p>
 <div class="table-wrapper">
@@ -467,8 +510,8 @@ label = "Language Name"
 <tr><th>Locale</th><th>Well-supported by</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ja</code>, <code>zh-CN</code></td><td>qwen3.6 family, any frontier hosted model</td><td>Qwen is Chinese-first; Japanese also strong</td></tr>
-<tr><td><code>es</code>, <code>fr</code></td><td>qwen3.6, mistral, gemma3, hosted</td><td>Romance languages are broadly well-trained</td></tr>
+<tr><td><code>ja</code>, <code>zh-CN</code></td><td>qwen3 family, any frontier hosted model</td><td>Qwen is Chinese-first; Japanese also strong</td></tr>
+<tr><td><code>es</code>, <code>fr</code></td><td>qwen3, mistral, gemma3, hosted</td><td>Romance languages are broadly well-trained</td></tr>
 <tr><td>Low-resource locales</td><td>Hosted frontier models only</td><td>Local models often hallucinate words</td></tr>
 </tbody>
 </table>

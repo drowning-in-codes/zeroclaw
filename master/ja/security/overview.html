@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,88 +292,14 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="セキュリティ--概要"><a class="header" href="#セキュリティ--概要">セキュリティ — 概要</a></h1>
+                        <h1 id="security-overview"><a class="header" href="#security-overview">Security: Overview</a></h1>
 <p>シェルコマンドの実行、URL の開封、ファイルの書き込みが可能なエージェントは特権プロセスです。ZeroClaw のセキュリティモデルは、すべてのツール呼び出しとすべてのチャネルメッセージの上に位置し、ランタイム時にエージェントが実際に何を実行できるかを制御します。</p>
-<p>6つのレイヤーがあります。外側から内側へ：</p>
-<h2 id="1-チャンネルのペアリングとアクセス制御"><a class="header" href="#1-チャンネルのペアリングとアクセス制御">1. チャンネルのペアリングとアクセス制御</a></h2>
-<p>チャネルからのメッセージがエージェントに到達する前に、チャネルのペアリングと許可リストが確認されます。<code>allowed_users</code>、<code>allowed_chats</code>、Webhook用のIP許可リストなどは、ランタイムがイベントを処理する前にチャネルアダプタで適用されます。</p>
-<p>各チャンネルのページは <a href="../channels/overview.html">チャンネル</a> の下にあります。</p>
-<h2 id="2-自律レベル"><a class="header" href="#2-自律レベル">2. 自律レベル</a></h2>
-<p>粗い粒度のノブ。3つの設定：</p>
+<p>Each agent runs under a risk profile and a runtime profile it references; see <a href="../agents/overview.html">Agents</a> for how those references attach to an agent.</p>
 <ul>
-<li><strong>ReadOnly</strong> — エージェントは観察（ファイルの読み取り、メモリへのクエリ、許可されたURLのフェッチ）はできますが、書き込みやコマンドの実行はできません。</li>
-<li><strong>教師あり</strong>（デフォルト）— 低リスクの操作は実行、中リスクの操作はオペレーターに確認、高リスクの操作はブロックします。</li>
-<li><strong>Full</strong> — 承認ゲートなし。<code>workspace_only</code> は暗黙的に無効化されます。<code>forbidden_paths</code>、<code>forbidden_commands</code>、OS サンドボックスは引き続き適用されます。</li>
-</ul>
-<p>ドキュメント: <a href="./autonomy.html">自律レベル</a></p>
-<h2 id="3-ワークスペースの境界とパスのルール"><a class="header" href="#3-ワークスペースの境界とパスのルール">3. ワークスペースの境界とパスのルール</a></h2>
-<p>エージェントは設定されたワークスペースディレクトリ内で動作します。<code>file_read</code>、<code>file_write</code>、およびファイルシステムにアクセスするコマンド用の <code>shell</code> は、<code>workspace_only = false</code> でない限り、そのディレクトリ外のパスを拒否します。</p>
-<p><strong>セッションごとのサンドボックスルート（ACP およびゲートウェイ WebSocket）:</strong> セッションが ACP（<code>cwd</code> パラメータ付きの <code>session/new</code>）またはゲートウェイ WebSocket（接続時の <code>cwd</code> パラメータ）経由で開かれると、そのパスがセッションのライフタイム全体にわたって、すべてのファイルツールおよびシェルツールの <code>SecurityPolicy</code> ワークスペース境界になります。デーモンのグローバルな <code>workspace_dir</code> は、メモリ、アイデンティティ、cron、その他の永続的な状態のためのデータディレクトリのままです。モデルは次のとおりです: <code>session cwd</code> = エージェントが操作できるプロジェクト境界、<code>workspace_dir</code> = ZeroClaw が自身のファイルを保存する場所。注意: エージェントのシステムプロンプトは現在、セッションの <code>cwd</code> ではなくデーモンの <code>workspace_dir</code> を反映しています。強制は正しく行われますが、モデルが自己申告する場所は異なる場合があります。</p>
-<p><strong>重要:</strong> <code>cwd</code> パラメーターは、<strong>ZeroClaw ホスト</strong>上でエージェントがサンドボックス化されるディレクトリを変更するものであり、ツールが実行されるマシンには影響しません。ツールの使用（シェルコマンド、ファイルの読み書き）は、常に ZeroClaw を実行しているマシン上で実行されます。ゲートウェイの WebSocket 経由でリモートの ZeroClaw インスタンスに接続している場合、ツール呼び出しはローカルマシンではなくリモートマシンのファイルシステム上で動作します。localhost のみのデプロイメントではこの区別は問題になりませんが、リモート構成ではこれを考慮する必要があります。</p>
-<p>ワークスペースの外側では、<code>forbidden_paths</code> リスト（デフォルト: <code>/etc</code>, <code>/sys</code>, <code>/boot</code>, <code>~/.ssh</code>, …）はワークスペースの設定に関係なく常にブロックされます。</p>
-<h2 id="4-シェルコマンドポリシー"><a class="header" href="#4-シェルコマンドポリシー">4. シェルコマンドポリシー</a></h2>
-<p>シェル呼び出しの場合:</p>
-<ul>
-<li><code>allowed_commands</code> — 空でない場合、シェルはこのリストに含まれる basename のコマンドのみを実行します</li>
-<li><code>forbidden_commands</code> — 明示的な拒否リスト（<code>rm -rf /</code>、<code>shutdown</code>、カーネル操作）</li>
-<li><code>validate_command_execution</code> — 危険なフラグ、パイプライン、および引数の形状を検出するためのパターンマッチングパス</li>
-</ul>
-<p>バリデーターは、コマンドがシェルに到達する<strong>前に</strong>実行されます。ブロックされたコマンドは、モデルが確認して対応できるツールエラーとして表示されます。</p>
-<h2 id="5-osレベルのサンドボックス"><a class="header" href="#5-osレベルのサンドボックス">5. OSレベルのサンドボックス</a></h2>
-<p>サンドボックスバックエンドが利用可能な場合、ツール呼び出しはその内部で実行されます：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>プラットフォーム</th><th>デフォルトのバックエンド</th></tr>
-</thead>
-<tbody>
-<tr><td>Linux</td><td>Landlock (カーネル) / Bubblewrap / Firejail / Docker — 自動検出</td></tr>
-<tr><td>macOS</td><td>シートベルト（ネイティブ）</td></tr>
-<tr><td>Windows</td><td>AppContainer（実験的）</td></tr>
-<tr><td>任意</td><td>Docker（デーモンに到達可能な場合）</td></tr>
-</tbody>
-</table>
-</div>
-<p>サンドボックスは、ファイルシステムへのアクセスをワークスペースに制限し、ツールが明示的に必要とするもの以外のネットワーク到達性を削除し、親プロセスのシークレットへのアクセスを削除します。</p>
-<p>ドキュメント: <a href="./sandboxing.html">サンドボックス化</a>。</p>
-<h2 id="6-ツールレシート"><a class="header" href="#6-ツールレシート">6. ツールレシート</a></h2>
-<p>ツール呼び出しごとに（実行された場合、ブロックされた場合、承認が必要だった場合にかかわらず）、チェーンに署名付きレシートが生成されます。各レシートには前のレシートのハッシュが含まれているため、いずれかのレシートが改ざんされると、それ以降のすべてのレシートが無効になります。</p>
-<p>レシートは「エージェントが昨日何をしたか」の真実のソースです。それらは読みやすく、grep可能で、耐久性があります。</p>
-<p>ドキュメント: <a href="./tool-receipts.html">ツールレシート</a>。</p>
-<h2 id="追加のゲート"><a class="header" href="#追加のゲート">追加のゲート</a></h2>
-<p>6つのレイヤーを超えて：</p>
-<ul>
-<li><strong>OTPゲート</strong> — <code>[security.otp] gated_actions = ["shell", "browser", "file_write"]</code> は、各アクションの前にワンタイムコードを必要とします。リモートアクセスシナリオに有用です。</li>
-<li><strong>緊急停止</strong> — <code>zeroclaw estop</code> は実行中のすべてのツール呼び出しを停止します。<code>[security.estop] enabled = true</code> の場合、再開には OTP が必要です。</li>
-<li><strong>プロンプトインジェクションガード</strong> — ツール呼び出しの検証前に、既知のインジェクションパターンに対してモデルの出力をスキャンします。</li>
-<li><strong>リーク検出器</strong> — 送信メッセージをスキャンして機密情報（API キーのパターン、秘密鍵など）を検出し、一致する送信をブロックします。</li>
-<li><strong>ペアリングガード</strong> — チャネル認証のためのデバイスペアリング。新しいデバイスで盗まれた資格情報を使用できないようにします。</li>
-</ul>
-<h2 id="問題が発生した場合"><a class="header" href="#問題が発生した場合">問題が発生した場合</a></h2>
-<p>ブロックされたツール呼び出しは、静かに失敗しません：</p>
-<ol>
-<li>セキュリティバリデータがエラーを返しました</li>
-<li>ランタイムはそれを <code>ToolResult::Err</code> としてラップし、モデルに返します。</li>
-<li>モデルは「エラー: シェルコマンドはポリシーによってブロックされました: 禁止パターン <code>rm -rf /</code>」と表示し、再試行、謝罪、またはユーザーに問い合わせることができます。</li>
-</ol>
-<p>ツールが <code>[autonomy].non_cli_excluded_tools</code>（非CLIチャネルをグループとして制御します）を介してチャネルから除外されている場合、そのツールはこれらのチャネル上でモデルに通知されません。モデルは使用できないツールを認識することはありません。</p>
-<h2 id="デフォルトの姿勢"><a class="header" href="#デフォルトの姿勢">デフォルトの姿勢</a></h2>
-<p>デフォルトで：</p>
-<ul>
-<li>自律性: <code>教師あり</code></li>
-<li>ワークスペースのみ: <code>true</code></li>
-<li>サンドボックス: 自動検出（OSが提供するものを使用）</li>
-<li>監査ログ: <code>false</code> (明示的に有効化)</li>
-<li>OTP: <code>false</code></li>
-<li>E-stop: <code>false</code></li>
-</ul>
-<p>これは妥当な中間的な設定です。ノートパソコンには十分安全で、かつ過度に制限されすぎてイライラすることはありません。本番環境では（OTP、監査、制限付きツールなど）設定を強化し、開発環境では <a href="../getting-started/yolo.html">YOLO</a> に設定を緩和してください。</p>
-<h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
-<ul>
-<li><a href="./autonomy.html">自律レベル</a></li>
-<li><a href="./sandboxing.html">サンドボックス化</a></li>
-<li><a href="./tool-receipts.html">ツールレシート</a></li>
-<li><a href="../getting-started/yolo.html">YOLO モード</a></li>
+<li><a href="./model.html">The security model</a>: the six enforcement layers, additional gates, failure behavior, and the default posture.</li>
+<li><a href="./autonomy.html">Autonomy levels</a>: the coarse-grained ReadOnly / Supervised / Full knob.</li>
+<li><a href="./sandboxing.html">Sandboxing</a>: OS-level isolation backends per platform.</li>
+<li><a href="./tool-receipts.html">Tool receipts</a>: the signed, chained audit log of every tool call.</li>
 </ul>
 
                     </main>
@@ -308,7 +310,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../security/autonomy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../security/model.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -322,7 +324,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../security/autonomy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../security/model.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

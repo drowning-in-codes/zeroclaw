@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,55 +292,42 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="themes--terminal-colours"><a class="header" href="#themes--terminal-colours">Themes &amp; terminal colours</a></h1>
-<p>zerocode ships a set of named colour themes, lets each agent carry its own theme in the Code and Chat panes, and adapts its colour output to what the terminal can render.</p>
-<p>All theme settings live in zerocode’s own <code>zerocode-config.toml</code>, independent of which daemon zerocode connects to.</p>
+                        <h1 id="themes--terminal-colors"><a class="header" href="#themes--terminal-colors">Themes &amp; terminal colors</a></h1>
+<p>zerocode ships a set of named color themes, lets each agent carry its own theme in the Code and Chat panes, and adapts its color output to what the terminal can render.</p>
+<p>All theme settings live in zerocode’s own config, independent of which daemon zerocode connects to.</p>
 <h2 id="choosing-a-theme"><a class="header" href="#choosing-a-theme">Choosing a theme</a></h2>
-<p>Open the <strong>Config</strong> pane, switch to the <strong>zerocode</strong> section, and select the <strong>Theme</strong> tab. Navigate with <code>↑</code>/<code>k</code> and <code>↓</code>/<code>j</code>; press <code>Enter</code> to apply. The choice takes effect immediately and is written to <code>zerocode-config.toml</code>:</p>
-<pre><code class="language-toml">[theme]
-name = "tokyo_night"
-</code></pre>
-<p>The highlighted row previews the theme’s palette inline — a strip of colour blocks for its canvas, title, heading, body, warn, and tool roles — so you can see the colours before applying.</p>
+<p>Open the <strong>Config</strong> pane, switch to the <strong>zerocode</strong> section, and select the <strong>Theme</strong> tab. Navigate with <code>↑</code>/<code>k</code> and <code>↓</code>/<code>j</code>; press <code>Enter</code> to apply. The choice takes effect immediately and is persisted to zerocode’s config. The highlighted row previews the theme’s palette inline, a strip of color blocks for its canvas, title, heading, body, warn, and tool roles, so you can see the colors before applying.</p>
 <h3 id="available-themes"><a class="header" href="#available-themes">Available themes</a></h3>
 <p>Two themes are authored directly in zerocode because they have no registry entry:</p>
 <ul>
-<li><strong><code>terminal</code></strong> — inherits your terminal’s own colours. Every role is left to the terminal default and the app skips painting a background, so a tuned shell palette shows through untouched.</li>
-<li><strong><code>icy_blue</code></strong> — the default on non-macOS platforms.</li>
+<li><strong><code>terminal</code></strong>: inherits your terminal’s own colors. Every role is left to the terminal default and the app skips painting a background, so a tuned shell palette shows through untouched.</li>
+<li><strong><code>icy_blue</code></strong>: the default on non-macOS platforms.</li>
 </ul>
 <p>The remaining themes are generated at build time from the dashboard theme registry (<code>web/src/contexts/themes.json</code>), the single source of truth zerocode, the React dashboard, and these docs all read. The list below is produced by <code>cargo xtask mdbook themes</code> and included at build time. It is never committed:</p>
 <p><strong>Dark:</strong> <code>ayu_dark</code>, <code>catppuccin_mocha</code>, <code>cobalt2</code>, <code>code_red</code>, <code>default_dark</code>, <code>dracula</code>, <code>everforest_dark</code>, <code>flexoki_dark</code>, <code>gruvbox_dark</code>, <code>hacker_green</code>, <code>hazard</code>, <code>high_contrast_dark</code>, <code>kanagawa_dragon</code>, <code>kanagawa_wave</code>, <code>material_dark</code>, <code>monokai</code>, <code>night_owl</code>, <code>nord_dark</code>, <code>oled_black</code>, <code>one_dark</code>, <code>rose_pine</code>, <code>rose_pine_moon</code>, <code>solarized_dark</code>, <code>tokyo_night</code></p>
 <p><strong>Light:</strong> <code>catppuccin_latte</code>, <code>default_light</code>, <code>everforest_light</code>, <code>flexoki_light</code>, <code>gruvbox_light</code>, <code>high_contrast_white</code>, <code>kanagawa_lotus</code>, <code>material_light</code>, <code>nord_light</code>, <code>one_light</code>, <code>rose_pine_dawn</code>, <code>solarized_light</code>, <code>tokyo_night_day</code></p>
 <p>The default theme is <code>terminal</code> on macOS and <code>icy_blue</code> on every other platform.</p>
 <blockquote>
-<p>If <code>[theme].name</code> (or a per-agent override below) names a theme this build does not have — a typo, or a config written by a newer build — zerocode falls back to the <code>terminal</code> theme rather than refusing to start.</p>
+<p>If <code>[theme].name</code> (or a per-agent override below) names a theme this build does not have, a typo, or a config written by a newer build, zerocode falls back to the <code>terminal</code> theme rather than refusing to start.</p>
 </blockquote>
 <h2 id="per-agent-themes-code--chat-panes"><a class="header" href="#per-agent-themes-code--chat-panes">Per-agent themes (Code &amp; Chat panes)</a></h2>
 <p>A theme can follow the agent. When the <strong>Code</strong> or <strong>Chat</strong> pane is focused on an agent that has an override, that agent’s theme replaces the base theme while the pane is shown; other panes keep the base theme. This makes it easy to tell at a glance which agent you are working with.</p>
 <p>Configure overrides under <code>[theme.agent_override.&lt;alias&gt;]</code>:</p>
-<pre><code class="language-toml">[theme]
-name = "nord_dark"
-
-[theme.agent_override.coder]
-name = "dracula"
-
-[theme.agent_override.researcher]
-name = "everforest_dark"
-</code></pre>
 <h3 id="setting-overrides-from-the-ui"><a class="header" href="#setting-overrides-from-the-ui">Setting overrides from the UI</a></h3>
 <p>In the Config pane’s zerocode section, open the <strong>Agent Themes</strong> tab. It lists the daemon’s enabled agents with each agent’s current override (or <code>—</code> for none). The footer shows the keys.</p>
 <ul>
 <li><code>Enter</code> on an agent opens the <strong>Theme</strong> list in assign mode (titled <code>Theme → &lt;agent&gt;</code>); pick a theme and it is assigned to that agent.</li>
 <li><code>d</code> clears the highlighted agent’s override.</li>
 </ul>
-<p>Assignments and clears apply <strong>live</strong> — the Code/Chat pane re-themes on the next frame without restarting zerocode — and are persisted to <code>zerocode-config.toml</code>. An override naming an unknown theme falls back to the <code>terminal</code> theme, same as the global setting.</p>
-<h2 id="terminal-colour-depth"><a class="header" href="#terminal-colour-depth">Terminal colour depth</a></h2>
-<p>zerocode detects how much colour your terminal can render and adapts its output once, on first paint:</p>
+<p>Assignments and clears apply <strong>live</strong>: the Code/Chat pane re-themes on the next frame without restarting zerocode, and are persisted to zerocode’s config. An override naming an unknown theme falls back to the <code>terminal</code> theme, same as the global setting.</p>
+<h2 id="terminal-color-depth"><a class="header" href="#terminal-color-depth">Terminal color depth</a></h2>
+<p>zerocode detects how much color your terminal can render and adapts its output once, on first paint:</p>
 <ul>
-<li><strong>Truecolor (24-bit)</strong> is the default for virtually every terminal. zerocode emits 24-bit colour, which modern terminals — and terminal multiplexers configured for it — render directly.</li>
-<li><strong>xterm-256</strong> is used for macOS Terminal.app, which lacks 24-bit colour (detected via <code>TERM_PROGRAM=Apple_Terminal</code>). iTerm2, kitty, WezTerm, Ghostty, and other truecolor terminals are unaffected.</li>
-<li><strong>ANSI-16</strong> is used only for a genuinely low-colour terminal: <code>TERM</code> unset, or <code>dumb</code>, <code>ansi</code>, or any <code>*-16color</code> value. Themed colours are down-converted to the nearest of the 16 ANSI colours.</li>
+<li><strong>Truecolor (24-bit)</strong> is the default for virtually every terminal. zerocode emits 24-bit color, which modern terminals, and terminal multiplexers configured for it, render directly.</li>
+<li><strong>xterm-256</strong> is used for macOS Terminal.app, which lacks 24-bit color (detected via <code>TERM_PROGRAM=Apple_Terminal</code>). iTerm2, kitty, WezTerm, Ghostty, and other truecolor terminals are unaffected.</li>
+<li><strong>ANSI-16</strong> is used only for a genuinely low-color terminal: <code>TERM</code> unset, or <code>dumb</code>, <code>ansi</code>, or any <code>*-16color</code> value. Themed colors are down-converted to the nearest of the 16 ANSI colors.</li>
 </ul>
-<p>When a depth below truecolor is in effect, every themed colour (including the preview swatches) is snapped to the nearest renderable value.</p>
+<p>When a depth below truecolor is in effect, every themed color (including the preview swatches) is snapped to the nearest renderable value.</p>
 <h3 id="forcing-a-depth"><a class="header" href="#forcing-a-depth">Forcing a depth</a></h3>
 <p>Set <code>ZEROCODE_COLOR</code> to override detection:</p>
 <div class="table-wrapper">
@@ -275,25 +338,37 @@ name = "everforest_dark"
 <tbody>
 <tr><td><code>truecolor</code>, <code>24bit</code>, <code>24</code></td><td>24-bit truecolor</td></tr>
 <tr><td><code>256</code></td><td>xterm-256</td></tr>
-<tr><td><code>16</code>, <code>ansi</code></td><td>16 ANSI colours</td></tr>
+<tr><td><code>16</code>, <code>ansi</code></td><td>16 ANSI colors</td></tr>
 </tbody>
 </table>
 </div>
-<pre><code class="language-bash">ZEROCODE_COLOR=256 zerocode
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">ZEROCODE_COLOR=256 zerocode
 </code></pre>
+</div>
+
 <p>Any unrecognised value is ignored and normal detection runs.</p>
-<h3 id="tmux-colours-look-wrong-or-washed-out"><a class="header" href="#tmux-colours-look-wrong-or-washed-out">tmux: colours look wrong or washed out</a></h3>
-<p>If you run zerocode inside tmux — commonly over SSH to a Raspberry Pi or other remote host — and the palette renders flat or near-monochrome, the cause is almost always tmux not advertising truecolor (RGB) support for the outer terminal. zerocode emits 24-bit colour, but tmux only forwards it to your terminal when it knows the terminal supports RGB.</p>
+<h3 id="tmux-colors-look-wrong-or-washed-out"><a class="header" href="#tmux-colors-look-wrong-or-washed-out">tmux: colors look wrong or washed out</a></h3>
+<p>If you run zerocode inside tmux, commonly over SSH to a Raspberry Pi or other remote host, and the palette renders flat or near-monochrome, the cause is almost always tmux not advertising truecolor (RGB) support for the outer terminal. zerocode emits 24-bit color, but tmux only forwards it to your terminal when it knows the terminal supports RGB.</p>
 <p>Tell tmux the client supports RGB by adding this to the <strong>remote</strong> machine’s <code>~/.tmux.conf</code>:</p>
 <pre><code class="language-tmux">set -as terminal-features ",*:RGB"
 </code></pre>
 <p>Then restart the tmux server so the change takes effect:</p>
-<pre><code class="language-bash">tmux kill-server
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">tmux kill-server
 </code></pre>
+</div>
+
 <p>Reattach, and zerocode’s truecolor output will render correctly.</p>
 <p>As an alternative that needs no tmux change, force a lower depth that does not rely on truecolor passthrough:</p>
-<pre><code class="language-bash">ZEROCODE_COLOR=256 zerocode
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">ZEROCODE_COLOR=256 zerocode
 </code></pre>
+</div>
+
 
                     </main>
 

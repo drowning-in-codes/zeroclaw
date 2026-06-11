@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="yolo-模式"><a class="header" href="#yolo-模式">YOLO 模式</a></h1>
-<p><strong>YOLO 模式</strong>会禁用 ZeroClaw 提供的所有安全限制。没有审批提示、没有工作区边界、没有 shell 策略、没有命令允许/拒绝列表、没有 OTP、没有沙箱。代理可以立即运行任何 shell 命令、访问任何文件、请求任何 URL，无需询问。</p>
+<p><strong>YOLO mode</strong> disables every safety gate ZeroClaw ships with. No approval prompts, no workspace boundary, no shell policy, no command allow/denylist, no OTP, no sandbox. The agent can run any shell command, touch any file, hit any URL: immediately, without asking.</p>
 <blockquote>
 <p><strong>此模式适用于开发机、家庭实验室以及临时虚拟机。</strong> 请勿在共享基础设施上运行 YOLO 模式。请勿在环境变量中包含生产凭据的机器上运行 YOLO 模式。如果你不了解拥有 <code>rm -rf</code> 权限的自主代理能做什么，请勿运行 YOLO 模式。</p>
 </blockquote>
@@ -233,52 +309,10 @@
 <li>你的笔记本电脑中包含了你的电子邮件、浏览器配置文件以及用于生产环境的 SSH 密钥</li>
 <li>共享服务器</li>
 <li>一台有活跃客户的 VPS</li>
-<li>在任何地方，如果代理可能通过某个渠道被不受信任的用户访问——例如，一个具有公共 Telegram 机器人的 YOLO 代理就是一个可通过 Telegram 访问的根 shell。</li>
+<li>Anywhere the agent might be reached by an untrusted user through a channel: a YOLO agent with a public Telegram bot is a Telegram-accessible root shell</li>
 </ul>
 <h2 id="启用它"><a class="header" href="#启用它">启用它</a></h2>
-<p>在专用的风险配置文件中显式命名 YOLO 模式（<code>yolo</code> 是一个不错的意图命名选择），并让你的代理指向它：</p>
-<pre><code class="language-toml">[agents.devbox]
-model_provider = "anthropic.home"
-risk_profile   = "yolo"             # 引用下方的 YOLO 配置文件
-runtime_profile = "loose"           # 高迭代上限；独立于 risk_profile
-
-[risk_profiles.yolo]
-level                            = "full"
-workspace_only                   = false
-require_approval_for_medium_risk = false
-block_high_risk_commands         = false
-allowed_commands                 = []
-forbidden_paths                  = []
-sandbox_enabled                  = false
-sandbox_backend                  = "none"
-
-[runtime_profiles.loose]
-max_tool_iterations  = 100
-max_actions_per_hour = 1000
-
-[security.otp]
-enabled = false
-
-[security.estop]
-enabled = false
-
-[gateway]
-require_pairing = false
-</code></pre>
-<p>如果多个代理共享同一主机，请为受 YOLO 约束的代理分配独立的配置文件（<code>yolo</code> 块），并让其他代理使用更严格的配置文件（例如 <code>hardened</code>）——<code>[risk_profiles.&lt;alias&gt;]</code> 是按配置文件区分的，因此 YOLO 代理和 hardened 代理可以共存于同一配置中。</p>
-<pre><code class="language-toml">[agents.devbox]
-risk_profile = "yolo"               # 这个完全放开运行
-
-[agents.publicbot]
-risk_profile = "hardened"           # 这个保持受限状态
-channels     = ["telegram.home"]
-
-[risk_profiles.hardened]
-level                            = "supervised"
-workspace_only                   = true
-require_approval_for_medium_risk = true
-block_high_risk_commands         = true
-</code></pre>
+<p>Name the YOLO posture explicitly on a dedicated risk profile (<code>yolo</code> is a good intent-naming choice) and point your agent at it. If multiple agents share the host, give the YOLO-bound one its own profile and keep your other agents on a stricter profile (e.g. <code>hardened</code>); risk profiles are per-profile, so a YOLO agent and a hardened agent can coexist in the same config.</p>
 <h2 id="你失去的"><a class="header" href="#你失去的">你失去的</a></h2>
 <div class="table-wrapper">
 <table>
@@ -302,23 +336,23 @@ block_high_risk_commands         = true
 <ul>
 <li><strong><a href="../security/tool-receipts.html">工具收据</a></strong> 仍然会被写入。你可以使用 <code>tail -f</code> 查看收据日志，了解具体执行了哪些操作。</li>
 <li><strong><a href="../ops/observability.html">审计日志</a></strong> 在启用时（<code>[security.audit] enabled = true</code>）仍然有效。强烈建议在 YOLO 中启用。</li>
-<li><strong>对话记忆</strong> 仍然有效——仍然保留着发生过的记录。</li>
+<li><strong>Conversation memory</strong> still persists: there’s still a record of what happened.</li>
 </ul>
 <p>你并没有关闭日志，你关闭的是审批关卡和路径强制。</p>
 <h2 id="还原"><a class="header" href="#还原">还原</a></h2>
-<p>从风险配置文件中删除 YOLO 设置，或将 <code>[risk_profiles.&lt;alias&gt;] level = "supervised"</code> 改回并重启服务。配置更改不会持久保留——每次启动都会重新加载当前配置。</p>
+<p>Delete the YOLO settings from the risk profile, or flip <code>[risk_profiles.&lt;alias&gt;] level = "supervised"</code> back and restart the service. Nothing persists across config changes: each startup loads the current config fresh.</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
-<li><a href="../security/autonomy.html">安全 → 自主级别</a> — 从 YOLO 到偏执狂的完整梯度</li>
-<li><a href="../security/tool-receipts.html">安全 → 工具收据</a> — 即使在 YOLO 模式下也应保留的审计跟踪</li>
-<li><a href="../philosophy.html">哲学</a> — 为什么它作为逃生舱口而非默认选项存在</li>
+<li><a href="../security/autonomy.html">Security → Autonomy levels</a>: the full gradient between YOLO and paranoid</li>
+<li><a href="../security/tool-receipts.html">Security → Tool receipts</a>: the audit trail you should keep on even in YOLO</li>
+<li><a href="../philosophy/index.html">Philosophy</a>: why this exists as an escape hatch rather than a default</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../getting-started/quick-start.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../getting-started/quickstart.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -332,7 +366,7 @@ block_high_risk_commands         = true
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../getting-started/quick-start.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../getting-started/quickstart.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

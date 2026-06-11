@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -224,7 +300,7 @@
 </blockquote>
 <hr>
 <h2 id="ツール-crateszeroclaw-apisrctoolrs"><a class="header" href="#ツール-crateszeroclaw-apisrctoolrs">ツール (<code>crates/zeroclaw-api/src/tool.rs</code>)</a></h2>
-<p>ツールはエージェントの手です — それはエージェントが世界と相互作用することを可能にします。</p>
+<p>Tools are the agent’s hands: they let it interact with the world.</p>
 <p><strong>必須メソッド</strong>: <code>name()</code>、<code>description()</code>、<code>parameters_schema()</code>、<code>execute()</code>。<code>spec()</code> メソッドはデフォルト実装を備えており、他のメソッドを構成します。</p>
 <p><code>crates/zeroclaw-tools/src/lib.rs</code> の <code>default_tools()</code> 経由でツールを登録します。</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -592,7 +668,7 @@ impl Memory for InMemoryBackend {
 <p>すべての拡張で共通するいくつかの不変条件。これらを守らないと、後で横断的なクリーンアップPRの原因になるため、事前に内部化しておきましょう：</p>
 <ul>
 <li><strong>まずはトレイトとファクトリによる接続を拡張する。</strong> 新しいプロバイダー/チャンネル/ツール/周辺機器を追加するには、トレイトを実装し、関連するファクトリに登録します。分離された機能に対して、モジュール間の書き換えを避けてください。</li>
-<li><strong>依存関係の方向は契約に対して内向きです。</strong> 具体的な統合は、互いに依存するのではなく、<code>zeroclaw-api</code> のトレイト、<code>zeroclaw-config</code> のスキーマ、および <code>zeroclaw-infra</code> のユーティリティに依存します。プロバイダーコードはチャネルの内部をインポートせず、ツールコードはゲートウェイポリシーを直接変更しません。</li>
+<li><strong>Dependency direction goes inward to contracts.</strong> Concrete integrations depend on <code>zeroclaw-api</code> traits, <code>zeroclaw-config</code> schema, and <code>zeroclaw-infra</code> utilities, not on each other. Provider code does not import channel internals; tool code does not mutate gateway policy directly.</li>
 <li><strong>モジュールの責任は単一目的に留める。</strong> オーケストレーションは <code>zeroclaw-runtime/src/agent/</code>、トランスポートは <code>zeroclaw-channels/</code>、モデルI/Oは <code>zeroclaw-providers/</code>、ポリシーは <code>zeroclaw-runtime/src/security/</code>、実行は <code>zeroclaw-tools/</code> に配置する。</li>
 <li><strong>共有抽象化の3つのルール。</strong> 新しい共有型は、実際に3番目の呼び出し元が現れてから導入してください。早期の抽象化は、将来の貢献者が回避しなければならない重みを蓄積します。</li>
 <li><strong>設定キーは公開契約です。</strong> スキーマの変更には、デフォルト値、互換性への影響、およびPRに文書化された移行/ロールバックのパスが必要です。</li>
@@ -601,7 +677,7 @@ impl Memory for InMemoryBackend {
 <p>長期にわたる共有状態（レートリミッター、接続プール、キャッシュされた認証情報、ブロードキャストチャネルなど）を所有するすべてのツールは、デーモンのクライアントごとの分離保証を維持する小さな契約に従います。</p>
 <ul>
 <li><strong><code>Arc&lt;RwLock&lt;T&gt;&gt;</code> ハンドルパターン。</strong> コンストラクタでハンドルを受け取り、ツール内でグローバルまたは静的なミュータブルな状態を作成しないでください。テストでは、ツールを隔離された状態でインスタンス化する必要があり、デーモンは名前空間のために複数のインスタンスを構築する必要があります。</li>
-<li><strong><code>ClientId</code> はデーモンによって提供されます。</strong> これを使用して、クライアントごとの状態をネームスペース化してください。ツール内でアイデンティティキーを構築しないでください。アイデンティティの管理はデーモンが行い、ツールはそれを利用します。</li>
+<li><strong><code>ClientId</code> is daemon-supplied.</strong> Use it to namespace per-client state. Never construct identity keys inside a tool; the daemon owns identity and the tool consumes it.</li>
 <li><strong>セキュリティ状態はクライアントごとに分離されます。</strong> セッション間で漏洩する可能性がある資格情報、クォータなどはすべて <code>ClientId</code> に依存します。表示/ブロードキャスト状態は共有が許可されており、トレースの明確さのためにオプションのネームスペースプレフィックスが使用されます。</li>
 <li><strong>キャッシュされた検証は、設定変更時に無効化されます。</strong> ツールは、設定変更のシグナルが発生するたびに、次の実行前に再検証を行う必要があります。デーモンがシグナルを発行し、ツールが購読します。</li>
 </ul>

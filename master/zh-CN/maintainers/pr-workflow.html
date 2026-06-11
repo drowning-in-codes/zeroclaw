@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,19 +298,19 @@
 <p>该工作流的存在是为了在高 PR 量下保持以下五项内容正确无误：</p>
 <ol>
 <li>合并吞吐量是可预测的。</li>
-<li>CI 信号质量保持高水平——反馈迅速，误报率低。</li>
+<li>CI signal quality stays high, fast feedback, low false positives.</li>
 <li>安全审查明确针对高风险区域。</li>
 <li>变更易于理解和回滚。</li>
 <li>仓库中的工件不包含个人或敏感数据。</li>
 </ol>
 <p>实现这一功能的控制循环是分层设计的：</p>
 <ul>
-<li><strong>摄入分类</strong> — 路径/大小/风险标签将 PR 路由到正确的深度。</li>
-<li><strong>确定性验证</strong> — 合并门控依赖于可复现的检查，而非主观评论。</li>
-<li><strong>基于风险的审查深度</strong> — 高风险路径进行深度审查，低风险路径保持快速。</li>
-<li><strong>先回滚的合并契约</strong> —— 每个合并路径都包含一个具体的恢复故事。</li>
+<li><strong>Intake classification</strong>: path/size/risk labels route the PR to the right depth.</li>
+<li><strong>Deterministic validation</strong>: the merge gate depends on reproducible checks, not subjective comments.</li>
+<li><strong>Risk-based review depth</strong>: high-risk paths get deep review, low-risk paths stay fast.</li>
+<li><strong>Rollback-first merge contract</strong>: every merge path includes a concrete recovery story.</li>
 </ul>
-<p>自动化处理入库标签和 CI 门禁。最终的合并责任仍由人工维护者和 PR 作者承担。</p>
+<p>Automation handles path/scope labels and CI gating. Risk, size, type, and contributor-tier labels are maintainer intake decisions unless a maintained workflow explicitly owns them. Final merge accountability stays with human maintainers and PR authors.</p>
 <h2 id="项目看板合约"><a class="header" href="#项目看板合约">项目看板合约</a></h2>
 <p>项目看板是一个自动化规划看板，而非权威的 PR 评审队列。</p>
 <p>使用看板来跟踪问题就绪状态、活跃负责人、路线图分组、依赖关系、阻塞状态以及陈旧豁免原因。这些信号变化足够缓慢，因此看板字段或规划泳道能够保持其实用价值。</p>
@@ -293,9 +369,8 @@
 <li>合并前要求状态检查。</li>
 <li>需要检查 <code>CI Required Gate</code>。</li>
 <li>合并前需要拉取请求审查。</li>
-<li>为受保护的路径要求 CODEOWNERS 审查。</li>
-<li>对于 <code>.github/workflows/**</code>，通过 <code>CI Required Gate</code>（<code>WORKFLOW_OWNER_LOGINS</code>）要求所有者批准；将分支/规则集绕过限制为仅限组织所有者。</li>
-<li>默认的工作流所有者白名单通过 <code>WORKFLOW_OWNER_LOGINS</code> 仓库变量进行配置（当前列表请参阅 CODEOWNERS）。</li>
+<li>Require CODEOWNERS review for protected paths. <code>.github/**</code> (including <code>.github/workflows/**</code>) is owned by the maintainers listed in <code>.github/CODEOWNERS</code>, so workflow changes need an owning maintainer’s review.</li>
+<li>Keep branch / ruleset bypass limited to org owners.</li>
 <li>当推送新提交时，撤销过期的审批。</li>
 <li>限制强制推送。</li>
 <li>所有贡献者的 PR 都直接指向 <code>master</code> 分支。</li>
@@ -305,9 +380,9 @@
 <ul>
 <li>PR 模板已完整填写。</li>
 <li>明确范围边界（哪些内容已更改 / 哪些内容未更改）。</li>
-<li>已附上验证证据——实际的命令输出，而非“CI 将进行检查”。</li>
-<li>高风险路径的安全与隐私及回滚字段已填写完毕。</li>
-<li>隐私和数据清理规则已满足 — 中性、项目范围的测试用语。参见 <a href="../contributing/privacy.html">隐私</a>。</li>
+<li>Validation evidence attached, actual command output, not “CI will check.”</li>
+<li>Security &amp; privacy, compatibility, and (for risky paths) rollback fields completed.</li>
+<li>Privacy and data-hygiene rules satisfied, neutral, project-scoped test wording. See <a href="../contributing/privacy.html">Privacy</a>.</li>
 <li>不可避免时，身份类表述使用 ZeroClaw / 项目原生标签。</li>
 </ul>
 <h2 id="完成定义dod"><a class="header" href="#完成定义dod">完成定义（DoD）</a></h2>
@@ -330,7 +405,7 @@
 <li>回滚计划是明确的。</li>
 <li>提交标题遵循 Conventional Commits 规范。</li>
 </ul>
-<p>使用 squash-merge 并保留完整的提交历史在提交信息中。<code>squash-merge</code> 技能会生成紫色的 <strong>已合并</strong> 徽章以及符合 conventional-commits 格式的提交信息 — 有关调用方式，请参阅 <a href="./skills.html">Skills</a>。</p>
+<p>Squash-merge with full commit history preserved in the body. The <code>squash-merge</code> skill produces both the purple <strong>Merged</strong> badge and the conventional-commits formatted body, see <a href="./skills.html">Skills</a> for invocation.</p>
 <h2 id="ai--代理贡献政策"><a class="header" href="#ai--代理贡献政策">AI / 代理贡献政策</a></h2>
 <p>欢迎使用 AI 辅助的 PR。审查也可以由代理辅助完成。</p>
 <p><strong>必需：</strong></p>
@@ -361,21 +436,19 @@
 </ul>
 <p>对于堆叠工作，要求显式使用 <code>Depends on #...</code>，以确保审查顺序是确定的。</p>
 <p>对于替换操作，必须显式使用 <code>Supersedes #...</code>。有关归属和模板规则，请参阅 <a href="./superseding.html">替换 PR</a>。</p>
-<p>审查者端的队列管理——积压项的修剪顺序、过期处理、标签清理——详见 <a href="./reviewer-playbook.html">审查者手册</a>。</p>
+<p>The reviewer-side queue management, backlog pruning order, stale handling, label hygiene, is in <a href="./reviewer-playbook.html">Reviewer Playbook</a>.</p>
 <h2 id="安全性和稳定性规则"><a class="header" href="#安全性和稳定性规则">安全性和稳定性规则</a></h2>
-<p>这些路径需要更严格的审查和更强的测试证据：</p>
+<p>These paths require stricter review and stronger test evidence. The canonical high-risk path set is defined in <a href="./labels.html#risk-labels">Labels → Risk labels</a>. In review terms that set covers:</p>
 <ul>
-<li><code>crates/zeroclaw-runtime/src/security/</code></li>
-<li><code>crates/zeroclaw-runtime/</code> 的其余部分</li>
+<li><code>crates/zeroclaw-runtime/</code> (including <code>src/security/</code>)</li>
 <li><code>crates/zeroclaw-gateway/</code>（入口、身份验证、配对）</li>
 <li><code>crates/zeroclaw-tools/</code>（任何具有执行能力的组件）</li>
-<li>文件系统访问边界。</li>
-<li>网络与认证行为。</li>
-<li><code>.github/workflows/</code> 和发布流水线。</li>
+<li><code>.github/workflows/</code> and the release pipeline</li>
 </ul>
+<p>Filesystem access boundaries and network/authentication behavior inside those crates carry the same scrutiny even when the diff looks small.</p>
 <p><strong>高风险 PR 的最低要求：</strong> 威胁/风险说明、缓解措施说明、回滚步骤。</p>
 <p><strong>适用于高风险 PR：</strong> 一个聚焦于边界行为的测试，以及一个明确展示预期退化情况的故障模式场景。</p>
-<p>对于这些路径上的代理辅助贡献，审查者还会验证作者能否阐述运行时行为和影响范围——而不仅仅是粘贴验证输出。</p>
+<p>For agent-assisted contributions on these paths, reviewers also verify the author can talk through runtime behavior and blast radius, not just paste validation output.</p>
 <h2 id="故障恢复"><a class="header" href="#故障恢复">故障恢复</a></h2>
 <p>如果合并的 PR 导致回归：</p>
 <ol>
@@ -386,12 +459,12 @@
 <p>优先快速恢复服务质量，而非延迟的完美修复。</p>
 <h2 id="本页未涵盖的内容"><a class="header" href="#本页未涵盖的内容">本页未涵盖的内容</a></h2>
 <ul>
-<li><strong>日常审查机制</strong> — 请参阅 <a href="./reviewer-playbook.html">审查者手册</a> 和 <a href="../contributing/pr-review-protocol.html">PR 审查协议</a>。</li>
-<li><strong>标签阈值和定义</strong> — 参见 <a href="./labels.html">Labels</a>。</li>
-<li><strong>隐私和 PII 规则</strong> — 请参阅 <a href="../contributing/privacy.html">隐私</a>。</li>
-<li><strong>替代归属和模板</strong> — 请参阅 <a href="./superseding.html">替代 PR</a>。</li>
-<li><strong>CI 工作流清单与分类</strong> — 参见 <a href="./ci-and-actions.html">CI &amp; Actions</a>。</li>
-<li><strong>发布流程</strong> — 请参阅 <a href="./release-runbook.html">发布运行手册</a>。</li>
+<li><strong>Day-to-day review mechanics</strong>: see <a href="./reviewer-playbook.html">Reviewer Playbook</a> and <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a>.</li>
+<li><strong>Label thresholds and definitions</strong>: see <a href="./labels.html">Labels</a>.</li>
+<li><strong>Privacy and PII rules</strong>: see <a href="../contributing/privacy.html">Privacy</a>.</li>
+<li><strong>Supersede attribution and templates</strong>: see <a href="./superseding.html">Superseding PRs</a>.</li>
+<li><strong>CI workflow inventory and triage</strong>: see <a href="./ci-and-actions.html">CI &amp; Actions</a>.</li>
+<li><strong>Release procedure</strong>: see <a href="./release-runbook.html">Release Runbook</a>.</li>
 </ul>
 
                     </main>

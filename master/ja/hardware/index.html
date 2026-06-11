@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,90 +292,13 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="ハードウェア--概要"><a class="header" href="#ハードウェア--概要">ハードウェア — 概要</a></h1>
+                        <h1 id="hardware-overview"><a class="header" href="#hardware-overview">Hardware: Overview</a></h1>
 <p>ZeroClaw のハードウェアサブシステムにより、エージェントはマイコン、シングルボードコンピュータ、および周辺装置を直接制御できます。有効にするには <code>--features hardware</code> を使用します。</p>
-<h2 id="サポートされている機能"><a class="header" href="#サポートされている機能">サポートされている機能</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>ターゲット</th><th>プロトコル</th><th>ページ</th></tr>
-</thead>
-<tbody>
-<tr><td>STM32 Nucleo (F401RE、その他)</td><td>シリアル / OpenOCD</td><td><a href="./nucleo-setup.html">STM32 Nucleo</a></td></tr>
-<tr><td>Arduino Uno Q</td><td>シリアル / USB</td><td><a href="./arduino-uno-q-setup.html">Arduino Uno Q</a></td></tr>
-<tr><td>Raspberry Pi</td><td>GPIO / I2C / SPI（<code>/dev/gpiochip*</code>、<code>/dev/i2c-*</code>、<code>/dev/spidev*</code>経由）</td><td>周辺機器の設計による</td></tr>
-<tr><td>Aardvark I2C/SPI ホストアダプタ</td><td>USB</td><td><a href="./aardvark.html">Aardvark</a></td></tr>
-<tr><td>Android（Termux経由）</td><td>USB/Bluetooth経由のシリアル通信</td><td><a href="./android-setup.html">Android</a></td></tr>
-<tr><td>汎用ボード</td><td><code>Peripheral</code> トレイト</td><td><a href="./adding-boards-and-tools.html">ボードとツールの追加</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>アーキテクチャについては、<a href="./hardware-peripherals-design.html">周辺機器の設計</a>をご覧ください。</p>
-<h2 id="有効化"><a class="header" href="#有効化">有効化</a></h2>
-<p>コンパイル時:</p>
-<pre><code class="language-bash">cargo build --release --features hardware
-</code></pre>
-<p>または、特定のボードのみが必要な場合:</p>
-<pre><code class="language-bash">cargo build --release --features ハードウェア ボード - nucleo ボード - arduino
-</code></pre>
-<h2 id="ランタイムツール"><a class="header" href="#ランタイムツール">ランタイムツール</a></h2>
-<p>この機能を有効にすると、エージェントは以下のツールを利用可能になります：</p>
 <ul>
-<li><code>gpio_read</code> / <code>gpio_write</code> — デジタル入出力</li>
-<li><code>i2c_read</code> / <code>i2c_write</code> — I2C バスアクセス</li>
-<li><code>spi_transfer</code> — SPI転送</li>
-<li><code>adc_read</code> — アナログ読み取り（サポートされている場合）</li>
-<li><code>peripheral_probe</code> — 接続されたボードとセンサーを検出する</li>
-<li><code>peripheral_flash</code> — 接続されたマイコンにフラッシュファームウェアを書き込む</li>
-</ul>
-<p>すべてのツール呼び出しは、他のツールと同様に同じ<a href="../security/overview.html">セキュリティポリシー</a>を通過します。ハードウェアツールは、<code>[[peripherals.boards]]</code>エントリに明示的にリストされたデバイスパスにのみアクセスできます:</p>
-<pre><code class="language-toml">[peripherals]
-enabled = true
-
-[[peripherals.boards]]
-board = "nucleo-f401re"
-transport = "serial"
-path = "/dev/ttyACM0"
-</code></pre>
-<h2 id="raspberry-pi-で実行中"><a class="header" href="#raspberry-pi-で実行中">Raspberry Pi で実行中</a></h2>
-<p>最も一般的なハードウェアターゲット。最小限のセットアップ:</p>
-<pre><code class="language-bash"># インストール
-curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash
-
-# ハードウェアグループに自分を追加する（再ログインしてください）
-sudo usermod -aG gpio,spi,i2c $USER
-
-# ユーザーサービスとしてインストール（ハードウェアグループのメンバーシップが継承されることを保証）
-zeroclaw service install
-</code></pre>
-<p>標準の systemd ユニットは <code>SupplementaryGroups=gpio spi i2c</code> を設定します。</p>
-<h2 id="安全性"><a class="header" href="#安全性">安全性</a></h2>
-<p>ハードウェアツールは、本物の高価なものを壊す可能性があります。</p>
-<ul>
-<li><code>peripheral_flash</code> はファームウェアを書き込みます。不良なイメージはボードをブリンクさせる可能性があります。このツールは、自律レベルに関係なく、<code>Supervised</code> 自律性においてオペレーターの承認を必要とします。自動承認する方法はありません。</li>
-<li><code>i2c_write</code> や <code>spi_transfer</code> をエージェントが認識していないデバイスアドレスに送信すると、センサーが破損する可能性があります。</li>
-<li>外部ドライバー（電圧の競合）と競合するGPIOの書き込みは、ピンを損傷させる可能性があります。</li>
-</ul>
-<p>信頼できないチャネルが公開される本番デプロイメントでは、グローバルな自律性設定を使用して、CLI以外のチャネルからハードウェアツールを除外してください（スキーマにはチャネルごとの<code>tools_deny</code>フィールドはありません）：</p>
-<pre><code class="language-toml">[autonomy]
-non_cli_excluded_tools = ["gpio_write", "i2c_write", "spi_transfer", "peripheral_flash"]
-</code></pre>
-<p>ここに記載されているツールは、すべての非CLIチャンネル（Discord、Telegram、Bluesky など）でモデルに送信されるツール仕様から除外されます。ローカルの CLI では引き続き表示されます。</p>
-<h2 id="データシート"><a class="header" href="#データシート">データシート</a></h2>
-<p>ボードごとのピンマップと電気的特性:</p>
-<ul>
-<li>STM32 Nucleo-F401RE: <a href="https://www.st.com/en/evaluation-tools/nucleo-f401re.html">https://www.st.com/en/evaluation-tools/nucleo-f401re.html</a></li>
-<li>Arduino Uno Q: <a href="https://docs.arduino.cc/hardware/uno-q">https://docs.arduino.cc/hardware/uno-q</a></li>
-<li>Raspberry Pi GPIO: <a href="https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#gpio">https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#gpio</a></li>
-<li>ESP32: <a href="https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf">https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf</a></li>
-</ul>
-<h2 id="新しいハードウェアの追加"><a class="header" href="#新しいハードウェアの追加">新しいハードウェアの追加</a></h2>
-<p>手順については <a href="./adding-boards-and-tools.html">ボードとツールの追加</a> を参照してください。要約: <code>crates/zeroclaw-hardware/src/</code> の <code>Peripheral</code> トレイトを実装し、ボード固有のフィーチャーフラグを追加し、USB デスクリプタまたはシリアルハンドシェイクからボードを識別するプローブルーチンを書きます。</p>
-<h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
-<ul>
-<li><a href="./hardware-peripherals-design.html">周辺機器の設計</a> — アーキテクチャ</li>
-<li><a href="./adding-boards-and-tools.html">ボードとツールの追加</a> — 実装ガイド</li>
-<li><a href="./aardvark.html">Aardvark</a> — USB I2C/SPIホストアダプターのセットアップ</li>
+<li><a href="./subsystem.html">Hardware subsystem</a>: supported targets, enabling, runtime tools, the Raspberry Pi quickstart, safety, and datasheets.</li>
+<li><a href="./adding-boards-and-tools.html">Adding boards &amp; tools</a>: implement the <code>Peripheral</code> trait for a new board.</li>
+<li><a href="./hardware-peripherals-design.html">Peripherals design</a>: the subsystem architecture.</li>
+<li><a href="./arduino-uno-q-setup.html">Arduino Uno Q</a>, <a href="./nucleo-setup.html">STM32 Nucleo</a>, <a href="./android-setup.html">Android</a>, <a href="./aardvark.html">Aardvark</a>, <a href="./raspberry-pi-setup.html">Raspberry Pi</a>: per-board setup guides.</li>
 </ul>
 
                     </main>
@@ -310,7 +309,7 @@ non_cli_excluded_tools = ["gpio_write", "i2c_write", "spi_transfer", "peripheral
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../hardware/adding-boards-and-tools.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../hardware/subsystem.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -324,7 +323,7 @@ non_cli_excluded_tools = ["gpio_write", "i2c_write", "spi_transfer", "peripheral
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../hardware/adding-boards-and-tools.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../hardware/subsystem.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

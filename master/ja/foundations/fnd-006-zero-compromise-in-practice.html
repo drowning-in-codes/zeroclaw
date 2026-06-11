@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,17 +292,17 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-006-実践におけるゼロコンプライズ--コードの健全性エラーの規律および本番環境の準備基準"><a class="header" href="#fnd-006-実践におけるゼロコンプライズ--コードの健全性エラーの規律および本番環境の準備基準">FND-006: 実践におけるゼロコンプライズ — コードの健全性、エラーの規律、および本番環境の準備基準</a></h1>
-<h3 id="v070-以降--タイプ-品質--rev-1"><a class="header" href="#v070-以降--タイプ-品質--rev-1">v0.7.0 以降 · タイプ: 品質 · Rev. 1</a></h3>
+                        <h1 id="fnd-006-zero-compromise-in-practice-code-health-error-discipline-and-the-production-readiness-standard"><a class="header" href="#fnd-006-zero-compromise-in-practice-code-health-error-discipline-and-the-production-readiness-standard">FND-006: Zero Compromise in Practice: Code Health, Error Discipline, and the Production Readiness Standard</a></h1>
 <blockquote>
+<p>v0.7.0 以降 · タイプ: 品質 · Rev. 1</p>
 <p><strong>正規の参照</strong> · チームによって承認済み · Rev. 1 議論スレッドおよび完全な改訂履歴: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5653">#5653</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p>これを読む前にチームへの注意書き。</p>
-<p>これは、ZeroClaw の成熟度フレームワークにおける6番目のドキュメントです。それまでの5つのドキュメントは、アーキテクチャ、ドキュメント、ガバナンス、エンジニアリングインフラストラクチャ、コラボレーションについて取り上げ、プロジェクトの周囲にある構造的および人的な基盤について説明しました。それぞれが、私たちがどのようにこのプロジェクトを共同で構築するかという異なる問いに答えていました。これらすべてを読んだ方なら、どれにも答えられていない問いに気づいたかもしれません。つまり、「では、実際にどのようにして質の高いコードを書くのか？」という問いです。アーキテクチャの RFC は、どのような形で構築すべきかを教えてくれました。ドキュメントの RFC は、どのように記録すべきかを教えてくれました。ガバナンスの RFC は、どのように調整すべきかを教えてくれました。CI/CD の RFC は、どのようにゲートすべきかを教えてくれました。カルチャーの RFC は、周囲の人々とどのように連携すべきかを教えてくれました。しかし、それらのどれ一つとして、関数の内部や選択を行う瞬間といった文レベルでの品質がどのようなものかについては教えてくれませんでした。</p>
+<p>This is the sixth document in ZeroClaw’s maturity framework. The five before it addressed architecture, documentation, governance, engineering infrastructure, and collaboration, the structural and human scaffolding that surrounds the work. Each one answered a different question about how we build this project together. If you have read them all, you may have noticed a question none of them answered: yes, but how do we actually write it well? The architecture RFC told you what shape to build in. The documentation RFC told you how to record it. The governance RFC told you how to coordinate. The CI/CD RFC told you how to gate it. The culture RFC told you how to work with the people around you. None of them told you what quality looks like at the sentence level, inside a function, at the moment you are making a choice.</p>
 <p>これがこの文書の目的です。</p>
-<p>ここで取り上げている具体的なトピック — エラーハンドリング、API ドキュメント、テスト設計、技術的負債 — は一見すると Rust の話題です。しかし、それらが育むスキルはそうではありません。技術は変化します。その変化の速度は、前回のイテレーションよりもさらに速くなっています。あなたが現在使用しているツール — この言語、このフレームワーク、この AI アシスタント — はいずれ置き換えられます。プロジェクトの存続期間内に置き換わるものもあるでしょう。このドキュメントがあなたに築いてほしい判断力は、決して置き換えられるものではありません。それは、あなたが下すあらゆる決定の背景で静かに蓄積され、あなたが書くあらゆる言語、構築するあらゆるシステム、さらにはソフトウェアとは無関係な仕事においても影響を与え続けます。これが、私たちがあなたに投資しているものです。Rust を書けることへの投資ではありません。品質、失敗、職人技について考える力、そしてその思考を、今日使っている AI ツールや、まだ存在しない未来のツールも含め、あなたが手にするあらゆるツールへと持ち込む力への投資です。</p>
+<p>The specific topics here, error handling, API documentation, test design, technical debt, are Rust topics on the surface. The skills they develop are not. Technology changes. It changes faster with each iteration than it did the time before. The tools you are using today, this language, this framework, this AI assistant, will be superseded. Some of them within the lifetime of this project. The judgment this document is trying to help you build will not be superseded. It will compound quietly in the background of every decision you make, in every language you will ever write, in every system you will ever build, and in work that may have nothing to do with software at all. That is the investment we are making in you. Not in your ability to write Rust. In your ability to think about quality, failure, and craft, and to carry that thinking with you into every tool you ever pick up, including the AI tools you are using today and the ones that do not exist yet.</p>
 <p>焦らずに、ゆっくり進めてください。</p>
 </blockquote>
 <hr>
@@ -238,16 +314,16 @@
 <tr><th>RFC</th><th>スコープ</th><th>問題</th></tr>
 </thead>
 <tbody>
-<tr><td>意図的なアーキテクチャ — マイクロカーネルへの移行</td><td>私たちが構築しているものとその構造</td><td>#5574</td></tr>
+<tr><td>Intentional Architecture: Microkernel Transition</td><td>私たちが構築しているものとその構造</td><td>#5574</td></tr>
 <tr><td>ドキュメントの標準化とナレッジアーキテクチャ</td><td>私たちが構築するものの文書化方法</td><td>#5576</td></tr>
 <tr><td>チーム編成とプロジェクトガバナンス</td><td>私たちの調整と意思決定の方法</td><td>#5577</td></tr>
-<tr><td>エンジニアリングインフラ — CI/CDパイプライン</td><td>信頼性の高いビルド、テスト、およびリリースの方法</td><td>#5579</td></tr>
-<tr><td>貢献文化 — 人間の協力、AIとのパートナーシップ、チームの成長</td><td>私たちの協力と成長</td><td>#5615</td></tr>
-<tr><td>実践におけるゼロコンプロミス — コードの健全性、エラーの規律、そして本番環境対応基準</td><td>永続するコードの書き方</td><td>このRFC</td></tr>
+<tr><td>Engineering Infrastructure: CI/CD Pipeline</td><td>信頼性の高いビルド、テスト、およびリリースの方法</td><td>#5579</td></tr>
+<tr><td>Contribution Culture: Human Collaboration, AI Partnership, and Team Growth</td><td>私たちの協力と成長</td><td>#5615</td></tr>
+<tr><td>Zero Compromise in Practice: Code Health, Error Discipline, and the Production Readiness Standard</td><td>永続するコードの書き方</td><td>このRFC</td></tr>
 </tbody>
 </table>
 </div>
-<p>最初の5つのRFCは、構造的および人的な問いに答えます。このRFCは、それらすべての中に潜む問いに答えます。すなわち、構造が与えられ、チームが与えられ、ツールが与えられたとき、コードをどのように書くことが「良い」と言えるのでしょうか？</p>
+<p>The first five RFCs answer structural and human questions. This one answers the question that sits inside all of them: given the structure, given the team, given the tools, what does it mean to write the code well?</p>
 <hr>
 <h2 id="目次"><a class="header" href="#目次">目次</a></h2>
 <ol>
@@ -299,14 +375,14 @@
                                 └── Release
 </code></pre>
 <p>その階層構造は、各レイヤーで「何を」構築するかという問いに答えます。このRFCは「実装」と「テスト」のレイヤー内に位置し、異なる問いを投げかけています：「どのくらいよく？」</p>
-<p>「どのくらい」に対する答えはチェックリストではありません。チェックリストは理解されずに満たされる可能性があり、ソフトウェアにおいて理解こそが持続的な成果を生み出します。ルールを暗記した貢献者は、状況が少し異なる場合にルールに従うことができなくなります。一方、ルールの背後にある判断を内面化した貢献者は、ルールが想定していない状況にも正しく適用できます。それは、誰が計画していなかった状況こそが最も重要であるためです。</p>
-<p>この区別は、このプロジェクトの文脈において特に重要です。ZeroClaw は、強力なツール群が揃った環境で運用されています。AI によるコード生成、広範な一般的なエラーを検出する CI のゲート、IDE のリンター、自動化されたセキュリティスキャナーなどです。これらのツールは確かに価値があります。これらは、コードがマージされるべき最低ライン — 以下ではコードをマージすべきではない — を定義します。しかし、それらにできるのは思考することではありません。エラーが運用上のものかプログラマーのエラーかを決めることはできません。テストが正しい振る舞いを検証しているかどうかを評価することもできません。公開 API が、将来の貢献者が正しく実装できるように十分に文書化されているかどうかを判断することもできません。それらができるのは、プログラムされたチェックのみです。</p>
-<p>「ツールが検証できること」と「ユーザー、コントリビューター、そしてプロジェクトに長期的に価値を提供する品質」の間のギャップは、判断によって埋められます。この判断こそが、この文書があなたに築いてほしいものです。ツールを置き換えるためではなく、ツールを導くために。</p>
+<p>The answer to “how well” is not a checklist. Checklists can be satisfied without being understood, and in software, understanding is what creates durable results. A contributor who has memorized the rules will follow them until the situation is slightly different. A contributor who has internalized the judgment behind the rules will apply it correctly to situations the rules did not anticipate, including the situations that matter most, which are always the ones nobody planned for.</p>
+<p>This distinction matters especially in this project’s context. ZeroClaw is operated in an environment of powerful tools: AI code generation, CI gates that catch a wide range of common errors, IDE linters, automated security scanners. These tools are genuinely valuable. They define a floor, a minimum below which code should not be merged. But what they cannot do is think. They cannot decide whether an error is operational or a programmer error. They cannot evaluate whether a test is asserting the right behavior. They cannot tell whether a public API is documented clearly enough for a future contributor to implement against correctly. They can only check what they were programmed to check.</p>
+<p>The gap between “what the tools can verify” and “quality that serves users, contributors, and the project over time” is filled by judgment. That judgment is what this document is trying to help you build, not to replace the tools, but to direct them.</p>
 <hr>
 <h2 id="2-正直な評価コードベースが私たちに教えていること"><a class="header" href="#2-正直な評価コードベースが私たちに教えていること">2. 正直な評価：コードベースが私たちに教えていること</a></h2>
 <p>このセクションは批判ではありません。これは診断です。アーキテクチャ RFC で適用されたのと同じ枠組みがここにも適用されます：あなたは名前を付けれないものを改善することはできませんし、その詳細は、それらが具体的であるからこそ有用なのです。</p>
 <h3 id="21-証拠"><a class="header" href="#21-証拠">2.1 証拠</a></h3>
-<p>RFC §5574 のワークスペース分解は成功しました。クレートは存在し、トレイト境界は実在し、コンパイラが依存関係の方向を強制しています。これは本当に素晴らしい成果です。そして、これらの新しいクレート内では、元のモノリシックなコードベースを特徴づけていた同じパターンが引き継がれています。これは、チームが「実装レベルでの品質」がどのようなものかについて共有されたモデルを持っていないうちにコードベースが移動したためです。</p>
+<p>The workspace decomposition from RFC §5574 succeeded. The crates exist, the trait boundaries are real, and the compiler enforces the dependency direction. That is genuinely good work. And within those new crates, the same patterns that characterized the original monolith have been carried forward, because the codebase moved before the team had a shared model for what “quality at the implementation level” looks like.</p>
 <p>これらは測定された事実であり、推定値ではありません：</p>
 <div class="table-wrapper">
 <table>
@@ -314,17 +390,17 @@
 <tr><th>メトリック</th><th>値</th><th>何を示しているか</th></tr>
 </thead>
 <tbody>
-<tr><td><code>zeroclaw-config/src/schema.rs</code></td><td>16,800行</td><td>現在、コードベースで最大のファイルです。元の <code>loop_.rs</code> はアーキテクチャ RFC で 9,500 行と指摘されていましたが、これを超えています。</td></tr>
+<tr><td><code>zeroclaw-config/src/schema.rs</code></td><td>16,800行</td><td>Now the largest file in the codebase; the original <code>loop_.rs</code> was called out at 9,500 lines in the architecture RFC; this surpasses it</td></tr>
 <tr><td><code>zeroclaw-channels/src/orchestrator/mod.rs</code></td><td>11,813行</td><td>2番目に大きなファイル; 集中した責任を担う単一モジュール</td></tr>
 <tr><td><code>zeroclaw-runtime/src/onboard/wizard.rs</code></td><td>7,988行</td><td>1つのファイルに1つのワークフロー</td></tr>
-<tr><td><code>zeroclaw-runtime/src/agent/loop_.rs</code></td><td>6,101行</td><td>モノリシックから約9,500に削減 — 実測可能な進捗；まだ大きい</td></tr>
+<tr><td><code>zeroclaw-runtime/src/agent/loop_.rs</code></td><td>6,101行</td><td>Reduced from ~9,500 in the monolith: real, measurable progress; still large</td></tr>
 <tr><td><code>zeroclaw-channels/src/orchestrator/telegram.rs</code></td><td>5,122行</td><td>1つのチャンネル実装；1つのファイル</td></tr>
-<tr><td><code>crates</code> 内の <code>.unwrap()</code> / <code>.expect()</code> 呼び出し</td><td>5,630</td><td>それぞれがエラー処理に関する遅延評価の判断です — §4.1 を参照してください。</td></tr>
+<tr><td><code>crates</code> 内の <code>.unwrap()</code> / <code>.expect()</code> 呼び出し</td><td>5,630</td><td>Each one is a deferred judgment call about error handling, see §4.1</td></tr>
 <tr><td><code>src/</code> 内のレガシーな <code>.unwrap()</code> / <code>.expect()</code> 呼び出し</td><td>240</td><td>移行により、パターンが大規模に展開されました。</td></tr>
-<tr><td><code>zeroclaw-api</code> の公開関数</td><td>371</td><td>すべての基盤となるAPIの表面 — 他のすべてのクレートがこれに依存しています</td></tr>
-<tr><td><code>zeroclaw-api</code> のドキュメントコメント行</td><td>~27</td><td>文書化されていない公開APIの比率は約14:1です — §4.2を参照</td></tr>
+<tr><td><code>zeroclaw-api</code> の公開関数</td><td>371</td><td>The entire foundational API surface; every other crate depends on this</td></tr>
+<tr><td><code>zeroclaw-api</code> のドキュメントコメント行</td><td>~27</td><td>Roughly 14:1 ratio of undocumented public API, see §4.2</td></tr>
 <tr><td><code>#[allow(unused_imports)]</code> / <code>#[allow(dead_code)]</code> in legacy <code>src/</code> modules</td><td>約30以上のインスタンス</td><td>コンパイラは使用されていないコードを検出しましたが、その旨を報告しないように指示されています。</td></tr>
-<tr><td><code>TODO</code> / <code>FIXME</code> / <code>todo!()</code> / <code>unimplemented!()</code> をコードベース全体で</td><td>20</td><td>特に低い — ほとんどの債務が明示されていないことを示唆</td></tr>
+<tr><td><code>TODO</code> / <code>FIXME</code> / <code>todo!()</code> / <code>unimplemented!()</code> をコードベース全体で</td><td>20</td><td>Notably low, suggests most debt is silent rather than marked</td></tr>
 </tbody>
 </table>
 </div>
@@ -341,10 +417,10 @@
 <p>これらは判断を要する質問です。CIゲートはありません。この文書が提案する基準と、私たちが一緒に築いていくレビューとメンターシップの文化があります。</p>
 <h3 id="23-すでに良い点"><a class="header" href="#23-すでに良い点">2.3 すでに良い点</a></h3>
 <p>診断が、本当に堅牢に構築されている部分を覆い隠してはならない。</p>
-<p><code>zeroclaw-api</code> のトレイトレイヤーは、適切なアーキテクチャです。<code>Provider</code>、<code>Channel</code>、<code>Tool</code>、<code>Memory</code>、<code>Observer</code>、<code>RuntimeAdapter</code>、<code>Peripheral</code> は、明確で論理的な抽象化であり、適切な分離点となっています。問題は設計そのものではなく、設計がまだドキュメント、テストカバレッジ、エラーハンドリングの規律において完全に表現されていないことにあります。この RFC は、このギャップを埋めることを目的としています。</p>
-<p>セキュリティモデルは考え抜かれたものです。ペアリングコード、自律レベル、サンドボックスレイヤー、ポリシーの強制は、明確な設計意図を示しています。この意図は、信頼境界の近くでコードを書くすべてのコントリビューターによって理解される必要があります。このRFCは、コントリビューターがこれらの境界を認識するための用語を提供するために部分的に存在します。</p>
+<p>The trait layer in <code>zeroclaw-api</code> is the right architecture. <code>Provider</code>, <code>Channel</code>, <code>Tool</code>, <code>Memory</code>, <code>Observer</code>, <code>RuntimeAdapter</code>, and <code>Peripheral</code> are clean, well-reasoned abstractions. They are the right seams. The problem is not the design. It is that the design is not yet fully expressed in documentation, test coverage, and error handling discipline. This RFC is about closing that gap.</p>
+<p>The security model is thoughtful. Pairing codes, autonomy levels, sandboxing layers, and policy enforcement show real design intent. That intent needs to be understood by every contributor who writes code near a trust boundary, and this RFC exists partly to give contributors the vocabulary to recognize where those boundaries are.</p>
 <p>観測可能性インフラは成熟しています。OpenTelemetry、Prometheus、DORA メトリクスはすべて、クリーンな <code>Observer</code> トレイトに対して実装されています。インフラは整っています。課題は、コントリビューターがこれをどのように使用して、問題が発生した際に実際に役立てるかという点にあります。</p>
-<p>テストスイートは欠如していません。既存のテスト投資は現実的なものです。このRFCで説明されている作業は、その投資の品質と配分、つまり何をどのようにテストするか、そしてテストが示すとおりに機能しているかどうかについてです。</p>
+<p>The test suite is not absent. The existing test investment is real. The work this RFC describes is about the quality and distribution of that investment: what gets tested, how, and whether the tests prove what they appear to prove.</p>
 <p><code>ADR-004-tool-shared-state-ownership.md</code> は優れたアーキテクチャ記録です。この文書は、期待値が明確であればチームが高品質な設計ドキュメントを生成できることを示しています。この RFC は、コード自体にも同様の期待値を提案するものです。</p>
 <hr>
 <h2 id="3-ゲートと基準中核的な違い"><a class="header" href="#3-ゲートと基準中核的な違い">3. ゲートと基準：中核的な違い</a></h2>
@@ -383,15 +459,15 @@
 <blockquote>
 <p>コードベースはすべてのチェックを通過しても、次の開発者にとって理解不能なままになることがあります。エラーを表面化すべき場所で沈黙し、単体テストが不可能で、ユーザー入力とビジネスロジックが交差する境界で脆弱な状態になることもあります。緑のチェックマークは「このコードが私たちが定めたルールに適合したか」という問いには答えますが、「このコードが本当に良いか」という問いには答えません。これらは同じ問いではありません。</p>
 </blockquote>
-<p>これはゲートに対する批判ではありません。ゲートは、すべてのコントリビューターが従うべき共有かつ強制可能な基準を定義する点で非常に価値があります。この文書の目的は、その基準を超える「良い状態」を定義する共有の用語と判断力を構築し、なぜその判断をツールに委譲できないのかを明確に説明することです。</p>
+<p>This is not a criticism of the gates. The gates are valuable precisely because they define a shared, enforceable baseline that every contributor works within. The goal of this document is to build the shared vocabulary and judgment that defines what good looks like above that baseline, and to explain clearly why that judgment cannot be delegated to a tool.</p>
 <hr>
 <h2 id="4-七つの規律"><a class="header" href="#4-七つの規律">4. 七つの規律</a></h2>
 <h3 id="41-エラーハンドリングを設計上の課題として"><a class="header" href="#41-エラーハンドリングを設計上の課題として">4.1 エラーハンドリングを設計上の課題として</a></h3>
-<p>すべての <code>.unwrap()</code> 呼び出しは一つの判断です。コードベースにある 5,630 個の <code>.unwrap()</code> の多くは、意識的に下された判断ではありませんでした。それらはデフォルトとして選択されたものでした。なぜなら、<code>Result</code> や <code>Option</code> から値を取り出して先に進みたい場合、<code>.unwrap()</code> は最も抵抗の少ない道だからです。デフォルトで下された判断の問題点は、それが本当の判断ではないということです。それらは先送りなのです。そして、先送りされているのは、本当に問われるべきこと、つまり「ここで失敗した場合、どうすべきか？」という問いです。</p>
+<p>Every <code>.unwrap()</code> call is a decision. Most of the 5,630 in the codebase were not made consciously. They were made by default, because <code>.unwrap()</code> is the path of least resistance when you need a value out of a <code>Result</code> or <code>Option</code> and want to move on. The problem with decisions made by default is that they are not decisions. They are deferrals. And what they defer is a real question: <em>what should happen here when this fails?</em></p>
 <p>答えは、あなたが直面している障害の種類によって異なります。障害には3つの種類があり、それぞれに異なる適切な対応が必要です。</p>
-<p><strong>プログラマーのエラー</strong>は、正しいコードではあり得ない不変条件の違反です。空でない <code>Vec</code> を必要とする関数に空の <code>Vec</code> を渡すこと。型システムが到達不能にするはずの分岐に到達する列挙型のマッチ。これらはバグを表しており、運用上の失敗ではなく、誤ったロジックです。<code>panic!</code> が適切な対応です。なぜなら、これらの問題はユーザーの前にランタイムで発生させるのではなく、開発時に発見することが目的だからです。<code>assert!</code> と <code>debug_assert!</code> が適切なツールです。この状態が不可能である理由を説明するメッセージ付きの <code>.expect()</code> も適切です。これにより、その理由が明示され、検索可能になるため、次のコードの読者はなぜパニックが意図的であったかを理解できます。</p>
-<p><strong>運用エラー</strong>は予期される失敗モードです。ネットワークのタイムアウト。存在しないファイル。期限切れのAPIキー。エラーステータスを含むプロバイダーのレスポンス。不正な入力を提供したユーザー。これらはバグではありません。これは、世界と相互作用するシステムの通常の運用条件です。正しい対応は <code>Result&lt;T, E&gt;</code> です。<code>?</code> 演算子は、失敗をより適切な判断ができる呼び出し元に伝播させます。運用エラーに対する <code>.unwrap()</code> は、延期されたパニックです。それは、最終的に、実際の条件下で、実際のユーザーの前で、有用なコンテキストもなく、回復の機会もなく、発生します。</p>
-<p><strong>構成エラー</strong>は、起動時に発見された不正な形式の構成または欠落した構成です。適切な対応は、迅速かつ具体的に失敗することです。スタックトレース付きのパニックや、曖昧な「無効な構成」メッセージではなく、特定のフィールドを指し示し、期待される値を説明し、オペレーターに何を設定すべきかを伝えるメッセージであるべきです。構成ミスにより ZeroClaw が起動できないユーザーは、正確に何を修正すべきかを明確に理解してプロセスを終了する必要があります。</p>
+<p><strong>Programmer errors</strong> are violations of invariants that should be impossible in correct code. A function that requires a non-empty <code>Vec</code>, called with an empty one. An enum match that reaches an arm the type system should have made unreachable. These represent bugs, not operational failures, but incorrect logic. <code>panic!</code> is the correct response, because the goal is to find these at development time, not in front of a user at runtime. <code>assert!</code> and <code>debug_assert!</code> are the right tools. <code>.expect()</code> with a message explaining why this state is impossible is also appropriate here. It makes the reasoning explicit and searchable, so the next person who reads the code understands why the panic was intentional.</p>
+<p><strong>Operational errors</strong> are expected failure modes. Network timeouts. Files that do not exist. API keys that have expired. Provider responses that carry an error status. Users who provide malformed input. These are not bugs. They are the normal operating conditions of a system that interacts with the world. The correct response is <code>Result&lt;T, E&gt;</code>. The <code>?</code> operator propagates the failure to a caller who is in a better position to decide what to do about it. A <code>.unwrap()</code> on an operational error is a deferred panic: it will fire, eventually, under real conditions, in front of a real user, with no useful context and no opportunity to recover.</p>
+<p><strong>Configuration errors</strong> are malformed or missing configuration discovered at startup. The correct response is to fail fast, but specifically. Not a panic with a stack trace, not a vague “invalid config” message. A message that points at the specific field, explains what was expected, and tells the operator what to provide. A user who cannot start ZeroClaw because of a misconfiguration should leave the process with a clear understanding of exactly what to fix.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -404,34 +480,34 @@
 </tbody>
 </table>
 </div>
-<p>すべての <code>.unwrap()</code> や <code>.expect()</code> の前に、この失敗の種別は何かと自問してください。答えが「プログラマーのエラー — 正しいコードではこの状態は発生し得ない」であれば、なぜその状態が起きないのかを説明するコメント付きの <code>.expect()</code> が適切であり、将来の読者にもその意図を伝えることができます。それ以外のケースでは、<code>?</code> を使うか、明示的に失敗を処理してください。</p>
-<p><code>?</code> 演算子の価値は、それが何をするかだけでなく、それが何を「示すか」を理解することにあります。<code>?</code> 演算子は、「この操作は失敗する可能性があることを認識しています。その失敗を、それに対応する判断を下すのに最も適した呼び出し元に明示的に伝播させます」と言っています。この認識はアーキテクチャ的に意味があります。エラーハンドリングの契約を呼び出し元で可視化し、最も多くのコンテキストを持つレイヤーに判断を委譲します。</p>
+<p>Before every <code>.unwrap()</code> or <code>.expect()</code>, ask yourself: which kind of failure is this? If the answer is “programmer error: this state cannot occur in correct code,” then <code>.expect()</code> with a comment explaining why is the right choice, and it communicates your reasoning to every future reader. If the answer is anything else, use <code>?</code> or handle the failure explicitly.</p>
+<p>The <code>?</code> operator is worth understanding for what it <em>says</em>, not just what it does. It says: I acknowledge this operation can fail. I am explicitly propagating that failure to my caller, who is better positioned to decide what to do about it. That acknowledgment is architecturally meaningful: it makes the error handling contract visible at the call site and pushes decisions to the layer that has the most context.</p>
 <p>目標は <code>.unwrap()</code> の呼び出し数をゼロにすることではありません。中には適切な使用例もあります。目標は、すべての <code>.unwrap()</code> が明示的な判断に基づいており、コードを読む人なら誰でもその理由を理解できるようにすることです。<code>.unwrap()</code> と <code>.expect("this vec is guaranteed non-empty by the caller — see §4.2 of the SOP engine invariants")</code> の違いは、単なるスタイルの問題ではありません。それは「判断を先送りすること」と「判断を文書化すること」の違いです。</p>
 <h3 id="42-promise-としての公開-api-表面"><a class="header" href="#42-promise-としての公開-api-表面">4.2 Promise としての公開 API 表面</a></h3>
 <p><code>pub</code> はコントラクトです。</p>
 <p>関数、構造体、トレイト、またはモジュールを公開としてマークすると、すべての呼び出し元に約束をするということです。これには、あなたの元の意図を覚えていない状態で来月にこれに対して実装する貢献者も含まれます。これには、実装を生成するためにあなたのクレートを読むAIアシスタントも含まれます。これには、これが何を意図していたのかを理解する必要がある本番環境のインシデントをデバッグする人も含まれます。これには、2ヶ月間別の作業をした後にこのコードに戻ってくるあなた自身も含まれます。</p>
-<p>ドキュメントのない公開アイテムは、条件のない約束です。呼び出し元は、あなたがそれを書く際にどのような前提を置いたか、どのようなエラー条件をどのような状況で返すか、どのような副作用があるか、並行して呼び出すことが安全かどうか、あるいは類似した名前の2つの関数の微妙な違いが何かを知る方法がありません。彼らは、名前、型シグネチャ、そして実装本体から、あなたが3文で伝えることができたことを推測するしかありません。</p>
-<p><code>zeroclaw-api</code> の状況は、直接名指しするに値するほど特殊です。これは、アーキテクチャ全体が依存する唯一のクレートです。ワークスペース内のすべてのプロバイダー、チャンネル、ツール、メモリバックエンド、オブザーバー、ランタイムアダプター、および周辺実装は、これらのトレイトと型に対して構築されています。この基盤部分に文書化されていないインターフェースが存在すると、それを実装するすべてのクレート、それをテストするすべてのテスト、そしてそれと連携するすべての AI 生成コードに混乱が波及します。文書化されていないパブリック API の表面積が 14:1 という比率は、ドキュメントスタイルの好みではなく、アーキテクチャ RFC で最も重要なレイヤーとされたシステムの契約におけるギャップです。</p>
-<p>ここで言うAIの役割は実用的かつ直接的です。AIアシスタントにドキュメントがないトレイトの実装や関数の呼び出しを依頼すると、AIはその名前と型シグネチャから意図を推測します。その推測が正しい場合もありますが、より一般的には、型チェッカーを通過し、AIが予期しなかった特定の条件下で正しく動作しないコードを生成します。なぜなら、そのような条件を誰も文書化していなかったからです。ドキュメントは人間のためだけにあるのではありません。それは、あなたのコードと関わるあらゆるツール、そしてそれを依存するすべての人へ提供される仕様なのです。</p>
+<p>A public item without documentation is a promise with no terms. The caller has no way to know what assumptions you made when you wrote it, what error conditions it can return and under what circumstances, what side effects it has, whether it is safe to call concurrently, or what the subtle difference is between two functions with similar names. They are left to infer, from the name, the type signature, and the implementation body something that you could have told them in three sentences.</p>
+<p>The <code>zeroclaw-api</code> situation is specific enough to name directly. This is the one crate the entire architecture depends on. Every provider, channel, tool, memory backend, observer, runtime adapter, and peripheral implementation in the workspace is built against these traits and types. An undocumented interface in this foundation propagates confusion into every crate that implements it, every test that exercises it, and every AI-generated code that works with it. The 14:1 ratio of undocumented public API surface is not a documentation style preference. It is a gap in the contract that the architecture RFC said was the most important layer of the system.</p>
+<p>The AI dimension here is practical and direct: when you ask an AI assistant to implement a trait or call a function that has no documentation, the AI infers intent from the name and the type signature. Sometimes that inference is correct. More often, it produces code that compiles, passes the type checker, and behaves incorrectly under specific conditions that the AI did not know to anticipate, because nobody wrote them down. Documentation is not just for humans. It is the specification you provide to every tool that will ever work with your code, and to every person who will ever depend on it.</p>
 <p>少なくとも、<code>zeroclaw-api</code> のすべての公開項目には以下が含まれている必要があります：</p>
 <ul>
-<li><strong>それが何をするのかを1文で説明する。</strong> それが何であるかではなく、何をするのかを。</li>
+<li><strong>One sentence describing what it does.</strong> Not what it is: what it does.</li>
 <li><strong><code># Errors</code> セクション</strong> (返り値が <code>Result</code> の場合): この関数がどのような条件で失敗し、呼び出し元が処理すべきエラーバリアントは何か。</li>
 <li><strong><code># Panics</code> セクション</strong> (パニックを引き起こす可能性がある場合): どのような条件で、なぜパニックが発生するのか？</li>
 <li><strong>前提条件</strong>（明らかなもの以外）: この関数を呼び出す前に満たされていなければならない条件は何ですか？</li>
 </ul>
-<p>パブリックなトレイトメソッドに対する3文のドキュメントコメントは、説明のない実装の100行よりも、次の実装者に価値があります。実装はコードが何をするかを示しますが、ドキュメントはそれが何をするべきかを示します。この2つが乖離した際に重要なのは後者です。</p>
+<p>A three-sentence doc comment on a public trait method is worth more to the next implementor than a hundred lines of implementation with no explanation. The implementation tells them what the code does. The documentation tells them what it is supposed to do, which is what matters when the two diverge.</p>
 <h3 id="43-テストを設計フィードバックとして"><a class="header" href="#43-テストを設計フィードバックとして">4.3 テストを設計フィードバックとして</a></h3>
-<p>テストの目的は、緑のチェックマークを生成することではありません。テストの目的は、あるコードが_すべきこと_の正確で実行可能な記録を作成し、その動作が変更された場合に明確に失敗する記録を作ることです。</p>
+<p>The goal of a test is not to produce a green checkmark. The goal is to create a precise, executable record of what a piece of code is <em>supposed to do</em>: a record that fails loudly if that behavior ever changes.</p>
 <p>この区別が重要なのは、テストには根本的に異なる2つの種類があり、そのうち1つだけがその目標を達成するからです。</p>
-<p>構造体の内部状態に直接アクセスして値を設定し、メソッドを呼び出し、戻り値に対してアサーションを行うテストは、実装をテストしていることになります。実装が変更され、同じ挙動が異なるメカニズムで達成された場合、ユーザーにとって重要なことは何も変わっていないにもかかわらず、テストは失敗します。これは、安全性を確保することなくリファクタリングに対して摩擦を生み出します。また、テストが想定していない方法で挙動が間違っている場合でも、テストが通過してしまう傾向があります。</p>
+<p>A test that reaches into a struct’s internal state, sets values directly, calls a method, and asserts on return values is testing the <em>implementation</em>. If the implementation changes, if the same behavior is achieved through a different mechanism, the test breaks, even though nothing the user cares about changed. This creates friction against refactoring without creating safety. It also tends to pass when the behavior is wrong in ways the test did not anticipate.</p>
 <p>パブリックインターフェースを通じて値を構築し、パブリックメソッドを通じて動作を実行し、観測可能な結果に対してアサーションを行うテストは、<strong>振る舞い</strong>をテストしています。実装が変更されても振る舞いが維持されていれば、テストは成功します。ユーザーにとって重要な振る舞いの変更が発生した場合、テストは失敗します。これにより、自信を持ってリファクタリングを行うことが可能になります。テストは、特定の手段で結果を得たかどうかではなく、正しい結果が得られたかどうかを確認しているからです。</p>
 <p>より重要な原則は、診断的なものです：</p>
 <blockquote>
 <p>テストの記述が難しい場合は、通常、設計に関する何らかの問題を示しています。</p>
 </blockquote>
-<p>関数のユニットテストを書く際に、データベース接続を確立し、6つの依存関係をモックし、完全な構成オブジェクトを構築し、非同期ランタイムを明示的に起動する必要がある場合、その関数はおそらく多くのことをしすぎている、多くのことに依存しすぎている、またはアーキテクチャの階層において不適切な位置にある可能性があります。この難しさは回避すべき厄介なものではなく、フィードバックです。テストは、コードがまだ正直に示していないことを正直に伝えているのです。</p>
-<p>これは、アーキテクチャ RFC で確立されたクレート構造に直接関連しています。クレートの分解の目的の一つは、個別にテスト可能なコンポーネントを作成することでした。<code>zeroclaw-tool-call-parser</code> は <code>&amp;str</code> 入力とランタイムなしでテスト可能であるべきです。<code>zeroclaw-config</code> は、構成構造体を直接構築することでテスト可能であるべきです。<code>zeroclaw-api</code> におけるトレイト実装は、本番環境のフルスタックではなく、トレイトのフェイク実装に対してテスト可能であるべきです。コンポーネントをその環境全体なしでテストできない場合、アーキテクチャが意図していない依存関係が実装に侵入していないか問いかけてください。テストが答えを教えてくれています。重要なのは、それに耳を傾けているかどうかです。</p>
+<p>If writing a unit test for a function requires standing up a database connection, mocking six dependencies, building a full configuration object, and starting an async runtime explicitly, that function is probably doing too much, depending on too much, or sitting at the wrong layer of the architecture. The difficulty is not a nuisance to work around. It is feedback. The test is being honest about something the code is not yet honest about.</p>
+<p>This connects directly to the crate structure the architecture RFC established. One of the purposes of crate decomposition was to create components that can be tested in isolation. <code>zeroclaw-tool-call-parser</code> should be testable with a <code>&amp;str</code> input and no runtime. <code>zeroclaw-config</code> should be testable by constructing config structs directly. Trait implementations in <code>zeroclaw-api</code> should be testable against fake implementations of the trait, not against the full production stack. When you find yourself unable to test a component without its entire environment, ask whether a dependency has entered the implementation that the architecture did not intend. The test is giving you the answer; the question is whether you are listening to it.</p>
 <p>テストの品質を時間とともに高めるための実践的なアプローチ：</p>
 <ul>
 <li>バグを修正する際には、そのバグを検出できるテストを作成してください。この習慣を一貫して実践することで、テストスイートは実際に重要な失敗モードに近づいていきます。</li>
@@ -439,11 +515,11 @@
 <li>テストを書くのが難しい場合は、モックを使う前に「なぜ」かを考える時間を設けましょう。その答えは、あなたが書こうとしていたテストよりも通常は価値があります。</li>
 </ul>
 <h3 id="44-技術的負債の優先順位付け"><a class="header" href="#44-技術的負債の優先順位付け">4.4 技術的負債の優先順位付け</a></h3>
-<p>「debt（負債）」という用語は、適切な含意を持っているため有用です。つまり、利息が累積するということです。コードベースの頻繁にアクセスされる領域で放置された負債は複利のように増大し、新しいコードはその存在に適応し、新しい前提が古い前提の上に積み重なり、その問題を解決するコストは、その上に追加される層ごとに増加していきます。</p>
+<p>The word “debt” is useful because it carries the right implication: it accrues interest. Debt left unexamined in a high-traffic area of the codebase compounds: new code adapts to its presence, new assumptions build on top of old ones, and the cost of addressing it grows with every layer added above it.</p>
 <p>技術的負債に対してチームが犯す最も一般的な誤りは、それを二元的に捉えることです。つまり、「すべてが負債であり、何も対処できない」か、「何も負債ではなく、時間を費やすべきではない」という立場です。どちらの立場も間違っています。有用な質問は、「現在、どの負債がどの場所で最も大きなリスクを伴っているか」です。</p>
 <p>優先順位は2つの軸によって決定されます。</p>
 <p><strong>信頼境界への近接性。</strong> ユーザー入力を処理する、セキュリティポリシーを適用する、ツールを実行する、認証を管理する、または外部ソースからのデータを処理するコードは、信頼境界の近くで動作しています。ここでの失敗は、悪用され、状態が静かに破損したり、セキュリティ上の影響を伴う誤った動作を引き起こしたりする可能性があります。信頼境界付近の負債は、その規模に対して不均衡なリスクを伴います。</p>
-<p><strong>影響範囲。</strong> <code>zeroclaw-api</code> の負債 — 他のすべてのものが依存する基盤 — は、単一チャンネルの実装における負債よりも大きな影響範囲を持ちます。基盤となる型での誤った前提は、その型が使用されるすべての箇所に波及します。リーフクレートにおける負債はそのクレートの消費者にのみ影響を与えます。</p>
+<p><strong>Blast radius.</strong> Debt in <code>zeroclaw-api</code>, the foundation everything else depends on, has a larger blast radius than debt in a single channel implementation. A wrong assumption in a foundational type propagates wherever that type is used. Debt in a leaf crate affects only that crate’s consumers.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -456,18 +532,18 @@
 </table>
 </div>
 <p>このフレームワークにより、セキュリティポリシーの適用パスにおける <code>.unwrap()</code> は、CLIの表示フォーマッターにおける <code>.unwrap()</code> とは異なる問題であることがわかります。どちらも 5,630 件のカウントに含まれます。このカウントは範囲を示し、トリアージは優先度を示します。</p>
-<p>ファイルの作業中に技術的負債（例えば、未処理の運用エラーを表す <code>.unwrap()</code>、4つの異なる関心事を処理するようになった関数、誰も呼び出していないものを黙らせる <code>#[allow(dead_code)]</code>）に気づいた場合、すべてを修正する必要はありません。ここで問うべきは、「これは高リスクの場所にあるか？」ということです。もし高リスクの場所であれば、このPRで対応するか、具体的な場所、リスク、提案された担当者を含むフォローアップの課題を作成してください。そうでない場合は、<code>// TODO(debt): &lt;description&gt;</code> コメントで目立たせることができますが、緊急性を持たせる必要はありません。やってはいけないのは、完全にマークせずに放置することです。なぜなら、沈黙こそが、5,630件の先送りされた決定が誰も傾向に気づかずに蓄積する原因となるからです。</p>
-<p>Strangler Fig パターンもこのレベルで適用されます。アーキテクチャ RFC では、このパターンをクレートレベルで適用しました。古い構造の周りに新しい構造を構築し、時間をかけて内側へと移行します。同じパターンを大きなファイル内でも使用できます。<code>schema.rs</code> を一度の PR で書き換えるわけではありません。信頼境界に最も近い、頻繁に変更される、またはテストが最も難しい関数を特定し、それらを最初に抽出して構造を段階的に改善し、残りの部分はチームが持続可能なペースで後から対応します。</p>
+<p>When you are working in a file and you notice debt, an <code>.unwrap()</code> that represents an unhandled operational error, a function that has grown to handle four separate concerns, a <code>#[allow(dead_code)]</code> silencing something that nobody calls, you do not need to fix everything. You need to ask: is this in a high-risk location? If it is, address it in this PR or file a follow-up issue with the specific location, the risk, and a proposed owner. If it is not, you can mark it with a <code>// TODO(debt): &lt;description&gt;</code> comment that makes it visible without making it urgent. What you should not do is leave it completely unmarked, because silence is how 5,630 deferred decisions accumulate without anyone noticing the trend.</p>
+<p>The Strangler Fig pattern applies at this level too. The architecture RFC applied it at the crate level: build the new structure around the old one, migrate inward over time. The same pattern works inside a large file. You do not rewrite <code>schema.rs</code> in a single PR. You identify the functions that are closest to trust boundaries, most frequently changed, or hardest to test, and you extract them first, improving the structure incrementally, leaving the rest to follow at a pace the team can sustain.</p>
 <h3 id="45-アプリケーションレイヤーのセキュリティ"><a class="header" href="#45-アプリケーションレイヤーのセキュリティ">4.5 アプリケーションレイヤーのセキュリティ</a></h3>
 <p>CI/CD RFC は、サプライチェーンのセキュリティ姿勢を確立しました。<code>cargo deny</code> は依存関係の既知の脆弱性を検出し、ライセンスのコンプライアンスを強制し、依存関係が承認されたソースから来ることを保証します。これはプロジェクトに導入されるものの免疫システムです。このセクションでは、実行されるコードのセキュリティ姿勢について説明します。</p>
 <p><code>cargo deny</code> は、アプリケーションのロジックが引き起こす脆弱性を検出できません。ユーザー入力がビジネスロジックに到達する前に検証されているかどうかを判断することはできません。ツール実行が強制すべき自律レベルを遵守しているかどうかを判断することもできません。エラーパスがセキュリティチェックの失敗を静かに無視しているかどうかを判断することもできません。これらは、信頼境界がどこにあるか、そしてその両側で責任あるコードがどのようなものかを知っているコントリビューターに依存します。</p>
 <p>信頼境界の近くで書かれるすべてのコードを導くべき3つの原則：</p>
-<p><strong>信頼境界は明示的であり、暗黙的に想定されるものではありません。</strong> 信頼境界とは、直接の制御範囲外からデータが到着するあらゆる地点を指します。これには、あらゆるチャネルからのユーザー入力、プロバイダーからのAPIレスポンス、ファイルシステムからのファイル内容、プラグインの出力、ツールの結果、ハードウェアの読み取り値などが含まれます。信頼境界のすべてにおいて、データを処理する前に検証を行ってください。あなたが生成していないデータの形状、サイズ、型、内容については、何も想定しないでください。ZeroClawのセキュリティモデルでは、これらの境界をポリシーレベルで定義しています。実装においても、コードレベルでこれらを反映させるべきです。これはポリシーが失敗するからではなく、階層型防御（defense in depth）とは、システム内の各レイヤーがそれぞれの役割を果たすことであり、他のすべてのレイヤーが正しく機能することを信頼するものではないからです。</p>
-<p><strong>最小限のフットプリント。</strong> ファイルを読み取る必要がある関数は、それを書き込んではいけません。あるチャネルのメッセージを処理するトレイト実装は、他のチャネルの状態にアクセスしてはいけません。自律レベル1で動作するツールは、レベル3で必要な機能を実行する立場にあってはいけません。セキュリティモデルはすでにこれらの制約を定義しています。重要なのは、タスクに必要な以上の能力を取得しない実装を書くこと、そして実装が意図された範囲外のものに手を伸ばしていることに気づくことです。</p>
-<p><strong>セキュリティ境界付近では、エラーを明示的に通知する。</strong> セキュリティチェックにおけるエラー（ポリシー評価の失敗、署名検証の失敗、認可されていないツール呼び出しの試み、ペアリングコードの不一致など）は、決して黙って無視してはいけません。エラーはログに記録し、伝播させ、明示的に処理する必要があります。表示ヘルパーでのエラーは、ログメッセージとともに適切に回復できますが、認可パスでのエラーは回復できません。自分がどのような種類の関数を書いているかを理解し、その判断に基づいて、エラーをどの程度積極的に表面化させるかを決定してください。</p>
-<p>これらは高度なセキュリティの原則ではありません。これらは、ユーザーが影響を与えられる何かにアクセスするすべてのコードに適用される基本的な衛生管理です。アーキテクチャ RFC はセキュリティモデルを「慎重に設計された」と説明しています。この RFC で求められている作業は、その慎重さを実装レベルで明確にすることです。具体的には、入力を検証する関数、ポリシーの失敗を処理するエラーパス、システムに要求されたことと実際に実行されることの境界においてです。</p>
+<p><strong>Trust boundaries are explicit, not assumed.</strong> A trust boundary is any point where data arrives from outside your direct control: user input from any channel, API responses from providers, file contents from the filesystem, plugin outputs, tool results, hardware readings. At every trust boundary, validate before you process. Do not assume the shape, size, type, or content of data you did not produce. The ZeroClaw security model defines these boundaries at the policy level. The implementation should reflect them at the code level, not because the policy will fail, but because defense in depth means each layer of the system is doing its part, rather than trusting that every other layer did theirs.</p>
+<p><strong>Minimum footprint.</strong> A function that needs to read a file should not be able to write one. A trait implementation that handles one channel’s messages should not have access to another channel’s state. A tool running at autonomy level 1 should not be in a position to exercise capabilities that require level 3. The security model already defines these constraints. The discipline is in writing implementations that do not acquire more capability than they require for the task at hand, and in noticing when an implementation is reaching for something outside its intended scope.</p>
+<p><strong>Fail loudly near security boundaries.</strong> An error in a security check, a failed policy evaluation, a signature verification failure, an unauthorized tool call attempt, a pairing code mismatch, should never be silently swallowed. It should be logged, propagated, and handled explicitly. An error in a display helper can be recovered from gracefully with a log message. An error in an authorization path cannot. Know which kind of function you are writing, and let that determination drive how aggressively you surface failures from it.</p>
+<p>These are not advanced security principles. They are foundational hygiene that applies to any code that touches something a user can influence. The architecture RFC described the security model as “thoughtful.” The work this RFC is asking for is to make that thoughtfulness legible at the implementation level: in the functions that validate inputs, in the error paths that handle policy failures, in the boundaries between what the system was asked to do and what it actually does.</p>
 <h3 id="46-観測可能性としてのデバッグ性"><a class="header" href="#46-観測可能性としてのデバッグ性">4.6 観測可能性としてのデバッグ性</a></h3>
-<p>観測インフラは成熟しています：OpenTelemetry トレース、Prometheus メトリクス、DORA 追跡、そしてクリーンな <code>Observer</code> トレイトがすべて整っています。これは本番環境品質の作業です。教育上のギャップは、インフラを持っていることと、実際に問題が発生した際に役立つ形でそれを使用すること、できれば何が問題なのかを知る前にそれを使用することの間にあります。</p>
+<p>The observability infrastructure is mature: OpenTelemetry tracing, Prometheus metrics, DORA tracking, and a clean <code>Observer</code> trait are all in place. This is production-quality work. The teaching gap is between having the infrastructure and using it in a way that actually helps when something goes wrong, ideally before you know what went wrong.</p>
 <p>2つのログメッセージを考慮します。どちらもコンパイルが成功し、CIをパスし、構文的に正しいです。</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -486,7 +562,7 @@
     プロバイダーのリクエストに失敗しました — リトライが尽きました
 );
 <span class="boring">}</span></code></pre>
-<p>最初のものはレコードです。これは何かがうまくいかなかったことを確認します。2番目のものは診断です。それは重要な質問に答えます：私たちは何をしようとしていたのか、どのような文脈で、どのようなパラメータで、そして具体的に何がうまくいかなかったのか。それらの違いは技術的な洗練度ではなく、メッセージを書いた人が、いつかそれを読む必要のある人を考えていたかどうかにかかっています。</p>
+<p>The first is a record. It confirms that something went wrong. The second is a <em>diagnostic</em>. It answers the questions that matter: what were we trying to do, in what context, with what parameters, and exactly what went wrong. The difference between them is not technical sophistication. It is whether the person writing the message was thinking about the person who will one day need to read it.</p>
 <p><code>warn</code> 以上のレベルでログメッセージを出力する前に問うべき質問は：</p>
 <blockquote>
 <p>この失敗を最も重要な瞬間に診断する必要がある人が知るべきことは何ですか？</p>
@@ -507,13 +583,13 @@ let _span = span!(
     sender = %sender_id,
 );
 <span class="boring">}</span></code></pre>
-<p>構造化されたログ出力と意味のあるスパン設計は、単なるスタイルの好みではありません。これらは、あなたが構築した観測インフラストラクチャを、開発時だけでなく、あなたが決して見ることのないハードウェア上で、あなたが想定していない構成で、あなたが計画していなかったエラーに直面しながら ZeroClaw を実行するユーザーの手元でも、実際に有用なものにするものです。インフラストラクチャは能力を生み出します。その能力が診断可能なシステムへと結びつくかどうかは、コントリビューターがそれをどのように使用するかの規律によって決まります。</p>
+<p>Structured logging and meaningful span design are not style preferences. They are what make the observability infrastructure you have actually useful, not just during development, but in the hands of users running ZeroClaw on hardware you will never see, in configurations you did not anticipate, encountering errors you did not plan for. The infrastructure creates the capability. The discipline in how contributors use it determines whether that capability translates into diagnosable systems.</p>
 <h3 id="47-床面より上の作業"><a class="header" href="#47-床面より上の作業">4.7 床面より上の作業</a></h3>
-<p>前述の6つの分野はそれぞれ特定の領域を扱っています。このセクションでは、それらを統合し、このRFCで説明されている基準を満たすコードにレビューアー、将来の貢献者、またはユーザーが遭遇した際に実際にどのような体験をするのか、つまり「フロアの上」が実践的にどのように見えるのかを一つの図として示します。</p>
+<p>The previous six disciplines each address a specific domain. This section synthesizes them into a single picture of what “above the floor” looks like in practice: what a reviewer, a future contributor, or a user actually experiences when they encounter code that meets the standards described in this RFC.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>次元</th><th>フロアで — ゲートが通過</th><th>床の上 — 標準メタ</th></tr>
+<tr><th>次元</th><th>At the floor, gates pass</th><th>Above the floor, standard met</th></tr>
 </thead>
 <tbody>
 <tr><td>エラー処理</td><td>コードはコンパイル済みで、Clippyの警告はありません。</td><td>失敗はカテゴリ分けされ、運用上のエラーはコンテキスト付きで表示され、パニックは意図的かつ文書化されています。</td></tr>
@@ -529,47 +605,40 @@ let _span = span!(
 <p>これらすべてを完全に自動化で実現することはできません。すべては、なぜそれが重要なのかを理解し、一貫して適用するための判断力を備えたコントリビューターによって実現可能です。この文書はまさにその目標に向かって進んでいます。</p>
 <hr>
 <h2 id="5-ai支援開発が意味すること"><a class="header" href="#5-ai支援開発が意味すること">5. AI支援開発が意味すること</a></h2>
-<p>文化に関するRFCでは、共同チームの一員としてAIツールとどのように連携するかについて取り上げました。このセクションでは、より具体的な内容として、AI生成コードが上記で述べた基準にどのように対応するか、そしてその基準を満たしていない場合にギャップを認識し、埋めるために何が必要かについて説明します。</p>
+<p>The culture RFC addressed how to work with AI tools as part of a collaborative team. This section addresses something more specific: what happens when AI-generated code encounters the standards described above, and what it takes to recognize and close the gap when it does not.</p>
 <p>AIツールは、実際には「通過」に非常に優れています。コンパイルが成功し、型チェッカーを満たし、Clippyのチェックをパスし、実装とともにテストも生成します。これは確かに価値あることであり、このセクションはその価値を軽視するものではありません。問題は、AIツールが信頼できないことではありません。問題は、AIツールが「チェックを通過するコード」を生成するという「間違ったこと」に対して信頼できる点にあります。</p>
-<p>その理由は構造的なものです。AI は推論可能な情報に基づいてコードを生成します。関数にドキュメントがない場合、AI は名前とシグネチャから意図を推論しますが、その推論が正しい場合もあれば、誰もテストしていない条件下で初めて表面化する微妙に間違った動作を生む場合もあります。エラー型にいつ返されるかのドキュメントがない場合、AI はバリアントの名前に基づいてそれを処理します。テストスイートが振る舞いではなく実装をテストしている場合、AI はそのテストに一致する実装を生成しますが、それがテストが捉えるべき意図された振る舞いと一致するかどうかは定かではありません。AI 出力の品質の上限は、あなたが提供するコンテキストの品質によって決まります。より良いコンテキスト（より明確なドキュメント、より具体的なエラー型、振る舞いに焦点を当てたテスト）は、より良い出力を生み出します。不十分なコンテキストは、チェックポイントを通過する出力を生み、次のレビュー担当者に判断を委ねることになります。</p>
+<p>The reason is structural. AI generates code against what it can infer. If a function has no documentation, the AI infers intent from the name and signature, and sometimes that inference is correct, and sometimes it produces subtly wrong behavior that only surfaces under conditions nobody tested. If an error type has no documentation of when it is returned, the AI handles it based on the name of the variant. If a test suite tests implementation rather than behavior, the AI generates implementations that match those tests, which may or may not match the intended behavior that the tests were supposed to capture. The quality ceiling of AI output is set by the quality of the context you provide. Better context, clearer documentation, more specific error types, behavior-focused tests, produces better output. Underdeveloped context produces output that passes the gates and defers the judgment to whoever reviews it next.</p>
 <p>これは、AI ツールを利用するコントリビューターにとって、具体的かつ必須の責任を生み出します。</p>
-<p><strong>AI がコードを生成したため、レビューは必須です。</strong> 文化に関する RFC で明確に示されており、具体的な内容で繰り返す価値があります。AI が生成したコードをレビューする際、コンパイルできるか、テストがパスするかといった基本的な確認事項は、レビューの「始まり」であって「終わり」ではありません。標準的な確認事項には以下が含まれます：</p>
-<ul>
-<li>運用上のエラーを適切に処理しているか、それとも <code>.unwrap()</code> で無視しているか</li>
-<li>新しい公開 API が文書化されているか</li>
-<li>テストが振る舞いを検証しているか、それとも実装の詳細を検証しているか</li>
-<li>信頼境界の近くにある場合、入力を検証しているか</li>
-</ul>
-<p>これらの質問に対する責任は、コードの作成者や使用されたツールに関わらず、あなたにあります。</p>
-<p><strong>AIはあなたの判断を補強するものであり、判断の欠如を代弁するものではありません。</strong> 良いエラーハンドリングの姿についてメンタルモデルをまだ持っていないコントリビューターは、AIが生成したエラーハンドリングをそのまま受け入れてしまうでしょう。<code>.unwrap()</code> も含めてです。§4.1 の内容を内面化したコントリビューターであれば、同じ出力を見てツールに指示を出すことができます。「これは運用上のエラーパスです。<code>?</code> を使用し、コンテキストを付与して呼び出し元に失敗を伝播させてください」と。ツールは修正されたバージョンを生成します。このパターンは §4 に記載されているすべての分野に適用されます。何を求めるべきかを知っている人の手において、ツールは強力な力を発揮します。そのような指示がない場合、ツールはコンパイラを満たすコードを生成しますが、本質的な判断は次の工程の担当者に委ねることになります。</p>
-<p><strong>この関係性は双方向に増幅します。</strong> 基準を理解しているチームは、ツールが改善されるにつれて、AI ツールからより大きな価値を得ます。なぜなら、彼らはより高度なツールをより正確に指示できるからです。「ツールが生成した内容」と「基準が要求する内容」のギャップは、手動で書き直すのではなく、適切な指示によって埋めることができるようになります。一方、その判断力を築かないチームは、同じ品質の床（floor）に到達するまでの時間を短縮できますが、それを上回る品質を引き出すことはできません。この文書全体で説明されている投資は、チームが今後使用するすべての AI ツールの長期的な有効性への直接的な投資でもあります。なぜなら、これらのツールの価値は、それらを導く判断の明確さに比例して拡大するからです。</p>
+<p><strong>Review is not optional because AI wrote it.</strong> The culture RFC named this clearly, and it bears repeating with specifics: when reviewing AI-generated code, the gate questions does it compile, do the tests pass, are the beginning of the review, not the end. The standard questions are: does this handle operational errors correctly, or does it <code>.unwrap()</code> them? Is the new public API documented? Does the test assert the behavior or the implementation? Is this near a trust boundary, and if so, does it validate its inputs? These questions are your responsibility regardless of who wrote the code or what tools were used to produce it.</p>
+<p><strong>AI amplifies your judgment, not your absence of it.</strong> A contributor who does not yet have a mental model for what good error handling looks like will accept AI-generated error handling at face value: <code>.unwrap()</code> and all. A contributor who has internalized §4.1 can look at the same output and direct the tool: “this is an operational error path; use <code>?</code> and propagate the failure to the caller with context.” The tool will produce a corrected version. The same pattern applies to every discipline in §4. The tool is powerful in the hands of someone who knows what to ask for. Without that direction, it produces code that satisfies the compiler and defers the real decisions to the next person in the chain.</p>
+<p><strong>This relationship compounds in both directions.</strong> A team that understands the standards gets progressively more value from AI tooling as the tools improve, because they can direct more capable tools more precisely. The gap between “what the tool produced” and “what the standard requires” becomes something they can close with direction rather than manual rewriting. A team that does not build that judgment gets a faster path to the same quality floor, without the ability to push past it. The investment described throughout this document is also, directly, an investment in the long-term effectiveness of every AI tool the team will ever use, because the value of those tools scales with the clarity of the judgment directing them.</p>
 <hr>
 <h2 id="6-クラフトの移植性"><a class="header" href="#6-クラフトの移植性">6. クラフトの移植性</a></h2>
-<p>テクノロジーは変化します。その変化の速度は、各イテレーションごとに前よりも速くなり、その加速はさらに進んでいます。このドキュメントで言及されている具体的なツール — Rust、<code>cargo</code>、<code>clippy</code>、OpenTelemetry SDK、チームが現在使用しているAIアシスタント — はいずれかの時点で置き換えられるでしょう。プロジェクトの存続期間内に置き換わるものもあるかもしれません。プラットフォームは変化し、言語は進化します。ツールエコシステムは5年後には今日とは異なるものになり、10年後にはさらに異なるものになるでしょう。</p>
+<p>Technology changes. It changes faster with each iteration than it did the time before, and that rate is accelerating. The specific tools in this document: Rust, <code>cargo</code>, <code>clippy</code>, the OpenTelemetry SDK, the AI assistants the team uses today, will be superseded. Some of them within the lifetime of this project. The platforms will change. The languages will evolve. The tooling ecosystem will look different in five years than it does today, and different again in ten.</p>
 <p>この文書内のメンタルモデルは変更されません。</p>
-<p>「ここで失敗した場合に何が起きるべきか、そして誰がそれを把握する必要があるか」という問いは、言語が変わっても消えるものではありません。次に学ぶ言語でもこの問いを投げかけます。ワイヤープロトコルが「言語」となる分散システムを設計する際にも、また、あなたが個人的に監視できないが他者が依存するものを作り上げる際にも、この問いを投げかけます。この問いに答えるための具体的な Rust の仕組み — <code>Result&lt;T, E&gt;</code>、<code>?</code> 演算子、コンテキスト付き構造化エラー型 — は、いたるところに存在する問いに対する一つの答えに過ぎません。</p>
-<p>「私が約束しているパブリックインターフェースとは何か、そしてそのドキュメントがその約束を反映しているか」という問いは、APIを設計する際、技術仕様書を作成する際、チームの責任範囲を定義する際、他チームやAIツール、クライアント、請負業者に要件を伝える際に自問することになります。パブリックインターフェースの「約束と条件」モデルは、Rustやソフトウェアの分野を超えて、はるかに広い範囲に適用されます。</p>
-<p>「テストが実際に何を証明しているのか？」という問いは、ソフトウェアの分野を超え、システムが意図した通りに動作することを検証する必要があるあらゆる領域に当てはまります。この問いを投げかける本能 — つまり、実装が存在することの証拠と、正しいことが起こっていることの証拠を区別する能力 — がスキルです。これを Rust で表現するための構文は付随的なものです。</p>
-<p>「この障害を診断する必要がある人は何を知る必要があるのか？」という問いは、他の人々が依存するものを構築する際に適用されるエンジニアリングの問いです。さらに深く言えば、これは共感に関する問いでもあります。あなたの作業の向こう側にいる人が、予測できない瞬間に、あなたが提供できない文脈の中で、現実の問題を抱えた現実の人間であることを忘れないようにすることです。</p>
+<p>The question “what should happen here when this fails, and who needs to know?” does not expire when the language changes. You will ask it in the next language you learn. You will ask it when designing a distributed system where the “language” is a wire protocol. You will ask it when building anything that other people depend on and that you cannot personally supervise. The specific Rust mechanism for answering it: <code>Result&lt;T, E&gt;</code>, the <code>?</code> operator, structured error types with context, is one answer to a question that exists everywhere.</p>
+<p>The question “what is the public interface I am promising, and does my documentation reflect that promise?”: you will ask this when designing an API, when writing a technical specification, when defining the scope of a team’s responsibilities, when communicating requirements to another team, to an AI tool, to a client, to a contractor. The promise-and-terms model of public interfaces extends far beyond Rust and far beyond software.</p>
+<p>The question “what does my test actually prove?” extends beyond software into any domain where you need to verify that a system behaves as intended. The instinct to ask it, to distinguish between evidence that your implementation exists and evidence that the right thing happens, is the skill. The syntax for expressing it in Rust is incidental.</p>
+<p>The question “what would the person who needs to diagnose this failure need to know?” is an engineering question that applies to anything you build that other people depend on. It is also, at a deeper level, a question about empathy, about remembering that the person on the other side of your work is a real person with a real problem, at a moment you cannot predict, with context you will not be there to provide.</p>
 <blockquote>
-<p>あなたは Rust を学んでいるのではありません。Rust を通じて、信頼できるものを作り方を学んでいるのです。これはポータブルです。あなたがそれを練習する限り、あらゆる言語、システム、チーム、ドメインで複利のように成長します。</p>
+<p>You are not learning Rust. You are, through the vehicle of Rust, learning to build things that can be trusted. That is portable. It will compound for as long as you practice it, across every language, every system, every team, and every domain you ever work in.</p>
 </blockquote>
 <p>これは、プロジェクトがあなたに対して行う投資です。特定の技術スキルではなく、次にあなたが作るものに対して判断力、技術力、そして細部へのこだわりをどのように発揮するかという能力に対する投資です。そしてそれは、やがてあなたが作ったものによって支えられる人々一人ひとりに対する、あなた自身の投資でもあります。</p>
 <hr>
 <h2 id="7-貢献者にとっての意味"><a class="header" href="#7-貢献者にとっての意味">7. 貢献者にとっての意味</a></h2>
 <p><strong>Rust やソフトウェア開発が初めての方へ:</strong></p>
-<p>§4の7つの分野は、貢献する前に習得すべき要件ではありません。これらは、あなたが作業する中で遭遇するものの地図であり、それらを見たときに何を見ているかが明確に分かるように、十分に明確に名前が付けられています。</p>
+<p>The seven disciplines in §4 are not requirements to master before you can contribute. They are a map of the territory: things you will encounter as you work, named clearly enough that you know what you are looking at when you see them.</p>
 <p>§4.1 から始めましょう。エラーハンドリングのメンタルモデルは、早期に内面化できる最も効果的な概念の一つであり、これは Rust に限定されたものではありません。既存のコードを読み、<code>.unwrap()</code> に遭遇した際には、それがどのカテゴリに該当するかを自問してください。新しいコードを書く際にも、同様に自分の選択について自問しましょう。この習慣を一貫して実践することで、影響を受けるすべてのファイルが改善され、その判断力はあなたのキャリアを通じて役立つようになります。</p>
 <p>これらの基準を適用する準備が整うまで待たないでください。完璧でなくても構いません。何に該当するか分からない場合は質問し、レビューで受け取るフィードバックを、それが意図している通り学習の機会として捉えてください。こうしたことを最初から知っている人なんていません。ここであなたが行っているような作業を通じて、ゆっくりと学んでいったのです。</p>
 <p><strong>AIツールを使用して貢献する場合は:</strong></p>
-<p>この文書に記載されている基準は、慎重なレビューによってAI生成コードが評価される基準となります。また、実質的には、レビューが行われる前にAIの出力をより正確なものにするための文脈としても機能します。AIに何かを実装させる前に、実装対象のインターフェースが文書化されているか確認してください。文書化されていない場合は、まずそれらを文書化するか、AIに求める作業の一部として文書化を含めてください。これにより、出力の正確性が向上し、基盤となる部分の重要なギャップを埋めることができ、後から参加する開発者も恩恵を受けることになります。</p>
+<p>The standards in this document are what a careful review will evaluate AI-generated code against. They are also, practically, the context that makes AI output more correct before it reaches review. Before asking an AI to implement something, check whether the interfaces it will implement against are documented. If they are not, document them first, or include the documentation as part of what you ask the AI to produce. The output will be more correct, you will have closed a real gap in the foundation, and the next contributor who comes along will benefit from both.</p>
 <p>AI生成のコードに対するレビューフィードバックは、AIの使用に関するフィードバックではなく、コード自体に対するフィードバックとして受け取ってください。基準は著作者に関係なく一律に適用されます。常に問われるべきは、このコードが基準を満たしているかどうかです。もし満たしていない場合、何がどう変わるべきで、その理由は何でしょうか？</p>
 <p><strong>プルリクエストをレビューする場合:</strong></p>
-<p>ゲートとなる質問——コンパイルできるか、テストがパスするか、Clippy が許容するか——は基礎であって上限ではありません。これらの質問にのみ答えるレビューは不十分です。§3 のフレームワークと §4 の規律を用いて観察を構造化してください。適用している基準を明記し、それがなぜ重要かを説明し、ブロックする懸念事項とブロックしない提案を明確に区別してください。</p>
-<p>レビューの目的は欠点を見つけることではありません。それは理解を伝えることです。説明を含む具体的なフィードバックのすべて — 「これは運用上のエラーパスです。<code>.unwrap()</code> がここでなぜ生産リスクを生むのか、そして代わりに何を使うべきか」 — は、あなたがレビューしているコントリビューターへの投資です。この投資は複利のように増えます。原則を理解したコントリビューターは、それが重要になる次の10の状況でそれを正しく適用し、再度指示される必要がなくなります。</p>
+<p>The gate questions, does it compile, do the tests pass, does Clippy accept it, are the floor, not the ceiling. A review that only answers those questions is an incomplete review. Use the framework in §3 and the disciplines in §4 to structure your observations. Name the standard you are applying, explain why it matters, and clearly separate blocking concerns from non-blocking suggestions.</p>
+<p>The goal of a review is not to find fault. It is to transfer understanding. Every specific piece of feedback that includes an explanation, “this is an operational error path; here is why <code>.unwrap()</code> creates a production risk here and what to use instead”, is an investment in the contributor you are reviewing. That investment compounds. The contributor who understands the principle will apply it correctly to the next ten situations where it matters, without needing to be told again.</p>
 <p><strong>メンテナーまたは経験豊富なコントリビューターの場合:</strong></p>
-<p>これらの基準を実践に移すのに最も適した立場にいるのはあなたです。トップダウンで強制するのではなく、自分のコードで基準を実践し、レビューでその名前を明示的に呼び出すことで実現できます。オープンソースプロジェクトにおいて最も効果的な教育は、ドキュメントではなく、PRのディスカッションやコードコメントの中で行われます。このドキュメントは、そのための用語集を提供します。日常的なレビューでこれを一貫して使用することで、単なる紙上の言葉から共有された実践へと変化させます。</p>
-<p>運用エラーのパスで <code>.unwrap()</code> を見つけたら、それを運用エラーとして命名してください。ドキュメントがない公開関数を見つけたら、将来の実装者がここで知る必要があることは何かと自問してください。有効なリファクタリングで壊れてしまうテストを見つけたら、それがなぜ重要なのかを説明してください。これらは修正ではなく、文化 RFC が最も重要なものの一つとして特定した、より経験豊富なコントリビューターが提供できる継続的なメンターシップです。</p>
+<p>You are in the best position to make these standards real, not by enforcing them from above, but by modeling them in your own code and naming them by name in review. The most effective teaching in an open source project happens in PR threads and code comments, not in documents. This document provides the vocabulary. Using it consistently in everyday review is what moves it from words on a page to shared practice.</p>
+<p>When you see a <code>.unwrap()</code> on an operational error path, name it as such. When you see a public function without documentation, ask the question: what does a future implementor need to know here? When you see a test that would break on a valid refactor, explain why that matters. These are not corrections: they are the ongoing mentorship that the culture RFC identified as one of the most important things a more experienced contributor can offer.</p>
 <hr>
                     </main>
 

@@ -37,10 +37,84 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0fc3b529.js"></script>
+        <script src="toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,25 +294,28 @@
                     <main>
                         <h1 id="zeroclaw"><a class="header" href="#zeroclaw">ZeroClaw</a></h1>
 <p>由您拥有的个人 AI 助手，使用 Rust 编写。</p>
-<p>ZeroClaw 是一个智能体运行时——一个你配置并运行的单一二进制文件。它与 LLM 提供商（Anthropic、OpenAI、Ollama 以及大约 20 个其他提供商）通信，通过渠道（Discord、Telegram、Matrix、电子邮件、语音、Webhook、你自己的 CLI）与世界交互，并通过工具（Shell、浏览器、HTTP、硬件、自定义 MCP 服务器）执行操作。所有内容都在你的机器上运行，使用你的密钥，在你的工作区中。</p>
-<p>阅读 <a href="./philosophy.html">Philosophy</a> 以了解塑造它的观点。</p>
+<p>ZeroClaw is an agent runtime: a single binary you configure and run. It talks to LLM providers (Anthropic, OpenAI, Ollama, and ~20 others), reaches the world through channels (Discord, Telegram, Matrix, email, voice, webhooks, your own CLI), and acts through tools (shell, browser, HTTP, hardware, custom MCP servers). Everything runs on your machine, with your keys, in your workspace.</p>
+<p>Read <a href="./philosophy/index.html">Philosophy</a> to understand the opinions that shape it.</p>
 <p>本页面为文档。所有位于 <strong>参考 → CLI</strong> 和 <strong>参考 → 配置</strong> 下的内容均在构建时直接从代码生成（通过 <code>clap</code> 派生和 JSON 模式），因此会与您实际运行的二进制文件保持同步。其余部分均为面向用户的手写材料。</p>
-<h2 id="从哪里开始"><a class="header" href="#从哪里开始">从哪里开始</a></h2>
+<p>Where to start:</p>
 <ul>
-<li>初次使用 ZeroClaw？→ <a href="./getting-started/quick-start.html">快速入门</a></li>
+<li>New to ZeroClaw? → <a href="./getting-started/quickstart.html">Quickstart</a></li>
+<li>Prefer a terminal UI? → <a href="./zerocode/overview.html">zerocode</a></li>
 <li>只想让它快速运行，而不需要安全提示？→ <a href="./getting-started/yolo.html">YOLO 模式</a></li>
+<li>Controlling what the agent is allowed to do? → <a href="./security/overview.html">Security &amp; Autonomy</a></li>
 <li>在特定平台上安装？→ <a href="./setup/linux.html">Linux</a> · <a href="./setup/macos.html">macOS</a> · <a href="./setup/windows.html">Windows</a> · <a href="./setup/container.html">Docker</a></li>
 <li>了解架构？→ <a href="./architecture/overview.html">架构概览</a></li>
 <li>正在搭建聊天平台？→ <a href="./channels/overview.html">频道</a></li>
 <li>指向 LLM？→ <a href="./providers/overview.html">模型提供商</a></li>
 <li>添加功能？→ <a href="./tools/overview.html">工具</a></li>
+<li>Talking to hardware or boards? → <a href="./hardware/index.html">Hardware</a></li>
 <li>在生产环境中运行？→ <a href="./ops/overview.html">运维</a></li>
 <li>编写工作流？→ <a href="./sop/index.html">标准操作程序（SOP）</a></li>
-<li>在此基础上进行构建？→ <a href="./developing/plugin-protocol.html">开发</a></li>
-<li>查找标志或配置键？→ <a href="./reference/cli.html">参考</a> · <a href="./api.html">API rustdoc</a></li>
-<li>想要贡献代码？→ <a href="./contributing/how-to.html">贡献指南</a></li>
+<li>Building on top of it? → <a href="./developing/index.html">Developing</a></li>
+<li>Looking up a flag or config key? → <a href="./reference/index.html">Reference</a> · <a href="./api.html">API rustdoc</a></li>
+<li>Want to contribute? → <a href="./contributing/index.html">Contributing</a></li>
 </ul>
-<h2 id="源"><a class="header" href="#源">源</a></h2>
+<p>Source:</p>
 <ul>
 <li>上游：<a href="https://github.com/zeroclaw-labs/zeroclaw">https://github.com/zeroclaw-labs/zeroclaw</a></li>
 <li>问题、讨论和 RFC：<a href="https://github.com/zeroclaw-labs/zeroclaw/issues">GitHub 问题</a></li>
@@ -249,7 +328,7 @@
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
 
-                            <a rel="next prefetch" href="philosophy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="philosophy/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -260,7 +339,7 @@
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
 
-                    <a rel="next prefetch" href="philosophy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="philosophy/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

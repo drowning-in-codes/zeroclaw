@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -223,24 +299,24 @@
 <pre><code>┌──────────────────────────────────────────────────────────────┐
 │                        STARTUP (boot)                        │
 │                                                              │
-│  1. Ask aardvark-sys: "any adapters plugged in?"            │
+│  1. Ask aardvark-sys: "any adapters plugged in?"             │
 │  2. For each one found → register a device + transport       │
 │  3. Load tools only if hardware was found                    │
 └──────────────────────────────────────────┬───────────────────┘
                                            │
-                    ┌──────────────────────▼──────────────────────┐
+                    ┌──────────────────────▼───────────────────────┐
                     │              RUNTIME (agent loop)            │
                     │                                              │
                     │  User: "scan i2c bus"                        │
                     │     → agent calls i2c_scan tool              │
                     │     → tool builds a ZcCommand                │
-                    │     → AardvarkTransport sends to hardware     │
+                    │     → AardvarkTransport sends to hardware    │
                     │     → response flows back as text            │
                     └──────────────────────────────────────────────┘
 </code></pre>
 <hr>
 <h2 id="layer-by-layer"><a class="header" href="#layer-by-layer">Layer by Layer</a></h2>
-<h3 id="layer-1--aardvark-sys-the-usb-talker"><a class="header" href="#layer-1--aardvark-sys-the-usb-talker">Layer 1 — <code>aardvark-sys</code> (the USB talker)</a></h3>
+<h3 id="layer-1-aardvark-sys-the-usb-talker"><a class="header" href="#layer-1-aardvark-sys-the-usb-talker">Layer 1: <code>aardvark-sys</code> (the USB talker)</a></h3>
 <p><strong>File:</strong> <code>crates/aardvark-sys/src/lib.rs</code></p>
 <p>This is the only layer that ever touches the raw C library.
 Think of it as a thin translator: it turns C function calls into safe Rust.</p>
@@ -283,7 +359,7 @@ Drop(handle)
 </code></pre>
 <p><strong>In stub mode</strong> (no SDK): every method returns <code>Err(NotFound)</code> immediately. <code>find_devices()</code> returns <code>[]</code>. Nothing crashes.</p>
 <hr>
-<h3 id="layer-2--aardvarktransport-the-bridge"><a class="header" href="#layer-2--aardvarktransport-the-bridge">Layer 2 — <code>AardvarkTransport</code> (the bridge)</a></h3>
+<h3 id="layer-2-aardvarktransport-the-bridge"><a class="header" href="#layer-2-aardvarktransport-the-bridge">Layer 2: <code>AardvarkTransport</code> (the bridge)</a></h3>
 <p><strong>File:</strong> <code>crates/zeroclaw-hardware/src/aardvark.rs</code></p>
 <p>The rest of ZeroClaw speaks a single language: <code>ZcCommand</code> → <code>ZcResponse</code>.
 <code>AardvarkTransport</code> translates between that protocol and the aardvark-sys calls above.</p>
@@ -323,9 +399,9 @@ Drop(handle)
 
   on any AardvarkError → return ZcResponse{ error: "..." }
 </code></pre>
-<p><strong>Key design choice — lazy open:</strong> The handle is opened fresh for every command and dropped at the end. This means no held connection, no state to clean up, and no “is it still open?” logic anywhere.</p>
+<p><strong>Key design choice: lazy open:</strong> The handle is opened fresh for every command and dropped at the end. This means no held connection, no state to clean up, and no “is it still open?” logic anywhere.</p>
 <hr>
-<h3 id="layer-3--tools-what-the-agent-calls"><a class="header" href="#layer-3--tools-what-the-agent-calls">Layer 3 — Tools (what the agent calls)</a></h3>
+<h3 id="layer-3-tools-what-the-agent-calls"><a class="header" href="#layer-3-tools-what-the-agent-calls">Layer 3: Tools (what the agent calls)</a></h3>
 <p><strong>File:</strong> <code>crates/zeroclaw-hardware/src/aardvark_tools.rs</code></p>
 <p>Each tool is a thin wrapper. It:</p>
 <ol>
@@ -371,7 +447,7 @@ DatasheetTool.call(args)
   → "read":     open a saved PDF and return its text
 </code></pre>
 <hr>
-<h3 id="layer-4--device-registry-the-address-book"><a class="header" href="#layer-4--device-registry-the-address-book">Layer 4 — Device Registry (the address book)</a></h3>
+<h3 id="layer-4-device-registry-the-address-book"><a class="header" href="#layer-4-device-registry-the-address-book">Layer 4: Device Registry (the address book)</a></h3>
 <p><strong>File:</strong> <code>crates/zeroclaw-hardware/src/device.rs</code></p>
 <p>The registry is a runtime map of every connected device.
 Each entry stores: alias, kind, capabilities, transport handle.</p>
@@ -393,7 +469,7 @@ resolve_aardvark_device(args)
   → return (alias, DeviceContext{ transport, capabilities })
 </code></pre>
 <hr>
-<h3 id="layer-5--boot-startup-wiring"><a class="header" href="#layer-5--boot-startup-wiring">Layer 5 — <code>boot()</code> (startup wiring)</a></h3>
+<h3 id="layer-5-boot-startup-wiring"><a class="header" href="#layer-5-boot-startup-wiring">Layer 5: <code>boot()</code> (startup wiring)</a></h3>
 <p><strong>File:</strong> <code>crates/zeroclaw-hardware/src/lib.rs</code></p>
 <p><code>boot()</code> runs once at startup. For Aardvark:</p>
 <pre><code>boot()
@@ -412,20 +488,21 @@ resolve_aardvark_device(args)
   ...
 </code></pre>
 <hr>
-<h3 id="layer-6--tool-registry-the-loader"><a class="header" href="#layer-6--tool-registry-the-loader">Layer 6 — Tool Registry (the loader)</a></h3>
+<h3 id="layer-6-tool-registry-the-loader"><a class="header" href="#layer-6-tool-registry-the-loader">Layer 6: Tool Registry (the loader)</a></h3>
 <p><strong>File:</strong> <code>crates/zeroclaw-hardware/src/tool_registry.rs</code></p>
 <p>After <code>boot()</code>, the tool registry checks what hardware is present and loads
 only the relevant tools:</p>
 <pre><code>ToolRegistry::load(devices)
 
-  # always loaded (Pico / GPIO)
-  register: gpio_write, gpio_read, gpio_toggle, pico_flash, device_list, device_status
+  # always loaded (base hardware tools — see catalog::BASE_TOOLS)
+  register: gpio_read, gpio_write, pico_flash,
+            device_read_code, device_write_code, device_exec
 
-  # only loaded if an Aardvark was found at boot
+  # only loaded if an Aardvark was found at boot (catalog::AARDVARK_TOOLS)
   if devices.has_aardvark():
     register: i2c_scan, i2c_read, i2c_write, spi_transfer, gpio_aardvark, datasheet
 </code></pre>
-<p>This is why the <code>hardware_feature_registers_all_six_tools</code> test still passes in stub mode — <code>has_aardvark()</code> returns false, 0 extra tools load, count stays at 6.</p>
+<p>This is why the <code>hardware_feature_registers_catalog_base_tools</code> test still passes in stub mode: <code>has_aardvark()</code> returns false, 0 extra tools load, count stays at the base set.</p>
 <hr>
 <h2 id="full-flow-diagram"><a class="header" href="#full-flow-diagram">Full Flow Diagram</a></h2>
 <pre><code> SDK FILES          aardvark-sys            ZeroClaw core
@@ -443,7 +520,7 @@ only the relevant tools:</p>
                        │                ▼
                        │         ToolRegistry::load()
                        │           has_aardvark() == true
-                       │           → load 6 aardvark tools
+                       │           → load aardvark tools
                        │
 ─────────────────────────────────────────────────────────────────
 
@@ -486,14 +563,14 @@ only the relevant tools:</p>
 <tr><td><code>find_devices()</code></td><td>returns <code>[]</code></td><td>returns <code>[0]</code></td></tr>
 <tr><td><code>open_port(0)</code></td><td><code>Err(NotFound)</code></td><td>opens USB, returns handle</td></tr>
 <tr><td><code>i2c_scan()</code></td><td><code>[]</code></td><td>probes bus, returns addresses</td></tr>
-<tr><td>tools loaded</td><td>only the 6 Pico tools</td><td>6 Pico + 6 Aardvark tools</td></tr>
+<tr><td>tools loaded</td><td>only the base hardware tools</td><td>base tools + Aardvark tools</td></tr>
 <tr><td><code>has_aardvark()</code></td><td><code>false</code></td><td><code>true</code></td></tr>
 <tr><td>SDK needed</td><td>no</td><td>yes (<code>vendor/aardvark.h</code> + <code>.so</code>)</td></tr>
 </tbody>
 </table>
 </div>
 <p>The only code that changes when you plug in real hardware is inside
-<code>crates/aardvark-sys/src/lib.rs</code> — every other layer is already wired up
+<code>crates/aardvark-sys/src/lib.rs</code>: every other layer is already wired up
 and waiting.</p>
 
                     </main>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,61 +293,40 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="ロギングアーキテクチャ"><a class="header" href="#ロギングアーキテクチャ">ロギングアーキテクチャ</a></h1>
-<p>ZeroClawのログ出力面は1つだけです。それが<code>zeroclaw_log::record!</code>マクロです。ワークスペース内のすべての出力——エージェントループのアクティビティ、チャネルI/O、cron実行、ツール呼び出し、メモリ操作、セッションライフサイクル、エラー——はこれを経由します。このマクロは単一の<code>LogCaptureLayer</code>に渡され、構造化された<code>LogEvent</code>レコードを生成し、それらを3つのシンクへ同時にルーティングします。</p>
+<p>ZeroClaw has exactly one logging surface: the <code>zeroclaw_log::record!</code> macro. Every emission in the workspace, agent loop activity, channel I/O, cron runs, tool calls, memory ops, session lifecycle, errors, flows through it. The macro fires a <code>tracing</code> event that the installed subscriber feeds to two sibling layers: the stderr fmt layer (terminal output) and the <code>LogCaptureLayer</code>. The fmt layer prints colored, alias-prefixed lines on stderr (muted unless <code>--verbose</code>). The <code>LogCaptureLayer</code> materializes a structured <code>LogEvent</code> and fans it out, via <code>writer::record_event</code>, to:</p>
 <ol>
-<li>ターミナル（<code>zeroclaw-log</code> が内部的にインストールする <code>tracing-subscriber</code> の fmt レイヤー経由）。これにより、オペレーターは stderr 上でエイリアスがプレフィックスされた色付きの行を確認できます。</li>
-<li><code>&lt;workspace&gt;/state/runtime-trace.jsonl</code> に永続化される JSONL ログ（<code>[observability] log_persistence</code> が <code>"rolling"</code> または <code>"full"</code> の場合）。</li>
+<li>The Observer bridge (<code>observer_bridge::forward</code>) for Prometheus / OTel typed metrics.</li>
 <li>ダッシュボードの SSE ストリームがすべてのイベントをライブで受信できるようにする、プロセス全体のブロードキャストチャネルです。</li>
+<li><code>&lt;workspace&gt;/state/runtime-trace.jsonl</code> に永続化される JSONL ログ（<code>[observability] log_persistence</code> が <code>"rolling"</code> または <code>"full"</code> の場合）。</li>
 </ol>
-<p><code>tracing</code> クレートは <code>zeroclaw-log</code> の実装の詳細です。他のワークスペースクレートは <code>tracing</code>、<code>tracing-subscriber</code>、<code>tracing-attributes</code> を参照していません。それらの Cargo.toml ファイルはこれらのクレートに依存しておらず、<code>crates/zeroclaw-log/</code> の外にある <code>.rs</code> ファイルは tracing 型を一切参照していません。</p>
-<h2 id="record-マクロ"><a class="header" href="#record-マクロ"><code>record!</code> マクロ</a></h2>
-<p>マクロはlocked-shapeです。レベル、単一の<code>Event</code>式、そしてメッセージリテラルを受け取ります。</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use zeroclaw_log::{record, Event, Action, EventCategory, EventOutcome};
-
-record!(INFO, Event::new(module_path!(), Action::Start), 開始ステップ);
-record!(WARN, Event::new(module_path!(), Action::Fail).with_outcome(EventOutcome::Failure).with_attrs(serde_json::json!({exit_code: 137})), ツールが失敗しました);
-<span class="boring">}</span></code></pre>
-<p><code>module_path!()</code> はイベント名の正規のソースです — これは呼び出し元の Rust モジュールパス（例: <code>zeroclaw_channels::telegram</code>）であり、イベントを検索可能、ソースへジャンプ可能、かつタイプミスを起こし得ないものにします。ワークスペース内のすべての <code>record!</code> 呼び出し箇所で同じ規約が使用されています。</p>
-<p>このマクロは <code>file!()</code> と <code>line!()</code> を自動的に挿入します。<code>LogCaptureLayer</code> はそれらをイベントの <code>attributes</code> マップに <code>_file</code> と <code>_line</code> として付加するため、オペレーターはログビューアーからソースへジャンプできます。</p>
-<h3 id="コールサイト契約"><a class="header" href="#コールサイト契約">コールサイト契約</a></h3>
-<p>すべての <code>record!</code> 呼び出しは、<strong>何が起きたか</strong>を示す単一行のコードであり、<strong>誰がどのような状況で実行したか</strong>を示すものではありません。</p>
-<ul>
-<li>レベルの後に続く単一の位置引数は <code>Event</code> 式です。</li>
-<li>次の引数は、人間が読めるメッセージの文字列リテラルです。</li>
-<li>以上がすべてです。Channel、agent_alias、provider、tool、session_key、cron_job_id、model — これらはいずれも呼び出し側の引数ではありません。これらはspanから流れ込みます（<a href="#attribution">Attribution</a>を参照）。</li>
-</ul>
-<p>この形状は <code>Event</code> 構造体によって強制されます。未知のフィールドはコンパイルエラーになります。</p>
-<h3 id="attrs-が妥当な場合"><a class="header" href="#attrs-が妥当な場合">attrs が妥当な場合</a></h3>
-<p><code>Event::with_attrs(serde_json::json!({...}))</code> は、周囲のスコープのどこにも存在しないイベントごとの計測値やアドホックなデータに使用します。具体的には:</p>
-<ul>
-<li>イベントごとの計測値: <code>bytes_received</code>、<code>tokens_used</code>、<code>retry_count</code>、<code>status_code</code>、<code>queue_depth</code>。</li>
-<li>エラー自体がイベントである場合のエラーペイロード: anyhow のチェーンテキスト、HTTP エラーボディ、パースエラーの詳細。</li>
-<li>外部システムの識別子: リモートAPIの <code>request_id</code>、上流のトレースヘッダー。</li>
-<li>この時点でキャプチャされた派生状態: 処理中の件数、retry-after 秒数。</li>
-</ul>
-<p><strong>Attrs は以下のものには使用しません</strong> — 周囲のスコープに由来するもの。channel composite、agent_alias、model_provider、tool、session_key、cron_job_id、sender、message_id などです。これらはラップする <code>attribution_span!</code> または <code>scope!</code> に属します。</p>
-<p>serde のルール: <strong>生の値</strong>を渡すこと。<code>format!("{}", v)</code> や <code>format!("{:?}", v)</code> は決して使わない。<code>serde_json::json!</code> は文字列を文字列として、数値を数値として、<code>Vec&lt;T&gt;</code> を配列として、<code>Option&lt;T&gt;</code> を null または値としてシリアライズします。<code>.to_string()</code> でラップするのは、その型が <code>impl Serialize</code> を持たない場合（例: <code>anyhow::Error</code>、<code>reqwest::Error</code>、<code>std::io::Error</code>、<code>Path::Display</code>、<code>StatusCode</code>）のみにすること。</p>
-<h3 id="プレースホルダールール"><a class="header" href="#プレースホルダールール">プレースホルダールール</a></h3>
-<p><code>"raw error body: {body}"</code> のような Rust の文字列リテラルプレースホルダーは、<code>record!</code> メッセージ内では使用できません。Rust 2021 の暗黙的なフォーマット文字列キャプチャは <code>record!</code> を経由しないため、すべての <code>{var}</code> は置換されずにリテラル部分文字列になります。変換ルール:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// 悪い例 — {body} はリテラルであり、補間されません
-record!(WARN, Event::new(module_path!(), Action::Fail), raw error body: {body});
-
-// GOOD — body in attrs, message is plain prose
-record!(WARN, Event::new(module_path!(), Action::Fail).with_attrs(serde_json::json!({「body」: body})), raw error body);
-<span class="boring">}</span></code></pre>
-<h2 id="eventactioneventoutcomeeventcategory"><a class="header" href="#eventactioneventoutcomeeventcategory"><code>Event</code>、<code>Action</code>、<code>EventOutcome</code>、<code>EventCategory</code></a></h2>
-<p>4 つすべては <code>crates/zeroclaw-log/src/event.rs</code> で定義されたクローズドな列挙型です。値の追加だけが変更点であり、呼び出し側で文字列を新たに作成することはありません。</p>
-<ul>
-<li><code>Action</code> — クローズドな動詞セット。<code>strum::IntoStaticStr</code> によりディスク上では snake_case 化される: <code>Start</code>、<code>Complete</code>、<code>Fail</code>、<code>Cancel</code>、<code>Skip</code>、<code>Timeout</code>、<code>Retry</code>、<code>Inbound</code>、<code>Outbound</code>、<code>Send</code>、<code>Receive</code>、<code>Connect</code>、<code>Disconnect</code>、<code>Reconnect</code>、<code>Spawn</code>、<code>Kill</code>、<code>Tick</code>、<code>Trigger</code>、<code>Schedule</code>、<code>Approve</code>、<code>Reject</code>、<code>Defer</code>、<code>Read</code>、<code>Write</code>、<code>Delete</code>、<code>List</code>、<code>Query</code>、<code>Invoke</code>、<code>Dispatch</code>、<code>Resolve</code>、<code>Register</code>、<code>Unregister</code>、<code>Load</code>、<code>Save</code>、<code>Migrate</code>、<code>Validate</code>、<code>Note</code>。</li>
-<li><code>EventOutcome</code> — <code>Success</code>、<code>Failure</code>、<code>Unknown</code>（デフォルト — <code>trace_id</code> を介して対応する Start と関連付けられた最終結果）。</li>
-<li><code>EventCategory</code> — <code>Agent</code>、<code>Channel</code>、<code>Cron</code>、<code>Memory</code>、<code>Tool</code>、<code>Provider</code>、<code>Session</code>、<code>System</code>、<code>Internal</code>。<code>Event::with_category(...)</code> でオーバーライドされない限り、最も内側のロールスパンから導出されます。</li>
-</ul>
-<h2 id="帰属"><a class="header" href="#帰属">帰属</a></h2>
-<p>エイリアスにバインドされた属性（channel composite、agent_alias、model_provider、tool、cron_job_id など）は、呼び出し側の引数になることはありません。これらは、エントリーポイントで開かれ、レイヤーによってたどられるトレーシングスパンを通じて伝播します。</p>
+<p>The on-disk JSONL append happens last and only when persistence is enabled; the Observer bridge and broadcast hook fire unconditionally.</p>
+<h2 id="read-this-first-attribution-is-not-attrs"><a class="header" href="#read-this-first-attribution-is-not-attrs">Read this first: attribution is not attrs</a></h2>
+<p>Every log event carries two completely separate channels of structured data. Confusing them is the single most common mistake at a call site, so internalize the split before anything else:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th></th><th><strong>Attribution</strong> (<code>zeroclaw.*</code>)</th><th><strong>Attrs</strong> (<code>attributes.*</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Answers</strong></td><td><em>Who</em> did it and <em>under what context</em></td><td><em>What</em> specifically happened</td></tr>
+<tr><td><strong>Examples</strong></td><td><code>channel</code>, <code>agent_alias</code>, <code>model_provider</code>, <code>tool</code>, <code>session_key</code>, <code>cron_job_id</code></td><td><code>bytes_received</code>, <code>tokens_used</code>, <code>status_code</code>, error payloads</td></tr>
+<tr><td><strong>Source</strong></td><td><strong>Spans.</strong> Opened at entry points, walked by the layer.</td><td><strong>The call site.</strong> <code>Event::with_attrs(json!({...}))</code>.</td></tr>
+<tr><td><strong>Appears at the call site?</strong></td><td><strong>Never.</strong> Not a <code>record!</code> argument.</td><td>Yes, that’s the only place it can come from.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The rule that falls out of this: <strong>if a value identifies who or what scope an event belongs to, it comes from a span and must never appear at the call site.</strong> Attribution flows in automatically from <code>attribution_span!</code> / <code>scope!</code> wrappers opened higher up the stack; the layer walks the span scope leaf→root when an event fires and merges every contribution into the event’s <code>zeroclaw.*</code> block. The call site that fires <code>record!</code> names none of it.</p>
+<p>Because attribution is the load-bearing half of this split and the half that trips people up, it comes first.</p>
+<h2 id="attribution-it-all-comes-from-spans"><a class="header" href="#attribution-it-all-comes-from-spans">Attribution: it all comes from spans</a></h2>
+<p><strong>Attribution is never a call-site argument.</strong> Read that again. Channel composite, agent_alias, model_provider, tool, session_key, cron_job_id: none of these are ever typed into a <code>record!</code> call. They flow in through tracing spans opened at entry points and walked by the layer when an event fires. If you find yourself wanting to pass <code>agent_alias</code> or <code>tool</code> to <code>record!</code>, stop: the value is already in scope through a span, or it should be, and the fix is to open or fix the span, not to thread the value into the call site.</p>
+<p>The mechanism, end to end:</p>
+<ol>
+<li>A “thing” (channel, provider, agent, tool, cron job, memory backend, …) implements <code>Attributable</code> once, next to its struct.</li>
+<li>Its entry point wraps work in <code>attribution_span!(self)</code>, which opens a tracing span carrying that thing’s role and alias.</li>
+<li>Every <code>record!</code> fired anywhere inside that span, directly or nested arbitrarily deep, inherits the attribution automatically.</li>
+<li>When the event fires, the layer walks the span scope <strong>leaf→root</strong>, merges every <code>Attributable</code>’s contribution, and writes the merged <code>zeroclaw.*</code> block. The call site named none of it.</li>
+</ol>
+<p>This is the whole point of the design: per-thing logging code is zero. You impl the trait once and wrap the entry point once; every emission underneath is attributed for free.</p>
 <h3 id="attributable-トレイト"><a class="header" href="#attributable-トレイト"><code>Attributable</code> トレイト</a></h3>
 <p>すべてのクレートが <code>zeroclaw-log</code> に依存せずに実装できるよう、<code>crates/zeroclaw-api/src/attribution.rs</code> に配置されています:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -293,17 +348,18 @@ record!(WARN, Event::new(module_path!(), Action::Fail).with_attrs(serde_json::js
     Tool(ToolKind),             // Shell、HttpRequest、FetchUrl、...
     Cron(CronKind),             // Interval、At、Cron、Once
     Provider(ProviderKind),     // Model、Tts、Transcription、Tunnel
-    Memory(MemoryKind),         // Sqlite、Json、InMemory
+    Memory(MemoryKind),         // Sqlite, Json, InMemory, Markdown, Qdrant, ...
     PeerGroup,
     Skill,
     Mcp,
+    Sop,
     Session,
     System,
 }
 <span class="boring">}</span></code></pre>
 <p><code>ChannelKind</code>、<code>ToolKind</code>、<code>CronKind</code>、<code>MemoryKind</code>、および4つの<code>ProviderKind</code>サブ列挙型（<code>ModelProviderKind</code>、<code>TtsProviderKind</code>、<code>TranscriptionProviderKind</code>、<code>TunnelProviderKind</code>）はすべてクローズドです。<code>strum::IntoStaticStr</code>によるバリアントのsnake_case形式が、<code>&lt;type&gt;.&lt;alias&gt;</code>複合体の正規の<code>&lt;type&gt;</code>部分となります。新しい実装を追加するには、該当する<code>Kind</code>列挙型を拡張するだけです。</p>
-<h3 id="スパンを開く"><a class="header" href="#スパンを開く">スパンを開く</a></h3>
-<p>エントリーポイントの処理を <code>attribution_span!(thing)</code> でラップします。このマクロは、thing のロールとエイリアスを構造化フィールドとして保持する <code>Span</code> を返します。future には <code>.instrument(span)</code> を使用します（同期コードでは <code>let _g = span.entered()</code> を使用します）。</p>
+<h3 id="opening-a-span-do-this-at-every-entry-point"><a class="header" href="#opening-a-span-do-this-at-every-entry-point">Opening a span, do this at every entry point</a></h3>
+<p>Wrap an entry-point’s work with <code>attribution_span!(thing)</code>. The macro returns a <code>Span</code> carrying the thing’s role and alias as structured fields. <code>.instrument(span)</code> the future (or <code>let _g = span.entered()</code> in sync code). <strong>A spawned task that does not re-establish the span loses attribution</strong>: every <code>tokio::spawn</code> body that emits must carry the same <code>attribution_span!</code> / <code>scope!</code> the parent used, or its emissions land un-attributed.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use zeroclaw_log::Instrument;
@@ -316,8 +372,8 @@ async move {
 }.instrument(span).await
 <span class="boring">}</span></code></pre>
 <p>イベントが発生すると、レイヤーはspanスコープをleaf→rootの順にたどり、各<code>Attributable</code>の寄与をイベントの<code>zeroclaw.*</code>属性ブロックにマージし、合成結果(<code>channel = "telegram.clamps"</code>、<code>channel_type = "telegram"</code>、<code>channel_alias = "clamps"</code>)を出力します。この際、呼び出し側はこれらのキーを一切指定する必要がありません。</p>
-<h3 id="scope-マクロ"><a class="header" href="#scope-マクロ"><code>scope!</code> マクロ</a></h3>
-<p>ロールを持つ <code>Attributable</code> なものに紐付かないスコープ単位の識別子（送信者 ID、メッセージ ID、ターン ID、リクエスト ID）には、<code>scope!</code> を使用してください:</p>
+<h3 id="the-scope-macro-non-role-context"><a class="header" href="#the-scope-macro-non-role-context">The <code>scope!</code> macro, non-role context</a></h3>
+<p><code>attribution_span!</code> is for role-bearing <code>Attributable</code> things. For per-scope identifiers that aren’t tied to one (sender id, message id, turn id, request id), use <code>scope!</code>:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>zeroclaw_log::scope!(
@@ -326,27 +382,75 @@ async move {
     =&gt; async move { process_message(msg).await }
 ).await
 <span class="boring">}</span></code></pre>
-<p>エイリアスにバインドされた <code>ATTRIBUTION_FIELDS</code> / <code>COMPOSITE_PREFIXES</code>（<code>crates/zeroclaw-log/src/event.rs</code> 内）に一致するフィールドキーは型付きのアトリビューションスロットに格納され、それ以外はすべてのdescendant emissionについてイベントの <code>attributes</code> マップに格納されます。</p>
+<p><code>scope!</code> straddles the attribution/attrs line deliberately: field keys that match the alias-bound <code>ATTRIBUTION_FIELDS</code> / <code>COMPOSITE_PREFIXES</code> (in <code>crates/zeroclaw-log/src/event.rs</code>) land in the typed <code>zeroclaw.*</code> attribution slot; everything else lands in the event <code>attributes</code> map for every descendant emission. Either way the value rides on every nested <code>record!</code> without being a call-site argument.</p>
+<h2 id="the-record-macro-and-its-call-site-contract"><a class="header" href="#the-record-macro-and-its-call-site-contract">The <code>record!</code> macro and its call-site contract</a></h2>
+<p>The <code>tracing</code> crate is <code>zeroclaw-log</code>’s implementation detail: the <code>record!</code> / <code>scope!</code> / <code>attribution_span!</code> macros expand to <code>zeroclaw_log::__private::tracing</code> so a call site never names a tracing type. The log-event macros themselves (<code>tracing::{trace,debug,info,warn,error}</code>, <code>log::*</code>, <code>std::dbg</code>, plus bare <code>anyhow::anyhow!</code>) are <strong>hard-banned workspace-wide</strong> as <code>disallowed-macros</code> in <code>clippy.toml</code>. With <code>-D warnings</code> in CI, any direct <code>tracing::info!</code> etc. <strong>fails the build</strong>, with a clippy message naming <code>::zeroclaw_log::record!</code> as the replacement. This is not a convention; it is enforced.</p>
+<p>The only exemptions are the few files inside <code>crates/zeroclaw-log/</code> that bootstrap the pipeline and carry a local <code>#![allow(clippy::disallowed_macros)]</code>. A handful of crates (<code>zeroclaw-api</code>, <code>zeroclaw-spawn</code>, <code>zeroclaw-providers</code>, <code>zeroclaw-hardware</code>, <code>zeroclaw-log</code>) still list <code>tracing</code> / <code>tracing-subscriber</code> in <code>Cargo.toml</code>, but only for span and subscriber plumbing, not for emitting log macros. The dependency being present does not license calling the banned macros. (<code>tokio::spawn</code> is banned the same way via <code>disallowed-methods</code>; use <code>::zeroclaw_spawn::spawn!</code> so spawned tasks inherit the caller’s attribution span.)</p>
+<p>マクロはlocked-shapeです。レベル、単一の<code>Event</code>式、そしてメッセージリテラルを受け取ります。</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use zeroclaw_log::{record, Event, Action, EventCategory, EventOutcome};
+
+record!(INFO, Event::new(module_path!(), Action::Start), 開始ステップ);
+record!(WARN, Event::new(module_path!(), Action::Fail).with_outcome(EventOutcome::Failure).with_attrs(serde_json::json!({exit_code: 137})), ツールが失敗しました);
+<span class="boring">}</span></code></pre>
+<p><code>module_path!()</code> is the canonical source of the event name: it’s the Rust module path of the call site (e.g. <code>zeroclaw_channels::telegram</code>), so events are searchable, jump-to-source-able, and impossible to typo. The same convention is used at every <code>record!</code> site in the workspace.</p>
+<p>このマクロは <code>file!()</code> と <code>line!()</code> を自動的に挿入します。<code>LogCaptureLayer</code> はそれらをイベントの <code>attributes</code> マップに <code>_file</code> と <code>_line</code> として付加するため、オペレーターはログビューアーからソースへジャンプできます。</p>
+<h3 id="コールサイト契約"><a class="header" href="#コールサイト契約">コールサイト契約</a></h3>
+<p>すべての <code>record!</code> 呼び出しは、<strong>何が起きたか</strong>を示す単一行のコードであり、<strong>誰がどのような状況で実行したか</strong>を示すものではありません。</p>
+<ul>
+<li>レベルの後に続く単一の位置引数は <code>Event</code> 式です。</li>
+<li>次の引数は、人間が読めるメッセージの文字列リテラルです。</li>
+<li>That is everything. Channel, agent_alias, provider, tool, session_key, cron_job_id, model: none of those are call-site arguments. They flow in from spans (see <a href="#attribution-it-all-comes-from-spans">Attribution: it all comes from spans</a>).</li>
+</ul>
+<p>この形状は <code>Event</code> 構造体によって強制されます。未知のフィールドはコンパイルエラーになります。</p>
+<h3 id="attrs-が妥当な場合"><a class="header" href="#attrs-が妥当な場合">attrs が妥当な場合</a></h3>
+<p><code>Event::with_attrs(serde_json::json!({...}))</code> は、周囲のスコープのどこにも存在しないイベントごとの計測値やアドホックなデータに使用します。具体的には:</p>
+<ul>
+<li>イベントごとの計測値: <code>bytes_received</code>、<code>tokens_used</code>、<code>retry_count</code>、<code>status_code</code>、<code>queue_depth</code>。</li>
+<li>エラー自体がイベントである場合のエラーペイロード: anyhow のチェーンテキスト、HTTP エラーボディ、パースエラーの詳細。</li>
+<li>外部システムの識別子: リモートAPIの <code>request_id</code>、上流のトレースヘッダー。</li>
+<li>この時点でキャプチャされた派生状態: 処理中の件数、retry-after 秒数。</li>
+</ul>
+<p><strong>Attrs are NOT for</strong> anything that comes from the surrounding scope: channel composite, agent_alias, model_provider, tool, session_key, cron_job_id, sender, message_id, etc. Those belong in a wrapping <code>attribution_span!</code> or <code>scope!</code>.</p>
+<p>serde のルール: <strong>生の値</strong>を渡すこと。<code>format!("{}", v)</code> や <code>format!("{:?}", v)</code> は決して使わない。<code>serde_json::json!</code> は文字列を文字列として、数値を数値として、<code>Vec&lt;T&gt;</code> を配列として、<code>Option&lt;T&gt;</code> を null または値としてシリアライズします。<code>.to_string()</code> でラップするのは、その型が <code>impl Serialize</code> を持たない場合（例: <code>anyhow::Error</code>、<code>reqwest::Error</code>、<code>std::io::Error</code>、<code>Path::Display</code>、<code>StatusCode</code>）のみにすること。</p>
+<h3 id="プレースホルダールール"><a class="header" href="#プレースホルダールール">プレースホルダールール</a></h3>
+<p>Rust string-literal placeholders like <code>"raw error body: {body}"</code> are forbidden inside <code>record!</code> messages. Rust 2021’s implicit format-string capture does not flow through <code>record!</code>: every <code>{var}</code> becomes a literal substring with no substitution. The conversion rule:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// 悪い例 — {body} はリテラルであり、補間されません
+record!(WARN, Event::new(module_path!(), Action::Fail), raw error body: {body});
+
+// GOOD — body in attrs, message is plain prose
+record!(WARN, Event::new(module_path!(), Action::Fail).with_attrs(serde_json::json!({「body」: body})), raw error body);
+<span class="boring">}</span></code></pre>
+<h2 id="eventactioneventoutcomeeventcategory"><a class="header" href="#eventactioneventoutcomeeventcategory"><code>Event</code>、<code>Action</code>、<code>EventOutcome</code>、<code>EventCategory</code></a></h2>
+<p>All four are closed enums defined in <code>crates/zeroclaw-log/src/event.rs</code>. Adding a value is the only point of change: call sites do not invent strings.</p>
+<ul>
+<li><code>Action</code>: closed verb set, snake-cased on disk via <code>strum::IntoStaticStr</code>: <code>Start</code>, <code>Complete</code>, <code>Fail</code>, <code>Cancel</code>, <code>Skip</code>, <code>Timeout</code>, <code>Retry</code>, <code>Inbound</code>, <code>Outbound</code>, <code>Send</code>, <code>Receive</code>, <code>Connect</code>, <code>Disconnect</code>, <code>Reconnect</code>, <code>Spawn</code>, <code>Kill</code>, <code>Tick</code>, <code>Trigger</code>, <code>Schedule</code>, <code>Approve</code>, <code>Reject</code>, <code>Defer</code>, <code>Read</code>, <code>Write</code>, <code>Delete</code>, <code>List</code>, <code>Query</code>, <code>Invoke</code>, <code>Dispatch</code>, <code>Resolve</code>, <code>Register</code>, <code>Unregister</code>, <code>Load</code>, <code>Save</code>, <code>Migrate</code>, <code>Validate</code>, <code>Note</code>.</li>
+<li><code>EventOutcome</code>: <code>Success</code>, <code>Failure</code>, <code>Unknown</code>. <code>Unknown</code> is the default and is skipped on serialization (omitted from the on-disk <code>event.outcome</code>), so a row with no <code>outcome</code> key is implicitly <code>Unknown</code>.</li>
+<li><code>EventCategory</code>: <code>Agent</code>, <code>Channel</code>, <code>Cron</code>, <code>Memory</code>, <code>Tool</code>, <code>Provider</code>, <code>Session</code>, <code>System</code>, <code>Internal</code>. Derived from the innermost role span unless overridden via <code>Event::with_category(...)</code>.</li>
+</ul>
 <h2 id="ツールの入出力の伝播"><a class="header" href="#ツールの入出力の伝播">ツールの入出力の伝播</a></h2>
-<p>中央ツールエグゼキューター（<code>crates/zeroclaw-runtime/src/agent/tool_execution.rs::execute_one_tool</code>）は、すべての <code>Tool::execute(args)</code> 呼び出しを start/complete/fail イベントでラップします:</p>
+<p>The central tool executor (<code>crates/zeroclaw-runtime/src/agent/tool_execution.rs::execute_one_tool</code>) wraps every <code>Tool::execute(args)</code> call with invoke/complete/fail events. Each event’s name is <code>module_path!()</code> (the executor’s own module), not a hardcoded string; the <code>Action</code> and severity distinguish them:</p>
 <ol>
-<li><code>Event::new("tool.invoke.start", Action::Invoke)</code> を <code>args</code> を attrs に含めて発行します。</li>
+<li>Before running: <code>record!(DEBUG, Event::new(module_path!(), Action::Invoke).with_category(EventCategory::Tool).with_attrs(...))</code> with <code>tool</code>, <code>tool_call_id</code>, and the full <code>input</code> in attrs.</li>
 <li><code>execute(args).await</code> を実行します。</li>
-<li>成功時: <code>Outcome::Success</code>、所要時間、出力を attrs に含む <code>Event::new("tool.invoke.complete", Action::Complete)</code>。</li>
-<li>失敗時: <code>Outcome::Failure</code>、実行時間、attrs にエラー/出力を含む <code>Event::new("tool.invoke.fail", Action::Fail)</code>。</li>
-<li>パニック時 / <code>Err</code> 時: 同じ失敗イベントを発行し、エラーチェーンを属性に格納します。</li>
+<li>On success (<code>r.success</code>): <code>record!(DEBUG, ... Action::Complete)</code> with <code>Outcome::Success</code>, the duration, and <code>tool</code> / <code>tool_call_id</code> / <code>input</code> / <code>output</code> in attrs.</li>
+<li>On tool-reported failure (<code>!r.success</code>): <code>record!(WARN, ... Action::Fail)</code> with <code>Outcome::Failure</code>, the duration, and <code>tool</code> / <code>tool_call_id</code> / <code>input</code> / <code>error</code> / <code>output</code> in attrs.</li>
+<li>On <code>Err</code> from <code>execute</code>: <code>record!(ERROR, ... Action::Fail)</code> with <code>Outcome::Failure</code>, the duration, and the debug-formatted error in attrs.</li>
 </ol>
-<p>ツールごとの <code>Tool::execute</code> 実装にはログコードを一切追加しません。対になるペア（start ↔ complete/fail）は、周囲のスパンスコープを介して <code>trace_id</code> を共有するため、ダッシュボードクエリでそれらを関連付けることができます。</p>
+<p>These events are emitted inside a <code>scope!</code>-style span (<code>target = "zeroclaw_log_internal_scope"</code>, field <code>tool = &lt;name&gt;</code>) opened around the call, so the <code>tool</code> field rides on every descendant emission too. Per-tool <code>Tool::execute</code> impls add zero logging code.</p>
 <h2 id="logcapturelayer-とディスク上のスキーマ"><a class="header" href="#logcapturelayer-とディスク上のスキーマ"><code>LogCaptureLayer</code> とディスク上のスキーマ</a></h2>
 <p><code>crates/zeroclaw-log/src/layer.rs</code> のレイヤーは、以下を行う <code>tracing-subscriber</code> Layer です:</p>
 <ol>
 <li>ターゲット <code>"zeroclaw_log_internal_attribution"</code>（<code>attribution_span!</code> マクロが開く際のターゲット）を指定した span の作成・記録時：role フィールドと alias フィールドを解析し、span の extensions に保存される <code>ZeroclawAttribution</code> スナップショットを生成します。</li>
 <li>ターゲット <code>"zeroclaw_log_internal_scope"</code>（<code>scope!</code> でオープンされたもの）でのスパン作成・記録時：アドホックな kvp を解析し、同様に格納します。</li>
-<li>ターゲット <code>"zeroclaw_log_event"</code>（<code>record!</code> マクロが発火するターゲット）でイベントが発行されると、<code>zc_*</code> フィールドセットから <code>LogEvent</code> を構築し、スパンスコープを leaf→root にたどって見つかったすべての属性スナップショットをマージし、<code>zc_attrs</code> JSON ブロブをイベントの <code>attributes</code> にパースし、自動キャプチャされたソース位置から <code>_file</code>/<code>_line</code> を付加して、最終的なイベントを次に書き込みます:
+<li>On event emission with target <code>"zeroclaw_log_event"</code> (the target the <code>record!</code> macro fires through): builds a <code>LogEvent</code> from the <code>zc_*</code> field set, walks the span scope leaf→root merging every attribution snapshot it finds, parses the <code>zc_attrs</code> JSON blob into the event <code>attributes</code>, attaches <code>_file</code>/<code>_line</code> from auto-captured source location, and hands the final event to <code>writer::record_event</code>, which fans out in this order:
 <ul>
-<li>JSONL永続化（<code>writer.rs</code>）。</li>
-<li>SSE/ダッシュボードのサブスクライバー向けブロードキャストフック（<code>broadcast.rs</code>）。</li>
-<li>Prometheus / OTel 型付きメトリクス用のオブザーバーブリッジ（<code>observer_bridge.rs</code>）。</li>
+<li>Observer bridge (<code>observer_bridge.rs</code>) for Prometheus / OTel typed metrics (unconditional).</li>
+<li>Broadcast hook (<code>broadcast.rs</code>) for SSE/dashboard subscribers (unconditional).</li>
+<li>JSONL persistence (<code>writer.rs</code>), appended last and only when <code>log_persistence</code> is enabled.</li>
 </ul>
 </li>
 </ol>
@@ -377,14 +481,18 @@ async move {
 </code></pre>
 <p><code>@timestamp</code> は RFC 3339 形式で <code>Z</code> 付きにシリアライズされる <code>chrono::DateTime&lt;Utc&gt;</code> です。スキーマバージョンは <code>2</code> で、古い <code>version: 1</code> の行はデーモン起動時に <code>migrate::migrate_legacy_jsonl_in_place</code> によってインプレースで移行されます。</p>
 <h2 id="logconfig-と-observabilityconfig-の比較"><a class="header" href="#logconfig-と-observabilityconfig-の比較"><code>LogConfig</code> と <code>ObservabilityConfig</code> の比較</a></h2>
-<p><code>zeroclaw-log</code> は独自の最小限の <code>LogConfig</code>（<code>crates/zeroclaw-log/src/config.rs</code> 内）を定義しています — <code>log_persistence</code>、<code>log_persistence_path</code>、<code>log_persistence_max_entries</code>、<code>log_tool_io</code>、<code>log_tool_io_truncate_bytes</code>、<code>log_tool_io_denylist</code>。これにより、本来であれば依存サイクルとなるものが回避されます。<code>zeroclaw-config::ObservabilityConfig</code> が完全なスキーマ（TOML のデシリアライズとバリデーションを含む）を保持し、ランタイムが起動時に <code>crates/zeroclaw-runtime/src/observability/runtime_trace.rs::to_log_config</code> を介して <code>LogConfig</code> に変換します。その結果、<code>zeroclaw-config</code> は依存ツリーを逆転させることなく <code>record!</code> を使用できます。</p>
+<p><code>zeroclaw-log</code> defines its own minimal <code>LogConfig</code> (in <code>crates/zeroclaw-log/src/config.rs</code>): <code>log_persistence</code>, <code>log_persistence_path</code>, <code>log_persistence_max_entries</code>, <code>log_tool_io</code>, <code>log_tool_io_truncate_bytes</code>, <code>log_tool_io_denylist</code>. This breaks what would otherwise be a dep cycle: <code>zeroclaw-config::ObservabilityConfig</code> carries the full schema (with TOML deserialization and validation), and the runtime converts to <code>LogConfig</code> at startup via <code>crates/zeroclaw-runtime/src/observability/runtime_trace.rs::to_log_config</code>. The result: <code>zeroclaw-config</code> can <code>record!</code> without inverting the dep tree.</p>
 <h2 id="サブスクライバーのインストール"><a class="header" href="#サブスクライバーのインストール">サブスクライバーのインストール</a></h2>
 <p>デーモンは次の方法でグローバルサブスクライバーをインストールします。</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>zeroclaw_log::install_global_subscriber("info,matrix_sdk=warn,matrix_sdk_base=warn");
+</span>zeroclaw_log::install_global_subscriber(
+    recording_filter.as_deref(),   // Option&lt;&amp;str&gt; — the --log-level flag, if set
+    &amp;default_filter,               // &amp;str — fallback filter when no flag and no RUST_LOG
+    cli.verbose,                   // bool — gates the stderr fmt (terminal) layer
+);
 <span class="boring">}</span></code></pre>
-<p>この単一の呼び出しで、エージェントエイリアスをプレフィックスとするターミナルフォーマッタと、<code>tracing-subscriber::Registry</code> 上の <code>LogCaptureLayer</code> がセットアップされます。<code>src/main.rs</code> がこれを呼び出す唯一の場所です。テストでは <code>zeroclaw_log::try_install_capture_subscriber()</code> と <code>zeroclaw_log::subscribe_or_install()</code> を使用して、テストクレート内で tracing 型を一切指定することなく、ブロードキャストフックを通じて発行されたイベントをドレインします。</p>
+<p>Two independent axes: the <strong>recording floor</strong> (what reaches <code>LogCaptureLayer</code>, resolved as flag → <code>RUST_LOG</code> → default) and <strong>terminal display</strong> (the stderr fmt layer, muted entirely unless <code>verbose</code> is true). That single call sets up the agent-alias-prefixed terminal formatter + the <code>LogCaptureLayer</code> over a <code>tracing-subscriber::Registry</code>. <code>src/main.rs</code> is the only place that calls it. Tests use <code>zeroclaw_log::try_install_capture_subscriber()</code> + <code>zeroclaw_log::subscribe_or_install()</code> to drain emitted events through the broadcast hook without any tracing types named in the test crate.</p>
 <h2 id="クローズドな列挙型を拡張すべき場合"><a class="header" href="#クローズドな列挙型を拡張すべき場合">クローズドな列挙型を拡張すべき場合</a></h2>
 <ul>
 <li><strong>新しいチャネルの実装</strong>: <code>ChannelKind</code> にバリアントを追加します。snake_case 形式がディスク上の <code>channel_type</code> 文字列になります。バリアント名を snake_case にしても目的の値にならない場合（例: <code>OpenAi</code> → <code>"openai"</code>）にのみ <code>#[strum(serialize = "...")]</code> を追加してください。</li>
@@ -392,7 +500,7 @@ async move {
 <li><strong>新しい cron スケジュール形状</strong>: <code>CronKind</code> に追加します。</li>
 <li><strong>新しいモデル / TTS / 文字起こし / トンネルプロバイダー</strong>: <code>ProviderKind</code> 配下の該当する <code>*ProviderKind</code> サブ列挙型に追加します。</li>
 <li><strong>新しいメモリバックエンド</strong>: <code>MemoryKind</code> に追加します。</li>
-<li><strong>まったく新しい <code>Role</code> ファミリー</strong>（PeerGroup / Skill / Mcp がサブタイプを取得）：その場で独自の <code>Kind</code> を使ってネストできます — パターンは統一されています。</li>
+<li><strong>New <code>Role</code> family altogether</strong> (PeerGroup / Skill / Mcp gain sub-types): nest with its own <code>Kind</code> on the fly: the pattern is uniform.</li>
 </ul>
 <p>次に、新しい構造体の隣に <code>impl Attributable for X</code> を追加し（<code>fn role() -&gt; Role::Family(Kind::Variant)</code>、<code>fn alias() -&gt; &amp;str { &amp;self.alias }</code>）、そのエントリポイントを <code>attribution_span!(self)</code> でラップします。残りはレイヤーが自動的に処理します。</p>
 <h2 id="オペレーターの懸念事項"><a class="header" href="#オペレーターの懸念事項">オペレーターの懸念事項</a></h2>
@@ -406,7 +514,7 @@ async move {
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../architecture/multi-agent.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../architecture/rpc-socket.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -420,7 +528,7 @@ async move {
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../architecture/multi-agent.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../architecture/rpc-socket.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

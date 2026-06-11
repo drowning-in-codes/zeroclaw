@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -221,85 +297,41 @@
 <h2 id="quick-paths"><a class="header" href="#quick-paths">Quick Paths</a></h2>
 <ul>
 <li><a href="#2-mqtt-integration">MQTT Integration</a></li>
-<li><a href="#3-webhook-integration">Webhook Integration</a></li>
-<li><a href="#4-cron-integration">Cron Integration</a></li>
-<li><a href="#5-security-defaults">Security Defaults</a></li>
-<li><a href="#6-troubleshooting">Troubleshooting</a></li>
+<li><a href="#3-other-trigger-types">Other Trigger Types</a></li>
+<li><a href="#4-security-defaults">Security Defaults</a></li>
+<li><a href="#5-troubleshooting">Troubleshooting</a></li>
 </ul>
 <h2 id="1-overview"><a class="header" href="#1-overview">1. Overview</a></h2>
-<p>ZeroClaw routes MQTT/webhook/cron/peripheral events through a unified SOP dispatcher (<code>dispatch_sop_event</code>).</p>
+<p>SOP runs are driven by events delivered to the SOP engine through <code>dispatch_sop_event</code>. The engine matches each event against every loaded SOP’s triggers and starts runs for those that match.</p>
 <p>Key behaviors:</p>
 <ul>
-<li><strong>Consistent trigger matching:</strong> one matcher path for all event sources.</li>
+<li><strong>Consistent trigger matching:</strong> one matcher path evaluates all trigger types.</li>
 <li><strong>Run-start audit:</strong> started runs are persisted via <code>SopAuditLogger</code>.</li>
-<li><strong>Headless safety:</strong> in non-agent-loop contexts, <code>ExecuteStep</code> actions are logged as pending (not silently executed).</li>
+<li><strong>Headless safety:</strong> in non-agent-loop contexts, <code>process_headless_results</code> logs <code>ExecuteStep</code> actions as pending instead of silently executing them.</li>
 </ul>
+<p>Of the defined trigger types, <strong>MQTT</strong> is the only event source wired to a live listener in the daemon. Runs can also be started directly from an agent turn with the <code>sop_execute</code> tool. The webhook, cron, and peripheral trigger types are defined and matched by the engine, but no runtime currently feeds those event sources into <code>dispatch_sop_event</code>. See <a href="#3-other-trigger-types">Other Trigger Types</a>.</p>
 <h2 id="2-mqtt-integration"><a class="header" href="#2-mqtt-integration">2. MQTT Integration</a></h2>
+<p>MQTT is delivered by <code>run_mqtt_sop_listener</code>, which subscribes to the broker, builds an MQTT <code>SopEvent</code> per message, and calls <code>dispatch_sop_event</code>. This path is gated by the <code>channel-mqtt</code> build feature.</p>
 <h3 id="21-configuration"><a class="header" href="#21-configuration">2.1 Configuration</a></h3>
-<p>Configure broker access with <code>zeroclaw config set channels.mqtt.&lt;field&gt; &lt;value&gt;</code> — the keys land under <code>[channels.mqtt]</code> in the stored config. See the <a href="../reference/config.html">Config reference</a> for all fields. The <code>use_tls</code> flag must match the scheme of <code>broker_url</code> (<code>mqtts://</code> ⇒ <code>true</code>, <code>mqtt://</code> ⇒ <code>false</code>).</p>
+<p>Configure broker access with <code>zeroclaw config set channels.mqtt.&lt;field&gt; &lt;value&gt;</code>: the keys land under <code>[channels.mqtt]</code> in the stored config. See the <a href="../reference/config.html">Config reference</a> for all fields. The <code>use_tls</code> flag must match the scheme of <code>broker_url</code> (<code>mqtts://</code> ⇒ <code>true</code>, <code>mqtt://</code> ⇒ <code>false</code>).</p>
 <h3 id="22-trigger-definition"><a class="header" href="#22-trigger-definition">2.2 Trigger Definition</a></h3>
-<p>In <code>SOP.toml</code>:</p>
-<pre><code class="language-toml">[[triggers]]
-type = "mqtt"
-topic = "sensors/alert"
-condition = "$.severity &gt;= 2"
-</code></pre>
-<p>MQTT payload is forwarded into SOP event payload (<code>event.payload</code>), then shown in step context.</p>
-<h2 id="3-webhook-integration"><a class="header" href="#3-webhook-integration">3. Webhook Integration</a></h2>
-<h3 id="31-endpoints"><a class="header" href="#31-endpoints">3.1 Endpoints</a></h3>
-<ul>
-<li><strong><code>POST /sop/{*rest}</code></strong>: SOP-only endpoint. Returns <code>404</code> if no SOP matches.</li>
-<li><strong><code>POST /webhook</code></strong>: chat endpoint. SOP dispatch runs first; on no match, the request enters the normal LLM flow.</li>
-</ul>
-<p>Path matching is exact against configured webhook trigger path.</p>
-<p>Example:</p>
-<ul>
-<li>Trigger path in SOP: <code>path = "/sop/deploy"</code></li>
-<li>Matching request: <code>POST /sop/deploy</code></li>
-</ul>
-<h3 id="32-authorization"><a class="header" href="#32-authorization">3.2 Authorization</a></h3>
-<p>When pairing is enabled (default), provide:</p>
-<ol>
-<li><code>Authorization: Bearer &lt;token&gt;</code> (from <code>POST /pair</code>)</li>
-<li>Optional second layer: <code>X-Webhook-Secret: &lt;secret&gt;</code> when webhook secret is configured</li>
-</ol>
-<h3 id="33-idempotency"><a class="header" href="#33-idempotency">3.3 Idempotency</a></h3>
-<p>Use:</p>
-<p><code>X-Idempotency-Key: &lt;unique-key&gt;</code></p>
-<p>Defaults:</p>
-<ul>
-<li>TTL: 300s</li>
-<li>Duplicate response: <code>200 OK</code> with <code>"status": "duplicate"</code></li>
-</ul>
-<p>Idempotency keys are namespaced per endpoint (<code>/webhook</code> vs <code>/sop/*</code>).</p>
-<h3 id="34-example-request"><a class="header" href="#34-example-request">3.4 Example Request</a></h3>
-<pre><code class="language-bash">curl -X POST http://127.0.0.1:42617/sop/deploy \
-  -H "Authorization: Bearer &lt;token&gt;" \
-  -H "X-Idempotency-Key: $(uuidgen)" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"deploy-service-a"}'
-</code></pre>
-<p>Typical response:</p>
-<pre><code class="language-json">{
-  "status": "accepted",
-  "matched_sops": ["deploy-pipeline"],
-  "source": "sop_webhook",
-  "path": "/sop/deploy"
-}
-</code></pre>
-<h2 id="4-cron-integration"><a class="header" href="#4-cron-integration">4. Cron Integration</a></h2>
-<p>The scheduler evaluates cached cron triggers using a window-based check.</p>
-<ul>
-<li><strong>Window-based:</strong> events within <code>(last_check, now]</code> are not missed.</li>
-<li><strong>At-most-once per expression per tick:</strong> if multiple fire points are in one poll window, dispatch happens once.</li>
-</ul>
-<p>Trigger example:</p>
-<pre><code class="language-toml">[[triggers]]
-type = "cron"
-expression = "0 0 8 * * *"
-</code></pre>
-<p>Cron expressions support 5, 6, or 7 fields.</p>
-<h2 id="5-security-defaults"><a class="header" href="#5-security-defaults">5. Security Defaults</a></h2>
+<p>The SOP’s trigger is defined in its <code>SOP.toml</code> (see <a href="./syntax.html">Syntax</a>). Topic patterns support <code>+</code> (single-level) and <code>#</code> (multi-level) wildcards. The MQTT payload is forwarded into the SOP event payload (<code>event.payload</code>) and is available to an optional trigger <code>condition</code>, then shown in step context.</p>
+<h2 id="3-other-trigger-types"><a class="header" href="#3-other-trigger-types">3. Other Trigger Types</a></h2>
+<p>The engine defines and matches three further trigger types, but no live event source currently routes events into the dispatcher for them. The trigger syntax is accepted in <code>SOP.toml</code> and validated (see <a href="./syntax.html">Syntax</a>); the matching logic is exercised by tests, but the runtime fan-in is not yet wired.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Trigger type</th><th>Matcher</th><th>Wiring status</th></tr>
+</thead>
+<tbody>
+<tr><td><code>webhook</code></td><td>Exact match against the trigger <code>path</code></td><td>No HTTP route delivers webhook <code>SopEvent</code>s; the gateway has no SOP endpoint.</td></tr>
+<tr><td><code>cron</code></td><td><code>check_sop_cron_triggers</code> performs a window-based check over cached cron triggers</td><td>Defined, but no scheduler caller invokes it outside tests.</td></tr>
+<tr><td><code>peripheral</code></td><td>Exact match against <code>"{board}/{signal}"</code></td><td><code>dispatch_peripheral_signal</code> exists, but no peripheral listener calls it outside tests.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Defining one of these triggers in a <code>SOP.toml</code> is valid and will not error, but the SOP will only ever start via MQTT or <code>sop_execute</code> until the corresponding event source is wired.</p>
+<h2 id="4-security-defaults"><a class="header" href="#4-security-defaults">4. Security Defaults</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -307,14 +339,12 @@ expression = "0 0 8 * * *"
 </thead>
 <tbody>
 <tr><td><strong>MQTT transport</strong></td><td><code>mqtts://</code> + <code>use_tls = true</code> for TLS transport</td></tr>
-<tr><td><strong>Webhook auth</strong></td><td>Pairing bearer token (default required), optional shared secret header</td></tr>
-<tr><td><strong>Rate limiting</strong></td><td>Per-client limits on webhook routes (<code>webhook_rate_limit_per_minute</code>, default <code>60</code>)</td></tr>
-<tr><td><strong>Idempotency</strong></td><td>Header-based dedup (<code>X-Idempotency-Key</code>, default TTL <code>300s</code>)</td></tr>
 <tr><td><strong>Cron validation</strong></td><td>Invalid cron expressions fail closed during parsing/cache build</td></tr>
+<tr><td><strong>Headless dispatch</strong></td><td>Headless callers log run progression instead of auto-executing <code>ExecuteStep</code></td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="6-troubleshooting"><a class="header" href="#6-troubleshooting">6. Troubleshooting</a></h2>
+<h2 id="5-troubleshooting"><a class="header" href="#5-troubleshooting">5. Troubleshooting</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -322,10 +352,9 @@ expression = "0 0 8 * * *"
 </thead>
 <tbody>
 <tr><td><strong>MQTT</strong> connection errors</td><td>broker URL/TLS mismatch</td><td>Verify scheme + TLS flag pairing (<code>mqtt://</code>/<code>false</code>, <code>mqtts://</code>/<code>true</code>)</td></tr>
-<tr><td><strong>Webhook</strong> <code>401 Unauthorized</code></td><td>missing bearer or invalid secret</td><td>re-pair token (<code>POST /pair</code>) and verify <code>X-Webhook-Secret</code> if configured</td></tr>
-<tr><td><strong><code>/sop/*</code> returns 404</strong></td><td>trigger path mismatch</td><td>ensure <code>SOP.toml</code> uses exact path (for example <code>/sop/deploy</code>)</td></tr>
-<tr><td><strong>SOP started but step not executed</strong></td><td>headless trigger without active agent loop</td><td>run an agent loop for <code>ExecuteStep</code>, or design run to pause on approvals</td></tr>
-<tr><td><strong>Cron not firing</strong></td><td>daemon not running or invalid expression</td><td>run <code>zeroclaw daemon</code>; check logs for cron parse warnings</td></tr>
+<tr><td><strong>MQTT</strong> SOP not starting</td><td>topic pattern mismatch or failing <code>condition</code></td><td>Verify the trigger topic/wildcards match the published topic; check the <code>condition</code> against the payload</td></tr>
+<tr><td><strong>SOP started but step not executed</strong></td><td>headless trigger without active agent loop</td><td>run an agent loop for <code>ExecuteStep</code>, or design the run to pause on approvals</td></tr>
+<tr><td><strong>Webhook/cron/peripheral trigger never fires</strong></td><td>event source not wired into the dispatcher</td><td>use an MQTT trigger or start the run with <code>sop_execute</code></td></tr>
 </tbody>
 </table>
 </div>

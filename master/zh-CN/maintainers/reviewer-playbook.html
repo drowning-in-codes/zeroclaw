@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -244,31 +320,31 @@
 <tbody>
 <tr><td><code>风险：低</code></td><td>文档、测试、代码维护、隔离的非运行时</td><td>1 名审查者 + CI 门禁</td><td>一致的本地验证，无行为歧义</td></tr>
 <tr><td><code>风险：中等</code></td><td><code>crates/zeroclaw-providers/</code>、<code>crates/zeroclaw-channels/</code>、<code>crates/zeroclaw-memory/</code>、<code>crates/zeroclaw-config/</code></td><td>1 个子系统感知审查员 + 行为验证</td><td>聚焦场景证明，显式副作用</td></tr>
-<tr><td><code>风险：高</code></td><td><code>crates/zeroclaw-runtime/src/security/</code>、<code>crates/zeroclaw-runtime/</code> 的其余部分、<code>crates/zeroclaw-gateway/</code>、<code>crates/zeroclaw-tools/</code>、<code>.github/workflows/</code></td><td>快速分诊 + 深度审查 + 回滚准备</td><td>安全性和故障模式检查，回滚清晰度</td></tr>
+<tr><td><code>风险：高</code></td><td>The <a href="./labels.html#risk-labels">canonical high-risk path set</a> (runtime, gateway, tools, security, <code>.github/workflows/</code>)</td><td>快速分诊 + 深度审查 + 回滚准备</td><td>安全性和故障模式检查，回滚清晰度</td></tr>
 </tbody>
 </table>
 </div>
 <p>当不确定时，视为高风险。</p>
-<p>如果 path-labeler 的风险推断在上下文中不正确，请应用 <code>risk: manual</code> 并显式设置最终的 <code>risk:*</code> 标签——手动设置会冻结任何未来的自动重新计算。</p>
+<p>Risk labels are currently manual. If future risk automation is restored, follow the <a href="./labels.html#automation-contract">labels automation contract</a>: apply <code>risk: manual</code> when a maintainer correction should not be overwritten on the next pushed update.</p>
 <p>标签属于维护者元数据。如果正确的标签显而易见且你拥有相应权限，请在完成审查前自行修正。仅当标签选择存在歧义，或没有具备标签权限的人员可用时，才询问作者。</p>
 <h2 id="标准工作流程"><a class="header" href="#标准工作流程">标准工作流程</a></h2>
 <h3 id="五分钟摄入量"><a class="header" href="#五分钟摄入量">五分钟摄入量</a></h3>
 <p>对于每一个新的 PR，在查看任何代码之前：</p>
 <ol>
 <li>确认 PR 模板填写完整：摘要、验证证据、安全与隐私、兼容性、回滚方案（适用于中/高风险变更）。</li>
-<li>确认标签存在且合理 —— <code>size:*</code>、<code>risk:*</code>、范围标签，以及适用时的贡献者层级。</li>
+<li>Confirm labels are present and plausible: <code>size:*</code>, <code>risk:*</code>, scope labels, contributor tier where applicable.</li>
 <li>确认 <code>CI Required Gate</code> 信号状态。</li>
 <li>确认范围是一个重要的考量因素。除非对混合功能有明确的理由，否则包含多种功能的超大 PR 会被退回要求拆分。</li>
 <li>确认隐私/数据卫生规则。请参阅 <a href="../contributing/privacy.html">隐私</a> 获取完整规则。</li>
 </ol>
-<p>如果任何准入检查失败，请留下一条可操作的清单评论并停止。不要对未通过准入的 PR 进行深度审查——在这一层进行来回沟通的成本低于在代码差异已被分析之后。</p>
+<p>If any intake check fails, leave one actionable checklist comment and stop. Don’t deep-review a PR that hasn’t passed intake: the back-and-forth is cheaper at this layer than after the diff has been reasoned about.</p>
 <h3 id="快速通道清单每个-pr"><a class="header" href="#快速通道清单每个-pr">快速通道清单（每个 PR）</a></h3>
 <ul>
 <li>作用域边界明确且可信。</li>
 <li>验证命令已存在，且结果一致。</li>
 <li>用户可见的行为变更已记录。</li>
 <li>作者展示了对行为和影响范围的理解（尤其是对于 AI 辅助的 PR）。</li>
-<li>回滚路径是具体的——“revert”并不具体。</li>
+<li>Rollback path is concrete; “revert” is not concrete.</li>
 <li>兼容性和迁移影响是明确的。</li>
 <li>没有个人数据或敏感数据泄露到差异制品中；测试使用中性、项目范围内的占位符。</li>
 <li>命名和架构边界遵循项目约定（<code>AGENTS.md</code>、<a href="../developing/extension-examples.html">扩展示例</a>）。</li>
@@ -328,10 +404,10 @@
 <h2 id="自动化覆盖"><a class="header" href="#自动化覆盖">自动化覆盖</a></h2>
 <p>当自动化输出产生审查副作用时，请使用此方法：</p>
 <ol>
-<li><strong>不正确的风险标签</strong> — 添加 <code>risk: manual</code>，然后设置预期的 <code>risk:*</code> 标签。</li>
-<li><strong>问题分类时自动关闭错误</strong> — 重新打开，移除路由标签，并留下一条澄清评论。</li>
-<li><strong>标记垃圾或噪声</strong> — 保留一个规范性的维护者注释，移除冗余的路由标签。</li>
-<li><strong>PR 范围不明确</strong> — 在深入审查之前请求拆分；不要试图同时审查两个不同的关注点。</li>
+<li><strong>Incorrect risk label</strong>: set the intended <code>risk:*</code> label. If future risk automation is active, also follow the <a href="./labels.html#automation-contract">labels automation contract</a> for <code>risk: manual</code>.</li>
+<li><strong>Incorrect auto-close on issue triage</strong>: reopen, remove the route label, leave one clarifying comment.</li>
+<li><strong>Label spam or noise</strong>: keep one canonical maintainer comment, remove redundant route labels.</li>
+<li><strong>Ambiguous PR scope</strong>: request a split before deep review; don’t try to review across two concerns at once.</li>
 </ol>
 <h2 id="交接"><a class="header" href="#交接">交接</a></h2>
 <p>在将审查权移交其他维护者或代理时，请包含：</p>
@@ -345,11 +421,11 @@
 <p>这有助于降低上下文丢失的风险，并避免下一位审阅者重复执行你已经完成的拉取操作。</p>
 <h2 id="每周队列清理"><a class="header" href="#每周队列清理">每周队列清理</a></h2>
 <ul>
-<li>Walk the stale queue. Apply <code>status:no-stale</code> only when accepted or otherwise long-lived work has a recorded reason to stay open, a visible active owner or steward path, and no other stale exclusion already applies. Active release trackers and active RFC or design trackers may keep stale protection by default when the issue itself clearly identifies the active coordination or decision surface; revisit them when the milestone closes, the tracker drifts from live state, the RFC reaches a decision, is superseded, or closes, or the issue stops representing an active project decision surface. Until the stale-exemption audit lands, treat existing <code>status:no-stale</code> issues missing those facts as audit findings rather than automatic stale candidates.</li>
+<li>Walk the stale queue. Apply <code>status:no-stale</code> only under the rules in the <a href="./pr-workflow.html#issue-ownership-path">Project board contract</a>: when accepted or otherwise long-lived work has a recorded reason to stay open, a visible active owner or steward path, and no other stale exclusion already applies. Active release trackers and active RFC or design trackers may keep stale protection by default when the issue itself clearly identifies the active coordination or decision surface; revisit them when the milestone closes, the tracker drifts from live state, the RFC reaches a decision, is superseded, or closes, or the issue stops representing an active project decision surface. Until the stale-exemption audit lands, treat existing <code>status:no-stale</code> issues missing those facts as audit findings rather than automatic stale candidates.</li>
 <li>优先处理 <code>size: XS/S</code> 的 bug 和安全相关 PR。</li>
 <li>将重复出现的支持问题转化为文档改进和自动回复指导。</li>
 </ul>
-<p>目标是建立一个队列，其中每个待处理的 PR（Pull Request）都处于以下状态之一：正在积极审查中、等待作者处理，或等待外部因素解决——绝不会因为无人处理而闲置。</p>
+<p>The goal is a queue where every open PR is either being actively reviewed, blocked on the author, or blocked on something external, never just sitting because nobody got to it.</p>
 
                     </main>
 

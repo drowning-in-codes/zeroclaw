@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,9 +292,9 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-006-zero-compromise-in-practice--code-health-error-discipline-and-the-production-readiness-standard"><a class="header" href="#fnd-006-zero-compromise-in-practice--code-health-error-discipline-and-the-production-readiness-standard">FND-006: Zero Compromise in Practice — Code Health, Error Discipline, and the Production Readiness Standard</a></h1>
-<h3 id="starting-v070--type-quality--rev-1"><a class="header" href="#starting-v070--type-quality--rev-1">Starting v0.7.0 · Type: Quality · Rev. 1</a></h3>
+                        <h1 id="fnd-006-zero-compromise-in-practice-code-health-error-discipline-and-the-production-readiness-standard"><a class="header" href="#fnd-006-zero-compromise-in-practice-code-health-error-discipline-and-the-production-readiness-standard">FND-006: Zero Compromise in Practice: Code Health, Error Discipline, and the Production Readiness Standard</a></h1>
 <blockquote>
+<p>Starting v0.7.0 · Type: Quality · Rev. 1</p>
 <p><strong>Canonical reference</strong> · Ratified by the team · Rev. 1
 Discussion thread and full revision history: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5653">#5653</a></p>
 </blockquote>
@@ -227,25 +303,25 @@ Discussion thread and full revision history: <a href="https://github.com/zerocla
 <p>A note to the team before you read this.</p>
 <p>This is the sixth document in ZeroClaw’s maturity framework. The five before it
 addressed architecture, documentation, governance, engineering infrastructure, and
-collaboration — the structural and human scaffolding that surrounds the work. Each
+collaboration, the structural and human scaffolding that surrounds the work. Each
 one answered a different question about how we build this project together. If you
 have read them all, you may have noticed a question none of them answered: yes, but
 how do we actually write it well? The architecture RFC told you what shape to build
 in. The documentation RFC told you how to record it. The governance RFC told you how
 to coordinate. The CI/CD RFC told you how to gate it. The culture RFC told you how
 to work with the people around you. None of them told you what quality looks like at
-the sentence level — inside a function, at the moment you are making a choice.</p>
+the sentence level, inside a function, at the moment you are making a choice.</p>
 <p>That is what this document is for.</p>
-<p>The specific topics here — error handling, API documentation, test design, technical
-debt — are Rust topics on the surface. The skills they develop are not. Technology
+<p>The specific topics here, error handling, API documentation, test design, technical
+debt, are Rust topics on the surface. The skills they develop are not. Technology
 changes. It changes faster with each iteration than it did the time before. The tools
-you are using today — this language, this framework, this AI assistant — will be
+you are using today, this language, this framework, this AI assistant, will be
 superseded. Some of them within the lifetime of this project. The judgment this
 document is trying to help you build will not be superseded. It will compound quietly
 in the background of every decision you make, in every language you will ever write,
 in every system you will ever build, and in work that may have nothing to do with
 software at all. That is the investment we are making in you. Not in your ability to
-write Rust. In your ability to think about quality, failure, and craft — and to carry
+write Rust. In your ability to think about quality, failure, and craft, and to carry
 that thinking with you into every tool you ever pick up, including the AI tools you
 are using today and the ones that do not exist yet.</p>
 <p>Take your time with it.</p>
@@ -260,17 +336,17 @@ framework. They are designed to be read as a whole, though each stands on its ow
 <tr><th>RFC</th><th>Scope</th><th>Issue</th></tr>
 </thead>
 <tbody>
-<tr><td>Intentional Architecture — Microkernel Transition</td><td>What we are building and how it is structured</td><td>#5574</td></tr>
+<tr><td>Intentional Architecture: Microkernel Transition</td><td>What we are building and how it is structured</td><td>#5574</td></tr>
 <tr><td>Documentation Standards and Knowledge Architecture</td><td>How we document what we build</td><td>#5576</td></tr>
 <tr><td>Team Organization and Project Governance</td><td>How we coordinate and make decisions</td><td>#5577</td></tr>
-<tr><td>Engineering Infrastructure — CI/CD Pipeline</td><td>How we build, test, and ship reliably</td><td>#5579</td></tr>
-<tr><td>Contribution Culture — Human Collaboration, AI Partnership, and Team Growth</td><td>How we work together and grow</td><td>#5615</td></tr>
-<tr><td>Zero Compromise in Practice — Code Health, Error Discipline, and the Production Readiness Standard</td><td>How we write code that lasts</td><td>this RFC</td></tr>
+<tr><td>Engineering Infrastructure: CI/CD Pipeline</td><td>How we build, test, and ship reliably</td><td>#5579</td></tr>
+<tr><td>Contribution Culture: Human Collaboration, AI Partnership, and Team Growth</td><td>How we work together and grow</td><td>#5615</td></tr>
+<tr><td>Zero Compromise in Practice: Code Health, Error Discipline, and the Production Readiness Standard</td><td>How we write code that lasts</td><td>this RFC</td></tr>
 </tbody>
 </table>
 </div>
 <p>The first five RFCs answer structural and human questions. This one answers the question
-that sits inside all of them: given the structure, given the team, given the tools —
+that sits inside all of them: given the structure, given the team, given the tools,
 what does it mean to write the code well?</p>
 <hr>
 <h2 id="table-of-contents"><a class="header" href="#table-of-contents">Table of Contents</a></h2>
@@ -329,12 +405,12 @@ inside the Implementation and Testing layers and asks a different question: <em>
 understood, and in software, understanding is what creates durable results. A contributor
 who has memorized the rules will follow them until the situation is slightly different.
 A contributor who has internalized the judgment behind the rules will apply it correctly
-to situations the rules did not anticipate — including the situations that matter most,
+to situations the rules did not anticipate, including the situations that matter most,
 which are always the ones nobody planned for.</p>
 <p>This distinction matters especially in this project’s context. ZeroClaw is operated in
 an environment of powerful tools: AI code generation, CI gates that catch a wide range
 of common errors, IDE linters, automated security scanners. These tools are genuinely
-valuable. They define a floor — a minimum below which code should not be merged. But
+valuable. They define a floor, a minimum below which code should not be merged. But
 what they cannot do is think. They cannot decide whether an error is operational or a
 programmer error. They cannot evaluate whether a test is asserting the right behavior.
 They cannot tell whether a public API is documented clearly enough for a future
@@ -342,7 +418,7 @@ contributor to implement against correctly. They can only check what they were
 programmed to check.</p>
 <p>The gap between “what the tools can verify” and “quality that serves users, contributors,
 and the project over time” is filled by judgment. That judgment is what this document
-is trying to help you build — not to replace the tools, but to direct them.</p>
+is trying to help you build, not to replace the tools, but to direct them.</p>
 <hr>
 <h2 id="2-honest-assessment-what-the-codebase-is-telling-us"><a class="header" href="#2-honest-assessment-what-the-codebase-is-telling-us">2. Honest Assessment: What the Codebase Is Telling Us</a></h2>
 <p>This section is not criticism. It is a diagnosis. The same framing that applied in the
@@ -352,7 +428,7 @@ specifics are useful precisely because they are specific.</p>
 <p>The workspace decomposition from RFC §5574 succeeded. The crates exist, the trait
 boundaries are real, and the compiler enforces the dependency direction. That is
 genuinely good work. And within those new crates, the same patterns that characterized
-the original monolith have been carried forward — because the codebase moved before
+the original monolith have been carried forward, because the codebase moved before
 the team had a shared model for what “quality at the implementation level” looks like.</p>
 <p>These are measured facts, not estimates:</p>
 <div class="table-wrapper">
@@ -361,17 +437,17 @@ the team had a shared model for what “quality at the implementation level” l
 <tr><th>Metric</th><th>Value</th><th>What It Indicates</th></tr>
 </thead>
 <tbody>
-<tr><td><code>zeroclaw-config/src/schema.rs</code></td><td>16,800 lines</td><td>Now the largest file in the codebase; the original <code>loop_.rs</code> was called out at 9,500 lines in the architecture RFC — this surpasses it</td></tr>
+<tr><td><code>zeroclaw-config/src/schema.rs</code></td><td>16,800 lines</td><td>Now the largest file in the codebase; the original <code>loop_.rs</code> was called out at 9,500 lines in the architecture RFC; this surpasses it</td></tr>
 <tr><td><code>zeroclaw-channels/src/orchestrator/mod.rs</code></td><td>11,813 lines</td><td>Second-largest file; a single module carrying concentrated responsibility</td></tr>
 <tr><td><code>zeroclaw-runtime/src/onboard/wizard.rs</code></td><td>7,988 lines</td><td>A single workflow in a single file</td></tr>
-<tr><td><code>zeroclaw-runtime/src/agent/loop_.rs</code></td><td>6,101 lines</td><td>Reduced from ~9,500 in the monolith — real, measurable progress; still large</td></tr>
+<tr><td><code>zeroclaw-runtime/src/agent/loop_.rs</code></td><td>6,101 lines</td><td>Reduced from ~9,500 in the monolith: real, measurable progress; still large</td></tr>
 <tr><td><code>zeroclaw-channels/src/orchestrator/telegram.rs</code></td><td>5,122 lines</td><td>One channel implementation; one file</td></tr>
-<tr><td><code>.unwrap()</code> / <code>.expect()</code> calls in crates</td><td>5,630</td><td>Each one is a deferred judgment call about error handling — see §4.1</td></tr>
+<tr><td><code>.unwrap()</code> / <code>.expect()</code> calls in crates</td><td>5,630</td><td>Each one is a deferred judgment call about error handling, see §4.1</td></tr>
 <tr><td><code>.unwrap()</code> / <code>.expect()</code> calls in legacy <code>src/</code></td><td>240</td><td>The migration carried the pattern forward at scale</td></tr>
-<tr><td>Public functions in <code>zeroclaw-api</code></td><td>371</td><td>The entire foundational API surface — every other crate depends on this</td></tr>
-<tr><td>Doc comment lines in <code>zeroclaw-api</code></td><td>~27</td><td>Roughly 14:1 ratio of undocumented public API — see §4.2</td></tr>
+<tr><td>Public functions in <code>zeroclaw-api</code></td><td>371</td><td>The entire foundational API surface; every other crate depends on this</td></tr>
+<tr><td>Doc comment lines in <code>zeroclaw-api</code></td><td>~27</td><td>Roughly 14:1 ratio of undocumented public API, see §4.2</td></tr>
 <tr><td><code>#[allow(unused_imports)]</code> / <code>#[allow(dead_code)]</code> in legacy <code>src/</code> modules</td><td>~30+ instances</td><td>The compiler has identified code that is no longer being used; it has been asked not to say so</td></tr>
-<tr><td><code>TODO</code> / <code>FIXME</code> / <code>todo!()</code> / <code>unimplemented!()</code> across the full codebase</td><td>20</td><td>Notably low — suggests most debt is silent rather than marked</td></tr>
+<tr><td><code>TODO</code> / <code>FIXME</code> / <code>todo!()</code> / <code>unimplemented!()</code> across the full codebase</td><td>20</td><td>Notably low, suggests most debt is silent rather than marked</td></tr>
 </tbody>
 </table>
 </div>
@@ -400,19 +476,19 @@ together.</p>
 <p>The diagnosis should not obscure what is genuinely well-built.</p>
 <p>The trait layer in <code>zeroclaw-api</code> is the right architecture. <code>Provider</code>, <code>Channel</code>,
 <code>Tool</code>, <code>Memory</code>, <code>Observer</code>, <code>RuntimeAdapter</code>, and <code>Peripheral</code> are clean, well-reasoned
-abstractions. They are the right seams. The problem is not the design — it is that the
+abstractions. They are the right seams. The problem is not the design. It is that the
 design is not yet fully expressed in documentation, test coverage, and error handling
 discipline. This RFC is about closing that gap.</p>
 <p>The security model is thoughtful. Pairing codes, autonomy levels, sandboxing layers, and
 policy enforcement show real design intent. That intent needs to be understood by every
-contributor who writes code near a trust boundary — and this RFC exists partly to give
+contributor who writes code near a trust boundary, and this RFC exists partly to give
 contributors the vocabulary to recognize where those boundaries are.</p>
 <p>The observability infrastructure is mature. OpenTelemetry, Prometheus, and DORA metrics
 are all implemented against a clean <code>Observer</code> trait. The infrastructure is in place.
 The teaching gap is in how contributors use it so that it actually helps when something
 goes wrong.</p>
 <p>The test suite is not absent. The existing test investment is real. The work this RFC
-describes is about the quality and distribution of that investment — what gets tested,
+describes is about the quality and distribution of that investment: what gets tested,
 how, and whether the tests prove what they appear to prove.</p>
 <p><code>ADR-004-tool-shared-state-ownership.md</code> is an excellent piece of architectural record.
 It proves the team can produce high-quality design documentation when the expectation
@@ -468,15 +544,15 @@ question “did this code pass the rules we wrote down?” It does not answer th
 <p>This is not a criticism of the gates. The gates are valuable precisely because they
 define a shared, enforceable baseline that every contributor works within. The goal of
 this document is to build the shared vocabulary and judgment that defines what good looks
-like above that baseline — and to explain clearly why that judgment cannot be delegated
+like above that baseline, and to explain clearly why that judgment cannot be delegated
 to a tool.</p>
 <hr>
 <h2 id="4-the-seven-disciplines"><a class="header" href="#4-the-seven-disciplines">4. The Seven Disciplines</a></h2>
 <h3 id="41-error-handling-as-a-design-concern"><a class="header" href="#41-error-handling-as-a-design-concern">4.1 Error Handling as a Design Concern</a></h3>
 <p>Every <code>.unwrap()</code> call is a decision. Most of the 5,630 in the codebase were not made
-consciously — they were made by default, because <code>.unwrap()</code> is the path of least
+consciously. They were made by default, because <code>.unwrap()</code> is the path of least
 resistance when you need a value out of a <code>Result</code> or <code>Option</code> and want to move on. The
-problem with decisions made by default is that they are not decisions — they are
+problem with decisions made by default is that they are not decisions. They are
 deferrals. And what they defer is a real question: <em>what should happen here when this
 fails?</em></p>
 <p>The answer depends on what kind of failure you are dealing with. There are three kinds,
@@ -484,22 +560,22 @@ and they have three different correct responses.</p>
 <p><strong>Programmer errors</strong> are violations of invariants that should be impossible in correct
 code. A function that requires a non-empty <code>Vec</code>, called with an empty one. An enum
 match that reaches an arm the type system should have made unreachable. These represent
-bugs — not operational failures, but incorrect logic. <code>panic!</code> is the correct response,
+bugs, not operational failures, but incorrect logic. <code>panic!</code> is the correct response,
 because the goal is to find these at development time, not in front of a user at runtime.
 <code>assert!</code> and <code>debug_assert!</code> are the right tools. <code>.expect()</code> with a message explaining
-why this state is impossible is also appropriate here — it makes the reasoning explicit
+why this state is impossible is also appropriate here. It makes the reasoning explicit
 and searchable, so the next person who reads the code understands why the panic was
 intentional.</p>
 <p><strong>Operational errors</strong> are expected failure modes. Network timeouts. Files that do not
 exist. API keys that have expired. Provider responses that carry an error status. Users
-who provide malformed input. These are not bugs — they are the normal operating
+who provide malformed input. These are not bugs. They are the normal operating
 conditions of a system that interacts with the world. The correct response is
 <code>Result&lt;T, E&gt;</code>. The <code>?</code> operator propagates the failure to a caller who is in a better
 position to decide what to do about it. A <code>.unwrap()</code> on an operational error is a
 deferred panic: it will fire, eventually, under real conditions, in front of a real user,
 with no useful context and no opportunity to recover.</p>
 <p><strong>Configuration errors</strong> are malformed or missing configuration discovered at startup.
-The correct response is to fail fast — but specifically. Not a panic with a stack trace,
+The correct response is to fail fast, but specifically. Not a panic with a stack trace,
 not a vague “invalid config” message. A message that points at the specific field,
 explains what was expected, and tells the operator what to provide. A user who cannot
 start ZeroClaw because of a misconfiguration should leave the process with a clear
@@ -517,14 +593,14 @@ understanding of exactly what to fix.</p>
 </table>
 </div>
 <p>Before every <code>.unwrap()</code> or <code>.expect()</code>, ask yourself: which kind of failure is this?
-If the answer is “programmer error — this state cannot occur in correct code,” then
+If the answer is “programmer error: this state cannot occur in correct code,” then
 <code>.expect()</code> with a comment explaining why is the right choice, and it communicates your
 reasoning to every future reader. If the answer is anything else, use <code>?</code> or handle the
 failure explicitly.</p>
 <p>The <code>?</code> operator is worth understanding for what it <em>says</em>, not just what it does. It
 says: I acknowledge this operation can fail. I am explicitly propagating that failure to
 my caller, who is better positioned to decide what to do about it. That acknowledgment
-is architecturally meaningful — it makes the error handling contract visible at the call
+is architecturally meaningful: it makes the error handling contract visible at the call
 site and pushes decisions to the layer that has the most context.</p>
 <p>The goal is not zero <code>.unwrap()</code> calls. Some are correct. The goal is that every one
 represents a conscious decision, with the reasoning visible to anyone who reads the code.
@@ -542,26 +618,26 @@ to this code after two months working on something else.</p>
 to know what assumptions you made when you wrote it, what error conditions it can return
 and under what circumstances, what side effects it has, whether it is safe to call
 concurrently, or what the subtle difference is between two functions with similar names.
-They are left to infer — from the name, the type signature, and the implementation body
-— something that you could have told them in three sentences.</p>
+They are left to infer, from the name, the type signature, and the implementation body
+something that you could have told them in three sentences.</p>
 <p>The <code>zeroclaw-api</code> situation is specific enough to name directly. This is the one crate
 the entire architecture depends on. Every provider, channel, tool, memory backend,
 observer, runtime adapter, and peripheral implementation in the workspace is built
 against these traits and types. An undocumented interface in this foundation propagates
 confusion into every crate that implements it, every test that exercises it, and every
 AI-generated code that works with it. The 14:1 ratio of undocumented public API surface
-is not a documentation style preference — it is a gap in the contract that the
+is not a documentation style preference. It is a gap in the contract that the
 architecture RFC said was the most important layer of the system.</p>
 <p>The AI dimension here is practical and direct: when you ask an AI assistant to implement
 a trait or call a function that has no documentation, the AI infers intent from the name
 and the type signature. Sometimes that inference is correct. More often, it produces
 code that compiles, passes the type checker, and behaves incorrectly under specific
-conditions that the AI did not know to anticipate — because nobody wrote them down.
+conditions that the AI did not know to anticipate, because nobody wrote them down.
 Documentation is not just for humans. It is the specification you provide to every tool
 that will ever work with your code, and to every person who will ever depend on it.</p>
 <p>At minimum, every public item in <code>zeroclaw-api</code> should carry:</p>
 <ul>
-<li><strong>One sentence describing what it does.</strong> Not what it is — what it does.</li>
+<li><strong>One sentence describing what it does.</strong> Not what it is: what it does.</li>
 <li><strong>An <code># Errors</code> section</strong> (if it returns <code>Result</code>): under what conditions does this
 fail, and what error variants does the caller need to handle?</li>
 <li><strong>A <code># Panics</code> section</strong> (if it can panic): under what conditions, and why?</li>
@@ -570,16 +646,16 @@ fail, and what error variants does the caller need to handle?</li>
 <p>A three-sentence doc comment on a public trait method is worth more to the next
 implementor than a hundred lines of implementation with no explanation. The
 implementation tells them what the code does. The documentation tells them what it is
-supposed to do — which is what matters when the two diverge.</p>
+supposed to do, which is what matters when the two diverge.</p>
 <h3 id="43-tests-as-design-feedback"><a class="header" href="#43-tests-as-design-feedback">4.3 Tests as Design Feedback</a></h3>
 <p>The goal of a test is not to produce a green checkmark. The goal is to create a precise,
-executable record of what a piece of code is <em>supposed to do</em> — a record that fails
+executable record of what a piece of code is <em>supposed to do</em>: a record that fails
 loudly if that behavior ever changes.</p>
 <p>This distinction matters because there are two fundamentally different kinds of tests,
 and only one of them achieves that goal.</p>
 <p>A test that reaches into a struct’s internal state, sets values directly, calls a method,
 and asserts on return values is testing the <em>implementation</em>. If the implementation
-changes — if the same behavior is achieved through a different mechanism — the test
+changes, if the same behavior is achieved through a different mechanism, the test
 breaks, even though nothing the user cares about changed. This creates friction against
 refactoring without creating safety. It also tends to pass when the behavior is wrong in
 ways the test did not anticipate.</p>
@@ -595,7 +671,7 @@ you got it a particular way.</p>
 </blockquote>
 <p>If writing a unit test for a function requires standing up a database connection, mocking
 six dependencies, building a full configuration object, and starting an async runtime
-explicitly — that function is probably doing too much, depending on too much, or sitting
+explicitly, that function is probably doing too much, depending on too much, or sitting
 at the wrong layer of the architecture. The difficulty is not a nuisance to work around.
 It is feedback. The test is being honest about something the code is not yet honest
 about.</p>
@@ -604,7 +680,7 @@ the purposes of crate decomposition was to create components that can be tested 
 isolation. <code>zeroclaw-tool-call-parser</code> should be testable with a <code>&amp;str</code> input and no
 runtime. <code>zeroclaw-config</code> should be testable by constructing config structs directly.
 Trait implementations in <code>zeroclaw-api</code> should be testable against fake implementations
-of the trait — not against the full production stack. When you find yourself unable to
+of the trait, not against the full production stack. When you find yourself unable to
 test a component without its entire environment, ask whether a dependency has entered
 the implementation that the architecture did not intend. The test is giving you the
 answer; the question is whether you are listening to it.</p>
@@ -619,7 +695,7 @@ answer to that question is usually more valuable than the test you were about to
 </ul>
 <h3 id="44-technical-debt-triage"><a class="header" href="#44-technical-debt-triage">4.4 Technical Debt Triage</a></h3>
 <p>The word “debt” is useful because it carries the right implication: it accrues interest.
-Debt left unexamined in a high-traffic area of the codebase compounds — new code adapts
+Debt left unexamined in a high-traffic area of the codebase compounds: new code adapts
 to its presence, new assumptions build on top of old ones, and the cost of addressing
 it grows with every layer added above it.</p>
 <p>The most common mistake teams make with technical debt is treating it as binary: either
@@ -632,7 +708,7 @@ policy, executes tools, manages authentication, or processes data from external 
 is operating near a trust boundary. Failures here can be exploited, silently corrupt
 state, or produce incorrect behavior with security consequences. Debt near trust
 boundaries carries disproportionate risk relative to its size.</p>
-<p><strong>Blast radius.</strong> Debt in <code>zeroclaw-api</code> — the foundation everything else depends on —
+<p><strong>Blast radius.</strong> Debt in <code>zeroclaw-api</code>, the foundation everything else depends on,
 has a larger blast radius than debt in a single channel implementation. A wrong
 assumption in a foundational type propagates wherever that type is used. Debt in a leaf
 crate affects only that crate’s consumers.</p>
@@ -650,20 +726,20 @@ crate affects only that crate’s consumers.</p>
 <p>This framework means that a <code>.unwrap()</code> in the security policy enforcement path is not
 the same problem as a <code>.unwrap()</code> in a CLI display formatter. Both appear in the count
 of 5,630. The count tells us the scope. The triage tells us the priority.</p>
-<p>When you are working in a file and you notice debt — an <code>.unwrap()</code> that represents an
+<p>When you are working in a file and you notice debt, an <code>.unwrap()</code> that represents an
 unhandled operational error, a function that has grown to handle four separate concerns,
-a <code>#[allow(dead_code)]</code> silencing something that nobody calls — you do not need to fix
+a <code>#[allow(dead_code)]</code> silencing something that nobody calls, you do not need to fix
 everything. You need to ask: is this in a high-risk location? If it is, address it in
 this PR or file a follow-up issue with the specific location, the risk, and a proposed
 owner. If it is not, you can mark it with a <code>// TODO(debt): &lt;description&gt;</code> comment that
 makes it visible without making it urgent. What you should not do is leave it completely
-unmarked — because silence is how 5,630 deferred decisions accumulate without anyone
+unmarked, because silence is how 5,630 deferred decisions accumulate without anyone
 noticing the trend.</p>
 <p>The Strangler Fig pattern applies at this level too. The architecture RFC applied it at
 the crate level: build the new structure around the old one, migrate inward over time.
 The same pattern works inside a large file. You do not rewrite <code>schema.rs</code> in a single
 PR. You identify the functions that are closest to trust boundaries, most frequently
-changed, or hardest to test — and you extract them first, improving the structure
+changed, or hardest to test, and you extract them first, improving the structure
 incrementally, leaving the rest to follow at a pace the team can sustain.</p>
 <h3 id="45-security-at-the-application-layer"><a class="header" href="#45-security-at-the-application-layer">4.5 Security at the Application Layer</a></h3>
 <p>The CI/CD RFC established the security posture for the <em>supply chain</em>: <code>cargo deny</code>
@@ -683,18 +759,18 @@ from providers, file contents from the filesystem, plugin outputs, tool results,
 readings. At every trust boundary, validate before you process. Do not assume the shape,
 size, type, or content of data you did not produce. The ZeroClaw security model defines
 these boundaries at the policy level. The implementation should reflect them at the code
-level — not because the policy will fail, but because defense in depth means each layer
+level, not because the policy will fail, but because defense in depth means each layer
 of the system is doing its part, rather than trusting that every other layer did theirs.</p>
 <p><strong>Minimum footprint.</strong> A function that needs to read a file should not be able to write
 one. A trait implementation that handles one channel’s messages should not have access
 to another channel’s state. A tool running at autonomy level 1 should not be in a
 position to exercise capabilities that require level 3. The security model already
 defines these constraints. The discipline is in writing implementations that do not
-acquire more capability than they require for the task at hand — and in noticing when an
+acquire more capability than they require for the task at hand, and in noticing when an
 implementation is reaching for something outside its intended scope.</p>
-<p><strong>Fail loudly near security boundaries.</strong> An error in a security check — a failed policy
+<p><strong>Fail loudly near security boundaries.</strong> An error in a security check, a failed policy
 evaluation, a signature verification failure, an unauthorized tool call attempt, a
-pairing code mismatch — should never be silently swallowed. It should be logged,
+pairing code mismatch, should never be silently swallowed. It should be logged,
 propagated, and handled explicitly. An error in a display helper can be recovered from
 gracefully with a log message. An error in an authorization path cannot. Know which kind
 of function you are writing, and let that determination drive how aggressively you
@@ -702,14 +778,14 @@ surface failures from it.</p>
 <p>These are not advanced security principles. They are foundational hygiene that applies
 to any code that touches something a user can influence. The architecture RFC described
 the security model as “thoughtful.” The work this RFC is asking for is to make that
-thoughtfulness legible at the implementation level — in the functions that validate
+thoughtfulness legible at the implementation level: in the functions that validate
 inputs, in the error paths that handle policy failures, in the boundaries between what
 the system was asked to do and what it actually does.</p>
 <h3 id="46-observability-as-debuggability"><a class="header" href="#46-observability-as-debuggability">4.6 Observability as Debuggability</a></h3>
 <p>The observability infrastructure is mature: OpenTelemetry tracing, Prometheus metrics,
 DORA tracking, and a clean <code>Observer</code> trait are all in place. This is production-quality
 work. The teaching gap is between having the infrastructure and using it in a way that
-actually helps when something goes wrong — ideally before you know what went wrong.</p>
+actually helps when something goes wrong, ideally before you know what went wrong.</p>
 <p>Consider two log messages. Both compile. Both pass CI. Both are syntactically correct.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -731,7 +807,7 @@ actually helps when something goes wrong — ideally before you know what went w
 <p>The first is a record. It confirms that something went wrong. The second is a
 <em>diagnostic</em>. It answers the questions that matter: what were we trying to do, in what
 context, with what parameters, and exactly what went wrong. The difference between them
-is not technical sophistication — it is whether the person writing the message was
+is not technical sophistication. It is whether the person writing the message was
 thinking about the person who will one day need to read it.</p>
 <p>The question to ask before writing any log message at <code>warn</code> or above:</p>
 <blockquote>
@@ -760,20 +836,20 @@ let _span = span!(
 );
 <span class="boring">}</span></code></pre>
 <p>Structured logging and meaningful span design are not style preferences. They are what
-make the observability infrastructure you have actually useful — not just during
+make the observability infrastructure you have actually useful, not just during
 development, but in the hands of users running ZeroClaw on hardware you will never see,
 in configurations you did not anticipate, encountering errors you did not plan for. The
 infrastructure creates the capability. The discipline in how contributors use it
 determines whether that capability translates into diagnosable systems.</p>
 <h3 id="47-working-above-the-floor"><a class="header" href="#47-working-above-the-floor">4.7 Working Above the Floor</a></h3>
 <p>The previous six disciplines each address a specific domain. This section synthesizes
-them into a single picture of what “above the floor” looks like in practice — what a
+them into a single picture of what “above the floor” looks like in practice: what a
 reviewer, a future contributor, or a user actually experiences when they encounter code
 that meets the standards described in this RFC.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Dimension</th><th>At the floor — gates pass</th><th>Above the floor — standard met</th></tr>
+<tr><th>Dimension</th><th>At the floor, gates pass</th><th>Above the floor, standard met</th></tr>
 </thead>
 <tbody>
 <tr><td>Error handling</td><td>Code compiles; no Clippy warnings</td><td>Failures are categorized; operational errors surface with context; panics are intentional and documented</td></tr>
@@ -793,7 +869,7 @@ consistently. That is what this document is working toward.</p>
 <h2 id="5-what-this-means-for-ai-assisted-development"><a class="header" href="#5-what-this-means-for-ai-assisted-development">5. What This Means for AI-Assisted Development</a></h2>
 <p>The culture RFC addressed how to work with AI tools as part of a collaborative team.
 This section addresses something more specific: what happens when AI-generated code
-encounters the standards described above — and what it takes to recognize and close the
+encounters the standards described above, and what it takes to recognize and close the
 gap when it does not.</p>
 <p>AI tools are genuinely good at passing gates. They generate code that compiles,
 satisfies the type checker, passes Clippy, and often produces tests alongside the
@@ -802,21 +878,21 @@ it. The problem is not that AI tools are unreliable. The problem is that they ar
 reliable at the wrong thing: producing code that passes checks, rather than code that
 meets standards.</p>
 <p>The reason is structural. AI generates code against what it can infer. If a function
-has no documentation, the AI infers intent from the name and signature — and sometimes
+has no documentation, the AI infers intent from the name and signature, and sometimes
 that inference is correct, and sometimes it produces subtly wrong behavior that only
 surfaces under conditions nobody tested. If an error type has no documentation of when
 it is returned, the AI handles it based on the name of the variant. If a test suite
 tests implementation rather than behavior, the AI generates implementations that match
-those tests — which may or may not match the intended behavior that the tests were
+those tests, which may or may not match the intended behavior that the tests were
 supposed to capture. The quality ceiling of AI output is set by the quality of the
-context you provide. Better context — clearer documentation, more specific error types,
-behavior-focused tests — produces better output. Underdeveloped context produces output
+context you provide. Better context, clearer documentation, more specific error types,
+behavior-focused tests, produces better output. Underdeveloped context produces output
 that passes the gates and defers the judgment to whoever reviews it next.</p>
 <p>This creates a specific and non-optional responsibility for contributors working with
 AI tools.</p>
 <p><strong>Review is not optional because AI wrote it.</strong> The culture RFC named this clearly, and
 it bears repeating with specifics: when reviewing AI-generated code, the gate questions
-— does it compile, do the tests pass — are the beginning of the review, not the end. The
+does it compile, do the tests pass, are the beginning of the review, not the end. The
 standard questions are: does this handle operational errors correctly, or does it
 <code>.unwrap()</code> them? Is the new public API documented? Does the test assert the behavior or
 the implementation? Is this near a trust boundary, and if so, does it validate its
@@ -824,7 +900,7 @@ inputs? These questions are your responsibility regardless of who wrote the code
 tools were used to produce it.</p>
 <p><strong>AI amplifies your judgment, not your absence of it.</strong> A contributor who does not yet
 have a mental model for what good error handling looks like will accept AI-generated
-error handling at face value — <code>.unwrap()</code> and all. A contributor who has internalized
+error handling at face value: <code>.unwrap()</code> and all. A contributor who has internalized
 §4.1 can look at the same output and direct the tool: “this is an operational error
 path; use <code>?</code> and propagate the failure to the caller with context.” The tool will
 produce a corrected version. The same pattern applies to every discipline in §4. The
@@ -838,13 +914,13 @@ direct more capable tools more precisely. The gap between “what the tool produ
 manual rewriting. A team that does not build that judgment gets a faster path to the
 same quality floor, without the ability to push past it. The investment described
 throughout this document is also, directly, an investment in the long-term effectiveness
-of every AI tool the team will ever use — because the value of those tools scales with
+of every AI tool the team will ever use, because the value of those tools scales with
 the clarity of the judgment directing them.</p>
 <hr>
 <h2 id="6-the-portability-of-craft"><a class="header" href="#6-the-portability-of-craft">6. The Portability of Craft</a></h2>
 <p>Technology changes. It changes faster with each iteration than it did the time before,
-and that rate is accelerating. The specific tools in this document — Rust, <code>cargo</code>,
-<code>clippy</code>, the OpenTelemetry SDK, the AI assistants the team uses today — will be
+and that rate is accelerating. The specific tools in this document: Rust, <code>cargo</code>,
+<code>clippy</code>, the OpenTelemetry SDK, the AI assistants the team uses today, will be
 superseded. Some of them within the lifetime of this project. The platforms will change.
 The languages will evolve. The tooling ecosystem will look different in five years than
 it does today, and different again in ten.</p>
@@ -853,28 +929,28 @@ it does today, and different again in ten.</p>
 expire when the language changes. You will ask it in the next language you learn. You
 will ask it when designing a distributed system where the “language” is a wire protocol.
 You will ask it when building anything that other people depend on and that you cannot
-personally supervise. The specific Rust mechanism for answering it — <code>Result&lt;T, E&gt;</code>, the
-<code>?</code> operator, structured error types with context — is one answer to a question that
+personally supervise. The specific Rust mechanism for answering it: <code>Result&lt;T, E&gt;</code>, the
+<code>?</code> operator, structured error types with context, is one answer to a question that
 exists everywhere.</p>
 <p>The question “what is the public interface I am promising, and does my documentation
-reflect that promise?” — you will ask this when designing an API, when writing a
+reflect that promise?”: you will ask this when designing an API, when writing a
 technical specification, when defining the scope of a team’s responsibilities, when
 communicating requirements to another team, to an AI tool, to a client, to a contractor.
 The promise-and-terms model of public interfaces extends far beyond Rust and far beyond
 software.</p>
 <p>The question “what does my test actually prove?” extends beyond software into any domain
-where you need to verify that a system behaves as intended. The instinct to ask it — to
+where you need to verify that a system behaves as intended. The instinct to ask it, to
 distinguish between evidence that your implementation exists and evidence that the right
-thing happens — is the skill. The syntax for expressing it in Rust is incidental.</p>
+thing happens, is the skill. The syntax for expressing it in Rust is incidental.</p>
 <p>The question “what would the person who needs to diagnose this failure need to know?” is
 an engineering question that applies to anything you build that other people depend on.
-It is also, at a deeper level, a question about empathy — about remembering that the
+It is also, at a deeper level, a question about empathy, about remembering that the
 person on the other side of your work is a real person with a real problem, at a moment
 you cannot predict, with context you will not be there to provide.</p>
 <blockquote>
 <p>You are not learning Rust. You are, through the vehicle of Rust, learning to build
 things that can be trusted. That is portable. It will compound for as long as you
-practice it — across every language, every system, every team, and every domain you
+practice it, across every language, every system, every team, and every domain you
 ever work in.</p>
 </blockquote>
 <p>This is the investment the project is making in you. Not in your specific technical
@@ -885,7 +961,7 @@ depend on something you built.</p>
 <h2 id="7-what-this-means-for-contributors"><a class="header" href="#7-what-this-means-for-contributors">7. What This Means for Contributors</a></h2>
 <p><strong>If you are new to Rust or new to software development:</strong></p>
 <p>The seven disciplines in §4 are not requirements to master before you can contribute.
-They are a map of the territory — things you will encounter as you work, named clearly
+They are a map of the territory: things you will encounter as you work, named clearly
 enough that you know what you are looking at when you see them.</p>
 <p>Start with §4.1. The error handling mental model is the single highest-leverage thing
 you can internalize early, and it is not Rust-specific. When you read existing code and
@@ -903,7 +979,7 @@ are doing here.</p>
 against. They are also, practically, the context that makes AI output more correct before
 it reaches review. Before asking an AI to implement something, check whether the
 interfaces it will implement against are documented. If they are not, document them
-first — or include the documentation as part of what you ask the AI to produce. The
+first, or include the documentation as part of what you ask the AI to produce. The
 output will be more correct, you will have closed a real gap in the foundation, and the
 next contributor who comes along will benefit from both.</p>
 <p>When you receive review feedback on AI-generated code, treat it as feedback on the code,
@@ -911,19 +987,19 @@ not as feedback on your choice to use AI. The standards apply equally regardless
 authorship. The question is always: does this code meet the standard? If it does not,
 what needs to change, and why?</p>
 <p><strong>If you are reviewing pull requests:</strong></p>
-<p>The gate questions — does it compile, do the tests pass, does Clippy accept it — are
+<p>The gate questions, does it compile, do the tests pass, does Clippy accept it, are
 the floor, not the ceiling. A review that only answers those questions is an incomplete
 review. Use the framework in §3 and the disciplines in §4 to structure your observations.
 Name the standard you are applying, explain why it matters, and clearly separate
 blocking concerns from non-blocking suggestions.</p>
 <p>The goal of a review is not to find fault. It is to transfer understanding. Every
-specific piece of feedback that includes an explanation — “this is an operational error
-path; here is why <code>.unwrap()</code> creates a production risk here and what to use instead” —
+specific piece of feedback that includes an explanation, “this is an operational error
+path; here is why <code>.unwrap()</code> creates a production risk here and what to use instead”,
 is an investment in the contributor you are reviewing. That investment compounds. The
 contributor who understands the principle will apply it correctly to the next ten
 situations where it matters, without needing to be told again.</p>
 <p><strong>If you are a maintainer or more experienced contributor:</strong></p>
-<p>You are in the best position to make these standards real — not by enforcing them from
+<p>You are in the best position to make these standards real, not by enforcing them from
 above, but by modeling them in your own code and naming them by name in review. The most
 effective teaching in an open source project happens in PR threads and code comments,
 not in documents. This document provides the vocabulary. Using it consistently in
@@ -931,7 +1007,7 @@ everyday review is what moves it from words on a page to shared practice.</p>
 <p>When you see a <code>.unwrap()</code> on an operational error path, name it as such. When you see
 a public function without documentation, ask the question: what does a future implementor
 need to know here? When you see a test that would break on a valid refactor, explain why
-that matters. These are not corrections — they are the ongoing mentorship that the
+that matters. These are not corrections: they are the ongoing mentorship that the
 culture RFC identified as one of the most important things a more experienced contributor
 can offer.</p>
 <hr>

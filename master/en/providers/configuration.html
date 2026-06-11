@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,174 +293,78 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="provider-configuration"><a class="header" href="#provider-configuration">Provider Configuration</a></h1>
-<p>Every model provider lives at <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> in <code>~/.zeroclaw/config.toml</code>. <code>&lt;type&gt;</code> is the canonical family slot (<code>anthropic</code>, <code>openai</code>, <code>azure</code>, <code>gemini</code>, <code>groq</code>, <code>moonshot</code>, …). <code>&lt;alias&gt;</code> is your operator-assigned instance name — pick any descriptive name (<code>home</code>, <code>work</code>, <code>cn</code>, <code>gpt5</code>, …).</p>
+<p>Every model provider lives at <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code>. <code>&lt;type&gt;</code> is a canonical family slot (see the <a href="./catalog.html#all-slots">Catalog</a> for every slot with its endpoint). <code>&lt;alias&gt;</code> is your operator-assigned instance name, pick any descriptive name (<code>home</code>, <code>work</code>, <code>cn</code>, <code>gpt5</code>, …).</p>
 <h2 id="minimal-working-example"><a class="header" href="#minimal-working-example">Minimal working example</a></h2>
-<p>The smallest config that loads clean has four section headers — a provider entry, an agent that references it, and a risk profile the agent gates against:</p>
-<pre><code class="language-toml">schema_version = 3
-
-# Provider entry. Section header is `[providers.models.&lt;type&gt;.&lt;alias&gt;]`:
-#   `anthropic` = type (fixed provider family name)
-#   `home`      = alias (you pick any name)
-[providers.models.anthropic.home]
-model = "claude-sonnet-4-6"
-temperature = 0.7            # omit this line entirely to send no temperature override
-                             # (required for claude-opus-4-7 — see below)
-api_key = "sk-ant-..."
-
-# Agent. Section header is `[agents.&lt;alias&gt;]`:
-#   `assistant` = alias (you pick any name)
-[agents.assistant]
-model_provider = "anthropic.home"   # `&lt;type&gt;.&lt;alias&gt;` reference to the entry above
-risk_profile   = "assistant"        # alias reference to the section below
-
-# Risk profile. Section header is `[risk_profiles.&lt;alias&gt;]`:
-#   `assistant` = must match agents.assistant.risk_profile
-[risk_profiles.assistant]
-level = "supervised"
-
-# --- Alternate provider entry: claude-opus-4-7 rejects any temperature
-# setting, so its `[providers.models.anthropic.&lt;alias&gt;]` block must omit
-# the `temperature` line entirely. To switch the agent to this entry,
-# set `agents.assistant.model_provider = "anthropic.opus"`.
-# [providers.models.anthropic.opus]
-# model = "claude-opus-4-7"
-# api_key = "sk-ant-..."
-</code></pre>
-<p>The aliases (<code>home</code>, <code>assistant</code>) above are example names — substitute whatever suits your install.</p>
-<h2 id="field-reference--provider-entry"><a class="header" href="#field-reference--provider-entry">Field reference — provider entry</a></h2>
-<pre><code class="language-toml">[providers.models.&lt;type&gt;.&lt;alias&gt;]
-model = "&lt;model-id&gt;"        # passed to the provider as the model selector
-</code></pre>
+<p>The smallest config that loads clean has four section headers: a provider entry, an agent that references it, and a risk profile the agent gates against. Configure them through the gateway, zerocode, or <code>zeroclaw config set</code>; the <a href="../reference/config.html#providers">config reference</a> has the full field index.</p>
+<h2 id="field-reference-provider-entry"><a class="header" href="#field-reference-provider-entry">Field reference: provider entry</a></h2>
 <p>Almost every family also takes:</p>
-<pre><code class="language-toml">api_key = "..."             # or use the secrets store, or a provider-specific env var
-uri     = "https://..."     # optional operator override; otherwise the family's typed endpoint enum supplies the URL
-</code></pre>
 <h2 id="field-resolution-order"><a class="header" href="#field-resolution-order">Field resolution order</a></h2>
 <p>For every family, the URL is resolved in this order:</p>
 <ol>
-<li><strong>Operator override</strong> — <code>uri</code> field on the alias entry, if set.</li>
-<li><strong>Family endpoint</strong> — the family’s <code>*Endpoint</code> enum supplies the URL (e.g. <code>OpenAIEndpoint::Default</code> -&gt; <code>https://api.openai.com/v1</code>). Multi-region families have an <code>endpoint</code> field on the alias entry that picks the variant (e.g. <code>endpoint = "cn"</code> for Moonshot).</li>
-<li><strong>Templated families</strong> — Azure and Bedrock take typed inputs (<code>resource</code>, <code>deployment</code>, <code>api_version</code> for Azure; <code>region</code> for Bedrock) and substitute them into the family’s URI template. Missing fields fail loud at runtime.</li>
+<li><strong>Operator override</strong>: <code>uri</code> field on the alias entry, if set.</li>
+<li><strong>Family endpoint</strong>: the family’s <code>*Endpoint</code> enum supplies the URL (e.g. <code>OpenAIEndpoint::Default</code> -&gt; <code>https://api.openai.com/v1</code>). Multi-region families have an <code>endpoint</code> field on the alias entry that picks the variant (e.g. <code>endpoint = "cn"</code> for Moonshot).</li>
+<li><strong>Templated families</strong>: Azure and Bedrock take typed inputs (<code>resource</code>, <code>deployment</code>, <code>api_version</code> for Azure; <code>region</code> for Bedrock) and substitute them into the family’s URI template. Missing fields fail loud at runtime.</li>
 </ol>
 <h2 id="family-slots"><a class="header" href="#family-slots">Family slots</a></h2>
-<p>Run <code>cargo doc --open -p zeroclaw-config</code> (or read <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/crates/zeroclaw-config/src/providers.rs"><code>crates/zeroclaw-config/src/providers.rs</code></a>) for the complete list. Highlights:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Slot</th><th>Notes</th></tr>
-</thead>
-<tbody>
-<tr><td><code>anthropic</code></td><td>API key or OAuth (<code>sk-ant-oat-*</code>)</td></tr>
-<tr><td><code>openai</code></td><td>GPT, o-series; the OpenAI Codex subscription variant is <code>providers.models.openai.&lt;alias&gt;</code> with <code>wire_api = "responses"</code> and <code>requires_openai_auth = true</code></td></tr>
-<tr><td><code>azure</code></td><td>Typed: <code>resource</code>, <code>deployment</code>, <code>api_version</code> — all set on the alias entry</td></tr>
-<tr><td><code>gemini</code></td><td>Google’s API; <code>gemini_cli</code> is the CLI-shells-out variant</td></tr>
-<tr><td><code>bedrock</code></td><td>AWS-credentials chain, region template</td></tr>
-<tr><td><code>ollama</code></td><td>Local inference; <code>uri</code> defaults to <code>http://localhost:11434</code></td></tr>
-<tr><td><code>openrouter</code></td><td>Multi-vendor routing layer (treated as a single provider; see <a href="./routing.html">Routing</a>)</td></tr>
-<tr><td><code>groq</code>, <code>mistral</code>, <code>xai</code>, <code>deepseek</code>, …</td><td>OpenAI-compatible endpoints, each with its own canonical slot</td></tr>
-<tr><td><code>moonshot</code>, <code>qwen</code>, <code>glm</code>, <code>minimax</code>, <code>zai</code>, <code>doubao</code>, …</td><td>Multi-region families; pick the region with <code>endpoint = "&lt;variant&gt;"</code> on the alias entry</td></tr>
-<tr><td><code>lmstudio</code>, <code>llamacpp</code>, <code>sglang</code>, <code>vllm</code>, <code>osaurus</code>, <code>litellm</code></td><td>Local-server defaults (<code>http://localhost:&lt;port&gt;/v1</code>)</td></tr>
-<tr><td><code>custom</code></td><td>Catch-all for OpenAI-compatible endpoints not covered above; <code>uri</code> is required</td></tr>
-</tbody>
-</table>
-</div>
-<p>There is one canonical key per vendor — no synonyms.</p>
+<p>Every slot, its default endpoint, and whether it runs locally is in the <a href="./catalog.html#all-slots">Catalog</a>. There is one canonical key per vendor: no synonyms.</p>
 <h2 id="credentials"><a class="header" href="#credentials">Credentials</a></h2>
 <p>Three ways to supply credentials, in resolution order:</p>
 <ol>
 <li><strong>Inline <code>api_key = "..."</code></strong> in the alias entry (fine for dev, risky for checked-in configs).</li>
-<li><strong>Config-level secrets store</strong> — encrypted at <code>~/.zeroclaw/secrets</code> via a local key file.</li>
-<li><strong>Generic env override</strong> — <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> sets <code>providers.models.&lt;type&gt;.&lt;alias&gt;.api_key</code> at startup. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</li>
+<li><strong>Config-level secrets store</strong>: encrypted at <code>~/.zeroclaw/secrets</code> via a local key file.</li>
+<li><strong>Generic env override</strong>: <code>ZEROCLAW_providers__models__&lt;type&gt;__&lt;alias&gt;__api_key=...</code> sets <code>providers.models.&lt;type&gt;.&lt;alias&gt;.api_key</code> at startup. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</li>
 </ol>
 <p><code>zeroclaw quickstart</code> writes credentials to the secrets store by default. Configs you commit should not contain inline keys. For ecosystem-default names you already export in your shell (<code>$ANTHROPIC_API_KEY</code>, <code>$OPENROUTER_API_KEY</code>, …), the <a href="../reference/env-vars.html#bridging-ecosystem-default-env-vars">env-vars reference</a> shows the one-line bash expansions that point a schema-mirror name at the existing value.</p>
 <h2 id="oauth-and-subscription-auth"><a class="header" href="#oauth-and-subscription-auth">OAuth and subscription auth</a></h2>
 <p>Several providers accept OAuth or subscription-style tokens instead of raw API keys. Get the token from the vendor’s own dashboard or CLI flow, then drop it into the alias entry the same way you would an API key:</p>
 <ul>
-<li><strong>Anthropic</strong> — <code>sk-ant-oat-*</code> OAuth tokens (from Claude Pro/Team) go in <code>api_key</code> on <code>[providers.models.anthropic.&lt;alias&gt;]</code>.</li>
-<li><strong>OpenAI Codex subscription</strong> — set <code>requires_openai_auth = true</code> and leave <code>api_key</code> unset on <code>[providers.models.openai.&lt;alias&gt;]</code>; the runtime reads the stored Codex login.</li>
-<li><strong>Gemini CLI</strong> — <code>[providers.models.gemini_cli.&lt;alias&gt;]</code> shells out to the <code>gemini</code> CLI; use the CLI’s own auth flow.</li>
-<li><strong>Qwen / MiniMax</strong> — set <code>auth_mode = "oauth"</code> on the alias entry plus the relevant <code>oauth_*</code> fields (see <a href="../reference/env-vars.html#oauth-and-cli-path-fields">env-vars → OAuth and CLI-path fields</a>).</li>
+<li><strong>Anthropic</strong>: <code>sk-ant-oat-*</code> OAuth tokens (from Claude Pro/Team) go in <code>api_key</code> on <code>[providers.models.anthropic.&lt;alias&gt;]</code>.</li>
+<li><strong>OpenAI Codex subscription</strong>: set <code>requires_openai_auth = true</code> and leave <code>api_key</code> unset on <code>[providers.models.openai.&lt;alias&gt;]</code>; the runtime reads the stored Codex login.</li>
+<li><strong>Gemini CLI</strong>: <code>[providers.models.gemini_cli.&lt;alias&gt;]</code> shells out to the <code>gemini</code> CLI; use the CLI’s own auth flow.</li>
+<li><strong>Qwen / MiniMax</strong>: set <code>auth_mode = "oauth"</code> on the alias entry plus the relevant <code>oauth_*</code> fields (see <a href="../reference/env-vars.html#oauth-and-cli-path-fields">env-vars → OAuth and CLI-path fields</a>).</li>
 </ul>
 <h2 id="container-friendly-overrides"><a class="header" href="#container-friendly-overrides">Container-friendly overrides</a></h2>
-<p>When ZeroClaw runs inside a container and a provider is on the host (e.g. Ollama), set <code>uri</code> to a host-reachable address:</p>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri   = "http://host.docker.internal:11434"
-model = "qwen3.6:35b-a3b"
+<p>When ZeroClaw runs inside a container and a provider is on the host (e.g. Ollama), set <code>uri</code> to a host-reachable address. The generic env-override mechanism (<code>ZEROCLAW_&lt;dotted_path_with_double_underscores&gt;=&lt;value&gt;</code>) can set the same field at runtime without editing config:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">ZEROCLAW_providers__models__ollama__home__uri=http://ollama:11434 zeroclaw agent -a assistant
 </code></pre>
-<p>The generic env-override mechanism (<code>ZEROCLAW_&lt;dotted_path_with_double_underscores&gt;=&lt;value&gt;</code>) can set the same field at runtime without editing <code>config.toml</code>:</p>
-<pre><code class="language-bash">ZEROCLAW_providers__models__ollama__home__uri=http://ollama:11434 zeroclaw agent -a assistant
-</code></pre>
-<p>The <code>__</code> is the path separator; the example above sets <code>providers.models.ollama.home.uri</code>. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</p>
-<h2 id="per-family-knobs--worked-examples"><a class="header" href="#per-family-knobs--worked-examples">Per-family knobs — worked examples</a></h2>
-<h3 id="ollama"><a class="header" href="#ollama">Ollama</a></h3>
-<pre><code class="language-toml">[providers.models.ollama.local]
-uri              = "http://localhost:11434"
-model            = "qwen3.6:35b-a3b"
-think            = false                    # disable reasoning mode for faster output
-reasoning_effort = "none"                   # same intent, passed as a top-level field
-options          = { temperature = 0, num_ctx = 32768 }
-</code></pre>
-<h3 id="azure-openai"><a class="header" href="#azure-openai">Azure OpenAI</a></h3>
-<pre><code class="language-toml">[providers.models.azure.work]
-resource    = "my-resource"                 # template var: https://{resource}.openai.azure.com/...
-deployment  = "gpt-4o"
-api_version = "2024-10-01-preview"
-api_key     = "..."
-</code></pre>
-<p>The <code>resource</code>, <code>deployment</code>, and <code>api_version</code> values live in this typed config — they are not read from environment variables.</p>
-<h3 id="multi-region-moonshot--qwen--glm--minimax--"><a class="header" href="#multi-region-moonshot--qwen--glm--minimax--">Multi-region (Moonshot / Qwen / GLM / MiniMax / …)</a></h3>
-<p>Pick the region with the typed <code>endpoint</code> field on the alias entry:</p>
-<pre><code class="language-toml">[providers.models.moonshot.cn]
-api_key  = "..."
-endpoint = "cn"                             # MoonshotEndpoint::Cn -&gt; https://api.moonshot.cn/v1
+</div>
 
-[providers.models.moonshot.intl]
-api_key  = "..."
-endpoint = "intl"                           # MoonshotEndpoint::Intl -&gt; https://api.moonshot.ai/v1
-</code></pre>
-<p>One type per family; region picks via the <code>endpoint</code> field on the alias entry.</p>
+<p>The <code>__</code> is the path separator; the example above sets <code>providers.models.ollama.home.uri</code>. See <a href="../reference/env-vars.html">Environment variables</a> for the full grammar.</p>
+<h2 id="per-family-knobs-worked-examples"><a class="header" href="#per-family-knobs-worked-examples">Per-family knobs: worked examples</a></h2>
+<h3 id="ollama"><a class="header" href="#ollama">Ollama</a></h3>
+<h3 id="azure-openai"><a class="header" href="#azure-openai">Azure OpenAI</a></h3>
+<p>The <code>resource</code>, <code>deployment</code>, and <code>api_version</code> values live in this typed config, they are not read from environment variables.</p>
+<h3 id="multi-region-moonshot--qwen--glm--minimax--"><a class="header" href="#multi-region-moonshot--qwen--glm--minimax--">Multi-region (Moonshot / Qwen / GLM / MiniMax / …)</a></h3>
+<p>One type per family; pick the region via the typed <code>endpoint</code> field on the alias entry.</p>
 <h3 id="custom-openai-compatible-endpoint"><a class="header" href="#custom-openai-compatible-endpoint">Custom OpenAI-compatible endpoint</a></h3>
-<pre><code class="language-toml">[providers.models.custom.gateway]
-uri     = "https://my-gateway.example.com/v1"
-model   = "my-model-id"
-api_key = "..."
-</code></pre>
 <p>The <code>custom</code> slot requires <code>uri</code>. See <a href="./custom.html">Custom providers</a>.</p>
 <h2 id="picking-which-provider-an-agent-uses"><a class="header" href="#picking-which-provider-an-agent-uses">Picking which provider an agent uses</a></h2>
 <p>Agents reference a provider by dotted alias. Provider entries on their own do nothing.</p>
-<pre><code class="language-toml">[agents.assistant]
-model_provider  = "anthropic.home"   # `&lt;type&gt;.&lt;alias&gt;` into providers.models
-risk_profile    = "hardened"         # alias into risk_profiles.&lt;alias&gt;
-runtime_profile = "deep"             # alias into runtime_profiles.&lt;alias&gt;; independent of risk_profile
-</code></pre>
 <p><code>risk_profile</code> and <code>runtime_profile</code> reference independent alias maps, so their names need not match (<code>runtime_profile</code> is also optional). <code>Config::validate()</code> fails loud at startup if <code>model_provider</code> doesn’t resolve to a configured <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> entry, or if <code>risk_profile</code> doesn’t resolve to a configured <code>[risk_profiles.&lt;alias&gt;]</code> entry.</p>
 <p>For multiple agents pointing at different providers, see <a href="./routing.html">Routing</a>.</p>
 <h2 id="fallback-on-failure"><a class="header" href="#fallback-on-failure">Fallback on failure</a></h2>
 <p>When a request to a provider fails after exhausting its retries (provider down,
 key rate-limited, model unavailable), the alias can fall over to alternatives
 you declare on the alias entry. Two independent, ordered axes:</p>
-<pre><code class="language-toml">[providers.models.anthropic.prod]
-model           = "claude-sonnet-4-5"
-fallback_models = ["claude-haiku-4-5"]   # same provider, alternate models
-fallback        = ["openai.backup"]      # other aliases, each with its own key/endpoint
-
-[providers.models.openai.backup]
-model = "gpt-4.1"
-</code></pre>
 <ul>
-<li><strong><code>fallback_models</code></strong> — alternate model IDs tried on <em>this</em> provider, using the
+<li><strong><code>fallback_models</code></strong>: alternate model IDs tried on <em>this</em> provider, using the
 same endpoint, key, and headers. Only the model identifier changes. Use it when
 a provider serves a backup model (a smaller or older variant) that should be
 tried before leaving the provider entirely.</li>
-<li><strong><code>fallback</code></strong> — an ordered list of <em>other</em> provider aliases (dotted
+<li><strong><code>fallback</code></strong>: an ordered list of <em>other</em> provider aliases (dotted
 <code>&lt;type&gt;.&lt;alias&gt;</code> references into <code>[providers.models]</code>). Each fallback alias
-resolves with <strong>its own</strong> credentials, endpoint, and model — a fallback never
+resolves with <strong>its own</strong> credentials, endpoint, and model, a fallback never
 inherits the failing alias’s key.</li>
 </ul>
 <h3 id="order-of-attempts"><a class="header" href="#order-of-attempts">Order of attempts</a></h3>
 <p>The walk is depth-first: an alias’s entire model list is exhausted before leaving
 it, then each <code>fallback</code> alias is descended in turn, applying that alias’s own
-<code>fallback_models</code> and <code>fallback</code> recursively. For the example above:</p>
+<code>fallback_models</code> and <code>fallback</code> recursively. Suppose <code>anthropic.prod</code> serves
+<code>claude-sonnet-4-5</code>, lists <code>claude-haiku-4-5</code> in its <code>fallback_models</code>, and
+names <code>openai.backup</code> (serving <code>gpt-4.1</code>) in its <code>fallback</code>. The attempt order
+is then:</p>
 <pre><code>anthropic.prod/claude-sonnet-4-5
   -&gt; anthropic.prod/claude-haiku-4-5
   -&gt; openai.backup/gpt-4.1
@@ -403,12 +383,12 @@ the issue is surfaced as a validation warning (<code>dangling_fallback_ref</code
 <code>fallback_cycle</code> / <code>max_fallback_depth_exceeded</code>) on the CLI and in the dashboard.
 A <code>fallback_models</code> entry that is blank or duplicates the alias’s primary <code>model</code>
 is likewise skipped at runtime and surfaced (<code>empty_fallback_model</code> /
-<code>fallback_model_duplicates_primary</code>). A bad fallback link degrades gracefully — it
+<code>fallback_model_duplicates_primary</code>). A bad fallback link degrades gracefully, it
 never prevents the agent from running.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="./overview.html">Overview</a></li>
-<li><a href="./catalog.html">Provider catalog</a> — concrete config example for every family</li>
+<li><a href="./catalog.html">Provider catalog</a>: concrete config example for every family</li>
 <li><a href="./streaming.html">Streaming</a></li>
 <li><a href="./routing.html">Routing</a></li>
 <li><a href="./custom.html">Custom providers</a></li>
@@ -418,7 +398,7 @@ never prevents the agent from running.</p>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../providers/overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../providers/catalog.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -432,7 +412,7 @@ never prevents the agent from running.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../providers/overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../providers/catalog.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="服务与守护进程"><a class="header" href="#服务与守护进程">服务与守护进程</a></h1>
-<p>本页面是 <a href="../setup/service.html">设置 → 服务管理</a> 的操作端配套文档——该页面涵盖服务的安装与卸载。本页面则介绍如何运行服务：调优、资源限制、优雅重启以及多工作区配置。</p>
+<p>This page is the operations-side companion to <a href="../setup/service.html">Setup → Service management</a>; that page covers installing and uninstalling the service. This page covers running it: tuning, resource limits, graceful restarts, and multi-workspace setups.</p>
 <h2 id="选择用户范围与系统范围"><a class="header" href="#选择用户范围与系统范围">选择用户范围与系统范围</a></h2>
 <div class="table-wrapper">
 <table>
@@ -231,55 +307,64 @@
 </table>
 </div>
 <p>在桌面 Linux 上，启用用户服务持久化（lingering），使用户服务在注销后仍然保持运行：</p>
-<pre><code class="language-bash">loginctl enable-linger $USER
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">loginctl enable-linger $USER
 </code></pre>
+</div>
+
 <p>无需停留，用户范围的 systemd 服务会在最后一个会话关闭时停止。</p>
 <h2 id="重启行为"><a class="header" href="#重启行为">重启行为</a></h2>
-<p>默认的单元文件（<code>~/.config/systemd/user/zeroclaw.service</code>）使用：</p>
-<pre><code class="language-ini">Restart=on-failure
-RestartSec=10s
+<p>The installed systemd user unit (<code>~/.config/systemd/user/zeroclaw.service</code>) uses:</p>
+<pre><code class="language-ini">Restart=always
+RestartSec=3
 </code></pre>
-<p>当配置出现错误时，代理会正常退出（<code>exit 2</code>）且不会被重启——这可以防止服务在修复配置期间因频繁重启而消耗大量 CPU。对于其他退出码，systemd 将以 10 秒的退避时间进行重启。</p>
-<p>在 macOS 上，LaunchAgent plist 配置了 <code>KeepAlive = true</code> 和 <code>SuccessfulExit = false</code>，其语义与 <code>on-failure</code> 相同。</p>
-<p>在 Windows 上，任务计划程序任务配置为“如果任务失败则重启”——每 10 秒重试一次，最多重试 10 次。</p>
+<p>systemd restarts the daemon on any exit with a 3-second backoff. There is no exit-code allowlist, so a daemon that fails fast on a bad config will flap; fix the config and <code>systemctl --user restart zeroclaw</code> rather than relying on the service to give up.</p>
+<p>On macOS, the LaunchAgent (<code>~/Library/LaunchAgents/com.zeroclaw.daemon.plist</code>) sets <code>RunAtLoad</code> and <code>KeepAlive</code> to <code>true</code>, so launchd keeps the daemon running and relaunches it whenever it exits.</p>
+<p>On Windows, <code>zeroclaw service install</code> registers a Task Scheduler task triggered <code>ONLOGON</code> at the <code>LIMITED</code> run level. It starts the daemon at logon; it does not add an automatic restart-on-failure policy.</p>
 <h2 id="优雅关闭"><a class="header" href="#优雅关闭">优雅关闭</a></h2>
-<p>守护进程会捕获 <code>SIGTERM</code>（Unix）或 <code>CTRL_CLOSE_EVENT</code>（Windows）：</p>
-<ol>
-<li>停止接受新的通道事件</li>
-<li>排空正在进行的代理循环（最多 <code>[daemon] shutdown_grace_secs</code> 秒，默认值为 30）</li>
-<li>将工具收据和对话内存刷新到 SQLite</li>
-<li>断开通道并关闭网关监听器</li>
-<li>退出 0</li>
-</ol>
-<p>如果代理在关闭开始时正处于工具调用过程中，该工具将获得宽限期以完成操作。之后，<code>SIGKILL</code> 将终止它；回执会被标记为已中断。</p>
-<p>如果必须的话，可以使用 <code>SIGKILL</code> 强制立即退出，但请预期进行中的会话的对话内存将不完整。</p>
+<p>On Unix the daemon traps <code>SIGINT</code> and <code>SIGTERM</code>; on Windows it traps Ctrl+C (<code>ctrl_c</code>). Any of these triggers a clean shutdown: the daemon stops its channel server and the gateway listener and exits.</p>
+<p><code>SIGHUP</code> is ignored (the daemon stays running). A reload requested via the <code>/admin/reload</code> endpoint restarts the daemon loop in place rather than exiting.</p>
+<p>Conversation memory and session state are written to SQLite incrementally during operation, not buffered until shutdown, so a clean stop does not depend on a flush step. Tool receipts are in-band HMAC tokens in the conversation, not a separate on-disk log. A hard <code>SIGKILL</code> skips the clean channel teardown but does not corrupt already-committed memory; only an agent turn that was mid-write is lost.</p>
 <h2 id="手动启动以进行调试"><a class="header" href="#手动启动以进行调试">手动启动以进行调试</a></h2>
 <p>跳过服务，直接运行守护进程：</p>
-<pre><code class="language-bash">zeroclaw service stop     # 如果服务正在运行，则释放网关端口
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">zeroclaw service stop     # 如果服务正在运行，则释放网关端口
 zeroclaw daemon
 </code></pre>
-<p><code>zeroclaw daemon</code> 以前台模式运行，日志输出到 stderr，并且与服务运行的进程相同——只是没有服务框架。在以下场景中非常有用：</p>
+</div>
+
+<p><code>zeroclaw daemon</code> runs in the foreground, logs to stderr, and is the same process the service runs, just without the service harness. Useful when:</p>
 <ul>
 <li>诊断服务吞掉的启动失败</li>
 <li>在 <code>gdb</code> / <code>lldb</code> 下运行</li>
 <li>在提交配置更改之前进行测试</li>
 </ul>
-<p>使用 Ctrl-C 终止——与 SIGTERM 相同的优雅关闭语义。</p>
+<p>Terminate with Ctrl-C, same graceful shutdown semantics as SIGTERM.</p>
 <h2 id="资源限制"><a class="header" href="#资源限制">资源限制</a></h2>
-<h3 id="linux--systemd"><a class="header" href="#linux--systemd">Linux — systemd</a></h3>
+<h3 id="linux-systemd"><a class="header" href="#linux-systemd">Linux: systemd</a></h3>
 <p>添加到 drop-in 中：</p>
-<pre><code class="language-bash">systemctl --user edit zeroclaw.service
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">systemctl --user edit zeroclaw.service
 </code></pre>
+</div>
+
 <pre><code class="language-ini">[Service]
 MemoryMax=2G
 CPUQuota=200%            # two cores
 LimitNOFILE=16384        # if opening many channel sockets
 </code></pre>
 <p>重新加载并重启：</p>
-<pre><code class="language-bash">systemctl --user daemon-reload
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">systemctl --user daemon-reload
 systemctl --user restart zeroclaw
 </code></pre>
-<h3 id="macos--launchd"><a class="header" href="#macos--launchd">macOS — launchd</a></h3>
+</div>
+
+<h3 id="macos-launchd"><a class="header" href="#macos-launchd">macOS: launchd</a></h3>
 <p>编辑 <code>~/Library/LaunchAgents/com.zeroclaw.daemon.plist</code>：</p>
 <pre><code class="language-xml">&lt;key&gt;SoftResourceLimits&lt;/key&gt;
 &lt;dict&gt;
@@ -288,9 +373,13 @@ systemctl --user restart zeroclaw
 &lt;/dict&gt;
 </code></pre>
 <p>卸载并重新加载 plist 以应用更改：</p>
-<pre><code class="language-bash">launchctl unload ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">launchctl unload ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 launchctl load ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 </code></pre>
+</div>
+
 <h3 id="docker"><a class="header" href="#docker">Docker</a></h3>
 <p>Compose</p>
 <pre><code class="language-yaml">服务:
@@ -302,24 +391,28 @@ launchctl load ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
       nofile: 16384
 </code></pre>
 <h2 id="运行多个工作区"><a class="header" href="#运行多个工作区">运行多个工作区</a></h2>
-<p>每个 ZeroClaw 实例拥有一个工作区。要运行两个：</p>
-<ol>
-<li>安装一次二进制文件</li>
-<li>创建 <code>~/.zeroclaw-home/</code> 和 <code>~/.zeroclaw-work/</code>（或任意位置）</li>
-<li>运行两个指向不同工作区的服务：</li>
-</ol>
-<pre><code class="language-bash">ZEROCLAW_WORKSPACE=~/.zeroclaw-home zeroclaw service install --name zeroclaw-home
-ZEROCLAW_WORKSPACE=~/.zeroclaw-work zeroclaw service install --name zeroclaw-work
+<p>Each ZeroClaw daemon owns one config directory (which contains its <code>data/</code> dir). To run two side by side, give each its own config directory via <code>--config-dir</code> (or the <code>ZEROCLAW_CONFIG_DIR</code> env var):</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">zeroclaw --config-dir ~/.zeroclaw-home daemon
+zeroclaw --config-dir ~/.zeroclaw-work daemon
 </code></pre>
-<p>每个实例拥有独立的单元文件 / plist、独立的网关端口（可在各自的配置中设置）以及独立的通道绑定。内存保持隔离；一个工作区中的 Telegram 机器人无法感知另一个工作区中的情况。</p>
-<p>不要将两个守护进程指向同一个工作区。SQLite 是单写入器；第二个守护进程在启动时会失败。</p>
+</div>
+
+<p>Each instance reads its own config, its own <code>data/</code> (memory, sessions), its own gateway port (set per config), and its own channel bindings. Memory stays separate; a Telegram bot in one config dir doesn’t know about the other.</p>
+<p><code>zeroclaw service install</code> always installs a single unit pointed at the default config directory; it has no flag to name or parameterize instances. To run more than one as a persistent service, hand-author a second unit file (copy <code>~/.config/systemd/user/zeroclaw.service</code> to a new name) whose <code>ExecStart</code> passes <code>--config-dir &lt;dir&gt;</code>, then enable it separately.</p>
+<p>Don’t point two daemons at the same config directory. SQLite is single-writer; the second will fail on startup.</p>
 <h2 id="观察重启和崩溃"><a class="header" href="#观察重启和崩溃">观察重启和崩溃</a></h2>
-<pre><code class="language-bash"># Linux
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh"># Linux
 journalctl --user -u zeroclaw --since 1 天前 | grep -E 已启动|已停止|失败
 
 # macOS
 log show --predicate `process == "zeroclaw"` --last 1d | grep -E `'start|stop|error'`
 </code></pre>
+</div>
+
 <p>如果你看到反复重启，请启用调试日志（通过单元文件的 <code>Environment=</code> 设置 <code>RUST_LOG=debug</code>），并让其再崩溃一次以捕获完整的堆栈跟踪。</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>

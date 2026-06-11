@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,79 +295,449 @@
                         <h1 id="音声とテレフォニー"><a class="header" href="#音声とテレフォニー">音声とテレフォニー</a></h1>
 <p>リアルタイムの音声入出力。4つのチャネルがマトリクスをカバーします。すなわち、着信通話、ローカルマイクのウェイク、発信音声合成、そしてSIPグレードのリアルタイム会話です。</p>
 <h2 id="clawdtalkリアルタイム-sip"><a class="header" href="#clawdtalkリアルタイム-sip">ClawdTalk（リアルタイム SIP）</a></h2>
-<pre><code class="language-toml">[channels.clawdtalk]
-enabled = true
-api_key = "..."                                # Telnyx API key (秘密情報)
-connection_id = "..."                          # Telnyx SIP connection ID
-from_number = "+14155550123"                   # 発信時の発信者ID
-allowed_destinations = ["+14155551234"]        # 発信を許可する宛先。空の場合は許可なし
-webhook_secret = "..."                         # オプション: 受信 Telnyx webhook 検証用の共有シークレット
-</code></pre>
 <p>Telnyx を利用した全二重 SIP 音声。エージェントは実際の通話（着信または発信）で会話します。バージイン、ターン中のツール使用、地域別の電話番号プロビジョニングをサポートします。</p>
-<p><strong>組み合わせて使用:</strong> ブレインには <code>telnyx</code> モデルプロバイダー（<code>crates/zeroclaw-providers/src/telnyx.rs</code>）を使用し、Telnyx アカウントに ZeroClaw ゲートウェイを指す正しい webhook URL を設定した SIP 接続があることを確認してください。</p>
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>allowed_destinations</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.allowed_destinations</code> field.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.allowed_destinations</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.allowed_destinations &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__clawdtalk__&lt;alias&gt;__allowed_destinations=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>api_key</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.api_key</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.api_key</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.api_key &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__clawdtalk__&lt;alias&gt;__api_key=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>connection_id</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.connection_id</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.connection_id</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.connection_id &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__clawdtalk__&lt;alias&gt;__connection_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__clawdtalk__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>from_number</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.from_number</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.from_number</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.from_number &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__clawdtalk__&lt;alias&gt;__from_number=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>webhook_secret</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.webhook_secret</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.webhook_secret</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.webhook_secret &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__clawdtalk__&lt;alias&gt;__webhook_secret=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<p><code>api_key</code> (Telnyx) and <code>webhook_secret</code> are secrets:</p>
+<blockquote>
+<p><strong><code>channels.clawdtalk.&lt;alias&gt;.api_key</code> is a secret.</strong> Stored encrypted, never in plain <code>config.toml</code>. Set it through one of these, which encrypt on write:</p>
+</blockquote>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/clawdtalk"><code>/config/channels/clawdtalk</code></a> and set the <code>channels.clawdtalk.&lt;alias&gt;.api_key</code> field there.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.clawdtalk.&lt;alias&gt;.api_key</code> field (input is masked).</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.clawdtalk.&lt;alias&gt;.api_key    # prompts for masked input, stores encrypted
+</code></pre>
+</div>
+
+<p><strong>Pair with:</strong> a <code>telnyx</code> model provider for the brain and ensure your Telnyx account has a SIP connection with the correct webhook URL pointed at the ZeroClaw gateway.</p>
 <h2 id="音声通話twilio--telnyx--plivo"><a class="header" href="#音声通話twilio--telnyx--plivo">音声通話（Twilio / Telnyx / Plivo）</a></h2>
-<pre><code class="language-toml">[channels.voice_call]
-enabled = true
-provider = "twilio"                            # "twilio" (デフォルト)、"telnyx"、または "plivo"
-account_id = "..."                             # プロバイダー固有のアカウント識別子
-auth_token = "..."                             # プロバイダー固有の認証トークン (シークレット)
-from_number = "+14155550123"
-webhook_port = 8090                            # デフォルト 8090; 組み込み webhook サーバー
-require_outbound_approval = true               # デフォルト true; ダイヤル前にオペレーターの承認を要求
-transcription_logging = true                   # デフォルト true; 通話の文字起こしを永続化
-# tts_voice = ""                               # オプションの音声 ID オーバーライド (プロバイダー固有); 省略するとプロバイダーのデフォルトを使用
-max_call_duration_secs = 3600                  # デフォルト 3600 (1 時間の上限)
-# webhook_base_url = ""                        # トンネル/プロキシ経由の場合のオプションのパブリックベース URL; 省略すると localhost フォールバックを使用
+<p>Traditional carrier voice: the agent picks up, transcribes the caller, replies with TTS. Higher latency than ClawdTalk but works with any regular phone number and doesn’t require SIP trunk provisioning. Outbound calls hit <code>from_number</code> and require operator approval when <code>require_outbound_approval</code> is on.</p>
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>account_id</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.account_id</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.account_id</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.account_id &lt;value&gt;
 </code></pre>
-<p>従来のキャリア音声 — エージェントが応答し、発信者の音声を文字起こしし、TTSで返答します。ClawdTalkよりレイテンシは高いものの、通常の電話番号であれば何でも利用でき、SIPトランクのプロビジョニングを必要としません。アウトバウンドコールは<code>from_number</code>を使用し、<code>require_outbound_approval</code>が有効な場合はオペレーターの承認が必要です。</p>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__account_id=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>auth_token</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.auth_token</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.auth_token</code> field.</p>
+<h4 id="zeroclaw-config-8"><a class="header" href="#zeroclaw-config-8">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.auth_token &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__auth_token=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-9"><a class="header" href="#zeroclaw-config-9">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-8"><a class="header" href="#environment-variable-8">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>from_number</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-10"><a class="header" href="#gateway-dashboard-10">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.from_number</code> field.</p>
+<h4 id="zerocode-10"><a class="header" href="#zerocode-10">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.from_number</code> field.</p>
+<h4 id="zeroclaw-config-10"><a class="header" href="#zeroclaw-config-10">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.from_number &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-9"><a class="header" href="#environment-variable-9">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__from_number=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>max_call_duration_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>3600</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-11"><a class="header" href="#gateway-dashboard-11">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.max_call_duration_secs</code> field.</p>
+<h4 id="zerocode-11"><a class="header" href="#zerocode-11">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.max_call_duration_secs</code> field.</p>
+<h4 id="zeroclaw-config-11"><a class="header" href="#zeroclaw-config-11">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.max_call_duration_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-10"><a class="header" href="#environment-variable-10">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__max_call_duration_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>model_provider</code> <span class="cfg-field-meta"><code>VoiceProvider</code> · default <code>"twilio"</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-12"><a class="header" href="#gateway-dashboard-12">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.model_provider</code> field.</p>
+<h4 id="zerocode-12"><a class="header" href="#zerocode-12">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.model_provider</code> field.</p>
+<h4 id="zeroclaw-config-12"><a class="header" href="#zeroclaw-config-12">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.model_provider &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-11"><a class="header" href="#environment-variable-11">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__model_provider=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>require_outbound_approval</code> <span class="cfg-field-meta"><code>bool</code> · default <code>true</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-13"><a class="header" href="#gateway-dashboard-13">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.require_outbound_approval</code> field.</p>
+<h4 id="zerocode-13"><a class="header" href="#zerocode-13">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.require_outbound_approval</code> field.</p>
+<h4 id="zeroclaw-config-13"><a class="header" href="#zeroclaw-config-13">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.require_outbound_approval &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-12"><a class="header" href="#environment-variable-12">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__require_outbound_approval=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>transcription_logging</code> <span class="cfg-field-meta"><code>bool</code> · default <code>true</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-14"><a class="header" href="#gateway-dashboard-14">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.transcription_logging</code> field.</p>
+<h4 id="zerocode-14"><a class="header" href="#zerocode-14">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.transcription_logging</code> field.</p>
+<h4 id="zeroclaw-config-14"><a class="header" href="#zeroclaw-config-14">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.transcription_logging &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-13"><a class="header" href="#environment-variable-13">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__transcription_logging=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>tts_voice</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-15"><a class="header" href="#gateway-dashboard-15">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.tts_voice</code> field.</p>
+<h4 id="zerocode-15"><a class="header" href="#zerocode-15">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.tts_voice</code> field.</p>
+<h4 id="zeroclaw-config-15"><a class="header" href="#zeroclaw-config-15">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.tts_voice &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-14"><a class="header" href="#environment-variable-14">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__tts_voice=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>webhook_base_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-16"><a class="header" href="#gateway-dashboard-16">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.webhook_base_url</code> field.</p>
+<h4 id="zerocode-16"><a class="header" href="#zerocode-16">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.webhook_base_url</code> field.</p>
+<h4 id="zeroclaw-config-16"><a class="header" href="#zeroclaw-config-16">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.webhook_base_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-15"><a class="header" href="#environment-variable-15">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__webhook_base_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>webhook_port</code> <span class="cfg-field-meta"><code>integer</code> · default <code>8090</code></span></summary>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-17"><a class="header" href="#gateway-dashboard-17">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_call"><code>/config/channels/voice_call</code></a> and set the <code>channels.voice_call.&lt;alias&gt;.webhook_port</code> field.</p>
+<h4 id="zerocode-17"><a class="header" href="#zerocode-17">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_call.&lt;alias&gt;.webhook_port</code> field.</p>
+<h4 id="zeroclaw-config-17"><a class="header" href="#zeroclaw-config-17">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_call.&lt;alias&gt;.webhook_port &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-16"><a class="header" href="#environment-variable-16">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_call__&lt;alias&gt;__webhook_port=
+</code></pre>
+</div>
+
+</details>
+</div>
+
 <h2 id="音声ウェイクローカルウェイクワード"><a class="header" href="#音声ウェイクローカルウェイクワード">音声ウェイク（ローカルウェイクワード）</a></h2>
-<pre><code class="language-toml">[channels.voice_wake]
-wake_word = "hey zeroclaw"                     # デフォルトは "hey zeroclaw"（大文字小文字を区別しない部分文字列マッチ）
-silence_timeout_ms = 2000                      # デフォルトは 2000；キャプチャを確定するまでの無音時間（ミリ秒）
-energy_threshold = 0.01                        # デフォルトは 0.01；これを下回る RMS エネルギーは無音として扱われる
-max_capture_secs = 30                          # デフォルトは 30；キャプチャ時間の上限
-</code></pre>
 <p>ローカルで実行され、マイクを監視し、ウェイクフレーズを認識するとエージェントの対話を開始します。以下に有用です：</p>
 <ul>
 <li>SBC上の物理的な音声アシスタント</li>
 <li>デスクトップの「ホットワード → 問い合わせ」ワークフロー</li>
 <li>常時リスニング型のホームオートメーションエージェント</li>
 </ul>
-<p>エージェントは音声をどこにも送信しません。ウェイク検出はローカルで行われます。ウェイク後の発話のみがキャプチャされ、LLMに到達する前に（個別に）文字起こしされます。</p>
+<p>The agent doesn’t send audio anywhere; wake detection is local. Only post-wake speech is captured and (separately) transcribed before reaching the LLM.</p>
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>energy_threshold</code> <span class="cfg-field-meta"><code>number</code> · default <code>0.009999999776482582</code></span></summary>
+<p>RMS energy threshold for voice activity detection. Samples below this level are treated as silence. Default: <code>0.01</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-18"><a class="header" href="#gateway-dashboard-18">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_wake"><code>/config/channels/voice_wake</code></a> and set the <code>channels.voice_wake.&lt;alias&gt;.energy_threshold</code> field.</p>
+<h4 id="zerocode-18"><a class="header" href="#zerocode-18">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_wake.&lt;alias&gt;.energy_threshold</code> field.</p>
+<h4 id="zeroclaw-config-18"><a class="header" href="#zeroclaw-config-18">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_wake.&lt;alias&gt;.energy_threshold &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-17"><a class="header" href="#environment-variable-17">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_wake__&lt;alias&gt;__energy_threshold=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-19"><a class="header" href="#gateway-dashboard-19">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_wake"><code>/config/channels/voice_wake</code></a> and set the <code>channels.voice_wake.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-19"><a class="header" href="#zerocode-19">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_wake.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-19"><a class="header" href="#zeroclaw-config-19">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_wake.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-18"><a class="header" href="#environment-variable-18">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_wake__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>max_capture_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>30</code></span></summary>
+<p>Maximum capture duration in seconds before forcing transcription. Default: <code>30</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-20"><a class="header" href="#gateway-dashboard-20">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_wake"><code>/config/channels/voice_wake</code></a> and set the <code>channels.voice_wake.&lt;alias&gt;.max_capture_secs</code> field.</p>
+<h4 id="zerocode-20"><a class="header" href="#zerocode-20">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_wake.&lt;alias&gt;.max_capture_secs</code> field.</p>
+<h4 id="zeroclaw-config-20"><a class="header" href="#zeroclaw-config-20">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_wake.&lt;alias&gt;.max_capture_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-19"><a class="header" href="#environment-variable-19">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_wake__&lt;alias&gt;__max_capture_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>silence_timeout_ms</code> <span class="cfg-field-meta"><code>integer</code> · default <code>2000</code></span></summary>
+<p>Silence timeout in milliseconds: how long to wait after the last energy spike before finalizing a capture window. Default: <code>2000</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-21"><a class="header" href="#gateway-dashboard-21">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_wake"><code>/config/channels/voice_wake</code></a> and set the <code>channels.voice_wake.&lt;alias&gt;.silence_timeout_ms</code> field.</p>
+<h4 id="zerocode-21"><a class="header" href="#zerocode-21">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_wake.&lt;alias&gt;.silence_timeout_ms</code> field.</p>
+<h4 id="zeroclaw-config-21"><a class="header" href="#zeroclaw-config-21">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_wake.&lt;alias&gt;.silence_timeout_ms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-20"><a class="header" href="#environment-variable-20">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_wake__&lt;alias&gt;__silence_timeout_ms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>wake_word</code> <span class="cfg-field-meta"><code>string</code> · default <code>"hey zeroclaw"</code></span></summary>
+<p>Wake word phrase to listen for (case-insensitive substring match). Default: <code>"hey zeroclaw"</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-22"><a class="header" href="#gateway-dashboard-22">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/voice_wake"><code>/config/channels/voice_wake</code></a> and set the <code>channels.voice_wake.&lt;alias&gt;.wake_word</code> field.</p>
+<h4 id="zerocode-22"><a class="header" href="#zerocode-22">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.voice_wake.&lt;alias&gt;.wake_word</code> field.</p>
+<h4 id="zeroclaw-config-22"><a class="header" href="#zeroclaw-config-22">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.voice_wake.&lt;alias&gt;.wake_word &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-21"><a class="header" href="#environment-variable-21">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__voice_wake__&lt;alias&gt;__wake_word=
+</code></pre>
+</div>
+
+</details>
+</div>
+
 <blockquote>
 <p><strong>ビルドフラグ:</strong> Voice Wake は <code>zeroclaw-channels</code> の <code>voice-wake</code> cargo フィーチャーでゲートされています。組み込むには <code>--features voice-wake</code> を付けてビルドしてください。</p>
 </blockquote>
 <h2 id="tts発信音声合成"><a class="header" href="#tts発信音声合成">TTS（発信音声合成）</a></h2>
-<p>TTS は <code>[channels.*]</code> の下ではなく、<code>[tts]</code> としてトップレベルに配置されます。これは独自の受信チャネルではなく、各チャネルが呼び出せる出力サービスだからです。</p>
-<pre><code class="language-toml">[tts]
-enabled = true
-default_provider = "piper"                     # "openai"、"elevenlabs"、"google"、"edge"、または "piper"
-default_voice = "en_US-lessac-medium"          # プロバイダー固有のデフォルト音声 ID
-default_format = "mp3"                         # "mp3"（デフォルト）、"opus"、または "wav"
-max_text_length = 4096                         # デフォルト 4096
-
-[tts.openai]
-api_key = "..."
-model = "tts-1"                                # デフォルト "tts-1"
-speed = 1.0                                    # デフォルト 1.0
-
-[tts.elevenlabs]
-api_key = "..."
-model_id = "eleven_monolingual_v1"             # デフォルト "eleven_monolingual_v1"
-stability = 0.5                                # デフォルト 0.5
-similarity_boost = 0.5                         # デフォルト 0.5
-
-[tts.google]
-api_key = "..."
-language_code = "en-US"                        # デフォルト "en-US"
-
-[tts.edge]
-binary_path = "edge-tts"                       # edge-tts バイナリへのパス。デフォルト "edge-tts"
-
-[tts.piper]
-api_url = "http://127.0.0.1:5000/v1/audio/speech"   # OpenAI 互換の Piper HTTP エンドポイント
-</code></pre>
-<p>アクティブな <code>default_provider</code> のセクションのみを入力する必要があります。完全なローカル音声アシスタントを実現するには、<code>[tts]</code> を <code>voice_wake</code> と組み合わせてください。</p>
+<p>TTS is an output service channels call into, not its own inbound channel. Global defaults live under <code>tts</code>. TTS provider instances are configured under <code>providers.tts.&lt;type&gt;.&lt;alias&gt;</code> (OpenAI, ElevenLabs, Google, Edge, Piper) and selected per agent via the agent’s <code>tts_provider</code>. See <a href="../providers/overview.html">Model Providers</a> for the provider entries and per-agent wiring. Provider API keys are secrets; set them through the gateway, zerocode, or <code>zeroclaw config set</code>, never in plaintext.</p>
 <hr>
 <h2 id="レイテンシ予算"><a class="header" href="#レイテンシ予算">レイテンシ予算</a></h2>
 <p>Speech はエンドツーエンドで約 500 ms 以下の場合、リアルタイムに感じられます。実用的な予算:</p>
@@ -311,7 +757,7 @@ api_url = "http://127.0.0.1:5000/v1/audio/speech"   # OpenAI 互換の Piper HTT
 </div>
 <p>ClawdTalkは、オーディオストリームをライブ状態に保つことで、これらの処理をいくつかスキップします。通常の<code>voice_call</code>では、STT + LLM + TTSが順次実行されます。</p>
 <h2 id="stt"><a class="header" href="#stt">STT</a></h2>
-<p>音声テキスト変換は音声チャンネルとは別に設定します。<a href="../reference/config.html">設定リファレンス</a>の <code>[transcription]</code> 設定を参照してください。音声チャンネルは、音声をテキストに変換する必要があるときに、その時点で有効になっている文字起こしプロバイダーを呼び出します。</p>
+<p>Speech-to-text is configured separately from the voice channels; see the <code>[transcription]</code> config in the <a href="../reference/config.html">Config reference</a>. Voice channels invoke whichever transcription provider is active when they need to turn audio into text.</p>
 <h2 id="ハードウェアのノート"><a class="header" href="#ハードウェアのノート">ハードウェアのノート</a></h2>
 <p>SBC での常時オン音声の場合:</p>
 <ul>

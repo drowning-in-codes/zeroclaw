@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,9 +294,15 @@
                     <main>
                         <h1 id="variables-de-entorno"><a class="header" href="#variables-de-entorno">Variables de Entorno</a></h1>
 <p>Cada anulación de variable de entorno del operador utiliza una única gramática de réplica de esquema. El final de una variable de entorno <code>ZEROCLAW_*</code> es la ruta de propiedad con puntos que <code>zeroclaw config set</code> acepta, donde cada <code>__</code> (doble guion bajo) separa los segmentos de la ruta y cada <code>_</code> simple es o bien un conector snake-case dentro del nombre de un campo (<code>api_key</code> → <code>api-key</code> en <code>set_prop</code>) o un carácter literal dentro de una clave de alias.</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
 <pre><code class="language-sh">ZEROCLAW_&lt;dotted_path_with_double_underscores&gt;=&lt;value&gt;
 </code></pre>
+</div>
+
 <h2 id="ejemplos"><a class="header" href="#ejemplos">Ejemplos</a></h2>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh"># Inyectar una credencial de alias de familia tipada
 ZEROCLAW_providers__models__anthropic__home__api_key=sk-ant-...
 
@@ -229,8 +311,8 @@ ZEROCLAW_providers__models__openrouter__prod_v2__model=anthropic/claude-sonnet-4
 ZEROCLAW_providers__models__openrouter__prod_v2__api_key=sk-or-...
 
 # Activar/desactivar y configurar un canal
-ZEROCLAW_channels__matrix__enabled=true
-ZEROCLAW_channels__matrix__homeserver=https://matrix.example.org
+ZEROCLAW_channels__matrix__home__enabled=true
+ZEROCLAW_channels__matrix__home__homeserver=https://matrix.example.org
 
 # Anular parámetros de ejecución de la puerta de enlace
 ZEROCLAW_gateway__request_timeout_secs=120
@@ -249,6 +331,8 @@ ZEROCLAW_storage__qdrant__home__url=https://qdrant.example.com
 ZEROCLAW_storage__qdrant__home__collection=zeroclaw
 ZEROCLAW_storage__qdrant__home__api_key=...
 </code></pre>
+</div>
+
 <p>El mapeo del nombre de la variable de entorno a la ruta TOML es mecánico:</p>
 <div class="table-wrapper">
 <table>
@@ -257,24 +341,28 @@ ZEROCLAW_storage__qdrant__home__api_key=...
 </thead>
 <tbody>
 <tr><td><code>[providers.models.anthropic.home] api_key = "..."</code></td><td><code>ZEROCLAW_providers__models__anthropic__home__api_key=...</code></td></tr>
-<tr><td><code>[channels.matrix] homeserver = "..."</code></td><td><code>ZEROCLAW_channels__matrix__homeserver=...</code></td></tr>
-<tr><td><code>[gateway] request_timeout_secs = 120</code></td><td><code>ZEROCLAW_gateway__request_timeout_secs=120</code></td></tr>
-<tr><td><code>[gateway] web_dist_dir = "/srv/zeroclaw/web/dist"</code></td><td><code>ZEROCLAW_gateway__web_dist_dir=/srv/zeroclaw/web/dist</code></td></tr>
+<tr><td><code>[channels.matrix.home] homeserver = "..."</code></td><td><code>ZEROCLAW_channels__matrix__home__homeserver=...</code></td></tr>
+<tr><td><code>[gateway] request_timeout_secs = "..."</code></td><td><code>ZEROCLAW_gateway__request_timeout_secs=...</code></td></tr>
+<tr><td><code>[gateway] web_dist_dir = "..."</code></td><td><code>ZEROCLAW_gateway__web_dist_dir=...</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>Los segmentos <code>&lt;alias&gt;</code> anteriores (<code>home</code>, <code>prod_v2</code>) los elige el operador: sustitúyelos por los nombres que realmente uses en tu <code>config.toml</code>.</p>
+<p>The <code>&lt;alias&gt;</code> segments above (<code>home</code>, <code>prod_v2</code>) are operator-chosen, substitute whatever names your config actually uses.</p>
 <h2 id="bootstrap-cola-en-mayúsculas"><a class="header" href="#bootstrap-cola-en-mayúsculas">Bootstrap (cola en mayúsculas)</a></h2>
 <p>These env vars decide <em>where</em> the config file and instance data live, before any <code>Config</code> exists. They keep their UPPERCASE form so the case rule disambiguates them from the schema-mirror surface. They resolve in the order <code>ZEROCLAW_CONFIG_DIR</code> &gt; <code>ZEROCLAW_DATA_DIR</code> &gt; <code>ZEROCLAW_WORKSPACE</code> (deprecated):</p>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
 <pre><code class="language-sh">ZEROCLAW_CONFIG_DIR=/etc/zeroclaw         # config-file location (takes precedence)
 ZEROCLAW_DATA_DIR=/srv/zeroclaw           # instance data directory (canonical)
 ZEROCLAW_WORKSPACE=/srv/zeroclaw          # DEPRECATED — alias for ZEROCLAW_DATA_DIR
 </code></pre>
-<p>La ubicación del panel web del gateway se configura mediante el formato estándar de espejo de esquema <code>ZEROCLAW_gateway__web_dist_dir</code> — consulta <a href="../gateway/web-dashboard.html">Web dashboard (web_dist_dir)</a> para ver la referencia completa de la configuración.</p>
+</div>
+
+<p>The gateway’s web-dashboard location is configured via the standard schema-mirror form <code>ZEROCLAW_gateway__web_dist_dir</code>, see <a href="../gateway/web-dashboard.html">Web dashboard (web_dist_dir)</a> for the full setting reference.</p>
 <h2 id="límite-de-persistencia"><a class="header" href="#límite-de-persistencia">Límite de persistencia</a></h2>
 <p>Los valores aplicados mediante variables de entorno <code>ZEROCLAW_*</code> se cargan en el <code>Config</code> <strong>en memoria</strong> en el momento de la carga y <strong>nunca</strong> se conservan en disco. <code>zeroclaw config save</code> enmascara las rutas sobrescritas por variables de entorno, restaurándolas a sus valores en disco o predeterminados antes del cifrado. Se emite una línea de registro <code>WARN</code> cada vez que una ruta de tipo secreto (por ejemplo, una clave de API) se sobrescribe mediante una variable de entorno, de modo que los registros de auditoría hagan visible la inyección.</p>
 <h2 id="gramática-de-alias"><a class="header" href="#gramática-de-alias">Gramática de alias</a></h2>
-<p>Los alias (los segmentos <code>&lt;alias&gt;</code> en los ejemplos anteriores — <code>home</code>, <code>prod_v2</code>, <code>mymatrixalias</code>, etc.) siguen estas reglas:</p>
+<p>Aliases (the <code>&lt;alias&gt;</code> segments in the examples above, <code>home</code>, <code>prod_v2</code>, <code>mymatrixalias</code>, etc.) follow these rules:</p>
 <ol>
 <li>Letras ASCII en minúscula, dígitos y guiones bajos simples.</li>
 <li>Debe comenzar Y terminar con una letra o un dígito (sin guion bajo al inicio ni al final).</li>
@@ -289,21 +377,23 @@ ZEROCLAW_WORKSPACE=/srv/zeroclaw          # DEPRECATED — alias for ZEROCLAW_DA
 <h2 id="visibilidad"><a class="header" href="#visibilidad">Visibilidad</a></h2>
 <p>El estado de sobreescritura se muestra dondequiera que se renderice la configuración, con un indicador 💉 que marca los campos sobreescritos por variables de entorno:</p>
 <ol>
-<li><strong><code>zeroclaw config list</code></strong> — la leyenda <code>💉 env-overridden  🔒 secret</code> se imprime una vez en la parte superior; las filas de los campos sobrescritos por variables de entorno se prefijan con 💉.</li>
-<li><strong>Editor de configuración web</strong> — cada <code>ListEntry</code> incluye un valor booleano <code>is_env_overridden</code>. Las filas de campos sobrescritos por variables de entorno muestran la insignia 💉 y una advertencia persistente <em>“Los cambios aquí no surtirán efecto — sobrescritos por ZEROCLAW_…”</em> para que los operadores vean la sobrescritura sin tener que intentar una edición.</li>
-<li><strong>Onboarding de CLI/TUI</strong> — <code>prompt_field</code> omite los campos sobrescritos por variables de entorno e imprime una nota 💉 de tres líneas (el nombre de la variable de entorno, la ruta TOML y un aviso de omisión) que se borra al navegar hacia adelante/atrás. Los operadores no reciben la solicitud de escribir un valor que ya han inyectado.</li>
-<li><strong>Programático</strong> — <code>Config::prop_is_env_overridden(path) -&gt; bool</code> es una búsqueda O(1) en un HashSet. Aquí hay hooks para cualquier capa de renderizado personalizada.</li>
+<li><strong><code>zeroclaw config list</code></strong>: legend <code>💉 env-overridden  🔒 secret</code> printed once at the top; rows for env-overridden fields are prefixed with 💉.</li>
+<li><strong>Web Config editor</strong>: every <code>ListEntry</code> carries an <code>is_env_overridden</code> bool. Env-overridden field rows render the 💉 badge and a persistent warning <em>“Edits here won’t take effect, overridden by ZEROCLAW_…”</em> so operators see the override without having to attempt an edit.</li>
+<li><strong>CLI/TUI onboarding</strong>: <code>prompt_field</code> skips env-overridden fields and prints a 💉 three-line note (the env var name, the TOML path, and a skip notice) that clears on next/back navigation. Operators don’t get prompted to type a value they’ve already injected.</li>
+<li><strong>Programmatic</strong>: <code>Config::prop_is_env_overridden(path) -&gt; bool</code> is an O(1) HashSet lookup. Hooks here for any custom render layer.</li>
 </ol>
 <h2 id="derivar-nombres-de-variables-de-entorno-a-partir-de-tu-configuración"><a class="header" href="#derivar-nombres-de-variables-de-entorno-a-partir-de-tu-configuración">Derivar nombres de variables de entorno a partir de tu configuración</a></h2>
 <p>Tres pasos mecánicos para derivar un nombre de variable de entorno a partir de cualquier clave TOML:</p>
 <ol>
-<li><strong>Anteponga el prefijo <code>ZEROCLAW_</code> a la ruta.</strong> La ruta TOML con puntos es la fuente de verdad: busque el campo en su <code>config.toml</code> (o en <code>zeroclaw config schema</code>).</li>
-<li><strong>Reemplaza <code>.</code> con <code>__</code></strong> (doble guion bajo — el separador de rutas).</li>
+<li><strong>Prefix the path with <code>ZEROCLAW_</code>.</strong> The dotted config path is the source of truth, find the field via <code>zeroclaw config schema</code>.</li>
+<li><strong>Replace <code>.</code> with <code>__</code></strong> (double underscore, the path separator).</li>
 <li><strong>El nombre del campo permanece igual</strong> (snake_case). Los alias permanecen igual. Nada más se transforma.</li>
 </ol>
 <p>Por ejemplo, <code>[providers.models.anthropic.home] api_key = "sk-..."</code> reside en la ruta con puntos <code>providers.models.anthropic.home.api_key</code>. Aplica las tres reglas y la variable de entorno será <code>ZEROCLAW_providers__models__anthropic__home__api_key=sk-...</code>. El mismo mapeo mecánico se aplica a cualquier campo en cualquier sección.</p>
 <h2 id="puente-de-variables-de-entorno-predeterminadas-del-ecosistema"><a class="header" href="#puente-de-variables-de-entorno-predeterminadas-del-ecosistema">Puente de variables de entorno predeterminadas del ecosistema</a></h2>
 <p>La gramática schema-mirror es la forma canónica de inyectar valores, pero <code>ANTHROPIC_API_KEY</code> / <code>OPENROUTER_API_KEY</code> / <code>QDRANT_URL</code> / etc. siguen siendo nombres comunes en los archivos <code>.env</code> y las configuraciones de CI. Las expansiones de shell de una línea apuntan un nombre schema-mirror al valor predeterminado del ecosistema:</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
 <pre><code class="language-sh"># POSIX (bash, zsh, sh) — añadir en ~/.bashrc / ~/.zshrc / .env / Dockerfile
 export ZEROCLAW_providers__models__anthropic__home__api_key=$ANTHROPIC_API_KEY
 export ZEROCLAW_providers__models__openai__home__api_key=$OPENAI_API_KEY
@@ -312,21 +402,24 @@ export ZEROCLAW_storage__qdrant__home__url="$QDRANT_URL"
 export ZEROCLAW_storage__qdrant__home__api_key="$QDRANT_API_KEY"
 export ZEROCLAW_gateway__request_timeout_secs=$GATEWAY_TIMEOUT_SECS
 </code></pre>
+<h4 id="powershell"><a class="header" href="#powershell">PowerShell</a></h4>
 <pre><code class="language-powershell"># PowerShell — drop into $PROFILE
 $env:ZEROCLAW_providers__models__anthropic__home__api_key = $env:ANTHROPIC_API_KEY
-$env:ZEROCLAW_providers__models__openai__home__api_key    = $env:OPENAI_API_KEY
-$env:ZEROCLAW_storage__qdrant__home__url                  = $env:QDRANT_URL
+$env:ZEROCLAW_providers__models__openai__home__api_key = $env:OPENAI_API_KEY
+$env:ZEROCLAW_storage__qdrant__home__url = $env:QDRANT_URL
 </code></pre>
-<p>Sustituye el nombre del alias en lugar de <code>home</code> para que coincida con tu <code>config.toml</code>. Para varios alias en la misma familia, repite la línea con cada alias.</p>
+</div>
+
+<p>Substitute the alias name in place of <code>home</code> to match your config. For multiple aliases on the same family, repeat the line with each alias.</p>
 <h2 id="campos-de-oauth-y-ruta-de-cli"><a class="header" href="#campos-de-oauth-y-ruta-de-cli">Campos de OAuth y ruta de CLI</a></h2>
 <p>Unos pocos campos viven como campos de esquema, accesibles a través del mapeo estándar:</p>
 <ol>
-<li><strong>Flujo de actualización OAuth de MiniMax</strong> — <code>[providers.models.minimax.&lt;alias&gt;] oauth_refresh_token = "..."</code> (con <code>oauth_client_id</code> opcional); la selección de región es el enum <code>endpoint</code> tipado (<code>cn</code> / <code>intl</code>). El runtime intercambia el token de actualización por un token de acceso de corta duración al construir el proveedor.</li>
-<li><strong>Flujo de actualización de Qwen OAuth</strong> — <code>[providers.models.qwen.&lt;alias&gt;] oauth_refresh_token = "..."</code> (con <code>oauth_client_id</code> y <code>oauth_resource_url</code> opcionales).</li>
-<li><strong>Gemini OAuth</strong> — <code>[providers.models.gemini.&lt;alias&gt;] oauth_client_id</code> y <code>oauth_client_secret</code>; el parámetro opcional <code>oauth_project</code> fija un ID de proyecto GCP de Code Assist.</li>
-<li><strong>Rutas de KiloCLI / Gemini CLI</strong> — <code>[providers.models.kilocli.&lt;alias&gt;] binary_path</code> y <code>[providers.models.gemini_cli.&lt;alias&gt;] binary_path</code>.</li>
-<li><strong>Claves de transcripción / TTS</strong> — <code>[transcription].api_key</code>, <code>[providers.tts.openai.&lt;alias&gt;].api_key</code>, <code>[providers.tts.elevenlabs.&lt;alias&gt;].api_key</code>, <code>[providers.tts.google.&lt;alias&gt;].api_key</code>.</li>
-<li><strong>Notion / WhatsApp</strong> — <code>[notion].api_key</code>, <code>[channels.whatsapp.&lt;alias&gt;].ws_url</code> (anulación de WebSocket de prueba/proxy).</li>
+<li><strong>MiniMax OAuth refresh flow</strong>: <code>[providers.models.minimax.&lt;alias&gt;] oauth_refresh_token = "..."</code> (with optional <code>oauth_client_id</code>); region selection is the typed <code>endpoint</code> enum (<code>cn</code> / <code>intl</code>). The runtime exchanges the refresh token for a short-lived access token at provider construction time.</li>
+<li><strong>Qwen OAuth refresh flow</strong>: <code>[providers.models.qwen.&lt;alias&gt;] oauth_refresh_token = "..."</code> (with optional <code>oauth_client_id</code> and <code>oauth_resource_url</code>).</li>
+<li><strong>Gemini OAuth</strong>: <code>[providers.models.gemini.&lt;alias&gt;] oauth_client_id</code> and <code>oauth_client_secret</code>; optional <code>oauth_project</code> pins a Code Assist GCP project ID.</li>
+<li><strong>KiloCLI / Gemini CLI paths</strong>: <code>[providers.models.kilocli.&lt;alias&gt;] binary_path</code> and <code>[providers.models.gemini_cli.&lt;alias&gt;] binary_path</code>.</li>
+<li><strong>Transcription / TTS keys</strong>: <code>[transcription].api_key</code>, <code>[providers.tts.openai.&lt;alias&gt;].api_key</code>, <code>[providers.tts.elevenlabs.&lt;alias&gt;].api_key</code>, <code>[providers.tts.google.&lt;alias&gt;].api_key</code>.</li>
+<li><strong>Notion / WhatsApp</strong>: <code>[notion].api_key</code>, <code>[channels.whatsapp.&lt;alias&gt;].ws_url</code> (test/proxy WebSocket override).</li>
 </ol>
 
                     </main>

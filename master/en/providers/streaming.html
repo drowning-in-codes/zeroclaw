@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,22 +295,12 @@
                         <h1 id="streaming"><a class="header" href="#streaming">Streaming</a></h1>
 <p>Every provider in ZeroClaw that speaks a streaming API streams token-by-token. The runtime forwards those streams to channel adapters that support partial updates (Discord, Slack, Telegram, the gateway’s WebSocket), so the user sees text appear as the model generates it.</p>
 <h2 id="what-gets-streamed"><a class="header" href="#what-gets-streamed">What gets streamed</a></h2>
-<p>The provider trait emits <code>StreamEvent</code> values:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Event</th><th>When</th></tr>
-</thead>
-<tbody>
-<tr><td><code>TextDelta(String)</code></td><td>New tokens of assistant text</td></tr>
-<tr><td><code>ReasoningDelta(String)</code></td><td>Reasoning / chain-of-thought tokens (o-series, DeepSeek-R1, Qwen-thinking)</td></tr>
-<tr><td><code>ToolCall { name, args }</code></td><td>The model has decided to call a tool</td></tr>
-<tr><td><code>PreExecutedToolCall</code></td><td>A provider-side pre-executed tool call (e.g. Gemini grounded search)</td></tr>
-<tr><td><code>PreExecutedToolResult</code></td><td>Its result</td></tr>
-<tr><td><code>Final { usage }</code></td><td>Stream complete; token-usage totals</td></tr>
-</tbody>
-</table>
-</div>
+<p>The provider trait emits <code>StreamEvent</code> values as the model generates output:
+text deltas, structured tool calls, provider-side pre-executed tool calls and
+their results, token-usage reports, and a final completion marker. The
+authoritative, per-variant definitions live with the type in
+<code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>enum StreamEvent</code>); reasoning
+tokens arrive as text deltas, not a separate variant.</p>
 <p>Channels consume these events via the <code>Channel</code> trait’s outbound stream hook.</p>
 <h2 id="capability-flags"><a class="header" href="#capability-flags">Capability flags</a></h2>
 <p>A provider exposes two flags so the runtime knows what it can expect:</p>
@@ -244,68 +310,62 @@
 fn supports_streaming_tool_events(&amp;self) -&gt; bool { true }
 <span class="boring">}</span></code></pre>
 <ul>
-<li><strong><code>supports_streaming</code></strong> — true for every actively maintained provider</li>
-<li><strong><code>supports_streaming_tool_events</code></strong> — true when the provider emits <code>ToolCall</code> events during the stream rather than at the end</li>
+<li><strong><code>supports_streaming</code></strong>: true for every actively maintained provider</li>
+<li><strong><code>supports_streaming_tool_events</code></strong>: true when the provider emits <code>ToolCall</code> events during the stream rather than at the end</li>
 </ul>
 <p>OpenAI-compatible providers differ: some stream tool-call arg deltas chunk-by-chunk, others only emit the call once complete. The <code>compatible.rs</code> SSE parser handles both.</p>
 <h2 id="channel-side-streaming"><a class="header" href="#channel-side-streaming">Channel-side streaming</a></h2>
-<p>Channels advertise their own streaming capabilities:</p>
+<p>Channels advertise their own streaming capabilities through the <code>Channel</code> trait:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>fn supports_draft_updates(&amp;self) -&gt; bool;           // edit a message in place
 fn supports_multi_message_streaming(&amp;self) -&gt; bool; // split one reply into many messages
 <span class="boring">}</span></code></pre>
+<p>A channel’s capability follows from its config: a channel with the
+<code>stream_mode</code> enum (off / partial / multi_message) supports both draft updates
+and multi-message; a channel with the <code>stream_drafts</code> boolean supports draft
+updates only. This table is generated from the channel config schema, so it
+stays correct as channels gain or lose streaming support:</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Channel</th><th style="text-align: center">Draft updates</th><th style="text-align: center">Multi-message</th></tr>
 </thead>
 <tbody>
-<tr><td>CLI</td><td style="text-align: center">✓</td><td style="text-align: center">—</td></tr>
-<tr><td>Discord</td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
-<tr><td>Slack</td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
-<tr><td>Telegram</td><td style="text-align: center">✓</td><td style="text-align: center">partial</td></tr>
-<tr><td>Matrix</td><td style="text-align: center">✓</td><td style="text-align: center">—</td></tr>
-<tr><td>Mattermost</td><td style="text-align: center">✓</td><td style="text-align: center">—</td></tr>
-<tr><td>Email</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td>SMS / voice</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td>Gateway (WebSocket)</td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>discord</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>lark</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>matrix</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>nextcloud_talk</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>slack</code></td><td style="text-align: center">✓</td><td style="text-align: center"></td></tr>
+<tr><td><code>telegram</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>wecom_ws</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
 </tbody>
 </table>
 </div>
 <p>When both the provider and the channel support streaming, the flow is: provider emits <code>TextDelta</code> → runtime passes to channel → channel edits the sent message. The edit cadence is bounded by <code>draft_update_interval_ms</code> in the channel config (default: 500 ms) to avoid rate-limiting.</p>
 <h2 id="reasoning-blocks"><a class="header" href="#reasoning-blocks">Reasoning blocks</a></h2>
-<p>Reasoning models (OpenAI o-series, DeepSeek-R1, Qwen-thinking variants) emit <code>ReasoningDelta</code> events separate from regular text. By default the runtime strips these from outbound streams — see <code>&lt;think&gt;…&lt;/think&gt;</code> handling in <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>. Users see the final answer, not the chain-of-thought.</p>
-<p>To surface reasoning to the user:</p>
-<pre><code class="language-toml">[channels.&lt;name&gt;]
-show_reasoning = true
-</code></pre>
-<p>This is off by default because reasoning content is (a) often verbose and (b) sometimes reveals internal deliberation that looks confusing to an end user.</p>
-<p>Disabling reasoning entirely on a reasoning-capable model:</p>
-<pre><code class="language-toml">[providers.models.&lt;name&gt;]
-think = false
-reasoning_effort = "none"
-</code></pre>
-<p>Both fields are top-level; the right name depends on the provider/endpoint. Setting both covers Ollama native, Ollama OpenAI-compat, and upstream APIs that honour <code>reasoning_effort</code>.</p>
+<p>Reasoning models (OpenAI o-series, DeepSeek-R1, Qwen-thinking variants) emit <code>ReasoningDelta</code> events separate from regular text. By default the runtime strips these from outbound streams, see <code>&lt;think&gt;…&lt;/think&gt;</code> handling in <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>. Users see the final answer, not the chain-of-thought.</p>
+<p>To surface reasoning to the user, enable it on the alias entry. This is off by default because reasoning content is (a) often verbose and (b) sometimes reveals internal deliberation that looks confusing to an end user.</p>
+<p>To disable reasoning entirely on a reasoning-capable model, set the relevant reasoning field to off. Both fields are top-level; the right name depends on the provider/endpoint. Setting both covers Ollama native, Ollama OpenAI-compat, and upstream APIs that honour <code>reasoning_effort</code>.</p>
 <h2 id="tool-calls-mid-stream"><a class="header" href="#tool-calls-mid-stream">Tool calls mid-stream</a></h2>
 <p>When a model decides to call a tool, the provider emits <code>ToolCall</code>. The runtime:</p>
 <ol>
 <li>Pauses reading from the provider’s stream</li>
 <li>Flushes any buffered text to the channel</li>
-<li>Runs the tool (subject to security validation — see <a href="../security/overview.html">Security → Overview</a>)</li>
+<li>Runs the tool (subject to security validation, see <a href="../security/overview.html">Security → Overview</a>)</li>
 <li>Resumes the conversation with the tool result appended</li>
 <li>Opens a new streaming call to the provider for the next assistant turn</li>
 </ol>
 <p>From the user’s perspective: text, then a visible indicator that the agent ran a tool (via channel-specific hints), then more text. For channels without typing indicators, the gap between the tool call and the next text chunk is the only signal.</p>
 <h2 id="non-streaming-providers"><a class="header" href="#non-streaming-providers">Non-streaming providers</a></h2>
-<p>If a provider returns the entire response in one shot (older OpenAI-compat endpoints, legacy Gemini), the runtime synthesises a single <code>TextDelta</code> containing the full reply followed by <code>Final</code>. Channel adapters still work — they just don’t see partials.</p>
+<p>If a provider returns the entire response in one shot (older OpenAI-compat endpoints, legacy Gemini), the runtime synthesises a single <code>TextDelta</code> containing the full reply followed by <code>Final</code>. Channel adapters still work; they just don’t see partials.</p>
 <h2 id="code-references"><a class="header" href="#code-references">Code references</a></h2>
 <ul>
-<li><code>crates/zeroclaw-api/src/model_provider.rs</code> — <code>ModelProvider</code> trait, <code>StreamEvent</code> enum</li>
-<li><code>crates/zeroclaw-providers/src/compatible.rs</code> — OpenAI-compat SSE parser</li>
-<li><code>crates/zeroclaw-providers/src/anthropic.rs</code> — Anthropic streaming</li>
-<li><code>crates/zeroclaw-providers/src/ollama.rs</code> — Ollama streaming</li>
-<li><code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code> — channel-side stream consumption</li>
+<li><code>crates/zeroclaw-api/src/model_provider.rs</code>: <code>ModelProvider</code> trait, <code>StreamEvent</code> enum</li>
+<li><code>crates/zeroclaw-providers/src/compatible.rs</code>: OpenAI-compat SSE parser</li>
+<li><code>crates/zeroclaw-providers/src/anthropic.rs</code>: Anthropic streaming</li>
+<li><code>crates/zeroclaw-providers/src/ollama.rs</code>: Ollama streaming</li>
+<li><code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>: channel-side stream consumption</li>
 </ul>
 
                     </main>

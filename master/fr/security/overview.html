@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,88 +292,14 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="sécurité--aperçu"><a class="header" href="#sécurité--aperçu">Sécurité — Aperçu</a></h1>
+                        <h1 id="security-overview"><a class="header" href="#security-overview">Security: Overview</a></h1>
 <p>Un agent capable d’exécuter des commandes shell, d’ouvrir des URL et d’écrire des fichiers est un processus privilégié. Le modèle de sécurité de ZeroClaw s’applique à chaque appel d’outil et à chaque message de canal, en contrôlant ce que l’agent est réellement autorisé à faire à l’exécution.</p>
-<p>Il y a six couches. De l’extérieur vers l’intérieur :</p>
-<h2 id="1-appariement-des-canaux-et-contrôle-daccès"><a class="header" href="#1-appariement-des-canaux-et-contrôle-daccès">1. Appariement des canaux et contrôle d’accès</a></h2>
-<p>Avant qu’un message provenant d’un canal n’atteigne l’agent, l’appariement du canal et la liste d’autorisation sont vérifiés. <code>allowed_users</code>, <code>allowed_chats</code>, les listes d’adresses IP autorisées pour les webhooks — tous sont appliqués au niveau de l’adaptateur de canal, avant que le runtime ne voie l’événement.</p>
-<p>Docs : la page de chaque canal sous <a href="../channels/overview.html">Channels</a>.</p>
-<h2 id="2-niveau-dautonomie"><a class="header" href="#2-niveau-dautonomie">2. Niveau d’autonomie</a></h2>
-<p>Le bouton à grain grossier. Trois paramètres :</p>
+<p>Each agent runs under a risk profile and a runtime profile it references; see <a href="../agents/overview.html">Agents</a> for how those references attach to an agent.</p>
 <ul>
-<li><strong>ReadOnly</strong> — l’agent peut observer (lire des fichiers, interroger la mémoire, récupérer des URLs qu’il est autorisé à récupérer) mais ne peut ni écrire ni exécuter de commandes.</li>
-<li><strong>Supervisé</strong> (par défaut) — opérations à faible risque exécutées ; les risques moyens demandent l’intervention de l’opérateur ; les risques élevés sont bloqués.</li>
-<li><strong>Complet</strong> — aucune barrière d’approbation ; <code>workspace_only</code> est implicitement désactivé. <code>forbidden_paths</code>, <code>forbidden_commands</code> et le bac à sable du système d’exploitation restent appliqués.</li>
-</ul>
-<p>Docs : <a href="./autonomy.html">Niveaux d’autonomie</a>.</p>
-<h2 id="3-limites-de-lespace-de-travail-et-règles-de-chemin"><a class="header" href="#3-limites-de-lespace-de-travail-et-règles-de-chemin">3. Limites de l’espace de travail et règles de chemin</a></h2>
-<p>L’agent fonctionne dans un répertoire de travail configuré. Les commandes <code>file_read</code>, <code>file_write</code> et <code>shell</code> (pour les commandes qui interagissent avec le système de fichiers) refusent les chemins situés en dehors de ce répertoire, sauf si <code>workspace_only = false</code>.</p>
-<p><strong>Racines de sandbox par session (ACP et WebSocket de passerelle) :</strong> Lorsqu’une session est ouverte via ACP (<code>session/new</code> avec un paramètre <code>cwd</code>) ou via le WebSocket de passerelle (paramètre <code>cwd</code> au moment de la connexion), ce chemin devient la limite d’espace de travail <code>SecurityPolicy</code> pour tous les outils de fichiers et de shell pendant toute la durée de vie de la session. Le <code>workspace_dir</code> global du daemon reste le répertoire de données pour la mémoire, l’identité, cron et autres états persistants. Le modèle est le suivant : <code>session cwd</code> = limite du projet que l’agent peut toucher ; <code>workspace_dir</code> = emplacement où ZeroClaw stocke ses propres fichiers. Remarque : le prompt système de l’agent reflète actuellement le <code>workspace_dir</code> du daemon plutôt que le <code>cwd</code> de la session ; l’application des règles est correcte, mais l’emplacement signalé par le modèle peut différer.</p>
-<p><strong>Important :</strong> le paramètre <code>cwd</code> modifie le répertoire de l’<strong>hôte ZeroClaw</strong> dans lequel l’agent est isolé — il n’affecte pas la machine sur laquelle les outils s’exécutent. L’utilisation des outils (commandes shell, lectures/écritures de fichiers) s’exécute toujours sur la machine qui exécute ZeroClaw. Si vous vous connectez à une instance ZeroClaw distante via le WebSocket de la passerelle, les appels d’outils opèrent sur le système de fichiers de la machine distante, et non sur votre machine locale. Pour les déploiements limités à localhost, cette distinction n’a pas d’importance, mais les configurations distantes doivent en tenir compte.</p>
-<p>En dehors de l’espace de travail, une liste <code>forbidden_paths</code> (par défaut : <code>/etc</code>, <code>/sys</code>, <code>/boot</code>, <code>~/.ssh</code>, …) est toujours bloquée, indépendamment des paramètres de l’espace de travail.</p>
-<h2 id="4-politique-de-commande-shell"><a class="header" href="#4-politique-de-commande-shell">4. Politique de commande Shell</a></h2>
-<p>Pour les invocations de shell :</p>
-<ul>
-<li><code>allowed_commands</code> — si non vide, le shell n’exécute que les commandes dont le nom de base figure dans cette liste</li>
-<li><code>forbidden_commands</code> — liste explicite des commandes interdites (<code>rm -rf /</code>, <code>shutdown</code>, opérations noyau)</li>
-<li><code>validate_command_execution</code> — une passe de correspondance de motifs qui recherche des indicateurs dangereux, des pipelines et des formes d’arguments</li>
-</ul>
-<p>Le validateur s’exécute <em>avant</em> que la commande n’atteigne le shell. Une commande bloquée se manifeste sous forme d’une erreur d’outil que le modèle peut voir et à laquelle il peut réagir.</p>
-<h2 id="5-bac-à-sable-au-niveau-du-système-dexploitation"><a class="header" href="#5-bac-à-sable-au-niveau-du-système-dexploitation">5. Bac à sable au niveau du système d’exploitation</a></h2>
-<p>Lorsqu’un backend de sandbox est disponible, les invocations d’outils s’exécutent à l’intérieur de celui-ci :</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Plateforme</th><th>Backend par défaut</th></tr>
-</thead>
-<tbody>
-<tr><td>Linux</td><td>Landlock (noyau) / Bubblewrap / Firejail / Docker — détecté automatiquement</td></tr>
-<tr><td>macOS</td><td>Ceinture de sécurité (native)</td></tr>
-<tr><td>Windows</td><td>AppContainer (expérimental)</td></tr>
-<tr><td>Aucun</td><td>Docker (si le daemon est accessible)</td></tr>
-</tbody>
-</table>
-</div>
-<p>Le bac à sable limite l’accès au système de fichiers à l’espace de travail, supprime la connectivité réseau sauf pour ce dont l’outil a explicitement besoin, et retire l’accès aux secrets du processus parent.</p>
-<p>Docs : <a href="./sandboxing.html">Isolation des processus</a>.</p>
-<h2 id="6-reçus-doutils"><a class="header" href="#6-reçus-doutils">6. Reçus d’outils</a></h2>
-<p>Chaque invocation d’outil — qu’elle ait été exécutée, bloquée ou nécessité une approbation — génère un reçu signé dans une chaîne. Chaque reçu inclut le hachage du précédent, de sorte que toute altération d’un reçu invalide les suivants.</p>
-<p>Les reçus sont la source de vérité pour « ce que l’agent a fait hier ». Ils sont lisibles, consultables via grep et durables.</p>
-<p>Docs : <a href="./tool-receipts.html">Reçus d’outils</a>.</p>
-<h2 id="portes-supplémentaires"><a class="header" href="#portes-supplémentaires">Portes supplémentaires</a></h2>
-<p>Au-delà des six couches :</p>
-<ul>
-<li><strong>Gating OTP</strong> — <code>[security.otp] gated_actions = ["shell", "browser", "file_write"]</code> nécessite un code à usage unique avant chaque action listée. Utile pour les scénarios d’accès à distance.</li>
-<li><strong>Arrêt d’urgence</strong> — <code>zeroclaw estop</code> arrête tous les appels d’outils en cours d’exécution. Avec <code>[security.estop] enabled = true</code>, la reprise nécessite un OTP.</li>
-<li><strong>Garde contre l’injection de prompts</strong> — analyse la sortie du modèle pour détecter les schémas d’injection connus avant la validation des appels d’outils.</li>
-<li><strong>Détecteur de fuites</strong> — analyse les messages sortants à la recherche de secrets (modèles de clés API, clés privées) et bloque les envois qui correspondent.</li>
-<li><strong>Garde d’appariement</strong> — appariement des appareils pour l’authentification de canal ; empêche les identifiants volés de fonctionner sur un nouvel appareil.</li>
-</ul>
-<h2 id="lorsque-les-choses-tournent-mal"><a class="header" href="#lorsque-les-choses-tournent-mal">Lorsque les choses tournent mal</a></h2>
-<p>Un appel d’outil bloqué ne se termine pas silencieusement en échec :</p>
-<ol>
-<li>Le validateur de sécurité renvoie une erreur</li>
-<li>Le runtime l’emballe dans un <code>ToolResult::Err</code> et le renvoie au modèle.</li>
-<li>Le modèle voit « Erreur : commande shell bloquée par la politique : motif interdit <code>rm -rf /</code> » et peut réessayer, s’excuser ou demander à l’utilisateur</li>
-</ol>
-<p>Si un outil est exclu du canal via <code>[autonomy].non_cli_excluded_tools</code> (qui contrôle les canaux non-CLI en tant que groupe), il n’est tout simplement pas présenté au modèle sur ces canaux. Le modèle ne voit jamais un outil qu’il ne peut pas utiliser.</p>
-<h2 id="posture-par-défaut"><a class="header" href="#posture-par-défaut">Posture par défaut</a></h2>
-<p>Prêt à l’emploi :</p>
-<ul>
-<li>Autonomie : <code>Supervisé</code></li>
-<li>Espace de travail uniquement : <code>true</code></li>
-<li>Sandbox : détection automatique (utilise ce que le système d’exploitation fournit)</li>
-<li>Journalisation des audits : <code>false</code> (activer explicitement)</li>
-<li>OTP : <code>false</code></li>
-<li>Arrêt d’urgence : <code>false</code></li>
-</ul>
-<p>C’est un compromis raisonnable — assez sûr pour un ordinateur portable, assez permissif pour ne pas frustrer. Augmentez-le pour la production (OTP, audit, outils restreints) ou réduisez-le à <a href="../getting-started/yolo.html">YOLO</a> pour un poste de développement.</p>
-<h2 id="voir-aussi"><a class="header" href="#voir-aussi">Voir aussi</a></h2>
-<ul>
-<li><a href="./autonomy.html"><strong>Niveaux d’autonomie</strong></a></li>
-<li><a href="./sandboxing.html">Sandboxing</a></li>
-<li><a href="./tool-receipts.html">Reçus d’outil</a></li>
-<li><a href="../getting-started/yolo.html">Mode YOLO</a></li>
+<li><a href="./model.html">The security model</a>: the six enforcement layers, additional gates, failure behavior, and the default posture.</li>
+<li><a href="./autonomy.html">Autonomy levels</a>: the coarse-grained ReadOnly / Supervised / Full knob.</li>
+<li><a href="./sandboxing.html">Sandboxing</a>: OS-level isolation backends per platform.</li>
+<li><a href="./tool-receipts.html">Tool receipts</a>: the signed, chained audit log of every tool call.</li>
 </ul>
 
                     </main>
@@ -308,7 +310,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../security/autonomy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../security/model.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -322,7 +324,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../security/autonomy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../security/model.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

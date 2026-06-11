@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="multi-agent-setup-walkthrough"><a class="header" href="#multi-agent-setup-walkthrough">Multi-agent setup walkthrough</a></h1>
-<p>This is the operator-side companion to the <a href="../architecture/multi-agent.html">multi-agent architecture page</a>. Follow it to add a second agent to an install, configure cross-agent memory access, and put both agents in a peer group on the same channel.</p>
+<p>This is the operator-side companion to the <a href="../agents/overview.html">Agents section</a>. Follow it to add a second agent to an install, configure cross-agent memory access, and put both agents in a peer group on the same channel.</p>
 <p>Background: each agent has its own workspace dir at <code>&lt;install&gt;/agents/&lt;alias&gt;/workspace/</code>, picks one memory backend at creation (immutable), and is gated by a <code>[risk_profiles.&lt;profile&gt;]</code> entry.</p>
 <p>Throughout this walkthrough the existing single agent is called <code>primary</code> (substitute whatever your install actually uses) and the new agent being added is <code>researcher</code>.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
@@ -226,53 +302,29 @@
 <li>A <code>[risk_profiles.&lt;name&gt;]</code> entry the new agent will inherit. Reusing <code>primary</code>’s profile is fine for most uses; pick a stricter alias (e.g. <code>hardened</code>) if the new agent has a different trust surface.</li>
 </ul>
 <h2 id="add-a-second-agent"><a class="header" href="#add-a-second-agent">Add a second agent</a></h2>
-<p>Add a new <code>[agents.&lt;alias&gt;]</code> block to <code>config.toml</code>:</p>
-<pre><code class="language-toml">[agents.researcher]
-model_provider = "anthropic.home"
-risk_profile   = "hardened"
-channels       = []                          # add channel refs in the next step
+<p>Add another agent through the gateway dashboard, zerocode, or <code>zeroclaw config set</code>. The runtime creates <code>&lt;install&gt;/agents/&lt;alias&gt;/workspace/</code> on first agent-loop entry. On every start the agent loop injects the workspace identity files that exist into the system prompt: <code>AGENTS.md</code>, <code>SOUL.md</code>, <code>TOOLS.md</code>, <code>IDENTITY.md</code>, <code>USER.md</code>, then <code>BOOTSTRAP.md</code> (first run only) and <code>MEMORY.md</code> (main session only). <code>HEARTBEAT.md</code> is also a workspace personality file but it is read by the heartbeat engine, not injected into the prompt. The dashboard’s personality editor exposes <code>SOUL.md</code>, <code>IDENTITY.md</code>, <code>USER.md</code>, <code>AGENTS.md</code>, <code>TOOLS.md</code>, <code>HEARTBEAT.md</code>, and <code>MEMORY.md</code> for editing. Create and edit those files to give the agent its persona. (<code>BOOTSTRAP.md</code> is a first-run scaffold the agent reads once and removes; the editor does not expose it.)</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/agents"><code>/config/agents</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Agents</strong>.</p>
+</div>
 
-[agents.researcher.memory]
-backend = "sqlite"
-
-[agents.researcher.workspace]
-# `path` defaults to &lt;install&gt;/agents/researcher/workspace/
-</code></pre>
-<p>The runtime creates <code>&lt;install&gt;/agents/researcher/workspace/</code> on first agent-loop entry and seeds default identity files (<code>AGENTS.md</code>, <code>SOUL.md</code>, <code>IDENTITY.md</code>, <code>USER.md</code>, <code>TOOLS.md</code>, <code>BOOTSTRAP.md</code>) when they don’t exist. Edit those identity files to give the agent its persona; the agent loop reads them on every start.</p>
 <h2 id="bind-a-channel"><a class="header" href="#bind-a-channel">Bind a channel</a></h2>
-<p>Without a channel the agent has nowhere to listen. Add one to the <code>channels</code> array on the agent’s block:</p>
-<pre><code class="language-toml">[agents.researcher]
-channels = ["telegram.prod"]                 # must reference a configured [channels.telegram.prod]
-</code></pre>
-<p>Save and restart the daemon. The agent picks up its channel on next start.</p>
+<p>Without a channel the agent has nowhere to listen. Bind one via the agent’s <code>channels</code> list, then restart the daemon. The agent picks up its channel on next start.</p>
 <h2 id="cross-agent-file-access"><a class="header" href="#cross-agent-file-access">Cross-agent file access</a></h2>
-<p>By default, an agent can only read and write within its own workspace dir. To grant <code>researcher</code> write access to <code>primary</code>’s workspace and read access to a third <code>archivist</code> agent’s:</p>
-<pre><code class="language-toml">[agents.researcher.workspace.access]
-primary   = "write"
-archivist = "read"
-</code></pre>
-<p>Effective behavior:</p>
+<p>By default, an agent can only read and write within its own workspace dir. You can grant one agent read or write access into another agent’s workspace (configured via the gateway, zerocode, or <code>zeroclaw config set</code>). Effective behavior, e.g. <code>researcher</code> granted write to <code>primary</code> and read to <code>archivist</code>:</p>
 <ul>
 <li><code>file_read</code> from <code>researcher</code> can read both <code>&lt;install&gt;/agents/primary/workspace/</code> and <code>&lt;install&gt;/agents/archivist/workspace/</code>.</li>
 <li><code>file_write</code> and <code>file_edit</code> from <code>researcher</code> can write into <code>&lt;install&gt;/agents/primary/workspace/</code> but <strong>not</strong> <code>&lt;install&gt;/agents/archivist/workspace/</code>.</li>
 </ul>
 <p>POSIX device files (<code>/dev/null</code>, <code>/dev/zero</code>, <code>/dev/random</code>, <code>/dev/urandom</code>) are always readable, no per-agent config needed.</p>
 <h2 id="cross-agent-memory-access"><a class="header" href="#cross-agent-memory-access">Cross-agent memory access</a></h2>
-<p>Same-backend only. To let <code>researcher</code> recall memories that <code>primary</code> wrote, both agents must use the same memory backend (e.g. both <code>sqlite</code>):</p>
-<pre><code class="language-toml">[agents.researcher.workspace]
-read_memory_from = ["primary"]
-</code></pre>
-<p>The schema validator rejects entries that point at a sibling on a different backend — the runtime never sees a cross-backend allowlist by the time it builds the per-agent memory wrapper.</p>
+<p>Same-backend only. To let <code>researcher</code> recall memories that <code>primary</code> wrote, both agents must use the same memory backend (e.g. both <code>sqlite</code>). The schema validator rejects entries that point at a sibling on a different backend; the runtime never sees a cross-backend allowlist by the time it builds the per-agent memory wrapper.</p>
 <p>The bound agent always sees its own rows; the allowlist is purely additive. There is no way to <em>hide</em> an agent’s own rows from itself.</p>
 <h2 id="peer-group-on-a-shared-channel"><a class="header" href="#peer-group-on-a-shared-channel">Peer group on a shared channel</a></h2>
-<p>Two agents become “peers” (each can address the other on a channel) only when <strong>both</strong> appear in the same <code>[peer_groups.&lt;name&gt;]</code> block:</p>
-<pre><code class="language-toml">[peer_groups.research]
-channel = "telegram.prod"
-agents = ["primary", "researcher"]
-external_peers = ["operator"]
-ignore = []
-</code></pre>
-<p><code>external_peers</code> lists humans or external bots the group expects on the same channel; the runtime accepts inbound from those usernames as cross-agent traffic. <code>ignore</code> is a per-group blocklist that subtracts from the resolved peer set every member sees — useful for excluding a specific bot account that’s noisy.</p>
+<p>Two agents become “peers” (each can address the other on a channel) only when <strong>both</strong> appear in the same peer group. See <a href="../channels/peer-groups.html">Peer Groups</a>.</p>
+<p><code>external_peers</code> lists humans or external bots the group expects on the same channel; the runtime accepts inbound from those usernames as cross-agent traffic. <code>ignore</code> is a per-group blocklist that subtracts from the resolved peer set every member sees, useful for excluding a specific bot account that’s noisy.</p>
 <p>The schema validator at config load enforces:</p>
 <ol>
 <li>Every member’s <code>channels</code> list includes the group’s <code>channel</code> (an agent that doesn’t listen there can’t peer there).</li>
@@ -280,10 +332,17 @@ ignore = []
 <li><code>read_memory_from</code> does not point at the agent itself.</li>
 </ol>
 <h2 id="inspect-the-install"><a class="header" href="#inspect-the-install">Inspect the install</a></h2>
-<p>Every configured agent lives under an <code>[agents.&lt;alias&gt;]</code> block in <code>config.toml</code> with its risk profile, model provider, memory backend, and channel set.</p>
+<p>Every configured agent lives under an <code>agents.&lt;alias&gt;</code> entry with its risk profile, model provider, memory backend, and channel set.</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/agents"><code>/config/agents</code></a> in the web dashboard.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Agents</strong>.</p>
+</div>
+
 <h2 id="delete-an-agent"><a class="header" href="#delete-an-agent">Delete an agent</a></h2>
 <ol>
-<li>Remove the <code>[agents.&lt;alias&gt;]</code> block (and any nested <code>[agents.&lt;alias&gt;.workspace]</code> / <code>[agents.&lt;alias&gt;.memory]</code> tables) from <code>config.toml</code>.</li>
+<li>Remove the <code>agents.&lt;alias&gt;</code> entry (and any nested <code>workspace</code> / <code>memory</code> tables) through the gateway, zerocode, or <code>zeroclaw config set</code>.</li>
 <li>Strip the alias from every <code>[peer_groups.&lt;name&gt;]</code> block’s <code>agents</code> list.</li>
 <li>Remove the workspace dir: <code>rm -rf &lt;install&gt;/agents/&lt;alias&gt;/workspace/</code>.</li>
 <li>Optional cleanup of the agent’s memory rows (they retain <code>agent_id = &lt;alias-uuid&gt;</code> attribution but no live agent maps to that UUID anymore):</li>
@@ -293,10 +352,14 @@ DELETE FROM agents WHERE alias = 'researcher';
 </code></pre>
 <p>The schema validator will refuse to load if a <code>[peer_groups.&lt;name&gt;]</code> still lists the deleted alias, so step 2 is required before the daemon will start cleanly.</p>
 <h2 id="verify"><a class="header" href="#verify">Verify</a></h2>
-<p>Look at the merged log stream — every line should now carry <code>[&lt;alias&gt;]</code> or <code>[system]</code> prefixes:</p>
-<pre><code class="language-bash">zeroclaw daemon 2&gt;&amp;1 | grep '\[researcher\]'   # researcher's lines only
+<p>Look at the merged log stream; every line should now carry <code>[&lt;alias&gt;]</code> or <code>[system]</code> prefixes:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon 2&gt;&amp;1 | grep '\[researcher\]'   # researcher's lines only
 zeroclaw daemon 2&gt;&amp;1 | grep '\[system\]'       # boot/migration/scheduler lines only
 </code></pre>
+</div>
+
 <p>If the boundary checks are working, <code>file_read /dev/null</code> from any agent succeeds (POSIX device-file allowlist), <code>file_read</code> outside the workspace + access list fails with <code>Path escapes workspace directory</code>, and <code>file_write</code> to a read-only allowlisted sibling fails with the same message.</p>
 
                     </main>

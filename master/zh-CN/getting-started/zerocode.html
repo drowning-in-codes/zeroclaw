@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -218,32 +294,8 @@
                     <main>
                         <h1 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h1>
 <p>zerocode is ZeroClaw’s terminal interface for managing configuration, chatting with agents, and monitoring your daemon. It connects over a local IPC stream, a Unix domain socket on Unix or a named pipe on Windows, or over WebSocket Secure (WSS) for remote use.</p>
-<p>It is the primary way to operate a running ZeroClaw: the <a href="./config.html">Config</a> pane is the preferred path for changing settings, the Code and Chat panes drive agents, and the connection works the same whether the daemon is local or on a remote host.</p>
-<h2 id="本地设置"><a class="header" href="#本地设置">本地设置</a></h2>
-<p>在与守护进程相同的机器上，无需额外配置：</p>
-<pre><code class="language-bash">zerocode
-</code></pre>
-<p>zerocode finds the daemon’s local endpoint automatically: <code>&lt;data_dir&gt;/data/daemon.sock</code> on Unix, <code>\\.\pipe\zeroclaw-&lt;hash&gt;</code> on Windows. If the daemon isn’t running, zerocode spawns an ephemeral one.</p>
-<h2 id="在本节中"><a class="header" href="#在本节中">在本节中</a></h2>
-<ul>
-<li><a href="./config.html">Config pane</a>: the preferred way to change settings</li>
-<li><a href="./themes.html">Themes &amp; terminal colours</a>: named palettes and per-agent themes</li>
-<li><a href="./remote.html">Remote setup (WSS)</a>: connect to a daemon on another machine</li>
-<li><a href="./environment.html">Environment pass-through</a>: how env vars reach agent shells</li>
-</ul>
-<h2 id="cli-flags"><a class="header" href="#cli-flags">CLI flags</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>标志</th><th>描述</th></tr>
-</thead>
-<tbody>
-<tr><td><code>--connect &lt;url&gt;</code></td><td>通过 WSS 连接到远程守护进程（例如 <code>wss://host:9781</code>）</td></tr>
-<tr><td><code>--tls-skip-verify</code></td><td>跳过 TLS 证书验证。自签名证书需要此选项</td></tr>
-<tr><td><code>--config-dir &lt;path&gt;</code></td><td>覆盖配置目录</td></tr>
-</tbody>
-</table>
-</div>
+<p>It is the primary way to operate a running ZeroClaw: the Config pane is the preferred path for changing settings, the Code and Chat panes drive agents, and the connection works the same whether the daemon is local or on a remote host.</p>
+<p>See the full <a href="../zerocode/overview.html">zerocode section</a> for running it, the Config pane, themes, remote (WSS) setup, and environment pass-through.</p>
 
                     </main>
 

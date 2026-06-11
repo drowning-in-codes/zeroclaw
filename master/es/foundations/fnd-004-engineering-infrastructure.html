@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,15 +292,15 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="fnd-004-infraestructura-de-ingeniería--pipeline-de-cicd-y-automatización-de-lanzamientos"><a class="header" href="#fnd-004-infraestructura-de-ingeniería--pipeline-de-cicd-y-automatización-de-lanzamientos">FND-004: Infraestructura de Ingeniería — Pipeline de CI/CD y Automatización de Lanzamientos</a></h1>
-<h3 id="soporte-para-v070--v100--tipo-arquitectura--rev-1"><a class="header" href="#soporte-para-v070--v100--tipo-arquitectura--rev-1">Soporte para v0.7.0 → v1.0.0 · Tipo: Arquitectura · Rev. 1</a></h3>
+                        <h1 id="fnd-004-engineering-infrastructure-cicd-pipeline-and-release-automation"><a class="header" href="#fnd-004-engineering-infrastructure-cicd-pipeline-and-release-automation">FND-004: Engineering Infrastructure: CI/CD Pipeline and Release Automation</a></h1>
 <blockquote>
+<p>Soporte para v0.7.0 → v1.0.0 · Tipo: Arquitectura · Rev. 1</p>
 <p><strong>Referencia canónica</strong> · Ratificado por el equipo · Rev. 1 Hilo de discusión e historial completo de revisiones: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5579">#5579</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>Una nota para el equipo antes de que lean esto.</strong></p>
-<p>Este documento trata sobre la infraestructura que rodea al código: la automatización que lo construye, prueba, audita y despliega. Dicha infraestructura es invisible cuando funciona bien y resulta problemática cuando no lo hace. La mayoría de los equipos no le prestan atención hasta que se vuelve un problema, y para entonces ha crecido hasta convertirse en algo que nadie comprende del todo. Este RFC es un intento de anticiparse a esa situación. Si nunca has reflexionado profundamente sobre CI/CD, este es un buen lugar para comenzar. Si ya lo has hecho, reconocerás los patrones. En cualquier caso, el objetivo es el mismo: una canalización que brinde confianza al equipo sin entorpecer su trabajo.</p>
+<p>This document is about the scaffolding around the code: the automation that builds it, tests it, audits it, and ships it. That scaffolding is invisible when it works well and painful when it does not. Most teams do not think about it until it is painful, and by then it has grown into something nobody fully understands. This RFC is an attempt to get ahead of that. If you have never thought deeply about CI/CD before, this is a good place to start. If you have, you will recognise the patterns. Either way, the goal is the same: a pipeline that gives the team confidence without getting in the way.</p>
 </blockquote>
 <hr>
 <h2 id="tabla-de-contenidos"><a class="header" href="#tabla-de-contenidos">Tabla de contenidos</a></h2>
@@ -252,9 +328,9 @@
 </div>
 <hr>
 <h2 id="1-contexto-las-tuberías-son-arquitectura"><a class="header" href="#1-contexto-las-tuberías-son-arquitectura">1. Contexto: Las tuberías son arquitectura</a></h2>
-<p>La RFC de arquitectura (#5574) estableció un principio: <em>las dependencias fluyen hacia adentro, y la estructura es impuesta por el compilador.</em> El mismo principio se aplica al pipeline que rodea el código. Un pipeline no es solo automatización, sino un conjunto de decisiones arquitecturales sobre qué se confía, qué se verifica, cuándo se verifica y cómo se entrega.</p>
+<p>The architecture RFC (#5574) established a principle: <em>dependencies flow inward, and structure is enforced by the compiler.</em> The same principle applies to the pipeline that surrounds the code. A pipeline is not just automation: it is a set of architectural decisions about what you trust, what you verify, when you verify it, and how you ship.</p>
 <p>Esas decisiones tienen consecuencias. Una canalización diseñada para un monolito se resistirá activamente a un microkernel. Una puerta de seguridad sin un proceso de triaje bloqueará todo o será eludida. Un flujo de trabajo de lanzamiento basado en un único binario no sobrevivirá a un modelo de distribución con cinco tipos de artefactos. Estos no son problemas de configuración. Son problemas de diseño y merecen el mismo tratamiento intencional que la arquitectura del código.</p>
-<p>El pipeline actual creció de forma reactiva, de la misma manera que <code>loop_.rs</code> llegó a tener 9.500 líneas. Nadie eligió el estado actual; simplemente se acumuló. El PR #5559 —el primer paso importante de la transición al microkernel— expuso varios puntos en los que las suposiciones del pipeline ya no son válidas. Esta es una señal útil. Significa que ahora es el momento exacto para detenerse, evaluar y diseñar de manera intencional.</p>
+<p>The current pipeline grew reactively, the same way <code>loop_.rs</code> grew to 9,500 lines. Nobody chose the current state. It accumulated. PR #5559, the first major step of the microkernel transition, exposed several places where the pipeline’s assumptions no longer hold. That is a useful signal. It means now is exactly the right moment to stop, assess, and design intentionally.</p>
 <p>Esta RFC hace por la canalización lo que la RFC de arquitectura hace por la base de código: nombra lo que existe, identifica los problemas estructurales y propone un camino hacia adelante que sea coherente con la dirección del proyecto.</p>
 <hr>
 <h2 id="2-evaluación-honesta-dónde-estamos-hoy"><a class="header" href="#2-evaluación-honesta-dónde-estamos-hoy">2. Evaluación honesta: dónde estamos hoy</a></h2>
@@ -262,14 +338,14 @@
 <h3 id="21-dos-flujos-de-trabajo-realizando-el-mismo-trabajo"><a class="header" href="#21-dos-flujos-de-trabajo-realizando-el-mismo-trabajo">2.1 Dos flujos de trabajo realizando el mismo trabajo</a></h3>
 <p>El repositorio actualmente tiene dos flujos de trabajo separados que se ejecutan en las solicitudes de extracción contra <code>master</code>:</p>
 <ul>
-<li><code>checks-on-pr.yml</code> — identificado como “Quality Gate”</li>
-<li><code>ci-run.yml</code> — etiquetado como “CI”</li>
+<li><code>checks-on-pr.yml</code>, branded as “Quality Gate”</li>
+<li><code>ci-run.yml</code>, branded as “CI”</li>
 </ul>
 <p>Tanto Lint, Build, Test como Security se ejecutan de forma independiente en cada PR. Esto significa que cada PR desencadena dos ejecuciones completas del pipeline en paralelo. Para un monolito con una única unidad de compilación, esto era costoso pero manejable. Para un espacio de trabajo con múltiples crates, duplica un presupuesto de CI ya significativo sin aportar señal adicional.</p>
 <p>La duplicación tiene un costo más sutil que los minutos de cómputo: cuando una verificación falla en un flujo de trabajo pero no en el otro, los colaboradores no saben en cuál resultado confiar. Cuando se necesita agregar una nueva verificación, debe agregarse en dos lugares. Cuando se necesita cambiar el comportamiento, debe modificarse en dos lugares. Tener dos fuentes de verdad es el mismo problema que tener dos fuentes de verdad en el código.</p>
 <h3 id="22-las-suposiciones-de-binario-único-están-integradas-en-todas-partes"><a class="header" href="#22-las-suposiciones-de-binario-único-están-integradas-en-todas-partes">2.2 Las suposiciones de binario único están integradas en todas partes</a></h3>
-<p>La automatización de lanzamientos — <code>release-stable-manual.yml</code>, <code>release-beta-on-push.yml</code>, <code>publish-crates.yml</code>, <code>pub-aur.yml</code>, <code>pub-homebrew-core.yml</code>, <code>pub-scoop.yml</code>, <code>discord-release.yml</code>, <code>tweet-release.yml</code> — se diseñó bajo la suposición de que un lanzamiento consiste en un único binario. Lo construyes, lo firmas, lo envías a los gestores de paquetes y lo anuncias.</p>
-<p>La RFC de arquitectura define un modelo de distribución con cinco tipos de artefactos distintos: el binario del kernel (múltiples objetivos de plataforma), el binario del kernel para variantes de hardware, el binario de la puerta de enlace, los archivos de complementos WASM y el instalador de escritorio de Tauri. Ninguno de los flujos de trabajo de lanzamiento actuales tiene en cuenta esta estructura. Cuando la transición de arquitectura alcance la Fase 3 y la Fase 4, cada uno de estos flujos de trabajo deberá modificarse, a menos que se rediseñen ahora teniendo en cuenta este modelo.</p>
+<p>The release automation, <code>release-stable-manual.yml</code>, <code>release-beta-on-push.yml</code>, <code>publish-crates.yml</code>, <code>pub-aur.yml</code>, <code>pub-homebrew-core.yml</code>, <code>pub-scoop.yml</code>, <code>discord-release.yml</code>, <code>tweet-release.yml</code>, was designed around the assumption that a release is one binary. You build it, sign it, push it to package managers, and announce it.</p>
+<p>The architecture RFC defines a distribution model with five distinct artifact types: the kernel binary (multiple platform targets), the hardware-variant kernel binary, the gateway binary, WASM plugin files, and the Tauri desktop installer. None of the current release workflows account for this structure. When the architecture transition reaches Phase 3 and Phase 4, every one of these workflows will need to change, unless they are redesigned now with that model in mind.</p>
 <h3 id="23-análisis-de-seguridad-sin-un-ciclo-de-vida"><a class="header" href="#23-análisis-de-seguridad-sin-un-ciclo-de-vida">2.3 Análisis de seguridad sin un ciclo de vida</a></h3>
 <p>El trabajo de seguridad ejecuta <code>cargo audit</code> como una verificación estricta. Si hay alguna advertencia presente en el árbol de dependencias, la verificación falla y la PR no puede fusionarse. La intención es correcta. La implementación tiene un problema estructural.</p>
 <p><code>cargo audit</code> informa de todas las advertencias en el árbol de dependencias: vulnerabilidades activas, crates sin mantenimiento y avisos informativos. No distingue entre:</p>
@@ -282,17 +358,17 @@
 <p>Cuando todas estas situaciones provocan un fallo crítico, el filtro se convierte en ruido. La respuesta realista ante el ruido es reducir el filtro, ignorar los fallos o suprimir las comprobaciones. Las tres de estas respuestas hacen que el proyecto sea menos seguro, no más. Un filtro de seguridad que no se pueda mantener no se mantendrá.</p>
 <p>El PR #5559 generó doce avisos RUSTSEC-2026 simultáneamente. Sin herramientas para distinguir entre un “nuevo aviso introducido por este PR” y un “aviso preexistente presente en master”, el autor del PR y los revisores no pueden saber si este PR empeoró la postura de seguridad.</p>
 <h3 id="24-el-script-de-lint-estricto-de-delta"><a class="header" href="#24-el-script-de-lint-estricto-de-delta">2.4 El script de lint estricto de delta</a></h3>
-<p><code>ci-run.yml</code> incluye un trabajo que ejecuta <code>scripts/ci/rust_strict_delta_gate.sh</code>, un script personalizado que compara la salida de clippy con el SHA base del PR. El concepto es sólido: deseas saber si este PR introdujo nuevas advertencias, no solo si existen advertencias en la base de código. La implementación funciona bien para PRs pequeños y enfocados contra un crate monolítico.</p>
-<p>Un PR que mueve 260.000 líneas de código entre 10 crates nuevas, tocando cientos de archivos, sitúa este script en un terreno para el que no fue diseñado. La superficie de archivos modificados es demasiado grande para que una comparación incremental produzca una señal significativa. El script necesita comprender la estructura del espacio de trabajo, específicamente que un cambio en un archivo de <code>crates/zeroclaw-channels/</code> debe evaluarse en el contexto de ese crate, no en la raíz.</p>
+<p><code>ci-run.yml</code> includes a job that runs <code>scripts/ci/rust_strict_delta_gate.sh</code>, a custom script that compares clippy output against the base SHA of the PR. The concept is sound: you want to know whether this PR introduced new warnings, not just whether warnings exist in the codebase. The implementation works well for small, focused PRs against a monolithic crate.</p>
+<p>A PR that moves 260,000 lines of code across 10 new crates, touching hundreds of files, puts this script in territory it was not designed for. The changed-file surface is too large for an incremental comparison to produce a meaningful signal. The script needs to understand workspace structure: specifically that a change to a file in <code>crates/zeroclaw-channels/</code> should be evaluated in the context of that crate, not the root.</p>
 <h3 id="25-sin-almacenamiento-en-caché-ni-ámbito-consciente-del-espacio-de-trabajo"><a class="header" href="#25-sin-almacenamiento-en-caché-ni-ámbito-consciente-del-espacio-de-trabajo">2.5 Sin almacenamiento en caché ni ámbito consciente del espacio de trabajo</a></h3>
 <p>La configuración actual del caché de Rust (<code>Swatinem/rust-cache</code>) es adecuada para un solo crate. Para un espacio de trabajo con múltiples crates, la eficacia del caché depende de comprender qué crates han cambiado y qué artefactos compilados pueden reutilizarse. Sin un alcance explícito del espacio de trabajo, un cambio en cualquier crate puede invalidar los cachés de los que dependen otros crates, provocando una recompilación completa en cada PR.</p>
 <p>Más significativamente, no hay un mecanismo para ejecutar CI solo contra los crates afectados por un cambio dado. Un PR que corrige un error tipográfico en <code>zeroclaw-tool-call-parser</code> no necesita reconstruir y volver a probar la puerta de enlace. A medida que el espacio de trabajo crece hacia el modelo de más de 30 crates que la RFC de arquitectura prevé, el costo de ejecutar el pipeline completo en cada PR se convierte en un obstáculo significativo para la contribución.</p>
-<h3 id="26-el-anclaje-de-acciones-es-bueno-pero-no-está-documentado"><a class="header" href="#26-el-anclaje-de-acciones-es-bueno-pero-no-está-documentado">2.6 El anclaje de acciones es bueno, pero no está documentado</a></h3>
-<p>Los flujos de trabajo existentes sí fijan las acciones a SHAs completos, lo cual es una práctica de seguridad correcta y merece ser reconocida. Sin embargo, no hay una política documentada que explique por qué, ni un proceso para revisar cuándo se deben actualizar esos SHAs, ni automatización para mantenerlos actualizados. El buen comportamiento sin una política es frágil: el próximo colaborador que añada un paso al flujo de trabajo puede no saber por qué es importante fijar el SHA y utilizará una etiqueta mutable en su lugar.</p>
+<h3 id="26-action-pinning-is-good-but-undocumented"><a class="header" href="#26-action-pinning-is-good-but-undocumented">2.6 Action Pinning Is Good: But Undocumented</a></h3>
+<p>The existing workflows do pin actions to full commit SHAs, which is correct security practice and worth acknowledging. But there is no documented policy explaining why, no process for reviewing when those SHAs should be updated, and no automation for keeping them current. Good behaviour without a policy is fragile: the next contributor to add a workflow step may not know why SHA pinning matters and will use a mutable tag instead.</p>
 <hr>
 <h2 id="3-el-diseño-de-la-tubería-de-destino"><a class="header" href="#3-el-diseño-de-la-tubería-de-destino">3. El diseño de la tubería de destino</a></h2>
 <h3 id="31-un-único-pipeline-una-única-fuente-de-verdad"><a class="header" href="#31-un-único-pipeline-una-única-fuente-de-verdad">3.1 Un único pipeline, una única fuente de verdad</a></h3>
-<p>Los dos flujos de trabajo paralelos deben consolidarse en un único pipeline bien estructurado. La distinción entre “Quality Gate” y “CI” no es relevante para los colaboradores, ya que ambos son comprobaciones que una PR debe superar. La consolidación crea un único lugar para encontrar los resultados de las comprobaciones, un único lugar para actualizar cuando cambie el comportamiento y un único lugar para documentar qué hace cada comprobación y por qué.</p>
+<p>The two parallel workflows should be consolidated into a single, well-structured pipeline. The distinction between “Quality Gate” and “CI” is not meaningful to contributors: both are checks a PR must pass. The consolidation creates one place to find check results, one place to update when behaviour changes, and one place to document what each check is doing and why.</p>
 <p>The consolidated pipeline follows a staged structure where a very cheap formatting check runs first, then Rust-heavy jobs fan out in parallel. Lint remains required, but it should not unnecessarily hold the build and test cache warm-up hostage when the goal is to shorten the green critical path:</p>
 <pre><code>Stage 1: Format (cheap serial gate)
   └── cargo fmt --check
@@ -317,13 +393,17 @@ Post-format Security (parallel)
 Required Gate
   └── Composite status — branch protection requires only this job
 </code></pre>
-<p>The post-format jobs run in parallel after formatting passes. This means a formatting error fails fast without burning compute on a build that will be thrown away, while clippy, build, test, and security can make progress together on cleanly formatted PRs. The Required Gate job aggregates all results so branch protection needs to track only one job name — a pattern already present in both current workflows.</p>
+<p>The post-format jobs run in parallel after formatting passes. This means a formatting error fails fast without burning compute on a build that will be thrown away, while clippy, build, test, and security can make progress together on cleanly formatted PRs. The Required Gate job aggregates all results so branch protection needs to track only one job name, a pattern already present in both current workflows.</p>
 <h3 id="32-clippy-consciente-del-espacio-de-trabajo"><a class="header" href="#32-clippy-consciente-del-espacio-de-trabajo">3.2 Clippy consciente del espacio de trabajo</a></h3>
 <p>La invocación actual de clippy se ejecuta contra el conjunto de características predeterminado del crate raíz. La invocación correcta para un espacio de trabajo con múltiples crates es:</p>
-<pre><code class="language-bash">cargo clippy --workspace --all-targets -- -D warnings
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">cargo clippy --workspace --all-targets -- -D warnings
 </code></pre>
+</div>
+
 <p>La opción <code>--workspace</code> garantiza que se analice con <code>clippy</code> cada crate del espacio de trabajo, no solo la raíz. La opción <code>--all-targets</code> incluye pruebas, puntos de referencia y ejemplos. Combinado con <code>--features ci-all</code> para la comprobación condicionada por características, esto proporciona una visión completa.</p>
-<p>El concepto estricto de lint de delta: verificar si este PR introdujo nuevas advertencias en lugar de si existen advertencias en absoluto, vale la pena preservarlo. La implementación debería pasar de un script de shell que compara la salida del diff a una invocación adecuada consciente del espacio de trabajo que evalúa cada crate afectada de forma independiente. Un enfoque más simple y confiable: requerir que <code>--workspace -D warnings</code> pase limpio en todo momento, haciendo que el concepto de delta sea implícito. Si la línea base siempre está limpia, cualquier PR que introduzca una advertencia fallará. Esto elimina la necesidad de un script de comparación personalizado por completo.</p>
+<p>The strict delta lint concept, checking whether this PR introduced new warnings rather than whether warnings exist at all, is worth preserving. The implementation should move from a shell script comparing diff output to a proper workspace-aware invocation that evaluates each affected crate independently. A simpler and more reliable approach: require <code>--workspace -D warnings</code> to pass clean at all times, making the delta concept implicit. If the baseline is always clean, any PR that introduces a warning fails. This removes the need for a custom comparison script entirely.</p>
 <h3 id="33-detección-de-crates-modificados"><a class="header" href="#33-detección-de-crates-modificados">3.3 Detección de crates modificados</a></h3>
 <p>Para un espacio de trabajo que crece hacia 30+ crates, ejecutar el conjunto completo de pruebas en cada PR, independientemente de lo que haya cambiado, es un desperdicio. El pipeline debería detectar qué crates fueron afectados por el PR y ajustar la ejecución de las pruebas en consecuencia.</p>
 <p>El mecanismo es sencillo: compara los archivos modificados en la PR con la lista de miembros del espacio de trabajo, identifica qué crates contienen archivos modificados, amplía el conjunto para incluir todos los crates que dependen de cualquier crate modificado (impacto hacia abajo) y ejecuta las pruebas solo para ese conjunto.</p>
@@ -355,36 +435,22 @@ Not affected:
 <h3 id="41-el-problema-con-una-puerta-binaria"><a class="header" href="#41-el-problema-con-una-puerta-binaria">4.1 El problema con una puerta binaria</a></h3>
 <p>Un filtro de seguridad que bloquea ante cualquier aviso, sin contexto, entrena al equipo para tratar los fallos de seguridad como ruido. Eso es lo opuesto al efecto deseado. El objetivo es un filtro que sea:</p>
 <ul>
-<li><strong>Señal alta</strong> — las fallas indican algo real que este PR afectó</li>
-<li><strong>Acción</strong> — el colaborador sabe qué hacer y por qué</li>
-<li><strong>Sostenible</strong> — la puerta puede mantenerse sin intervención manual constante</li>
+<li><strong>High signal</strong>: failures mean something real that this PR affected</li>
+<li><strong>Actionable</strong>: the contributor knows what to do and why</li>
+<li><strong>Sustainable</strong>: the gate can be maintained without constant manual intervention</li>
 </ul>
 <p><code>cargo audit</code> por sí solo no logra esto. <code>cargo deny</code> sí lo hace.</p>
 <h3 id="42-cargo-deny-como-la-herramienta-de-seguridad-principal"><a class="header" href="#42-cargo-deny-como-la-herramienta-de-seguridad-principal">4.2 cargo-deny como la herramienta de seguridad principal</a></h3>
 <p><code>cargo deny</code> es un sucesor más capaz de <code>cargo audit</code> para la política de dependencias a nivel de proyecto. Aplica:</p>
 <ul>
-<li><strong>Avisos</strong> — Base de datos RUSTSEC, con la capacidad de denegar, advertir o ignorar explícitamente avisos específicos con una justificación documentada</li>
-<li><strong>Licencias</strong> — garantiza que todas las dependencias utilicen licencias aceptables (importante a medida que el espacio de trabajo crece y nuevos colaboradores añaden dependencias)</li>
-<li><strong>Sources</strong> — garantiza que las dependencias provengan únicamente de registros aprobados (crates.io, ruta, git con hosts específicos)</li>
-<li><strong>Duplicados</strong> — advierte cuando aparecen múltiples versiones del mismo paquete en el árbol de dependencias</li>
+<li><strong>Advisories</strong>: RUSTSEC database, with the ability to deny, warn, or explicitly ignore specific advisories with a documented justification</li>
+<li><strong>Licenses</strong>: ensures all dependencies use acceptable licenses (important as the workspace grows and new contributors add deps)</li>
+<li><strong>Sources</strong>: ensures dependencies come only from approved registries (crates.io, path, git with specific hosts)</li>
+<li><strong>Duplicates</strong>: warns when multiple versions of the same crate appear in the dependency tree</li>
 </ul>
-<p>La capacidad clave es la sección <code>[advisories]</code> de <code>deny.toml</code>, que permite ignorar explícitamente:</p>
-<pre><code class="language-toml">[advisories]
-db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-unsound = "deny"
-notice = "warn"
-
-ignore = [
-    # RUSTSEC-2024-0388: `derivative` sin mantenimiento — se incluye de forma transitiva
-    # a través de matrix-sdk; sin uso directo, sin exploit activo. Rastreado en #XXXX.
-    { id = "RUSTSEC-2024-0388", reason = "Dependencia transitiva vía matrix-sdk; sin uso directo" },
-]
-</code></pre>
-<p>Este enfoque transforma la evaluación de seguridad de un simple “aprobado/reprobado” en una política documentada y auditable. Cada aviso ignorado tiene una justificación escrita y un seguimiento. Los revisores pueden ver exactamente qué avisos están siendo suprimidos y por qué. Cuando un aviso suprimido se vuelve crítico (se encuentra una nueva vulnerabilidad o hay una solución disponible), el seguimiento actúa como recordatorio.</p>
+<p>The key capability is the <code>[advisories]</code> section of <code>deny.toml</code>, which allows explicit, justified ignores. This approach transforms security scanning from a binary pass/fail into a documented, auditable policy. Every ignored advisory has a written justification and a tracking issue. Reviewers can see exactly which advisories are being suppressed and why. When a suppressed advisory escalates (a new exploit is found, a fix is available), the tracking issue is the reminder.</p>
 <h3 id="43-proceso-de-triaje-de-asesoría"><a class="header" href="#43-proceso-de-triaje-de-asesoría">4.3 Proceso de Triaje de Asesoría</a></h3>
-<p>Cuando aparece una nueva advertencia en el árbol de dependencias —ya sea de una PR o de la actualización diaria de la base de datos de advertencias—, el proceso es:</p>
+<p>When a new advisory appears in the dependency tree, whether from a PR or from the daily advisory database update, the process is:</p>
 <ol>
 <li><strong>Clasificar la advertencia</strong>: ¿El crate afectado es una dependencia directa o transitiva? ¿ZeroClaw llama a la ruta de código vulnerable? ¿Hay una versión corregida disponible?</li>
 <li><strong>Determinar la respuesta</strong>:
@@ -423,7 +489,7 @@ ignore = [
 </tbody>
 </table>
 </div>
-<p>Los flujos de trabajo de lanzamiento actuales conocen exactamente uno de estos: el binario estándar. El resto aún no existe en la automatización. Esto es apropiado por ahora, ya que el sistema de plugins aún no está completo. Sin embargo, los flujos de trabajo de lanzamiento deben diseñarse teniendo en cuenta este modelo para que no sea necesario reescribirlos a medida que se introducen nuevos tipos de artefactos.</p>
+<p>The current release workflows know about exactly one of these: the standard binary. The rest do not exist in the automation yet. This is appropriate for now: the plugin system is not yet complete. But the release workflows should be designed with this model in mind so they do not need to be rewritten as each new artifact type is introduced.</p>
 <h3 id="52-estructura-de-una-pipeline-de-lanzamiento"><a class="header" href="#52-estructura-de-una-pipeline-de-lanzamiento">5.2 Estructura de una Pipeline de Lanzamiento</a></h3>
 <p>El pipeline de lanzamiento objetivo es un grafo dirigido de trabajos, no un flujo de trabajo monolítico:</p>
 <pre><code>version-bump (release-plz PR merged)
@@ -469,13 +535,13 @@ ignore = [
 <p>SLSA (Supply-chain Levels for Software Artifacts, pronunciado “salsa”) es un marco desarrollado por Google y adoptado en toda la industria para asegurar la cadena de suministro de software. Define cuatro niveles de integridad de compilación, desde básico hasta hermético.</p>
 <p>Para la escala y el tamaño del equipo actuales de ZeroClaw, <strong>SLSA Nivel 2</strong> es el objetivo adecuado:</p>
 <ul>
-<li>Las compilaciones se ejecutan en una plataforma de CI alojada (ya es cierto — GitHub Actions)</li>
+<li>Builds run on a hosted CI platform (already true, GitHub Actions)</li>
 <li>Los scripts de compilación están controlados por versiones (ya es cierto)</li>
 <li>La procedencia de la compilación se genera y se adjunta a los artefactos de la versión (el paso para agregar)</li>
 </ul>
 <p>La procedencia SLSA de nivel 2 significa que cada artefacto de lanzamiento incluye una atestación firmada criptográficamente que registra: qué commit de origen lo generó, qué flujo de trabajo lo produjo y que el flujo de trabajo se ejecutó en la plataforma esperada. Los usuarios y los gestores de paquetes pueden verificar esta atestación. Cierra la brecha entre “decimos que este binario proviene de esta fuente” y “este binario demuestra que proviene de esta fuente”.</p>
 <p>GitHub Actions admite nativamente la generación de procedencia SLSA de nivel 2 a través de la acción <code>actions/attest-build-provenance</code>. El costo de agregarla es un paso por cada trabajo de compilación.</p>
-<h3 id="62-commits-convencionales-ya-implícito--formalizarlo"><a class="header" href="#62-commits-convencionales-ya-implícito--formalizarlo">6.2 Commits convencionales (ya implícito — formalizarlo)</a></h3>
+<h3 id="62-conventional-commits-already-implied-formalise-it"><a class="header" href="#62-conventional-commits-already-implied-formalise-it">6.2 Conventional Commits (Already Implied, Formalise It)</a></h3>
 <p>La política de versionado del RFC de arquitectura y la integración con release-plz dependen del formato de commits convencionales para la generación del registro de cambios. El RFC de gobernanza ya hace referencia a las convenciones de los títulos de las PR. Este RFC formaliza la conexión: el formato de commits convencionales en los mensajes de los commits y los títulos de las PR es un requisito, no una sugerencia, ya que es la entrada que impulsa la generación automatizada del registro de cambios.</p>
 <p>Las categorías que importan para el registro de cambios de ZeroClaw:</p>
 <div class="table-wrapper">
@@ -496,7 +562,7 @@ ignore = [
 </div>
 <p>CI aplica esto mediante un trabajo de validación del título del PR que verifica que el título coincida con el formato de commit convencional antes de que se ejecute cualquier otra comprobación.</p>
 <h3 id="63-flujos-de-trabajo-reutilizables"><a class="header" href="#63-flujos-de-trabajo-reutilizables">6.3 Flujos de trabajo reutilizables</a></h3>
-<p>A medida que aumenta el número de crates y tipos de artefactos, la duplicación de flujos de trabajo se convierte en un problema de mantenimiento. GitHub Actions admite flujos de trabajo reutilizables: un flujo de trabajo que puede ser llamado desde otro flujo de trabajo como una función. La matriz de compilación, el análisis de seguridad y el ejecutor de pruebas deben extraerse como flujos de trabajo reutilizables.</p>
+<p>As the number of crates and artifact types grows, workflow duplication becomes a maintenance problem. GitHub Actions supports reusable workflows: a workflow that can be called from another workflow like a function. The build matrix, the security scan, and the test runner should each be extracted as reusable workflows.</p>
 <pre><code>.github/
   workflows/
     ci.yml               ← PR checks (calls reusable workflows)
@@ -522,20 +588,20 @@ ignore = [
 <h2 id="7-hoja-de-ruta-por-fases"><a class="header" href="#7-hoja-de-ruta-por-fases">7. Hoja de ruta por fases</a></h2>
 <p>La migración del pipeline sigue el mismo enfoque de la Higuera estranguladora que la migración del código: construir junto con, migrar de manera constante, sin romper nunca la puerta de entrada existente.</p>
 <hr>
-<h3 id="fase-1--v070--racionalizar"><a class="header" href="#fase-1--v070--racionalizar">Fase 1 · v0.7.0 — “Racionalizar”</a></h3>
+<h3 id="phase-1--v070-rationalise"><a class="header" href="#phase-1--v070-rationalise">Phase 1 · v0.7.0: “Rationalise”</a></h3>
 <p><strong>Tema:</strong> Un único pipeline, señal limpia, sin duplicación.</p>
 <p><strong>Por qué esta fase:</strong> La transición arquitectónica ya está en curso. La tubería debe dejar de luchar contra ella antes de que haga que el trabajo de implementación sea más difícil de lo necesario.</p>
-<h4 id="entregables"><a class="header" href="#entregables">Entregables</a></h4>
-<p><strong>D1: Consolidar <code>checks-on-pr.yml</code> y <code>ci-run.yml</code> en un único flujo de trabajo</strong></p>
+<h4 id="phase-1-deliverables"><a class="header" href="#phase-1-deliverables">Phase 1 Deliverables</a></h4>
+<h5 id="d1-consolidate-checks-on-pryml-and-ci-runyml-into-a-single-workflow"><a class="header" href="#d1-consolidate-checks-on-pryml-and-ci-runyml-into-a-single-workflow">D1: Consolidate <code>checks-on-pr.yml</code> and <code>ci-run.yml</code> into a single workflow</a></h5>
 <p>Fusiona los dos flujos de trabajo de PR en uno solo. El flujo de trabajo consolidado mantiene la estructura escalonada definida en §3.1. La distinción de nombres entre <code>Quality Gate</code> y <code>CI</code> desaparece. Hay un solo flujo de trabajo, un solo conjunto de resultados y un único lugar donde consultar.</p>
 <p>El trabajo del filtro de puerta compuesta (<code>CI Required Gate</code>) se conserva. La protección de la rama sigue requiriendo únicamente ese trabajo. Esto significa que la estructura interna del pipeline puede cambiar sin necesidad de actualizar las reglas de protección de la rama.</p>
-<p><strong>D2: Reemplazar <code>cargo audit</code> por <code>cargo deny</code></strong></p>
+<h5 id="d2-replace-cargo-audit-with-cargo-deny"><a class="header" href="#d2-replace-cargo-audit-with-cargo-deny">D2: Replace <code>cargo audit</code> with <code>cargo deny</code></a></h5>
 <p>Añade <code>deny.toml</code> a la raíz del repositorio. Configura las secciones <code>[advisories]</code>, <code>[licenses]</code> y <code>[sources]</code>. Resuelve todas las advertencias de RUSTSEC actuales en <code>master</code>: actualiza lo que se pueda actualizar y documenta lo que no se pueda, con la justificación y los problemas de seguimiento correspondientes. El control de seguridad pasa correctamente en <code>master</code> antes de que se complete esta fase.</p>
-<p><strong>D3: Corregir la invocación de clippy consciente del espacio de trabajo</strong></p>
-<p>Cambia <code>cargo clippy --all-targets -- -D warnings</code> por <code>cargo clippy --workspace --all-targets -- -D warnings</code> en el flujo de trabajo consolidado. Elimina el script <code>rust_strict_delta_gate.sh</code> — con <code>--workspace -D warnings</code> siempre aplicado de forma limpia, el concepto de delta es implícito.</p>
-<p><strong>D4: Formalizar la política de fijación de acciones</strong></p>
+<h5 id="d3-fix-workspace-aware-clippy-invocation"><a class="header" href="#d3-fix-workspace-aware-clippy-invocation">D3: Fix workspace-aware clippy invocation</a></h5>
+<p>Change <code>cargo clippy --all-targets -- -D warnings</code> to <code>cargo clippy --workspace --all-targets -- -D warnings</code> in the consolidated workflow. Remove the <code>rust_strict_delta_gate.sh</code> script: with <code>--workspace -D warnings</code> always enforced clean, the delta concept is implicit.</p>
+<h5 id="d4-formalise-action-pinning-policy"><a class="header" href="#d4-formalise-action-pinning-policy">D4: Formalise action pinning policy</a></h5>
 <p>Agregue una nota en <code>SECURITY.md</code> y una comprobación de CI que valide que todas las referencias <code>uses:</code> en los archivos de flujo de trabajo estén fijadas mediante SHA. Agregue la configuración de <code>dependabot</code> para las actualizaciones de GitHub Actions.</p>
-<p><strong>D5: Agregar flujo de trabajo de escaneo diario de advertencias</strong></p>
+<h5 id="d5-add-daily-advisory-scan-workflow"><a class="header" href="#d5-add-daily-advisory-scan-workflow">D5: Add daily advisory scan workflow</a></h5>
 <p>Añade <code>daily-audit.yml</code> como un flujo de trabajo programado que ejecuta <code>cargo deny check advisories</code> contra <code>master</code> a las 09:00 UTC. En caso de fallo, abre un Issue de GitHub con los detalles de la advertencia utilizando <code>gh issue create</code>.</p>
 <h4 id="métricas-de-éxito-para-la-fase-1"><a class="header" href="#métricas-de-éxito-para-la-fase-1">Métricas de éxito para la Fase 1</a></h4>
 <ul>
@@ -546,17 +612,17 @@ ignore = [
 <li>Escaneo diario de advertencias operativo</li>
 </ul>
 <hr>
-<h3 id="fase-2--v080--consciente-del-espacio-de-trabajo"><a class="header" href="#fase-2--v080--consciente-del-espacio-de-trabajo">Fase 2 · v0.8.0 — “Consciente del espacio de trabajo”</a></h3>
+<h3 id="phase-2--v080-workspace-aware"><a class="header" href="#phase-2--v080-workspace-aware">Phase 2 · v0.8.0: “Workspace-Aware”</a></h3>
 <p><strong>Tema:</strong> La canalización comprende el espacio de trabajo. Retroalimentación rápida para cambios enfocados.</p>
 <p><strong>Por qué esta fase:</strong> Con la versión v0.8.0, el espacio de trabajo habrá crecido aún más. Ejecutar el pipeline completo en cada PR será cada vez más costoso. Los colaboradores de <code>zeroclaw-tool-call-parser</code> no deberían esperar 30 minutos por una reconstrucción del gateway.</p>
-<h4 id="entregables-1"><a class="header" href="#entregables-1">Entregables</a></h4>
-<p><strong>D1: Detección de cambios en el crate</strong></p>
+<h4 id="phase-2-deliverables"><a class="header" href="#phase-2-deliverables">Phase 2 Deliverables</a></h4>
+<h5 id="d1-changed-crate-detection"><a class="header" href="#d1-changed-crate-detection">D1: Changed-crate detection</a></h5>
 <p>Añade un script <code>scripts/ci/affected_crates.sh</code> que utilice <code>cargo metadata</code> para construir el grafo de dependencias y devuelva el conjunto de crates afectadas por los archivos modificados del PR. El flujo de trabajo de CI utiliza esta salida para limitar la ejecución de las pruebas.</p>
-<p><strong>D2: Ámbito de pruebas por crate</strong></p>
+<h5 id="d2-per-crate-test-scoping"><a class="header" href="#d2-per-crate-test-scoping">D2: Per-crate test scoping</a></h5>
 <p>Agregue las banderas <code>--package</code> a <code>cargo nextest</code> en función de la salida de crate afectado. Las pruebas completas del espacio de trabajo continúan ejecutándose en los envíos a <code>master</code> y en nightly. Las PRs ejecutan el subconjunto afectado.</p>
-<p><strong>D3: Configuración de caché consciente del espacio de trabajo</strong></p>
+<h5 id="d3-workspace-aware-cache-configuration"><a class="header" href="#d3-workspace-aware-cache-configuration">D3: Workspace-aware cache configuration</a></h5>
 <p>Actualiza la configuración de <code>Swatinem/rust-cache</code> con un ámbito de espacio de trabajo explícito y <code>save-if: ${{ github.ref == 'refs/heads/master' }}</code> para evitar la inestabilidad del caché causada por PRs concurrentes.</p>
-<p><strong>D4: Extraer definiciones de flujo de trabajo reutilizables</strong></p>
+<h5 id="d4-extract-reusable-workflow-definitions"><a class="header" href="#d4-extract-reusable-workflow-definitions">D4: Extract reusable workflow definitions</a></h5>
 <p>Extrae los trabajos de compilación, pruebas y seguridad en archivos de flujo de trabajo reutilizables bajo <code>.github/_workflows/</code>. Actualiza <code>ci.yml</code> y el esqueleto de <code>release.yml</code> para llamarlos.</p>
 <h4 id="métricas-de-éxito-para-la-fase-2"><a class="header" href="#métricas-de-éxito-para-la-fase-2">Métricas de éxito para la Fase 2</a></h4>
 <ul>
@@ -565,17 +631,17 @@ ignore = [
 <li>Flujos de trabajo reutilizables en su lugar para trabajos de compilación, prueba y seguridad</li>
 </ul>
 <hr>
-<h3 id="fase-3--v090--pipeline-de-lanzamiento"><a class="header" href="#fase-3--v090--pipeline-de-lanzamiento">Fase 3 · v0.9.0 — “Pipeline de lanzamiento”</a></h3>
+<h3 id="phase-3--v090-release-pipeline"><a class="header" href="#phase-3--v090-release-pipeline">Phase 3 · v0.9.0: “Release Pipeline”</a></h3>
 <p><strong>Tema:</strong> Automatización de lanzamientos que se ajusta al modelo de distribución.</p>
 <p><strong>Por qué esta fase:</strong> La fase 3 de la RFC de arquitectura extrae <code>zeroclaw-gw</code> como un binario independiente. Aquí se produce el primer lanzamiento con múltiples artefactos. El pipeline de lanzamiento debe estar listo antes de que sea necesario.</p>
-<h4 id="entregables-2"><a class="header" href="#entregables-2">Entregables</a></h4>
-<p><strong>D1: Introducir <code>release-plz</code> y eliminar <code>version-sync.yml</code></strong></p>
+<h4 id="phase-3-deliverables"><a class="header" href="#phase-3-deliverables">Phase 3 Deliverables</a></h4>
+<h5 id="d1-introduce-release-plz-and-remove-version-syncyml"><a class="header" href="#d1-introduce-release-plz-and-remove-version-syncyml">D1: Introduce <code>release-plz</code> and remove <code>version-sync.yml</code></a></h5>
 <p>Configura <code>release-plz</code> para el espacio de trabajo. Los crates de la aplicación del espacio de trabajo utilizan <code>version.workspace = true</code>. Los crates de <code>zeroclaw-api</code> y de la biblioteca de hardware están configurados con ajustes de lanzamiento independientes. El flujo de trabajo <code>version-sync.yml</code> se ha retirado.</p>
-<p><strong>D2: Construir la canalización de lanzamiento estructurada en <code>release.yml</code></strong></p>
-<p>Implemente el grafo de lanzamientos dirigido de la §5.2: <code>build-kernel-standard</code>, <code>build-kernel-hardware</code>, <code>build-gateway</code>, con trabajos de publicación descendentes. Los trabajos de compilación de complementos están simulados: se completan con éxito mediante operaciones sin efecto hasta la Fase 4.</p>
-<p><strong>D3: Añadir procedencia SLSA Nivel 2</strong></p>
+<h5 id="d2-build-the-structured-release-pipeline-in-releaseyml"><a class="header" href="#d2-build-the-structured-release-pipeline-in-releaseyml">D2: Build the structured release pipeline in <code>release.yml</code></a></h5>
+<p>Implement the directed release graph from §5.2: <code>build-kernel-standard</code>, <code>build-kernel-hardware</code>, <code>build-gateway</code>, with downstream publish jobs. Plugin build jobs are stubbed: they succeed with no-op until Phase 4.</p>
+<h5 id="d3-add-slsa-level-2-provenance"><a class="header" href="#d3-add-slsa-level-2-provenance">D3: Add SLSA Level 2 provenance</a></h5>
 <p>Agrega <code>actions/attest-build-provenance</code> a cada trabajo de compilación. Las atestaciones de procedencia se adjuntan a los activos de GitHub Release. Documenta las instrucciones de verificación en <code>SECURITY.md</code>.</p>
-<p><strong>D4: Retirar flujos de trabajo de lanzamiento redundantes</strong></p>
+<h5 id="d4-retire-redundant-release-workflows"><a class="header" href="#d4-retire-redundant-release-workflows">D4: Retire redundant release workflows</a></h5>
 <p>Consolide <code>release-stable-manual.yml</code>, <code>release-beta-on-push.yml</code>, <code>pub-aur.yml</code>, <code>pub-homebrew-core.yml</code>, <code>pub-scoop.yml</code>, <code>discord-release.yml</code>, <code>tweet-release.yml</code> en el pipeline estructurado <code>release.yml</code>. Estos flujos de trabajo crecieron de forma independiente; el pipeline estructurado los reemplaza con un único flujo auditable.</p>
 <h4 id="métricas-de-éxito-para-la-fase-3"><a class="header" href="#métricas-de-éxito-para-la-fase-3">Métricas de éxito para la Fase 3</a></h4>
 <ul>
@@ -585,24 +651,28 @@ ignore = [
 <li>Flujos de trabajo de lanzamiento redundantes retirados</li>
 </ul>
 <hr>
-<h3 id="fase-4--v100--pipeline-de-la-plataforma"><a class="header" href="#fase-4--v100--pipeline-de-la-plataforma">Fase 4 · v1.0.0 — “Pipeline de la plataforma”</a></h3>
+<h3 id="phase-4--v100-platform-pipeline"><a class="header" href="#phase-4--v100-platform-pipeline">Phase 4 · v1.0.0: “Platform Pipeline”</a></h3>
 <p><strong>Tema:</strong> La canalización entrega la plataforma, no solo el binario.</p>
 <p><strong>Por qué esta fase:</strong> v1.0.0 es cuando los complementos WASM se vuelven publicables. La canalización debe gestionar la publicación de complementos, la carga en el registro y el instalador de escritorio de Tauri como artefactos de lanzamiento de primera clase.</p>
-<h4 id="entregables-3"><a class="header" href="#entregables-3">Entregables</a></h4>
-<p><strong>D1: Activar trabajos de compilación del plugin WASM</strong></p>
+<h4 id="phase-4-deliverables"><a class="header" href="#phase-4-deliverables">Phase 4 Deliverables</a></h4>
+<h5 id="d1-activate-wasm-plugin-build-jobs"><a class="header" href="#d1-activate-wasm-plugin-build-jobs">D1: Activate WASM plugin build jobs</a></h5>
 <p>Implementar <code>build-plugins-wasm</code> en el pipeline de lanzamiento. Cada crate de plugin se compila para <code>wasm32-wasip1</code> en un trabajo dedicado. Se generan y firman los manifiestos de los plugins. El trabajo <code>publish-plugin-registry</code> sube los archivos WASM firmados al registro de plugins.</p>
-<p><strong>D2: Compilación y publicación del instalador de escritorio</strong></p>
+<h5 id="d2-desktop-installer-build-and-publish"><a class="header" href="#d2-desktop-installer-build-and-publish">D2: Desktop installer build and publish</a></h5>
 <p>Completa los trabajos de compilación de Tauri para macOS, Windows y Linux. El instalador empaqueta los binarios del kernel y del gateway. Las credenciales de firma de código para macOS y Windows se documentan como secretos de repositorio requeridos, con una guía de configuración.</p>
-<p><strong>D3: Publicar los estándares de CI/CD en <code>docs/book/src/maintainers/ci-and-actions.md</code></strong></p>
+<h5 id="d3-publish-the-cicd-standards-to-docsbooksrcmaintainersci-and-actionsmd"><a class="header" href="#d3-publish-the-cicd-standards-to-docsbooksrcmaintainersci-and-actionsmd">D3: Publish the CI/CD standards to <code>docs/book/src/maintainers/ci-and-actions.md</code></a></h5>
 <p>La política de fijación de acciones, el proceso de triaje de avisos, los requisitos de commits convencionales y la estructura del pipeline de lanzamiento definidos en esta RFC se han extraído a <code>docs/book/src/maintainers/ci-and-actions.md</code> como referencia permanente. Esta RFC sigue siendo el registro histórico de las decisiones; el documento extraído es el que los colaboradores consultan en el día a día.</p>
-<p><strong>D4: Incorporación de colaboradores al pipeline</strong></p>
+<h5 id="d4-contributor-onboarding-for-the-pipeline"><a class="header" href="#d4-contributor-onboarding-for-the-pipeline">D4: Contributor onboarding for the pipeline</a></h5>
 <p>Añade una sección de <code>Ejecución de CI localmente</code> a la documentación de contribución que muestre a los colaboradores cómo replicar las comprobaciones de CI en su propia máquina antes de realizar el push:</p>
-<pre><code class="language-bash"># Qué ejecuta CI — ejecuta esto antes de hacer push
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh"># Qué ejecuta CI — ejecuta esto antes de hacer push
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo nextest run --workspace
 cargo deny check
 </code></pre>
+</div>
+
 <h4 id="métricas-de-éxito-para-la-fase-4"><a class="header" href="#métricas-de-éxito-para-la-fase-4">Métricas de éxito para la Fase 4</a></h4>
 <ul>
 <li>Los archivos del plugin WASM se publican en el registro como parte del pipeline de lanzamiento.</li>
@@ -613,8 +683,8 @@ cargo deny check
 <hr>
 <h2 id="8-qué-significa-esto-para-los-colaboradores"><a class="header" href="#8-qué-significa-esto-para-los-colaboradores">8. Qué significa esto para los colaboradores</a></h2>
 <h3 id="para-los-colaboradores-que-abren-prs"><a class="header" href="#para-los-colaboradores-que-abren-prs">Para los colaboradores que abren PRs</a></h3>
-<p>El pipeline consolidado significa un único lugar donde buscar los resultados. La Etapa 1 (formato y lint) falla rápidamente: si tienes un error de formato, lo sabrás en dos minutos sin esperar a que se complete la compilación. Si la Etapa 1 se supera, las etapas de compilación y pruebas se ejecutan en paralelo y obtienes un resultado completo en menos de 30 minutos para la mayoría de los cambios.</p>
-<p>El requisito de commit convencional en los títulos de las PR es aplicado por CI. Si tu título no coincide con el formato, el trabajo de lint fallará inmediatamente con un mensaje claro. Esto no es burocracia — es la entrada que genera el changelog automáticamente, lo que significa que las versiones se realizan más rápido y con menos trabajo manual.</p>
+<p>The consolidated pipeline means one place to look for results. Stage 1 (format and lint) fails fast: if you have a formatting error, you know in two minutes without waiting for a build. If Stage 1 passes, the build and test stages run in parallel and you have a full result in under 30 minutes for most changes.</p>
+<p>The conventional commit requirement on PR titles is enforced by CI. If your title does not match the format, the lint job fails immediately with a clear message. This is not bureaucracy: it is the input that generates the changelog automatically, which means releases happen faster and with less manual work.</p>
 <h3 id="para-los-colaboradores-que-añaden-dependencias"><a class="header" href="#para-los-colaboradores-que-añaden-dependencias">Para los colaboradores que añaden dependencias</a></h3>
 <p>Cada nueva dependencia pasa por <code>cargo deny</code>. Si la dependencia tiene una vulnerabilidad conocida, una licencia inaceptable o proviene de una fuente no confiable, el control de seguridad falla y te indica el motivo. Esto es intencional. La respuesta adecuada es investigar la dependencia, no suprimir la verificación.</p>
 <p>Si una dependencia incluye una advertencia que no se puede solucionar (una dependencia transitiva sin actualizaciones disponibles), el proceso de triaje descrito en §4.3 es el método para documentarlo. Abre un problema de seguimiento, añade la entrada de ignorado en <code>deny.toml</code> con tu justificación y continúa. La postura de seguridad se mantiene mediante documentación, no esperando que la advertencia desaparezca.</p>
@@ -625,39 +695,39 @@ cargo deny check
 <li>Los nuevos trabajos se extraen como flujos de trabajo reutilizables si duplican la lógica de un trabajo existente.</li>
 <li>Se han añadido nuevos trabajos relacionados con la versión a <code>release.yml</code>, no como nuevos archivos de flujo de trabajo.</li>
 </ol>
-<p>En caso de duda, pregunta antes de agregar. Los archivos de flujo de trabajo son cambios de alto riesgo: se ejecutan con permisos elevados en la infraestructura de CI y pueden afectar la seguridad de la cadena de suministro. Merecen el mismo estándar de revisión que <code>src/security/</code>.</p>
+<p>When in doubt, ask before adding. Workflow files are high-risk changes: they run with elevated permissions on CI infrastructure and can affect supply chain security. They deserve the same review standard as <code>src/security/</code>.</p>
 <h3 id="para-los-mantenedores"><a class="header" href="#para-los-mantenedores">Para los mantenedores</a></h3>
 <p>El análisis diario de avisos significa que la seguridad es una tarea de mantenimiento regular, no una crisis. Cuando se activa un nuevo aviso, el proceso de triaje está bien definido y el resultado se documenta en <code>deny.toml</code> y en un problema de seguimiento. Los revisores pueden auditar el historial completo de decisiones sobre avisos en el historial de git.</p>
 <p>El PR de lanzamiento de <code>release-plz</code> es el punto de control de revisión del lanzamiento. Antes de que se publique cualquier cosa, el equipo ve la versión, el registro de cambios y la lista de crates modificados. Los lanzamientos no ocurren por accidente.</p>
 <hr>
 <h2 id="apéndice-a-glosario"><a class="header" href="#apéndice-a-glosario">Apéndice A: Glosario</a></h2>
-<p><strong>SLSA (Supply-chain Levels for Software Artifacts)</strong> — Un marco de seguridad que define niveles de integridad de la construcción, desde la procedencia básica hasta las construcciones completamente herméticas. Desarrollado por Google y adoptado por OpenSSF. El nivel 2 es el objetivo práctico para la mayoría de los proyectos de código abierto: plataforma de construcción alojada, scripts de construcción controlados por versión y procedencia firmada adjunta a los artefactos.</p>
-<p><strong>Procedencia</strong> — Un registro firmado criptográficamente que indica el origen de un artefacto de compilación: el commit de origen, el flujo de trabajo y la plataforma utilizados. Permite a los usuarios y a los gestores de paquetes verificar que un binario fue generado a partir del código fuente indicado mediante el proceso declarado.</p>
-<p><strong><code>cargo deny</code></strong> — Un complemento de Cargo que aplica políticas de dependencias en tres dimensiones: avisos de seguridad (provenientes de la base de datos de RustSec), licencias de software (contra una lista blanca definida) y registros de origen (asegurando que las dependencias provengan únicamente de ubicaciones aprobadas). Más configurable que <code>cargo audit</code> y mejor adaptado para la gestión de políticas a gran escala.</p>
-<p><strong><code>release-plz</code></strong> — Una herramienta de automatización de lanzamientos para el ecosistema de Rust que crea “PRs de lanzamiento” al hacer push en la rama predeterminada, actualizando las versiones y generando registros de cambios a partir del historial de commits convencionales. Consciente del espacio de trabajo; entiende qué crates han cambiado y cuáles necesitan nuevas versiones.</p>
-<p><strong>Flujo de trabajo reutilizable</strong> — Un flujo de trabajo de GitHub Actions que se puede invocar como un trabajo desde otro flujo de trabajo, con parámetros. Permite definir la lógica de compilación, pruebas y seguridad una sola vez y llamarla desde la canalización de PR y la canalización de lanzamiento.</p>
-<p><strong>Commits convencionales</strong> — Una convención para los mensajes de commit (<code>feat:</code>, <code>fix:</code>, <code>chore:</code>, etc.) que permite la generación automatizada del registro de cambios y la determinación de la versión. Es el insumo que herramientas como <code>release-plz</code> utilizan para decidir si una liberación es un incremento de parche, menor o mayor.</p>
-<p><strong>Higuera estranguladora (en el contexto de un pipeline)</strong> — La misma estrategia de migración aplicada a flujos de trabajo: construir la nueva estructura del pipeline junto con la existente, migrar los trabajos uno por uno y retirar los archivos antiguos solo cuando la nueva estructura esté completa y verificada.</p>
+<p><strong>SLSA (Supply-chain Levels for Software Artifacts)</strong>: A security framework that defines levels of build integrity, from basic provenance to fully hermetic builds. Developed by Google and adopted by the OpenSSF. Level 2 is the practical target for most open-source projects: hosted build platform, version-controlled build scripts, signed provenance attached to artifacts.</p>
+<p><strong>Provenance</strong>: A cryptographically signed record of where a build artifact came from: which source commit, which workflow, which platform. Allows users and package managers to verify that a binary was produced from the claimed source by the claimed process.</p>
+<p><strong><code>cargo deny</code></strong>: A Cargo plugin that enforces dependency policy across three dimensions: security advisories (from the RustSec database), software licenses (against a defined allowlist), and source registries (ensuring deps come only from approved locations). More configurable than <code>cargo audit</code> and better suited to policy management at scale.</p>
+<p><strong><code>release-plz</code></strong>: A Rust-ecosystem release automation tool that creates “Release PRs” on push to the default branch, bumping versions and generating changelogs from conventional commit history. Workspace-aware; understands which crates changed and which need new versions.</p>
+<p><strong>Reusable workflow</strong>: A GitHub Actions workflow that can be called as a job from another workflow, with parameters. Allows build, test, and security logic to be defined once and called from both the PR pipeline and the release pipeline.</p>
+<p><strong>Conventional commits</strong>: A commit message convention (<code>feat:</code>, <code>fix:</code>, <code>chore:</code>, etc.) that enables automated changelog generation and version determination. The input that tools like <code>release-plz</code> use to decide whether a release is a patch, minor, or major bump.</p>
+<p><strong>Strangler Fig (in pipeline context)</strong>: The same migration strategy applied to workflows: build the new pipeline structure alongside the existing one, migrate jobs one at a time, retire the old files only when the new structure is complete and verified.</p>
 <hr>
 <h2 id="apéndice-b-lecturas-adicionales"><a class="header" href="#apéndice-b-lecturas-adicionales">Apéndice B: Lecturas adicionales</a></h2>
 <ul>
 <li>
-<p><strong>Marco SLSA</strong> — https://slsa.dev — La especificación completa y las guías de implementación para los niveles de seguridad de la cadena de suministro.</p>
+<p><a href="https://slsa.dev">SLSA Framework</a>: The full specification and implementation guides for supply chain security levels.</p>
 </li>
 <li>
-<p><strong>Documentación de <code>cargo deny</code></strong> — https://embarkstudios.github.io/cargo-deny/ — Referencia de configuración para el archivo de políticas <code>deny.toml</code>, que incluye todas las opciones de advertencia, licencia y origen.</p>
+<p><a href="https://embarkstudios.github.io/cargo-deny/"><code>cargo deny</code> documentation</a>: Configuration reference for the <code>deny.toml</code> policy file, including all advisory, license, and source options.</p>
 </li>
 <li>
-<p><strong>Documentación de <code>release-plz</code></strong> — https://release-plz.eplant.org — Guía de configuración del espacio de trabajo, personalización del formato del registro de cambios e integración con GitHub Actions.</p>
+<p><a href="https://release-plz.eplant.org"><code>release-plz</code> documentation</a>: Workspace configuration, changelog format customisation, and GitHub Actions integration guide.</p>
 </li>
 <li>
-<p><strong>Endurecimiento de la seguridad de GitHub Actions</strong> — https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions — Orientación oficial sobre el anclaje de SHA, permisos de tokens y riesgos de la cadena de suministro en flujos de trabajo de Actions.</p>
+<p><a href="https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions">GitHub Actions security hardening</a>: Official guidance on SHA pinning, token permissions, and supply chain risk in Actions workflows.</p>
 </li>
 <li>
-<p><strong>Especificación de Commits Convencionales</strong> — https://www.conventionalcommits.org — La especificación completa para el formato de los mensajes de commit y su relación con la versión semántica.</p>
+<p><a href="https://www.conventionalcommits.org">Conventional Commits specification</a>: The full specification for commit message format and its relationship to semantic versioning.</p>
 </li>
 <li>
-<p><strong>OpenSSF Scorecard</strong> — https://securityscorecards.dev — Una herramienta automatizada que evalúa los proyectos de código abierto en cuanto a prácticas de seguridad, como la fijación de dependencias, la protección de ramas, los requisitos de revisión de código y más. Útil como evaluación inicial y métrica continua de salud.</p>
+<p><a href="https://securityscorecards.dev">OpenSSF Scorecard</a>: An automated tool that scores open-source projects on security practices including dependency pinning, branch protection, code review requirements, and more. Useful as a baseline assessment and ongoing health metric.</p>
 </li>
 </ul>
 

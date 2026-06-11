@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["client","jsonrpc","wire"]};
+window.SIDEBAR_ITEMS = {"mod":["client","config","jsonrpc","keymap","wire"]};

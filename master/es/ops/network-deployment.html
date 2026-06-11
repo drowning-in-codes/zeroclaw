@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11c8edb4.js";
+            window.path_to_searchindex_js = "../searchindex-d7f9eeaa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2e5901bf.js"></script>
+        <script src="../toc-a9c1be94.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -222,11 +298,11 @@
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Modo</th><th style="text-align: center">Necesita un puerto de entrada</th><th>Notas</th></tr>
+<tr><th>Modo</th><th style="text-align: center">Inbound port?</th><th>Notas</th></tr>
 </thead>
 <tbody>
-<tr><td>Telegram (polling largo)</td><td style="text-align: center">No</td><td>ZeroClaw consulta <code>api.telegram.org</code> — funciona detrás de NAT</td></tr>
-<tr><td>Matrix / Mattermost / Nextcloud Talk</td><td style="text-align: center">No</td><td>Sync/WebSocket — solo salida</td></tr>
+<tr><td>Telegram (polling largo)</td><td style="text-align: center">No</td><td>ZeroClaw polls <code>api.telegram.org</code>, works behind NAT</td></tr>
+<tr><td>Matrix / Mattermost / Nextcloud Talk</td><td style="text-align: center">No</td><td>Sync/WebSocket, outbound only</td></tr>
 <tr><td>Discord / Slack (Modo de socket)</td><td style="text-align: center">No</td><td>WebSocket de salida</td></tr>
 <tr><td>Señal (<code>signal-cli-rest-api</code>)</td><td style="text-align: center">No</td><td>Contenedor de localhost</td></tr>
 <tr><td>Nostr / IMAP / MQTT</td><td style="text-align: center">No</td><td>Todos los salientes</td></tr>
@@ -236,36 +312,32 @@
 </tbody>
 </table>
 </div>
-<p><strong>Conclusión:</strong> un bot exclusivo de Telegram se ejecuta en una Raspberry Pi detrás de un router doméstico sin necesidad de reenvío de puertos. Cualquier solución basada en webhooks requiere una URL accesible, y aquí es donde entran en juego los túneles.</p>
+<p><strong>Upshot:</strong> a Telegram-only bot runs on a Pi behind a consumer router with zero port forwarding. Anything webhook-based needs a reachable URL, which is where tunnels come in.</p>
 <h2 id="vinculando-la-puerta-de-enlace"><a class="header" href="#vinculando-la-puerta-de-enlace">Vinculando la puerta de enlace</a></h2>
-<p>Por defecto, el gateway se vincula a <code>127.0.0.1</code>, lo que lo hace inaccesible desde otros dispositivos. Hay tres opciones para exponerlo:</p>
-<h3 id="opción-1--enlace-público-lan"><a class="header" href="#opción-1--enlace-público-lan">Opción 1 — Enlace público (LAN)</a></h3>
-<pre><code class="language-toml">[gateway]
-host = "0.0.0.0"
-port = 42617
-allow_public_bind = true     # indicador de seguridad obligatorio
-</code></pre>
-<p>Entonces, cualquier dispositivo en la LAN puede acceder a <code>http://&lt;pi-ip&gt;:42617</code>. Esto no ayuda para los webhooks accesibles desde internet, ya que la IP pública de tu router no está reenviada al Pi.</p>
+<p>By default the gateway binds to <code>127.0.0.1</code>, unreachable from other devices. Three options to expose it:</p>
+<h3 id="option-1-public-bind-lan"><a class="header" href="#option-1-public-bind-lan">Option 1: Public bind (LAN)</a></h3>
+<p>Then any device on the LAN can reach <code>http://&lt;pi-ip&gt;:42617</code>. Doesn’t help for internet-reachable webhooks, your router’s public IP isn’t forwarded to the Pi.</p>
 <p><strong>Seguridad:</strong> Es necesario establecer <code>allow_public_bind = true</code> porque vincularse a <code>0.0.0.0</code> representa un cambio significativo en la configuración de seguridad. Sin esta opción, el demonio se niega a ejecutarse. Esto es intencional.</p>
-<h3 id="opción-2--túnel-accesible-desde-internet"><a class="header" href="#opción-2--túnel-accesible-desde-internet">Opción 2 — Túnel (accesible desde Internet)</a></h3>
-<pre><code class="language-toml">[tunnel]
-provider = "tailscale"       # o "cloudflare", "ngrok"
-</code></pre>
-<p>Luego reinicia el daemon: el túnel se gestiona de forma declarativa desde la configuración, iniciándose junto con la puerta de enlace.</p>
-<p>El túnel reenvía desde una URL pública hacia la puerta de enlace en <code>127.0.0.1</code>. Sin configuración de enrutador, sin puertos abiertos. Los tres túneles compatibles funcionan de manera similar:</p>
+<h3 id="option-2-tunnel-internet-reachable"><a class="header" href="#option-2-tunnel-internet-reachable">Option 2: Tunnel (internet-reachable)</a></h3>
+<p>Then restart the daemon, the tunnel is managed declaratively from config, starting alongside the gateway.</p>
+<p>The tunnel forwards from a public URL to the gateway on <code>127.0.0.1</code>. No router config, no opened ports. Set <code>tunnel.tunnel_provider</code> to one of the supported values; each works similarly:</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Proveedor</th><th>Configurar fricción</th><th>Costo</th><th>Bueno para</th></tr>
 </thead>
 <tbody>
-<tr><td>Tailscale Funnel</td><td>Crear cuenta, instalar cliente</td><td>Capa gratuita</td><td>URLs estables a largo plazo</td></tr>
-<tr><td>Túnel de Cloudflare</td><td>Crea una cuenta en Cloudflare e instala <code>cloudflared</code></td><td>Gratis</td><td>Dominios personalizados</td></tr>
-<tr><td>ngrok</td><td>Regístrate, instala la CLI</td><td>Gratis con límites</td><td>Pruebas, de corta duración</td></tr>
+<tr><td><code>tailscale</code></td><td>Account + client</td><td>Capa gratuita</td><td>URLs estables a largo plazo</td></tr>
+<tr><td><code>cloudflare</code></td><td>Account + <code>cloudflared</code> + token</td><td>Gratis</td><td>Dominios personalizados</td></tr>
+<tr><td><code>ngrok</code></td><td>Account + agent + token</td><td>Gratis con límites</td><td>Pruebas, de corta duración</td></tr>
+<tr><td><code>pinggy</code></td><td>SSH, no account</td><td>Capa gratuita</td><td>Quick one-shot URLs</td></tr>
+<tr><td><code>openvpn</code></td><td>Your own OpenVPN egress</td><td>Self-hosted</td><td>Existing VPN infra</td></tr>
+<tr><td><code>custom</code></td><td>A command under <code>[tunnel.custom]</code></td><td>Depends</td><td>Anything else</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="opción-3--proxy-inverso"><a class="header" href="#opción-3--proxy-inverso">Opción 3 — Proxy inverso</a></h3>
+<p><code>tunnel_provider = "none"</code> (the default) keeps the gateway local with no tunnel. See the <a href="../reference/config.html#tunnel">Config reference</a> for each provider’s <code>[tunnel.&lt;provider&gt;]</code> fields.</p>
+<h3 id="option-3-reverse-proxy"><a class="header" href="#option-3-reverse-proxy">Option 3: Reverse proxy</a></h3>
 <p>Ejecuta nginx / Caddy / Traefik delante de la puerta de enlace. Termina TLS allí y reenvía la conexión a <code>localhost:42617</code>. Adecuado para:</p>
 <ul>
 <li>Servidores con una IP pública real</li>
@@ -277,7 +349,17 @@ provider = "tailscale"       # o "cloudflare", "ngrok"
     reverse_proxy localhost:42617
 }
 </code></pre>
-<p>La puerta de enlace permanece vinculada a <code>127.0.0.1</code> — el proxy se encarga de la escucha.</p>
+<p>The gateway stays bound to <code>127.0.0.1</code>, the proxy does the listening.</p>
+<h2 id="remote-daemon-reload"><a class="header" href="#remote-daemon-reload">Remote daemon reload</a></h2>
+<p><code>POST /admin/reload</code> re-reads <code>config.toml</code> and rebuilds every subsystem in place (same PID, sub-second downtime). It is the supported way to apply config changes without a full restart. By default it only accepts <strong>loopback</strong> callers, so a remote dashboard or <code>curl</code> from another machine gets <code>403 Forbidden</code>.</p>
+<p>To allow authenticated remote reloads:</p>
+<pre><code class="language-toml">[gateway]
+allow_remote_admin = true    # off by default
+require_pairing = true        # required for remote reload (also the default)
+</code></pre>
+<p>With this enabled, a non-loopback caller may hit <code>/admin/reload</code> <strong>only if it also passes pairing authentication</strong> (<code>Authorization: Bearer &lt;token&gt;</code>). Loopback callers (the local CLI) are always allowed and need no token. <code>/admin/shutdown</code> and the pairing-code endpoints remain localhost-only regardless of this flag.</p>
+<p>Because remote access is enforced through pairing, <code>allow_remote_admin</code> has no effect unless <code>require_pairing</code> is also on: if pairing is disabled, a remote caller cannot be authenticated, so the request is rejected with <code>403 Forbidden</code> rather than allowed anonymously. This makes it impossible to expose an unauthenticated remote reload by flipping a single flag.</p>
+<p><strong>Safety:</strong> leave <code>allow_remote_admin</code> off unless you specifically need to reload from another host. Keep <code>require_pairing = true</code> (the default) so reloads can’t be triggered anonymously.</p>
 <h2 id="despliegue-en-raspberry-pi"><a class="header" href="#despliegue-en-raspberry-pi">Despliegue en Raspberry Pi</a></h2>
 <h3 id="requisitos-previos"><a class="header" href="#requisitos-previos">Requisitos previos</a></h3>
 <ul>
@@ -286,75 +368,99 @@ provider = "tailscale"       # o "cloudflare", "ngrok"
 <li>Opcional: periféricos USB para la integración de hardware</li>
 </ul>
 <h3 id="instalar"><a class="header" href="#instalar">Instalar</a></h3>
-<p>Para una Raspberry Pi que ejecuta Raspberry Pi OS:</p>
-<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash -s -- --prebuilt
+<p>Clone and run the installer. With no flags it drops into an interactive picker where you choose the build type and which features to compile in, including the hardware features for GPIO/I2C/SPI. On the Pi it also uses the Pi-tuned cargo profiles; see <a href="../hardware/raspberry-pi-setup.html">Raspberry Pi setup</a> for swap setup and the per-model build matrix.</p>
+<div class="os-tabs-src">
+<h4 id="raspberry-pi-os"><a class="header" href="#raspberry-pi-os">Raspberry Pi OS</a></h4>
+<pre><code class="language-sh">git clone https://github.com/zeroclaw-labs/zeroclaw.git
+cd zeroclaw
+./install.sh
 </code></pre>
-<p>Prefer <code>--prebuilt</code> en una Raspberry Pi: compilar desde el código fuente puede tardar más de 30 minutos.</p>
-<p>Para una Raspberry Pi que ejecuta Alpine:</p>
-<pre><code class="language-bash">apk add curl rust cargo openssl-dev pkgconf
-curl -fsSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/master/install.sh | bash
+<h4 id="alpine"><a class="header" href="#alpine">Alpine</a></h4>
+<pre><code class="language-sh">apk add curl rust cargo openssl-dev pkgconf git
+git clone https://github.com/zeroclaw-labs/zeroclaw.git
+cd zeroclaw
+./install.sh
 </code></pre>
-<h3 id="características-del-hardware"><a class="header" href="#características-del-hardware">Características del hardware</a></h3>
-<pre><code class="language-bash">cargo install --locked --path . --features "periférico de hardware-rpi"
-</code></pre>
-<p>Otorga acceso a GPIO, I2C y SPI a través de <code>rppal</code>. La unidad de servicio predeterminada ya añade el usuario a los grupos <code>gpio</code>, <code>spi</code> e <code>i2c</code>.</p>
+</div>
+
+<p>Grants access to GPIO, I2C, SPI via <code>rppal</code> when you pick the hardware features. The stock service unit already adds the user to the <code>gpio</code>, <code>spi</code>, <code>i2c</code> groups.</p>
 <h3 id="lista-de-verificación"><a class="header" href="#lista-de-verificación">Lista de verificación</a></h3>
 <ul>
-<li><input disabled="" type="checkbox"> Instala el binario (preferiblemente la versión precompilada en una Raspberry Pi)</li>
+<li><input disabled="" type="checkbox"> Install the binary (<code>./install.sh</code>, pick your features in the picker)</li>
 <li><input disabled="" type="checkbox"> Run <code>zeroclaw quickstart</code></li>
-<li><input disabled="" type="checkbox"> Configura tus canales: Telegram no necesita puerto; los webhooks requieren un túnel</li>
+<li><input disabled="" type="checkbox"> Configure your channels. Telegram needs no port; webhooks need a tunnel</li>
 <li><input disabled="" type="checkbox"> Instala el servicio: <code>zeroclaw service install &amp;&amp; zeroclaw service start</code></li>
 <li><input disabled="" type="checkbox"> Para el acceso LAN: establece <code>[gateway] host = "0.0.0.0"</code> + <code>allow_public_bind = true</code></li>
 <li><input disabled="" type="checkbox"> Para webhooks: configura <code>[tunnel]</code> con un proveedor</li>
 </ul>
 <h2 id="alpine-linux-openrc"><a class="header" href="#alpine-linux-openrc">Alpine Linux (OpenRC)</a></h2>
 <p>Los servicios de OpenRC se ejecutan a nivel del sistema. Instálelos como root:</p>
-<pre><code class="language-bash">sudo zeroclaw service install
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">sudo zeroclaw service install
 </code></pre>
+</div>
+
 <p>Crea:</p>
 <ul>
-<li><code>/etc/init.d/zeroclaw</code> — script de inicio</li>
-<li><code>/etc/zeroclaw/</code> — directorio de configuración</li>
-<li><code>/var/log/zeroclaw/</code> — archivos de registro</li>
+<li><code>/etc/init.d/zeroclaw</code>: init script</li>
+<li><code>/etc/zeroclaw/</code>: config directory</li>
+<li><code>/var/log/zeroclaw/</code>: log files</li>
 </ul>
 <p>Habilitar y comenzar:</p>
-<pre><code class="language-bash">sudo rc-update add zeroclaw default
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">sudo rc-update add zeroclaw default
 sudo rc-service zeroclaw start
 sudo rc-service zeroclaw status
 </code></pre>
+</div>
+
 <p>Registros:</p>
-<pre><code class="language-bash">sudo tail -f /var/log/zeroclaw/error.log
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">sudo tail -f /var/log/zeroclaw/error.log
 </code></pre>
+</div>
+
 <h3 id="notas-de-openrc"><a class="header" href="#notas-de-openrc">Notas de OpenRC</a></h3>
 <ul>
 <li>El servicio se ejecuta como <code>zeroclaw:zeroclaw</code> (menor privilegio)</li>
-<li>La ruta de configuración está fija: <code>/etc/zeroclaw/config.toml</code></li>
-<li>Solo a nivel del sistema — sin servicios de OpenRC a nivel de usuario</li>
+<li>System-wide only: no user-level OpenRC services</li>
 <li>Todas las operaciones de servicio requieren <code>sudo</code>.</li>
 </ul>
 <h2 id="advertencia-sobre-el-polling-de-telegram"><a class="header" href="#advertencia-sobre-el-polling-de-telegram">Advertencia sobre el polling de Telegram</a></h2>
-<p>La API de Telegram Bot <code>getUpdates</code> es un único recolector por token de bot. No puedes ejecutar dos instancias con el mismo token: la segunda obtiene <code>Conflict: terminated by other getUpdates request</code>.</p>
+<p>Telegram Bot API’s <code>getUpdates</code> is single-poller per bot token. You cannot run two instances with the same token; the second gets <code>Conflict: terminated by other getUpdates request</code>.</p>
 <p>Si ves esto:</p>
 <ol>
-<li><code>ps aux | grep zeroclaw</code> y confirma que solo se está ejecutando un daemon.</li>
-<li>Verifica que no tengas <code>cargo run --bin zeroclaw -- channel start telegram</code> de una sesión de desarrollo pendiente.</li>
-<li>Si está desactualizado, restablece la sesión de la encuesta de Telegram:
-<pre><code class="language-bash">curl -X POST "https://api.telegram.org/bot$TOKEN/close"
+<li>
+<p><code>ps aux | grep zeroclaw</code> y confirma que solo se está ejecutando un daemon.</p>
+</li>
+<li>
+<p>Verifica que no tengas <code>cargo run --bin zeroclaw -- channel start telegram</code> de una sesión de desarrollo pendiente.</p>
+</li>
+<li>
+<p>Si está desactualizado, restablece la sesión de la encuesta de Telegram:</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">curl -X POST "https://api.telegram.org/bot$TOKEN/close"
 </code></pre>
+</div>
+
 </li>
 </ol>
 <h2 id="exponer-webhooks-de-forma-segura"><a class="header" href="#exponer-webhooks-de-forma-segura">Exponer webhooks de forma segura</a></h2>
 <p>Una URL de webhook accesible públicamente es una superficie de ataque. Como mínimo:</p>
 <ul>
-<li><strong>Verificación de firma HMAC</strong> — <code>secret</code> configurado en cada canal de webhook</li>
+<li><strong>HMAC signature verification</strong>: <code>secret</code> configured on each webhook channel</li>
 <li><strong>Lista de IPs permitidos de origen</strong> donde el servicio tiene IPs de salida fijas (GitHub, AWS SNS)</li>
-<li><strong>Limitación de tasa</strong> — <code>rate_limit_per_sec</code> en la configuración del canal de webhook</li>
+<li><strong>Rate limiting</strong>: <code>rate_limit_per_sec</code> in the webhook channel config</li>
 </ul>
 <p>Consulta <a href="../channels/webhook.html">Canales → Webhooks</a> para ver el conjunto completo de opciones.</p>
 <h2 id="ver-también"><a class="header" href="#ver-también">Ver también</a></h2>
 <ul>
-<li><a href="../setup/container.html">Configuración → Contenedor</a> — Configuración de red específica de Docker</li>
-<li><a href="../setup/service.html">Configuración → Gestión de servicios</a> — integración de servicios de la plataforma</li>
+<li><a href="../setup/container.html">Setup → Container</a>: Docker-specific network config</li>
+<li><a href="../setup/service.html">Setup → Service management</a>: platform service integration</li>
 <li><a href="./overview.html">Operaciones → Resumen</a></li>
 <li><a href="../security/overview.html">Seguridad → Resumen</a></li>
 </ul>

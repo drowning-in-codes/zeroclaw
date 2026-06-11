@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,14 +293,14 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="fnd-003-チーム編成プロジェクトガバナンスコントリビューションパイプライン"><a class="header" href="#fnd-003-チーム編成プロジェクトガバナンスコントリビューションパイプライン">FND-003: チーム編成、プロジェクトガバナンス、コントリビューションパイプライン</a></h1>
-<p>v0.7.0 開始 · 種別: ガバナンス · リビジョン 5</p>
 <blockquote>
+<p>v0.7.0 開始 · 種別: ガバナンス · リビジョン 5</p>
 <p><strong>正式リファレンス</strong> · チームにより承認 · Rev. 5 当初のガバナンスに関する議論: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5577">#5577</a> 後続のワークレーンおよびラベルガバナンスポリシー: <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/6808">#6808</a></p>
 </blockquote>
 <hr>
 <blockquote>
 <p><strong>これを読む前にチームへの注意。</strong></p>
-<p>ソフトウェアプロジェクトが失敗するのは、コードが悪いからではありません。コードを書く人々が連携できないために失敗します。機能の重複実装、バグの置き去り、文書化されないアイデアの消失、新規コントリビューターがどこから始めればよいか分からないといった問題が生じます。このRFCは、プロジェクトを「整理されたように見せる」ためではなく、チームがより速く、より自信を持って、より少ない摩擦で進めるために必要な軽量な基盤を整えることを目的としています。ここで提案するすべての推奨事項は、小規模で成長中の学生主導のオープンソースチームに特化して選定されています。プロジェクトマネージャー、スクラムマスター、公式な委員会などは必要ありません。</p>
+<p>Software projects do not fail because the code is bad. They fail because the people writing the code cannot coordinate. Features get built twice. Bugs get lost. Good ideas evaporate because nobody wrote them down. New contributors show up wanting to help and cannot find where to start. This RFC is about building the lightweight scaffolding that prevents those failures, not so the project feels organized, but so the team can move faster, with more confidence, and with less friction. Every recommendation here is chosen specifically for a small, growing, student-led open source team. Nothing here requires a project manager, a Scrum Master, or a formal committee.</p>
 </blockquote>
 <hr>
 <h2 id="改訂履歴"><a class="header" href="#改訂履歴">改訂履歴</a></h2>
@@ -277,17 +353,17 @@
 <li>アイデアは誰かの頭の中にあるか、スクロールして画面から消えていくチャットメッセージの中にある</li>
 <li>トラッカーに優先順位、担当者、完了の明確な定義がないまま、問題が蓄積しています。</li>
 <li>コントリビューターが誰も求めていないものに対してPRを開いたり、手伝いを申し出ても無視されたりすることがあります。</li>
-<li>チームは反応的に対応しており、最も大きな声で叫んだ人が注目を集め、壊れたものが修正され、1週間先までの計画は立てられません。</li>
+<li>The team works reactively: whoever shouts loudest gets attention, whatever breaks gets fixed, nothing gets planned more than a week out</li>
 <li>PRのコメントでアーキテクチャの決定が行われ、どこにも記録されない</li>
 </ul>
-<p>これは誰かの努力を批判するものではありません。デフォルトで何が起こるかを説明したものです。解決策はプロセスを増やすことではなく、チームの規模や成熟度に応じて適切なレベルで適切なプロセスを適用することです。</p>
+<p>This is not a criticism of anyone’s effort. It is a description of what happens by default. The solution is not more process. It is the right process, applied at the right level for the size and maturity of the team.</p>
 <p>ZeroClawには3つのものが必要です：</p>
 <ol>
 <li><strong>パイプライン</strong>は、アイデアを実装されたコードに変換するための仕組みで、各段階が可視化され、移行ごとに明確なゲートが設けられています。</li>
 <li><strong>メンテナンスされたディスカッションレーン</strong>: コミュニティからの質問、アイデア、ショーケース、まだパイプラインに乗せる準備ができていない初期段階の検討事項を、見失ったりアクティブな作業を散らかしたりすることなく扱うための場</li>
 <li><strong>ガバナンスモデル</strong>は、誰が何を決定できるか、アーキテクチャの決定がどのように行われるか、そしてチームがどのように成長するかを定義します。</li>
 </ol>
-<p>これらは3つの異なる懸念事項です。これらを混同する—すべてを1つのボードにまとめる、または非公式なチャットに依存して意思決定を行う—ことが、チームが脱却しようとしている混乱の原因となります。</p>
+<p>These are three distinct concerns. Conflating them, putting everything in one board, or relying on informal chat for decisions, is what creates the chaos the team is trying to escape.</p>
 <hr>
 <h2 id="2-3つの構成要素"><a class="header" href="#2-3つの構成要素">2. 3つの構成要素</a></h2>
 <div class="table-wrapper">
@@ -343,7 +419,7 @@
 </code></pre>
 <p>ボードレベルの <code>Won't Do</code> ステートは永続的なクローズ決定です。現在のクローズラベルの表記と置き換えプロセスのルールについては、<a href="../maintainers/labels.html#resolution-labels">メンテナーラベルガイド</a>および<a href="../maintainers/superseding.html">置き換えガイド</a>を参照してください。</p>
 <h3 id="32-ザゲイトクエスチョン"><a class="header" href="#32-ザゲイトクエスチョン">3.2 ザ・ゲイト・クエスチョン</a></h3>
-<p>各遷移にはゲート質問があります。項目が次に進む前に、この質問に「yes」と答える必要があります。これによりプロジェクトボードが運用可能になります。Vision → Architecture → Design → Implementation → Testing → Documentation の階層は、各段階でチェックリストになります。</p>
+<p>Every transition has a gate question. The question must be answered “yes” before the item moves forward. This is the project board made operational: the Vision → Architecture → Design → Implementation → Testing → Documentation hierarchy becomes a checklist at each stage.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -405,14 +481,14 @@
 <p>XL アイテムは、通常、進行中に入る前に細分化する必要があります。細分化できない場合は、設計が十分に完了していないことを意味します。</p>
 <h3 id="34-ビュー"><a class="header" href="#34-ビュー">3.4 ビュー</a></h3>
 <p>プロジェクトに4つの名前付きビューを作成します:</p>
-<p><strong>ビュー 1: ロードマップ</strong></p>
+<h4 id="view-1-roadmap"><a class="header" href="#view-1-roadmap">View 1: Roadmap</a></h4>
 <ul>
 <li>タイプ: ロードマップ（タイムライン）</li>
 <li>グループ化基準: マイルストーン</li>
 <li>表示されるフィールド: タイトル、タイプ、サイズ、コンポーネント、担当者</li>
 <li>目的: 公開向け。「今後予定されていることと時期」を共有します。このリンクを README やコミュニティで共有してください。定期的に更新してください。</li>
 </ul>
-<p><strong>ビュー 2: ボード</strong></p>
+<h4 id="view-2-board"><a class="header" href="#view-2-board">View 2: Board</a></h4>
 <ul>
 <li>タイプ: ボード（カンバン）</li>
 <li>列：ステータスフィールドの値</li>
@@ -420,7 +496,7 @@
 <li>表示されるフィールド: タイトル、担当者、サイズ、リスクティア</li>
 <li>目的: 日々の作業の可視化。現在、誰もが何に取り組んでいるのか？何がブロックされているのか？</li>
 </ul>
-<p><strong>ビュー 3: バックログ</strong></p>
+<h4 id="view-3-backlog"><a class="header" href="#view-3-backlog">View 3: Backlog</a></h4>
 <ul>
 <li>タイプ: テーブル</li>
 <li>優先度（降順）、次にサイズ（昇順）でソート</li>
@@ -428,7 +504,7 @@
 <li>表示されるフィールド: タイトル、タイプ、優先度、サイズ、コンポーネント、マイルストーン、リスクティア</li>
 <li>目的: ガーミングセッション中に使用されます。次に何を作業すべきか？サイズが決まり、引き受ける準備が整っているのはどれですか？</li>
 </ul>
-<p><strong>ビュー 4: 自分の仕事</strong></p>
+<h4 id="view-4-my-work"><a class="header" href="#view-4-my-work">View 4: My Work</a></h4>
 <ul>
 <li>タイプ: ボード</li>
 <li>フィルタリング条件: 担当者 = @me</li>
@@ -489,7 +565,7 @@
 <hr>
 <h2 id="5-チームのティアと貢献権限"><a class="header" href="#5-チームのティアと貢献権限">5. チームのティアと貢献権限</a></h2>
 <h3 id="51-3つの階層"><a class="header" href="#51-3つの階層">5.1 3つの階層</a></h3>
-<p>オープンソースプロジェクトは<strong>メリトクラシー</strong>に基づいて運営されます。つまり、影響力や権限は、年功序列や肩書き、あるいは誰を知っているかではなく、実際に示された貢献によって与えられます。これは、オープンソースが企業内のソフトウェアと異なる点の一つであり、明示的に教える価値があります。</p>
+<p>Open source projects run on <strong>meritocracy</strong>: influence and authority come from demonstrated contribution, not from seniority, title, or who you know. This is one of the things that makes open source different from corporate software, and it is worth teaching explicitly.</p>
 <p>3つの階層は、プロジェクトに対する示されたコミットメントの増加を反映しています：</p>
 <hr>
 <h4 id="ティア1コミュニティ"><a class="header" href="#ティア1コミュニティ">ティア1：コミュニティ</a></h4>
@@ -530,7 +606,7 @@
 <hr>
 <h4 id="ティア3-コアチーム"><a class="header" href="#ティア3-コアチーム">ティア3: コアチーム</a></h4>
 <p>長期間にわたり一貫して高品質な貢献を行い、既存のコアチームメンバーから招待されたコントリビューター。</p>
-<p><strong>コアチームメンバーになる方法:</strong> 既存のコアチームメンバーからの招待。これはディスカッションで公開されます。正式な基準はありません。過去の貢献の質、一貫性、そして整合性に基づいた判断です。</p>
+<p><em>How to become one:</em> Invitation from existing Core Team members, announced publicly in Discussions. There is no formal threshold; it is a judgment call based on the quality, consistency, and alignment of past contributions.</p>
 <p><em>Contributor</em> として得られるもの：</p>
 <ul>
 <li>リポジトリへの書き込みアクセス</li>
@@ -550,7 +626,7 @@
 </ul>
 <hr>
 <h3 id="52-遅延コンセンサスルール"><a class="header" href="#52-遅延コンセンサスルール">5.2 遅延コンセンサスルール</a></h3>
-<p>日常的な意思決定（ラベルの追加、古いイシューのクローズ、ドキュメントの更新など）において、コアチームメンバーは<strong>遅延コンセンサス</strong>に基づいて行動します。関連するイシューで意図を表明し、48時間以内にコアチームメンバーから反対がない場合、その決定を進めることができます。これにより、すべての事項について明示的な承認を必要とするための停滞を防ぎつつ、透明性を維持します。</p>
+<p>For routine decisions, adding a label, closing a stale issue, updating documentation, Core Team members operate under <strong>lazy consensus</strong>: if you announce your intention in the relevant issue and no Core Team member objects within 48 hours, you proceed. This prevents the paralysis of requiring explicit approval for everything while maintaining visibility.</p>
 <p>遅延コンセンサスは以下には適用されません：</p>
 <ul>
 <li>RFCの承認または拒否</li>
@@ -562,12 +638,12 @@
 <p>これらは常に明示的なコアチームの投票が必要です。</p>
 <h3 id="53-チームメンバーシップの記録"><a class="header" href="#53-チームメンバーシップの記録">5.3 チームメンバーシップの記録</a></h3>
 <p>チームのメンバーシップは2つの場所に記録されます：</p>
-<p>リポジトリのルートにある <strong><code>CONTRIBUTORS.md</code></strong> — 貢献者を階層別に整理した、すべての貢献者を記録した公開ファイル。Core Team のメンバーが貢献者を認め次第更新します。</p>
-<p>組織設定内の<strong>GitHub Teams</strong> — <code>zeroclaw-core</code> と <code>zeroclaw-contributors</code> チームは、CODEOWNERS で参照され、通知ルーティングに使用されます。</p>
+<p><strong><code>CONTRIBUTORS.md</code></strong> at the repository root: a public record of everyone who has contributed, organized by tier. Updated by Core Team members as contributors are recognized.</p>
+<p><strong>GitHub Teams</strong> in the organization settings: <code>zeroclaw-core</code> and <code>zeroclaw-contributors</code> teams, referenced in CODEOWNERS and used for notification routing.</p>
 <hr>
 <h2 id="6-codeowners-とブランチ保護"><a class="header" href="#6-codeowners-とブランチ保護">6. CODEOWNERS とブランチ保護</a></h2>
 <h3 id="61-codeowners"><a class="header" href="#61-codeowners">6.1 CODEOWNERS</a></h3>
-<p><code>CODEOWNERS</code> ファイルにより、ガバナンスが自動化されます。このファイルは、PR がマージされる前にどのチームのレビューをどのパスが必要とするかを定義します。GitHub はこれを必須レビューとして適用し、要件が満たされるまで PR をマージできません。</p>
+<p>The <code>CODEOWNERS</code> file makes governance automatic. It defines which paths require review from which team before a PR can merge. GitHub enforces this as a required review: the PR cannot be merged until the requirement is satisfied.</p>
 <p><code>.github/CODEOWNERS</code> を作成します:</p>
 <pre><code># CODEOWNERS — Automatic review routing by risk tier
 # See AGENTS.md for risk tier definitions.
@@ -599,7 +675,7 @@ AGENTS.md                       @zeroclaw-labs/zeroclaw-core
 
 *                               @zeroclaw-labs/zeroclaw-contributors
 </code></pre>
-<p>コアチームの特定のメンバーがコンポーネントの所有権を持つ場合、チームのハンドルに加えて、各メンバーの個別のハンドルを追加してください。CODEOWNERS では、より具体的なパスルールがより一般的なルールを上書きします。</p>
+<p>As specific Core Team members take ownership of components, add their individual handles alongside the team handle. Specificity wins in CODEOWNERS: a more specific path rule overrides a more general one.</p>
 <h3 id="62-ブランチ保護ルール"><a class="header" href="#62-ブランチ保護ルール">6.2 ブランチ保護ルール</a></h3>
 <p><code>master</code> ブランチの以下の保護ルールを設定してください：</p>
 <div class="table-wrapper">
@@ -608,7 +684,7 @@ AGENTS.md                       @zeroclaw-labs/zeroclaw-core
 <tr><th>ルール</th><th>設定</th><th>理由</th></tr>
 </thead>
 <tbody>
-<tr><td>マージ前にプルリクエストを要求する</td><td>有効</td><td>master への直接プッシュは禁止です。</td></tr>
+<tr><td>マージ前にプルリクエストを要求する</td><td>有効</td><td>No direct pushes to master, ever</td></tr>
 <tr><td>承認を要求する</td><td>1は低リスク/中リスク、2は高リスク</td><td>CODEOWNERS の強制は「誰が」を処理します</td></tr>
 <tr><td>ステータスチェックの合格を必須にする</td><td><code>cargo fmt</code>、<code>cargo clippy</code>、<code>cargo test</code></td><td>マージ前にCIがグリーンである必要があります。</td></tr>
 <tr><td>ブランチを最新の状態に保つ</td><td>有効</td><td>古いコードのマージを防ぐ</td></tr>
@@ -619,7 +695,7 @@ AGENTS.md                       @zeroclaw-labs/zeroclaw-core
 </tbody>
 </table>
 </div>
-<p><strong>管理者がバイパスできない理由:</strong> 小規模なチームのプロジェクトにおいて最も一般的な誤りの一つは、ブランチ保護を「他人のため」のものとして扱うことです。管理者がバイパスできる場合、彼らは時間的プレッシャーや緊急時、「今回は特別に」という理由でバイパスしてしまいます。するとそれがデフォルトになってしまいます。ルールが意味を持つためには、全員に適用されなければなりません。本当に緊急の場合、正しい対応はプロセスをスキップすることではなく、プロセスをより速く実行することです。</p>
+<p><strong>Why admins cannot bypass:</strong> One of the most common mistakes in small team projects is treating branch protection as “for other people.” When an admin can bypass, they will, under time pressure, in an emergency, “just this once.” Then it becomes the norm. The rule must apply to everyone for it to mean anything. If there is a genuine emergency, the right response is to follow the process faster, not to skip it.</p>
 <h3 id="63-必須のステータスチェック"><a class="header" href="#63-必須のステータスチェック">6.3 必須のステータスチェック</a></h3>
 <p>PRがマージされる前に通過しなければならないCIチェック:</p>
 <pre><code>build (stable)          ← cargo build --release
@@ -629,24 +705,24 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </code></pre>
 <p>ワークスペースがアーキテクチャ RFC に基づいてクレートに分割されるため、各クレートごとのチェックを追加します。<code>crates/zeroclaw-api</code> への変更に対しては、そのクレートのテストスイートを独立して実行する必要があります。</p>
 <h3 id="64-アーキテクチャ準拠人間のレビューai支援"><a class="header" href="#64-アーキテクチャ準拠人間のレビューai支援">6.4 アーキテクチャ準拠：人間のレビュー、AI支援</a></h3>
-<p>このセクションは、この質問が必ず出てくる（そして実際に出てきている）ため存在します。すべてのPRで議論するのではなく、明確に文書化された回答を提供する価値があります。</p>
+<p>This section exists because the question will come up (it already has) and it deserves a clear, documented answer rather than a debate on every PR.</p>
 <p><strong>質問:</strong> RFC で定義されたアーキテクチャや設計パターンに準拠しているかどうかを確認する自動化されたゲートを追加すべきでしょうか？</p>
 <p><strong>答え:</strong> いいえ。なぜそうなのかを理解することが重要です。</p>
 <hr>
 <p><strong>品質の強制には、根本的に異なる2つの種類があり、それぞれ異なるメカニズムが必要です。</strong></p>
 <p>最初の種類は<strong>構文準拠</strong>です：このコードは機械的なルールに違反していますか？<code>zeroclaw-kernel</code> は <code>TelegramChannel</code> をインポートしていますか？依存関係グラフのエッジが逆方向を指していますか？clippy の警告がありますか？これらは二値的な質問です。コードがルールに違反しているか、していないかのいずれかです。このルールは、コンパイラ、<code>cargo deny</code>、および <code>cargo clippy --workspace</code> によって既に強制されています。人間も AI も必要ありません。機械が権威を持ち、速く、事実上の違反については決して誤りません。</p>
-<p>2つ目の種類は「アーキテクチャの意図」です。この決定はここで行うべきでしょうか？この抽象化は適切なレイヤーにありますか？このトレードオフはビジョンと一致していますか？この結合はフェーズ3で問題になるでしょうか？このPRは、現在のdiffでは見えないメンテナンスの負担を生み出すでしょうか？これらの質問には、判断力、文脈の理解、そしてアーキテクチャが存在する「理由」の理解が必要です。単にルールが何であるかだけでなく、です。これらの質問に信頼できる答えを提供できる自動化されたツールはありません。なぜなら、答えはdiffに含まれていない情報、つまりロードマップ、チームの現在の優先順位、コントリビューターの意図、そしてこの決定の長期的なコストに依存しているからです。</p>
+<p>The second kind is <em>architectural intent</em>: does this decision belong here? Is this abstraction at the right layer? Does this trade-off align with the vision? Is this coupling going to be painful in Phase 3? Will this PR create a maintenance burden that isn’t visible in the diff today? These questions require judgment, context, and an understanding of <em>why</em> the architecture exists, not just what the rules are. No automated tool can answer them reliably, because the answer depends on information that is not in the diff: the roadmap, the team’s current priorities, the contributor’s intent, and the long-term cost of the decision.</p>
 <p><strong>建築的判断を自動化することの失敗モードは、どちらも悪い。</strong></p>
-<p>微妙なアーキテクチャの違反を許容するゲートは、誤った安心感を生み出します。開発者は ✅ を見て、自分の判断が正しいと誤解します。最も深刻なアーキテクチャのドリフト — 解きほぐすのに数年かかるようなもの — は構造的には正しく見えます。コンパイルは通り、リンティングもパスします。依存関係グラフも問題ありません。問題は、それが設計の精神に違反しており、その影響が後になってから、巻き戻すコストが非常に高い段階で明らかになる点にあります。</p>
+<p>A gate that passes subtle architectural violations creates false confidence. The developer sees ✅ and assumes their decision was validated. The most damaging architectural drift, the kind that takes years to untangle, looks structurally correct. It compiles. It passes lint. The dependency graph is fine. The problem is that it violated the spirit of the design in a way that only becomes apparent later, when the cost of unwinding it is high.</p>
 <p>ツールが文脈を誤解して有効なアーキテクチャ上の判断をフラグ付けするゲートは、開発者にゲートを完全に無視する癖をつけてしまいます。チームがノイズの多い自動チェックを無視して先に進む方法を学んでしまうと、CI 上でチェックが実行され続けていても、実質的にはチェックは機能しなくなります。プロジェクトは負の価値を生むために CI の分を費やすことになります。</p>
 <p><strong>CODEOWNERS はアーキテクチャ準拠のゲートです。レビュアーはそのツールです。</strong></p>
-<p>§6.1 の <code>CODEOWNERS</code> 設定は、すでに高リスクなパス（クレートの境界、トレイト定義、依存関係グラフ、<code>src/security/</code>、<code>.github/</code>）に変更を加える PR について、コアチームメンバーによるレビューを要求しています。このコアチームメンバーは RFC を参照枠組みとして備えており、アーキテクチャの適合性を確認する役割を果たします。彼らは、自動化では再現できない文脈に応じた判断力を提供します。</p>
+<p>The <code>CODEOWNERS</code> configuration in §6.1 already enforces that PRs touching high-risk paths, crate boundaries, trait definitions, the dependency graph, <code>src/security/</code>, <code>.github/</code>, require review from a Core Team member. That Core Team member, equipped with the RFCs as their reference framework, is the architectural compliance check. They bring the contextual judgment that no automation can replicate.</p>
 <p>これが RFC、AGENTS.md ファイル、およびドキュメント基準が存在する理由です。機械がそれらを解析してスコアを生成するためではなく、人間のレビュアーが一貫性のある文書化されたフレームワークを適用できるようにするためです。RFC は「なぜこのアーキテクチャが存在するのか」に答えます。レビュアーは「この PR がその理由に貢献しているか、それともそれを弱めているか」を判断します。</p>
 <p><strong>AIはマージゲートではなく、開発ループに属すべきです。</strong></p>
-<p>AIツール — Claude、Copilot、Cursor、そして次に来るもの — は、適切な場所で使用されれば、アーキテクチャ作業において本当に有用です。適切な場所とは、<em>マージゲート中</em> ではなく、<em>開発中</em> です。</p>
+<p>AI tools, Claude, Copilot, Cursor, and whatever comes next, are genuinely useful for architectural work when they are used in the right place. The right place is <em>during development</em>, not <em>during the merge gate</em>.</p>
 <p>開発中、RFC とクレートの AGENTS.md を備えた AI アシスタントは、コントリビューターが新しい機能を実装する前に、その機能がどのクレートに属するかを理解するのを助け、コードがまだ設計段階にある間に潜在的な依存関係の逆転を指摘し、なぜ特定のデザインパターンが存在するのかを説明し、新しい抽象化が適切なレイヤーにあるかどうかを提案することができます。これは追加的な効果をもたらします。コントリビューターの能力を向上させます。</p>
 <p>レビュー中に、AI アシスタントは人間のレビュアーが構造化されたフィードバックをドラフト作成したり、変更を RFC と照合したり、PR に関連する RFC の議論の質問を特定したりするのに役立ちます。これは追加的な機能でもあります。レビュアーが判断を行い、AI が速度と記憶力を提供します。</p>
-<p>AIが果たせない役割は、判断を代行することです。「AIがPRの評価を支援する」と「AIがPRの自動ゲートを通す」は根本的に異なるもので、アーキテクチャの決定には前者のみが有効です。プロジェクトがアーキテクチャの適合性を、いかに洗練された自動化ゲートを通じて行おうとするとき、それはアーキテクチャが誰も気づかぬうちに、手遅れになるまで drifting していく日となります。</p>
+<p>What AI cannot do is replace the judgment. “AI helps me assess this PR” and “AI automatically gates this PR” are categorically different, and only the first one works for architectural decisions. The day the project routes architectural compliance through an automated gate, however sophisticated, is the day the architecture starts drifting in ways nobody notices until it is too late.</p>
 <p><strong>実際のポリシーを簡潔に述べると：</strong></p>
 <ul>
 <li>構造的な適合性（インポートの方向性、依存関係グラフ、リンティング、フォーマット）はCIによって強制されます。これは非交渉事項であり、自動化されています。</li>
@@ -848,7 +924,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
       説明: 正しい内容が分かっている場合は、こちらに共有してください。
 </code></pre>
 <h3 id="テンプレート5-セキュリティレポートのリダイレクト"><a class="header" href="#テンプレート5-セキュリティレポートのリダイレクト">テンプレート5: セキュリティレポートのリダイレクト</a></h3>
-<p><code>.github/ISSUE_TEMPLATE/security.md</code> をリダイレクトとして作成します。GitHub はこれをテンプレートオプションとして表示しますが、実際の issue は作成されず、リダイレクトされます。</p>
+<p>Create <code>.github/ISSUE_TEMPLATE/security.md</code> as a redirect: GitHub will show it as a template option but the content redirects rather than creating an issue:</p>
 <pre><code class="language-yaml">名前: セキュリティ脆弱性
 説明: ⚠️ このテンプレートは使用しないでください。プライベートな報告については、SECURITY.md を参照してください。
 ラベル: []
@@ -911,7 +987,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </code></pre>
 <hr>
 <h2 id="8-rfcガバナンスループ"><a class="header" href="#8-rfcガバナンスループ">8. RFCガバナンスループ</a></h2>
-<p>RFC プロセスは、ドキュメント RFC とアーキテクチャ RFC で確立されました。このセクションでは、提案から決定、そしてアクションへの移行を含むクローズドループを定義します。</p>
+<p>The RFC process was established in the documentation RFC and the architecture RFC. This section defines the close loop: how an RFC moves from proposal to decision to action.</p>
 <h3 id="81-rfcの完全なライフサイクル"><a class="header" href="#81-rfcの完全なライフサイクル">8.1 RFCの完全なライフサイクル</a></h3>
 <pre><code>1. AUTHOR writes proposal → docs/proposals/&lt;slug&gt;.md
            ↓
@@ -970,7 +1046,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </div>
 <p>「アクティブ」なコアチームメンバーとは、過去90日以内に少なくとも1回の投票に参加したメンバーを指します。非アクティブなメンバーは多数派の閾値にはカウントされませんが、投票の通知を受け取ります。</p>
 <h3 id="83-adr接続"><a class="header" href="#83-adr接続">8.3 ADR接続</a></h3>
-<p>承認されたすべてのRFCは、対応する実装を開始する前に少なくとも1つのADRを生成する必要があります。ADRはRFCの要約ではなく、ドキュメントRFCで定義されたNygard形式による特定の決定の恒久的な記録です。RFCは長く探索的な内容になることがありますが、ADRは簡潔で決定的なものです。</p>
+<p>Every accepted RFC must produce at least one ADR before the corresponding implementation can begin. The ADR is not a summary of the RFC: it is the permanent record of the specific decision made, in the Nygard format defined in the documentation RFC. The RFC can be long and exploratory. The ADR is short and definitive.</p>
 <p>RFCは提案です。ADRは決定事項です。どちらも必要であり、互いに代替できるものではありません。</p>
 <h3 id="84-このリポジトリ内の既存のrfc"><a class="header" href="#84-このリポジトリ内の既存のrfc">8.4 このリポジトリ内の既存のRFC</a></h3>
 <p>以下のRFCは執筆時点で提出されており、すぐに正式なRFCの問題として変換する必要があります：</p>
@@ -988,9 +1064,9 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </div>
 <hr>
 <h2 id="9-ラベルの階層構造"><a class="header" href="#9-ラベルの階層構造">9. ラベルの階層構造</a></h2>
-<p>ラベルは、イシューやPR（プルリクエスト）に対するメタデータの層です。一貫性があり、適切に設計されたラベルシステムにより、フィルタリング、レポート作成、自動化が可能になります。一方、一貫性のないラベルシステム（一般的に、イシューを作成した人がその場その場でラベルを追加するケース）は、ノイズを生み出します。</p>
+<p>Labels are the metadata layer on issues and PRs. A consistent, well-designed label system makes filtering, reporting, and automation possible. An inconsistent label system (the common case, labels added ad hoc by whoever creates an issue) creates noise.</p>
 <p><strong>名前空間付き</strong>のラベルシステムを使用します。各ラベルには、そのカテゴリを識別するプレフィックスがあります：</p>
-<h3 id="type--これはどのような種類の作業ですか"><a class="header" href="#type--これはどのような種類の作業ですか"><code>type:</code> — これはどのような種類の作業ですか？</a></h3>
+<h3 id="type-what-kind-of-work-is-this"><a class="header" href="#type-what-kind-of-work-is-this"><code>type:</code> What kind of work is this?</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1008,7 +1084,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="priority--これの緊急性はどのくらいですか"><a class="header" href="#priority--これの緊急性はどのくらいですか"><code>priority:</code> — これの緊急性はどのくらいですか？</a></h3>
+<h3 id="priority-how-urgent-is-this"><a class="header" href="#priority-how-urgent-is-this"><code>priority:</code> How urgent is this?</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1022,7 +1098,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="size--この作業項目の規模はどのくらいですか"><a class="header" href="#size--この作業項目の規模はどのくらいですか"><code>size:</code> — この作業項目の規模はどのくらいですか？</a></h3>
+<h3 id="size-how-large-is-this-work-item"><a class="header" href="#size-how-large-is-this-work-item"><code>size:</code> How large is this work item?</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1037,10 +1113,10 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="component--システムのどの部分ですか"><a class="header" href="#component--システムのどの部分ですか"><code>component:</code> — システムのどの部分ですか？</a></h3>
+<h3 id="component-which-part-of-the-system"><a class="header" href="#component-which-part-of-the-system"><code>component:</code> Which part of the system?</a></h3>
 <p><code>component:kernel</code> · <code>component:gateway</code> · <code>component:channels</code> · <code>component:tools</code> · <code>component:memory</code> · <code>component:security</code> · <code>component:hardware</code> · <code>component:docs</code> · <code>component:infra</code></p>
 <p>すべてのコンポーネントラベルに <code>#f1f5f9</code>（ライトグレー）を使用して、視覚的に他のカテゴリと区別してください。</p>
-<h3 id="risk--リスクのティアは何ですかagentsmd-と同じ"><a class="header" href="#risk--リスクのティアは何ですかagentsmd-と同じ"><code>risk:</code> — リスクのティアは何ですか？（<code>AGENTS.md</code> と同じ）</a></h3>
+<h3 id="risk-what-is-the-risk-tier-mirrors-agentsmd"><a class="header" href="#risk-what-is-the-risk-tier-mirrors-agentsmd"><code>risk:</code> What is the risk tier? (mirrors <code>AGENTS.md</code>)</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1053,7 +1129,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </tbody>
 </table>
 </div>
-<h3 id="status--これはプロセスのどの段階にありますか"><a class="header" href="#status--これはプロセスのどの段階にありますか"><code>status:</code> — これはプロセスのどの段階にありますか？</a></h3>
+<h3 id="status-where-is-this-in-the-process"><a class="header" href="#status-where-is-this-in-the-process"><code>status:</code> Where is this in the process?</a></h3>
 <p>この表はガバナンスの意図と過去の分類体系の構造を記録するものです。現在運用中のラベルのセマンティクスや自動化の挙動については、メンテナー向けラベルガイドを運用上のリファレンスとして参照してください。メンテナー向けドキュメントには、#6808 以降のラベルポリシーの修正が反映されています。</p>
 <div class="table-wrapper">
 <table>
@@ -1075,31 +1151,31 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </div>
 <p>コミュニティによるピックアップで実際に使われているラベルはプレフィックスなしの <code>good first issue</code> と <code>help wanted</code> であり、上記の <code>status:*</code> ピックアップ行は過去の分類体系です。現在の運用上のリスクラベルでは、issueリスク（報告内容から推定される修正の影響範囲）とPRリスク（レビュー対象の実際の差分）も区別しています。実際のポリシーについては<a href="../maintainers/labels.html">メンテナー向けラベルガイド</a>を参照してください。</p>
 <p>ターミナルクロージャーラベルは運用ポリシーであり、この基盤ドキュメントの歴史的な <code>status:*</code> 分類体系の一部ではありません。現在の解決ラベルについては<a href="../maintainers/labels.html#resolution-labels">メンテナーラベルガイド</a>を、置き換えプロセスのルールについては<a href="../maintainers/superseding.html">置き換えガイド</a>を参照してください。</p>
-<h3 id="rfc--rfc固有のステータス"><a class="header" href="#rfc--rfc固有のステータス"><code>rfc:</code> — RFC固有のステータス</a></h3>
+<h3 id="rfc-rfc-specific-status"><a class="header" href="#rfc-rfc-specific-status"><code>rfc:</code> RFC-specific status</a></h3>
 <p><code>rfc:accepted</code> · <code>rfc:rejected</code> · <code>rfc:revision-requested</code></p>
 <hr>
 <h2 id="10-完了の定義"><a class="header" href="#10-完了の定義">10. 完了の定義</a></h2>
-<p>「完了」には特定の意味があります。これを定義しないと、人によって解釈が異なり、その違いが最も不適切なタイミング、つまりレビュー時、リリース時、またはユーザーがバグを報告した際に表面化します。</p>
+<p><strong>“Done” means something specific. If you do not define it, everyone will have a different definition, and the disagreements will surface at the worst possible time: during review, during release, or after a user files a bug.</strong></p>
 <p>あるアイテムが<strong>完了</strong>しているのは、以下のすべての条件が満たされている場合です：</p>
-<h3 id="コードの変更について"><a class="header" href="#コードの変更について">コードの変更について:</a></h3>
+<h3 id="for-code-changes"><a class="header" href="#for-code-changes">For code changes</a></h3>
 <ul>
 <li><input disabled="" type="checkbox"> PRは、必要なレビュアーの階層（CODEOWNERSおよびリスクレベルに基づく）によってレビューされ、承認されました。</li>
 <li><input disabled="" type="checkbox"> すべてのCIチェックがパスしました: <code>cargo fmt</code>、<code>cargo clippy</code>、<code>cargo test</code></li>
 <li><input disabled="" type="checkbox"> 新しいまたは変更された動作に対するテストが存在します（少なくともユニットテスト；ユーザー向け機能にはインテグレーションテスト）。</li>
 <li><input disabled="" type="checkbox"> PR 前にパスしていたテストカバレッジは失われていません</li>
-<li><input disabled="" type="checkbox"> PRの説明では、変更内容と変更理由を明確に説明します（単に「バグを修正した」だけでなく、どのバグを、何が問題で、何が変更されたのかを具体的に記載してください）。</li>
+<li><input disabled="" type="checkbox"> The PR description explains <em>what</em> changed and <em>why</em> (not just “fixed bug”: what bug, what was wrong, what was changed)</li>
 <li><input disabled="" type="checkbox"> 変更がユーザーに見える動作に影響を与える場合、関連する参照ドキュメントは同じPRで更新されます。</li>
 <li><input disabled="" type="checkbox"> 変更が重要な場合、CHANGELOG.md の適切なマイルストーンセクションにエントリが追加されます。</li>
 <li><input disabled="" type="checkbox"> 変更がADRを必要とする場合、ADRは実装PRと同時、またはそれ以前に作成され、リンクされ、マージされます。</li>
 </ul>
-<h3 id="ドキュメントの変更について"><a class="header" href="#ドキュメントの変更について">ドキュメントの変更について:</a></h3>
+<h3 id="for-documentation-changes"><a class="header" href="#for-documentation-changes">For documentation changes</a></h3>
 <ul>
 <li><input disabled="" type="checkbox"> YAMLのフロントマターが存在し、有効です。</li>
 <li><input disabled="" type="checkbox"> すべての内部リンクが正しく解決されます</li>
 <li><input disabled="" type="checkbox"> ドキュメントが現在の動作を説明している場合、それは現在の <code>master</code> ブランチに対して正確です。</li>
 <li><input disabled="" type="checkbox"> ADR の場合、Nygard フォーマットに従い、<code>status</code> フィールドが含まれます。</li>
 </ul>
-<h3 id="リリース用"><a class="header" href="#リリース用">リリース用：</a></h3>
+<h3 id="for-releases"><a class="header" href="#for-releases">For releases</a></h3>
 <ul>
 <li><input disabled="" type="checkbox"> マイルストーンのすべてのアイテムが <code>Done</code> ステータスになっているか、または理由を説明するコメント付きで次のマイルストーンに明示的に移動されています。</li>
 <li><input disabled="" type="checkbox"> リリースの CHANGELOG.md のエントリは完成です。</li>
@@ -1131,14 +1207,14 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 <h3 id="112-github-actions-ワークフロー"><a class="header" href="#112-github-actions-ワークフロー">11.2 GitHub Actions ワークフロー</a></h3>
 <p><strong>変更されたファイルによる自動ラベル付け:</strong></p>
 <p>アクティブなパスラベラーは、変更されたファイルに基づいてPRにスコープラベルを適用します。リスクラベルとサイズラベルは現在メンテナーが手動で適用しています。メンテナーラベルガイドは、ラベル名、自動化ステータス、リスクセマンティクスの最新の情報源です。</p>
-<p><strong>CODEOWNERS のレビューを自動でリクエスト（CODEOWNERS に組み込まれているため、アクションは不要）：</strong></p>
+<p><strong>Auto-request CODEOWNERS review (built into CODEOWNERS: no Action needed):</strong></p>
 <p>GitHub は、CODEOWNERS ファイルが存在し、ブランチ保護で必要とされている場合に自動的に CODEOWNERS を適用します。アクションは不要です。</p>
 <p><strong>古いIssueの管理 (<code>.github/workflows/stale.yml</code>):</strong></p>
 <p>Issues with no activity for 45 days are labeled <code>status:stale</code> and a comment is posted asking if the issue is still relevant. Issues with no activity for 15 days after the stale label is applied are closed. This prevents the backlog from accumulating hundreds of issues that are months old and no longer relevant. Exclude <code>priority:p0</code>, <code>type:rfc</code>, issues with open linked PRs, and issues with <code>status:blocked</code> while a recorded blocker remains unresolved. The intended <code>status:no-stale</code> follow-up is to exclude it only while the operational source records both the stale-exemption reason and a contributor-visible active owner or steward path. The maintainer label guide and issue-triage protocol carry the current operational details.</p>
 <p><strong>PRサイズラベル付け (<code>.github/workflows/pr-size.yml</code>):</strong></p>
 <p>変更された行数に基づいて、PR に <code>size:xs</code> から <code>size:xl</code> までのラベルを自動的に付与します。これにより、差分を開かずにレビュアーやメンテナーが範囲をすぐに把握できます。これらの閾値を初期値として使用してください：XS &lt; 10行、S &lt; 50行、M &lt; 250行、L &lt; 1000行、XL ≥ 1000行。</p>
 <p><strong>PRマージ時のマイルストーンチェック (<code>.github/workflows/milestone-check.yml</code>):</strong></p>
-<p>マイルストーンが設定された関連するイシューがない状態でPRがマージされると、警告（ブロックはしない）を表示します。これは厳格な制限ではなく、マイルドな通知です。目的は、リリースに追跡されないまま作業が行われるのを防ぐことです。</p>
+<p>Warn (not block) if a PR is merged without a linked issue that has a milestone assigned. This is a gentle nudge, not a hard gate: the goal is to prevent work from happening without being tracked to a release.</p>
 <h3 id="113-まだ自動化すべきではないこと"><a class="header" href="#113-まだ自動化すべきではないこと">11.3 まだ自動化すべきではないこと</a></h3>
 <ul>
 <li><strong>自動リリースドラフト:</strong> GitHub の release-drafter は便利ですが、設定のオーバーヘッドが増加します。チームが安定したリリースリズムを確立した後に導入してください。</li>
@@ -1149,7 +1225,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 <h2 id="12-フェーズドロールアウト"><a class="header" href="#12-フェーズドロールアウト">12. フェーズドロールアウト</a></h2>
 <p>ガバナンスとツールは段階的に導入する必要があります。チームが各要素の存在意義を理解する前にすべてを導入すると、オーバーヘッドが生じます。</p>
 <hr>
-<h3 id="フェーズ1--今週--基礎"><a class="header" href="#フェーズ1--今週--基礎">フェーズ1 · 今週 — 「基礎」</a></h3>
+<h3 id="phase-1--this-week-foundations"><a class="header" href="#phase-1--this-week-foundations">Phase 1 · This Week: “Foundations”</a></h3>
 <p>最小限のガバナンス設定。チームの調整をすぐに開始します。</p>
 <ul>
 <li><input disabled="" type="checkbox"> ステータス、タイプ、優先度、マイルストーンフィールドを含むGitHubプロジェクトを作成します。</li>
@@ -1164,7 +1240,7 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </ul>
 <p><strong>成功のシグナル:</strong> 新しい課題がプロジェクトに自動的に表示されます。チームはアクティブな作業を確認する場所やアイデアを投稿する場所を把握しています。</p>
 <hr>
-<h3 id="フェーズ2--v070-マイルストーン--パイプライン"><a class="header" href="#フェーズ2--v070-マイルストーン--パイプライン">フェーズ2 · v0.7.0 マイルストーン — 「パイプライン」</a></h3>
+<h3 id="phase-2--v070-milestone-the-pipeline"><a class="header" href="#phase-2--v070-milestone-the-pipeline">Phase 2 · v0.7.0 Milestone: “The Pipeline”</a></h3>
 <p>承認されたRFCから完全なワークフローを確立し、バックログを埋める。</p>
 <ul>
 <li><input disabled="" type="checkbox"> プロジェクトにサイズ、リスクティア、およびコンポーネントのフィールドを追加</li>
@@ -1179,19 +1255,19 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 </ul>
 <p><strong>成功のシグナル:</strong> チームはボードを日常的に使用しています。アイテムは可視化されたゲートチェックを通じてステージを移動します。マイクロカーネルアーキテクチャに関するRFCには、記録された投票結果があります。</p>
 <hr>
-<h3 id="フェーズ3--v080-マイルストーン--コミュニティの拡大"><a class="header" href="#フェーズ3--v080-マイルストーン--コミュニティの拡大">フェーズ3 · v0.8.0 マイルストーン — 「コミュニティの拡大」</a></h3>
+<h3 id="phase-3--v080-milestone-growing-the-community"><a class="header" href="#phase-3--v080-milestone-growing-the-community">Phase 3 · v0.8.0 Milestone: “Growing the Community”</a></h3>
 <p>プラグインシステムが実用的になるにつれて、外部からの貢献者が増えることになります。貢献のためのインフラストラクチャは準備できていなければなりません。</p>
 <ul>
 <li><input disabled="" type="checkbox"> PRのサイズラベリングワークフローを実装する</li>
 <li><input disabled="" type="checkbox"> プラグインSDK作業のための最初のバッチとなる <code>good first issue</code> 項目（最低5件）を作成する</li>
 <li><input disabled="" type="checkbox"> <code>Good First Issue Index</code> を現在の good first issue へのリンクを含むピン留めされた issue として追加する</li>
 <li><input disabled="" type="checkbox"> アイデアの促進閾値を設定し、最初のDiscussionアイデアをイシューに促進します</li>
-<li><input disabled="" type="checkbox"> コアチームの拡大プロセスを文書化する — 新しいコアチームメンバーを招待するための基準</li>
+<li><input disabled="" type="checkbox"> Document the Core Team expansion process: criteria for inviting new Core Team members</li>
 </ul>
 <p><strong>成功のシグナル:</strong> 少なくとも1人の外部コントリビューター（現在のチームに属していない人）が good first issue を通じて PR を提出する。Discussions の Ideas カテゴリにコミュニティが活発に参加している。</p>
 <hr>
-<h3 id="フェーズ4--v100--持続可能なガバナンス"><a class="header" href="#フェーズ4--v100--持続可能なガバナンス">フェーズ4 · v1.0.0 — 「持続可能なガバナンス」</a></h3>
-<p>v1.0.0 までに、ガバナンスモデルは自己維持可能であるべきです。チームはそれについて考える必要はなく、自動的に機能するはずです。</p>
+<h3 id="phase-4--v100-sustainable-governance"><a class="header" href="#phase-4--v100-sustainable-governance">Phase 4 · v1.0.0: “Sustainable Governance”</a></h3>
+<p>By v1.0.0, the governance model should be self-sustaining: the team should not need to think about it, it should just work.</p>
 <ul>
 <li><input disabled="" type="checkbox"> 機能した点と機能しなかった点を踏まえ、ガバナンス文書を見直して更新してください。</li>
 <li><input disabled="" type="checkbox"> リリース頻度（リリースの頻度、誰がリリースを行うか）を決定する</li>
@@ -1202,27 +1278,27 @@ clippy                  ← cargo clippy --all-targets -- -D warnings
 <p><strong>成功のシグナル:</strong> 直近6ヶ月の開発履歴において、パイプラインの一貫した使用が確認されています。問題は3日以内に分類され、PRは5日以内にレビューされています。CHANGELOGはマージのたびに更新されています。</p>
 <hr>
 <h2 id="付録-a-用語集"><a class="header" href="#付録-a-用語集">付録 A: 用語集</a></h2>
-<p><strong>バックログの整備</strong> — チームの定期的な活動（通常は週次または隔週）で、チームがバックログを見直し、項目の優先順位を再設定し、古い項目を閉じ、上位の項目が「定義済み」で取り掛かる準備ができていることを確認します。</p>
-<p><strong>ブランチ保護</strong> — 保護されたブランチへの直接プッシュを防止し、マージ前にレビューやCIチェックなどの要件を強制するGitHubの機能。</p>
-<p><strong>CODEOWNERS</strong> — GitHubのファイルで、PRで所有するファイルが変更されたときに、指定された個人またはチームに自動的にレビューをリクエストします。</p>
-<p><strong>完了の定義</strong> — 作業項目が「完了」したことを正確に示す共有チェックリスト。共有の完了定義がない場合、「完了」は人によって異なる意味を持ちます。</p>
-<p><strong>遅延コンセンサス</strong> — 定義された期間内に誰かが反対しない限り、提案されたアクションが進行する意思決定アプローチ。日常的な決定に対して明示的な承認を必要としないことで、オーバーヘッドを削減します。</p>
-<p><strong>実力主義</strong> — 権力や影響力が、年功や肩書きではなく、実証された貢献によって得られるガバナンスモデル。オープンソースプロジェクトで標準的に採用されています。</p>
-<p><strong>マイルストーン</strong> — GitHubの機能で、リリース対象ごとにイシューとPRをグループ化します。マイルストーンはソフトウェアのバージョンを表します。</p>
-<p><strong>Tシャツサイズ</strong> — 抽象的なサイズ（XS、S、M、L、XL）を使用して見積もりを行う手法。過去の較正データがなくても使いやすく、初期段階のチームに適しています。</p>
-<p><strong>トライアージ</strong> — 新しいイシューを確認し、有効性を検証し、ラベルと優先度を割り当て、マイルストーンに関連付け、バックログに含めるべきかクローズすべきかを判断するプロセス。</p>
+<p><strong>Backlog grooming</strong>: A regular team activity (typically weekly or bi-weekly) in which the team reviews the backlog, reprioritizes items, closes stale ones, and ensures that the top items are “Defined” and ready to be picked up.</p>
+<p><strong>Branch protection</strong>: A GitHub feature that prevents direct pushes to protected branches and enforces requirements (reviews, CI checks) before merging.</p>
+<p><strong>CODEOWNERS</strong>: A GitHub file that automatically requests reviews from specified individuals or teams when files they own are changed in a PR.</p>
+<p><strong>Definition of Done</strong>: A shared checklist that specifies exactly what “done” means for a work item. Without a shared definition, “done” means something different to everyone.</p>
+<p><strong>Lazy consensus</strong>: A decision-making approach in which a proposed action proceeds unless someone objects within a defined time period. Reduces the overhead of requiring explicit approval for routine decisions.</p>
+<p><strong>Meritocracy</strong>: A governance model in which authority and influence are earned through demonstrated contribution, not through seniority or title. Standard in open source projects.</p>
+<p><strong>Milestone</strong>: A GitHub feature that groups issues and PRs by release target. A milestone represents a version of the software.</p>
+<p><strong>T-shirt sizing</strong>: An estimation technique that uses abstract sizes (XS, S, M, L, XL) rather than numeric story points. Easier to use without historical calibration data and sufficient for teams at an early stage.</p>
+<p><strong>Triage</strong>: The process of reviewing new issues to confirm they are valid, assign labels and priority, link them to milestones, and determine whether they belong in the backlog or should be closed.</p>
 <hr>
 <h2 id="付録b-参考文献"><a class="header" href="#付録b-参考文献">付録B: 参考文献</a></h2>
 <ul>
-<li><strong>GitHub Projects のドキュメント</strong> — https://docs.github.com/en/issues/planning-and-tracking-with-projects — GitHub Projects v2 の機能に関する完全なリファレンス。</li>
-<li><strong>GitHub Discussions のドキュメント</strong> — https://docs.github.com/en/discussions — GitHub Discussions のセットアップガイドとガバナンスオプション。</li>
-<li><strong>CODEOWNERS 構文リファレンス</strong> — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners — CODEOWNERS ファイルの完全な構文。</li>
-<li><strong>「オープンソース・ソフトウェアの生産」</strong> — カール・フォゲル — オープンソース・プロジェクトの運営に関する決定版の書籍。https://producingoss.com でオンラインで無料公開されています。ガバナンス、コントリビューター管理、コミュニケーションに関する章は直接的に適用可能です。</li>
-<li><strong>「オープンソースガバナンスモデルへの入門」</strong> — Apache Software Foundation のガバナンス文書は、成熟したオープンソースプロジェクトが権限と意思決定をどのように形式化するかを示す良いモデルです: https://www.apache.org/foundation/governance/</li>
-<li><strong>Vale prose linter</strong> — <a href="https://vale.sh">Vale</a> — ドキュメント RFC で参照されています。<code>good first issue</code> のドキュメント改善ワークフローと統合されています。</li>
+<li><a href="https://docs.github.com/en/issues/planning-and-tracking-with-projects">GitHub Projects documentation</a>: Complete reference for GitHub Projects v2 features.</li>
+<li><a href="https://docs.github.com/en/discussions">GitHub Discussions documentation</a>: Setup guide and governance options for GitHub Discussions.</li>
+<li><a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners">CODEOWNERS syntax reference</a>: The full syntax for CODEOWNERS files.</li>
+<li><strong>“Producing Open Source Software”</strong>: Karl Fogel: The definitive book on running an open source project. Free online at <a href="https://producingoss.com">producingoss.com</a>. Chapters on governance, contributor management, and communication are directly applicable.</li>
+<li><strong>“An Introduction to Open Source Governance Models”</strong>: The Apache Software Foundation’s governance documentation is a good model for how a mature open source project formalizes authority and decision-making: <a href="https://www.apache.org/foundation/governance/">https://www.apache.org/foundation/governance/</a></li>
+<li><strong>Vale prose linter</strong>: <a href="https://vale.sh">Vale</a>: Referenced in the documentation RFC; integrates with the <code>good first issue</code> documentation improvement workflow.</li>
 </ul>
 <hr>
-<p><em>この提案は、ZeroClaw v0.6.8 およびその直前に策定された2つのアーキテクチャおよびドキュメントに関するRFCの文脈で開発されました。ここで提案されるガバナンスモデルは、コミュニティ成長の初期段階にある学生主導のプロジェクト向けに、意図的に軽量な設計となっています。このモデルは、チームの拡大に伴ってプロセスを追加していくことでスケーラブルに設計されており、一度にすべてを導入するものではありません。</em></p>
+<p><em>This proposal was developed in the context of ZeroClaw v0.6.8 and the two preceding architecture and documentation RFCs. The governance model proposed here is intentionally lightweight for a student-led project at an early stage of community growth. It is designed to scale: adding process as the team grows, not all at once.</em></p>
 <p>最も優れたガバナンスモデルは、チームが実際に従う最もシンプルなものです。ここから始め、学んだ内容に基づいて調整してください。</p>
 
                     </main>

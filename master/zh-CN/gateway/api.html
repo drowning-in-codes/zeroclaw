@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -231,7 +307,7 @@
 <li><code>OPTIONS /api/config</code> 返回完整配置类型的 JSON Schema，以及列出该资源所支持方法的 <code>Allow</code> 头。每次构建时为静态内容；客户端应根据 <code>ETag</code> 头进行缓存。</li>
 <li><code>OPTIONS /api/config/prop?path=&lt;dotted&gt;</code> 返回特定路径的 schema 片段，并带有 <code>Allow: GET, PUT, DELETE, OPTIONS</code>。如果该路径在 schema 中不存在，则返回 404。</li>
 </ul>
-<p><code>OPTIONS</code> 返回功能特性。<code>GET /api/config/prop</code> 和 <code>GET /api/config/list</code> 返回用户的当前值。仪表板中的表单在加载时发出一次 <code>OPTIONS</code> 以了解类型和约束，然后通过 <code>GET</code> 填充字段，再通过 <code>PUT</code>/<code>PATCH</code> 进行写入。这里没有获取整个文件的 <code>GET /api/config</code>——这是有意为之。请遍历各属性的接口；schema 是判断哪些字段存在的依据。</p>
+<p><code>OPTIONS</code> returns capabilities. <code>GET /api/config/prop</code> and <code>GET /api/config/list</code> return the user’s current values. Forms in the dashboard issue <code>OPTIONS</code> once at load time to learn types and constraints, then <code>GET</code> to populate fields, then <code>PUT</code>/<code>PATCH</code> to write. There is no whole-file <code>GET /api/config</code>, deliberately. Walk the per-property surface; the schema is the source of truth for what fields exist.</p>
 <p>CORS 预检请求（即携带 <code>Access-Control-Request-Method</code> 的请求）会获得标准的预检响应，并在返回 schema 主体之前提前结束。</p>
 <h2 id="属性级-crud"><a class="header" href="#属性级-crud">属性级 CRUD</a></h2>
 <div class="table-wrapper">
@@ -252,13 +328,13 @@
 </tbody>
 </table>
 </div>
-<h2 id="原子批量写入--json-patch"><a class="header" href="#原子批量写入--json-patch">原子批量写入 — JSON Patch</a></h2>
+<h2 id="atomic-batch-writes-json-patch"><a class="header" href="#atomic-batch-writes-json-patch">Atomic batch writes: JSON Patch</a></h2>
 <p><code>PATCH /api/config</code> 接受 JSON Patch 文档（RFC 6902）。支持的 op 子集为 <code>add</code>、<code>replace</code>、<code>remove</code>、<code>test</code>。每个 op 都针对配置的内存副本执行；当所有 op 都已应用后，<code>Config::validate()</code> 会对结果执行一次。如果验证通过，新状态将被持久化并切换生效。如果任何 op 或最终验证失败，磁盘上和内存中的状态都将保持不变。</p>
-<p><code>move</code> 和 <code>copy</code> 返回 <code>400 op_not_supported</code>，因为安全的引用图重写不属于此接口范围。针对 <code>#[secret]</code> 路径的 <code>test</code> 操作会被拒绝并返回 <code>secret_test_forbidden</code>——差异化的结果将是客户端唯一能读取到的信号，而这会泄露该值。</p>
+<p><code>move</code> and <code>copy</code> return <code>400 op_not_supported</code> because safe reference-graph rewriting is not part of this surface. <code>test</code> against a <code>#[secret]</code> path is rejected with <code>secret_test_forbidden</code>: a differential outcome would be the only signal a client could read, and that would leak the value.</p>
 <p>路径语法：JSON 指针（<code>/agents/researcher/model_provider</code>）或点分形式（<code>agents.researcher.model_provider</code>）。两者均可接受；服务器会进行规范化处理。</p>
 <p>命令行对应命令为 <code>zeroclaw config patch &lt;file-or-stdin&gt;</code>，它会对本地 Config 应用相同的操作集，并返回相同结构的响应格式（脚本可使用 <code>--json</code>）。</p>
-<h2 id="机密信息--通过-http-仅写入"><a class="header" href="#机密信息--通过-http-仅写入">机密信息 — 通过 HTTP 仅写入</a></h2>
-<p>密钥字段（在 schema 中标记为 <code>#[secret]</code> 或 <code>#[derived_from_secret]</code> 的字段）<strong>绝不</strong>能以任何形式通过 HTTP 读取。密钥的响应仅携带 <code>{populated: bool}</code> —— 没有值、没有长度、没有掩码占位、没有哈希。无论调用哪个端点，这一规则都会在响应层强制执行。</p>
+<h2 id="secrets-write-only-over-http"><a class="header" href="#secrets-write-only-over-http">Secrets: write-only over HTTP</a></h2>
+<p>Secret fields (those marked <code>#[secret]</code> or <code>#[derived_from_secret]</code> in the schema) are <strong>never</strong> readable over HTTP in any form. Responses for secrets carry <code>{populated: bool}</code> only, no value, no length, no masked stand-in, no hash. This is enforced at the response layer regardless of which endpoint is called.</p>
 <p><code>PUT</code> 和 <code>PATCH</code> 写入新的密钥值并返回 <code>{populated: true}</code>；<code>DELETE</code> 清除该值并返回 <code>{populated: false}</code>。没有任何 HTTP 路径可以通过任何方式检索密钥。</p>
 <h2 id="稳定错误代码"><a class="header" href="#稳定错误代码">稳定错误代码</a></h2>
 <p>错误以 JSON 格式返回，包含一个稳定的 <code>code</code> 字段以及一条便于阅读的 <code>message</code>。前端和脚本根据 code 进行匹配；UI 则根据路径进行匹配。</p>
@@ -282,7 +358,7 @@
 </div>
 <h2 id="实时探索"><a class="header" href="#实时探索">实时探索</a></h2>
 <p>网关运行后，访问 <code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> 即可打开 Scalar API 浏览器。Schema 定义和“试用“表单均来自守护进程所使用的相同 <code>schemars</code> 注解，因此文档不会与运行时接口产生偏差。</p>
-<p>浏览器的身份验证面板会绑定到规范中声明的 <code>bearerAuth</code> 方案——在发起实时调用前，请将通过配对生成的 bearer 令牌粘贴到此处。该 URL 的 CLI 快捷命令为 <code>zeroclaw config docs</code>。</p>
+<p>The explorer’s authentication panel binds to the <code>bearerAuth</code> scheme declared in the spec, paste your pairing-derived bearer token there before issuing live calls. The CLI shortcut for the URL is <code>zeroclaw config docs</code>.</p>
 <p>如果 Scalar 包无法从 CDN 加载（离线/隔离网络环境安装），页面会优雅降级，并将你指向位于 <code>/api/openapi.json</code> 的原始规范，以便你可以使用任何兼容的查看器（Insomnia、Postman、Swagger UI 等）。</p>
 
                     </main>

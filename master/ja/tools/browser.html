@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -234,33 +310,63 @@
 </div>
 <h2 id="クイックスタートヘッドレス自動化"><a class="header" href="#クイックスタートヘッドレス自動化">クイックスタート：ヘッドレス自動化</a></h2>
 <h3 id="1-agent-browser-をインストール"><a class="header" href="#1-agent-browser-をインストール">1. agent-browser をインストール</a></h3>
-<pre><code class="language-bash"># CLI をインストール
+<div class="os-tabs-src">
+<h4 id="linux"><a class="header" href="#linux">Linux</a></h4>
+<pre><code class="language-sh"># CLI をインストール
+npm install -g agent-browser
+
+# Download Chrome for Testing (includes system deps)
+agent-browser install --with-deps
+</code></pre>
+<h4 id="macos--windows"><a class="header" href="#macos--windows">macOS / Windows</a></h4>
+<pre><code class="language-sh"># CLI をインストール
 npm install -g agent-browser
 
 # テスト用 Chrome をダウンロード
-agent-browser install --with-deps  # Linux (システム依存関係を含む)
-agent-browser install              # macOS/Windows
+agent-browser install
 </code></pre>
+</div>
+
 <h3 id="2-zeroclaw-設定を確認"><a class="header" href="#2-zeroclaw-設定を確認">2. ZeroClaw 設定を確認</a></h3>
 <p>ブラウザツールはデフォルトで <code>allowed_domains = ["*"]</code> により有効化されています。<code>zeroclaw config set</code> を使用してドメインを制限するか、無効にしてください：</p>
-<pre><code class="language-bash">zeroclaw config set browser.allowed-domains '["example.com", "docs.example.com"]'
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw config set browser.allowed_domains '["example.com", "docs.example.com"]'
 zeroclaw config set browser.enabled false
 </code></pre>
+</div>
+
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/browser"><code>/config/browser</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Browser</strong>.</p>
+</div>
+
 <p><code>agent_browser</code> バックエンドでは、デバッグや初回ログイン設定のためにブラウザをヘッドモードで起動するには <code>browser.headed = true</code> を、ヘッドレスモードを強制するには <code>browser.headed = false</code> を設定します。<code>browser.headed</code> が未設定の場合、Zeroclaw は継承された <code>AGENT_BROWSER_HEADED</code> の環境動作を維持します。rust-native バックエンドは引き続き <code>browser.native_headless</code> を使用します。</p>
 <p>すべてのブラウザフィールドとデフォルト値については、<a href="../reference/config.html">Config リファレンス</a> を参照してください。</p>
 <h3 id="3-テスト"><a class="header" href="#3-テスト">3. テスト</a></h3>
-<pre><code class="language-bash">echo "https://example.com を開いて、何と書いてあるか教えてください" | zeroclaw agent -a assistant
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">echo "https://example.com を開いて、何と書いてあるか教えてください" | zeroclaw agent -a assistant
 </code></pre>
+</div>
+
 <h2 id="vnc-セットアップ-gui-アクセス"><a class="header" href="#vnc-セットアップ-gui-アクセス">VNC セットアップ (GUI アクセス)</a></h2>
 <p>デバッグが必要な場合、またはビジュアルブラウザアクセスが必要な場合:</p>
 <h3 id="依存関係をインストール"><a class="header" href="#依存関係をインストール">依存関係をインストール</a></h3>
-<pre><code class="language-bash"># Ubuntu/Debian
-apt-get install -y xvfb x11vnc fluxbox novnc websockify
+<div class="os-tabs-src">
+<h4 id="debianubuntu"><a class="header" href="#debianubuntu">Debian/Ubuntu</a></h4>
+<pre><code class="language-sh">apt-get install -y xvfb x11vnc fluxbox novnc websockify
 
 # オプション: Chrome Remote Desktop 用のデスクトップ環境
 apt-get install -y xfce4 xfce4-goodies
 </code></pre>
+</div>
+
 <h3 id="vnc-サーバーを起動"><a class="header" href="#vnc-サーバーを起動">VNC サーバーを起動</a></h3>
+<div class="os-tabs-src">
+<h4 id="bash"><a class="header" href="#bash">bash</a></h4>
 <pre><code class="language-bash">#!/bin/bash
 # Start virtual display with VNC access
 
@@ -288,17 +394,25 @@ echo "VNC が利用可能になりました:"
 echo "  VNC クライアント: localhost:$VNC_PORT"
 echo "  Web ブラウザ: http://localhost:$NOVNC_PORT/vnc.html"
 </code></pre>
+</div>
+
 <h3 id="vnc-アクセス"><a class="header" href="#vnc-アクセス">VNC アクセス</a></h3>
 <ul>
 <li><strong>VNC クライアント</strong>: <code>localhost:5900</code> に接続</li>
 <li><strong>Web ブラウザ</strong>: <code>http://localhost:6080/vnc.html</code> を開く</li>
 </ul>
 <h3 id="vnc-ディスプレイでブラウザを起動"><a class="header" href="#vnc-ディスプレイでブラウザを起動">VNC ディスプレイでブラウザを起動</a></h3>
-<pre><code class="language-bash">DISPLAY=:99 google-chrome --no-sandbox https://example.com &amp;
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">DISPLAY=:99 google-chrome --no-sandbox https://example.com &amp;
 </code></pre>
+</div>
+
 <h2 id="chrome-remote-desktop"><a class="header" href="#chrome-remote-desktop">Chrome Remote Desktop</a></h2>
 <h3 id="インストール"><a class="header" href="#インストール">インストール</a></h3>
-<pre><code class="language-bash"># ダウンロードしてインストール
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh"># ダウンロードしてインストール
 wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
 apt-get install -y ./chrome-remote-desktop_current_amd64.deb
 
@@ -306,6 +420,8 @@ apt-get install -y ./chrome-remote-desktop_current_amd64.deb
 echo "xfce4-session" &gt; ~/.chrome-remote-desktop-session
 chmod +x ~/.chrome-remote-desktop-session
 </code></pre>
+</div>
+
 <h3 id="セットアップ"><a class="header" href="#セットアップ">セットアップ</a></h3>
 <ol>
 <li><a href="https://remotedesktop.google.com/headless">https://remotedesktop.google.com/headless</a> にアクセス</li>
@@ -317,7 +433,9 @@ chmod +x ~/.chrome-remote-desktop-session
 <p>任意のデバイスから <a href="https://remotedesktop.google.com/access">https://remotedesktop.google.com/access</a> にアクセスします。</p>
 <h2 id="テスト"><a class="header" href="#テスト">テスト</a></h2>
 <h3 id="cliテスト"><a class="header" href="#cliテスト">CLIテスト</a></h3>
-<pre><code class="language-bash"># 基本的なオープンとクローズ
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh"># 基本的なオープンとクローズ
 agent-browser open https://example.com
 agent-browser get title
 agent-browser close
@@ -332,8 +450,12 @@ agent-browser open https://example.com
 agent-browser screenshot /tmp/test.png
 agent-browser close
 </code></pre>
+</div>
+
 <h3 id="zeroclawインテグレーションテスト"><a class="header" href="#zeroclawインテグレーションテスト">ZeroClawインテグレーションテスト</a></h3>
-<pre><code class="language-bash"># コンテンツ抽出
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh"># コンテンツ抽出
 echo "https://example.com を開いて要約してください" | zeroclaw agent -a assistant
 
 # ナビゲーション
@@ -342,26 +464,40 @@ echo "https://github.com/trending にアクセスして、トップ3のリポジ
 # フォーム操作
 echo "Wikipediaにアクセスして、'Rustプログラミング言語'を検索して、要約してください" | zeroclaw agent -a assistant
 </code></pre>
+</div>
+
 <h2 id="トラブルシューティング"><a class="header" href="#トラブルシューティング">トラブルシューティング</a></h2>
 <h3 id="要素が見つかりません"><a class="header" href="#要素が見つかりません">“要素が見つかりません”</a></h3>
 <p>ページが完全に読み込まれていない可能性があります。待機を追加してください:</p>
-<pre><code class="language-bash">agent-browser open https://slow-site.com
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
+<pre><code class="language-sh">agent-browser open https://slow-site.com
 agent-browser wait --load networkidle
 agent-browser snapshot -i
 </code></pre>
+</div>
+
 <h3 id="cookieダイアログがアクセスをブロックしている"><a class="header" href="#cookieダイアログがアクセスをブロックしている">Cookieダイアログがアクセスをブロックしている</a></h3>
 <p>Cookieの同意を最初に処理してください:</p>
-<pre><code class="language-bash">agent-browser open https://site-with-cookies.com
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
+<pre><code class="language-sh">agent-browser open https://site-with-cookies.com
 agent-browser snapshot -i
 agent-browser click @accept_cookies  # 承認ボタンをクリック
 agent-browser snapshot -i  # 実際のコンテンツを取得
 </code></pre>
+</div>
+
 <h3 id="dockerサンドボックスのネットワーク制限"><a class="header" href="#dockerサンドボックスのネットワーク制限">Dockerサンドボックスのネットワーク制限</a></h3>
 <p>Dockerサンドボックス内で <code>web_fetch</code> が失敗する場合は、agent-browserを使用してください:</p>
-<pre><code class="language-bash"># web_fetchの代わりに、以下を使用してください:
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
+<pre><code class="language-sh"># web_fetchの代わりに、以下を使用してください:
 agent-browser open https://example.com
 agent-browser get text body
 </code></pre>
+</div>
+
 <h2 id="セキュリティに関する注意"><a class="header" href="#セキュリティに関する注意">セキュリティに関する注意</a></h2>
 <ul>
 <li><code>agent-browser</code> はヘッドレスモードとサンドボックス機能でChromeを実行します</li>

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,6 +295,18 @@
                         <h1 id="シグナル"><a class="header" href="#シグナル">シグナル</a></h1>
 <p>ZeroClawのSignalチャネルは、実行中の<code>signal-cli</code> HTTPデーモンと通信します。Signalは公式のボットAPIを提供していないため、ZeroClawはローカルHTTP経由で<code>signal-cli</code>に接続し、<code>signal-cli</code>がSignalアカウント、デバイスキー、メッセージ転送を管理します。</p>
 <p>既に <code>signal-cli</code> で Signal アカウントを運用している場合、または ZeroClaw の隣でデーモンを実行できる場合は、このチャネルを使用してください。Signal のデスクトップアプリまたはモバイルアプリのみがインストールされている場合、それだけでは不十分です。ZeroClaw には HTTP デーモンのエンドポイントが必要です。</p>
+<h2 id="who-can-talk-to-the-agent"><a class="header" href="#who-can-talk-to-the-agent">Who can talk to the agent</a></h2>
+<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
+<p>A peer group for signal sets <code>channel</code> to <code>signal</code>, lists the allowed senders in <code>external_peers</code> (for signal, an E.164 phone number or a signal-cli source identifier; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
+<p>Where to set this:</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+</div>
+
+<p>You can also narrow traffic at the channel level: <code>dm_only = true</code> ignores groups; <code>group_ids = ["&lt;signal-group-id&gt;"]</code> accepts only listed groups while still accepting DMs; <code>ignore_attachments</code> and <code>ignore_stories</code> drop those message types before they reach the agent.</p>
 <h2 id="前提条件"><a class="header" href="#前提条件">前提条件</a></h2>
 <ul>
 <li><code>signal-cli</code> でリンクまたは登録された Signal アカウント。</li>
@@ -227,40 +315,235 @@
 </ul>
 <p>デーモンは、独自の認証済みネットワーク境界の背後に配置しない限り、localhost にバインドしたままにしてください。デーモンは、リンクされた Signal アカウントとして送受信できます。</p>
 <h2 id="チャネルを構成する"><a class="header" href="#チャネルを構成する">チャネルを構成する</a></h2>
-<p>Set the required Signal channel fields with <code>zeroclaw config set</code> (see the manual config block below for the full field list), or create the block directly in <code>~/.zeroclaw/config.toml</code>.</p>
-<p>手動設定の場合は、Signalチャネルブロックを作成または更新してください:</p>
-<pre><code class="language-toml">[channels.signal.default]
-enabled = true
-http_url = "http://127.0.0.1:8686"
-account = "&lt;your-signal-e164-number&gt;"
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>account</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p>E.164 phone number of the signal-cli account (e.g. “+1234567890”).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.account</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.account</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.account &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__account=
+</code></pre>
+</div>
 
-[agents.assistant]
-enabled = true
-channels = ["signal.default"]
+</details>
+<details class="cfg-field">
+<summary><code>approval_timeout_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>300</code></span></summary>
+<p>Seconds to wait for operator approval on <code>always_ask</code> tools before auto-denying.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.approval_timeout_secs</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.approval_timeout_secs</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.approval_timeout_secs &lt;value&gt;
 </code></pre>
-<p><code>http_url</code>は<code>signal-cli</code>デーモンのベースURLです。<code>account</code>は<code>signal-cli</code>がリンクされたSignalアカウントに使用するアカウント識別子で、通常はSignalに登録したE.164形式の電話番号です。</p>
-<p><code>channels</code>エントリは、チャンネルのエイリアスを、それに応答すべきエージェントにバインドします。<code>assistant</code>の代わりに、実際のエージェントエイリアスを使用してください。</p>
-<h2 id="エージェントと対話できる相手を制限する"><a class="header" href="#エージェントと対話できる相手を制限する">エージェントと対話できる相手を制限する</a></h2>
-<p>インバウンドピア認証は <code>peer_groups</code> に存在します。グループは <code>channel = "signal"</code> を使用してすべての Signal エイリアスを対象にするか、<code>channel = "signal.default"</code> を使用して 1 つのエイリアスを対象にできます。</p>
-<pre><code class="language-toml">[peer_groups.signal_ops]
-channel = "signal.default"
-agents = []
-external_peers = ["&lt;allowed-signal-sender&gt;"]
-ignore = []
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__approval_timeout_secs=
 </code></pre>
-<p>Signalの送信者識別子は、イベントに対して <code>signal-cli</code> が報告する内容に応じて、E.164形式の電話番号またはUUID/ソース識別子のいずれかになります。デーモンのログやイベントペイロードに記載されている識別子の形式を使用してください。</p>
-<p>チャネルレベルでトラフィックを絞り込むこともできます。</p>
-<pre><code class="language-toml">[channels.signal.default]
-dm_only = true
-ignore_attachments = true
-ignore_stories = true
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>dm_only</code> <span class="cfg-field-meta"><code>bool</code> · default <code>false</code></span></summary>
+<p>When true, only accept direct messages and ignore all group traffic. Mutually exclusive with <code>group_ids</code> (which is ignored when this is set). Migrated from the legacy <code>group_id = "dm"</code> sentinel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.dm_only</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.dm_only</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.dm_only &lt;value&gt;
 </code></pre>
-<p><code>dm_only = true</code> はグループを無視します。<code>group_ids = ["&lt;signal-group-id&gt;"]</code> は、DM を受け付けつつ、リストに記載されたグループのみを受け付けます。<code>ignore_attachments</code> と <code>ignore_stories</code> は、エージェントに転送されるメッセージタイプを削減します。</p>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__dm_only=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>group_ids</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Group IDs to filter messages. Empty = accept all messages (DMs and groups). When non-empty, only messages from listed groups are accepted (DMs are still accepted unless <code>dm_only</code> flips the policy to DMs-only). Migrated from the legacy <code>group_id</code> singular field.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.group_ids</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.group_ids</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.group_ids &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__group_ids=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>http_url</code>* <span class="cfg-field-meta"><code>string</code> · default <code>—</code></span></summary>
+<p>Base URL for the signal-cli HTTP daemon (e.g. <code>"http://127.0.0.1:8686"</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.http_url</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.http_url</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.http_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__http_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>ignore_attachments</code> <span class="cfg-field-meta"><code>bool</code> · default <code>false</code></span></summary>
+<p>Skip messages that are attachment-only (no text body).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.ignore_attachments</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.ignore_attachments</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.ignore_attachments &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__ignore_attachments=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>ignore_stories</code> <span class="cfg-field-meta"><code>bool</code> · default <code>false</code></span></summary>
+<p>Skip incoming story messages.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.ignore_stories</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.ignore_stories</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.ignore_stories &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__ignore_stories=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>proxy_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>Per-channel proxy URL (http, https, socks5, socks5h). Overrides the global <code>[proxy]</code> setting for this channel only.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.proxy_url</code> field.</p>
+<h4 id="zeroclaw-config-8"><a class="header" href="#zeroclaw-config-8">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.proxy_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-8"><a class="header" href="#environment-variable-8">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__proxy_url=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_min_interval_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing floor in seconds. Range: <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code> (0 disables).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-10"><a class="header" href="#gateway-dashboard-10">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zerocode-10"><a class="header" href="#zerocode-10">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zeroclaw-config-9"><a class="header" href="#zeroclaw-config-9">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.reply_min_interval_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-9"><a class="header" href="#environment-variable-9">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__reply_min_interval_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_queue_depth_max</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing queue depth. Range: <code>0..=REPLY_QUEUE_DEPTH_CEILING</code>. When <code>reply_min_interval_secs &gt; 0</code> and this value is <code>0</code>, the pacing wrapper substitutes <code>DEFAULT_REPLY_QUEUE_DEPTH</code> (16). When the queue is full, the newest send is dropped and a <code>WARN</code> is logged.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-11"><a class="header" href="#gateway-dashboard-11">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> and set the <code>channels.signal.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zerocode-11"><a class="header" href="#zerocode-11">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.signal.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zeroclaw-config-10"><a class="header" href="#zeroclaw-config-10">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.signal.&lt;alias&gt;.reply_queue_depth_max &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-10"><a class="header" href="#environment-variable-10">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__signal__&lt;alias&gt;__reply_queue_depth_max=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-12"><a class="header" href="#gateway-dashboard-12">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/signal"><code>/config/channels/signal</code></a> in the web dashboard.</p>
+<h4 id="zerocode-12"><a class="header" href="#zerocode-12">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Channels</strong>.</p>
+</div>
+
+<p>Bind the channel to an agent via that agent’s <code>channels</code> list.</p>
 <h2 id="開始と確認"><a class="header" href="#開始と確認">開始と確認</a></h2>
 <p>最初にデーモンを起動し、その後 ZeroClaw チャンネルを起動します:</p>
-<pre><code class="language-bash">signal-cli daemon --http 127.0.0.1:8686
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">signal-cli daemon --http 127.0.0.1:8686
 zeroclaw channel start
 </code></pre>
+</div>
+
 <p><code>zeroclaw channel doctor</code> を使用して、ZeroClaw が設定済みのチャンネルを読み込めることを確認してください。チャンネルが実行時に失敗する場合は、<code>http_url</code> がデーモンを指していること、アカウントが <code>signal-cli</code> に登録されていること、ビルドに <code>channel-signal</code> が含まれていることを確認してください。</p>
 <h2 id="よくある混乱"><a class="header" href="#よくある混乱">よくある混乱</a></h2>
 <p><code>signal-cli</code> プロジェクトは主に CLI として知られていますが、ZeroClaw はその HTTP デーモンモードを必要とします。コマンドラインバイナリのみをインストールしてデーモンを起動していない場合、ZeroClaw には接続先がありません。</p>

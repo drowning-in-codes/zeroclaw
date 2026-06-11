@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -226,44 +302,16 @@ rebuild.</p>
 surfaces. The code lives in <code>crates/zeroclaw-config/src/cost/</code> and
 <code>crates/zeroclaw-runtime/src/agent/cost.rs</code>.</p>
 <h2 id="config-schema"><a class="header" href="#config-schema">Config schema</a></h2>
-<p>Two related sections own the surface:</p>
-<pre><code class="language-toml">[cost]
-enabled            = true
-daily_limit_usd    = 10.0
-monthly_limit_usd  = 100.0
-warn_at_percent    = 80
-allow_override     = false
-track_per_agent    = true
-
-[cost.enforcement]
-mode               = "warn"   # "warn" | "block" | "route_down"
-route_down_model   = "claude-haiku-4-5"  # used with route_down
-reserve_percent    = 10
-
-[cost.rates.providers.models.anthropic."claude-opus-4-7"]
-input_per_mtok        = 15.0
-output_per_mtok       = 75.0
-cached_input_per_mtok = 1.5
-
-[cost.rates.providers.tts.openai."tts-1-hd"]
-per_mchar = 30.0
-
-[cost.rates.providers.transcription.openai.whisper-1]
-per_minute = 0.006
-
-[cost.rates.tools.web_search]
-per_call = 0.005
-</code></pre>
-<p><code>[cost]</code> covers budget enforcement and recording behavior. <code>[cost.rates.*]</code>
+<p>Two related sections own the surface. <code>cost</code> covers budget enforcement and recording behavior. <code>cost.rates.*</code>
 is the operator-managed rate sheet; every subsection’s dotted path mirrors
-the matching <code>[providers.*]</code> path with the trailing <code>&lt;alias&gt;</code> segment
+the matching <code>providers.*</code> path with the trailing <code>&lt;alias&gt;</code> segment
 replaced by the upstream resource being priced.</p>
 <h3 id="why-the-key-is-a-resource-id-not-an-alias"><a class="header" href="#why-the-key-is-a-resource-id-not-an-alias">Why the key is a resource id, not an alias</a></h3>
 <p>A <code>[providers.models.anthropic.&lt;alias&gt;]</code> entry is keyed by an operator-chosen
 alias (<code>glados</code>, <code>production</code>) that follows the alias validator: lowercase
 ASCII, single underscores, no hyphens. A <code>[cost.rates.providers.models.anthropic.&lt;resource&gt;]</code>
 entry is keyed by the <strong>upstream model id</strong> as it appears in usage telemetry
-(<code>claude-opus-4-7</code>, <code>gpt-4o-mini</code>, <code>whisper-1</code>) — those id strings come from
+(<code>claude-opus-4-7</code>, <code>gpt-4o-mini</code>, <code>whisper-1</code>): those id strings come from
 the provider’s namespace and almost always contain hyphens.</p>
 <p>The schema marks every rate-sheet HashMap with <code>#[resource_key]</code> (in
 <code>crates/zeroclaw-macros/src/lib.rs</code>). That attribute opts the field out of
@@ -301,7 +349,7 @@ is <code>"&lt;model_id&gt;.input"</code>, <code>"&lt;model_id&gt;.output"</code>
 <code>[providers.models.&lt;type&gt;.&lt;alias&gt;].pricing</code> table is merged in too;
 <code>[cost.rates.*]</code> wins on conflict because it’s the forward-looking
 surface.
-(See <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code> —
+(See <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>,
 the closure under <code>cost_tracking: CostTracker::get_or_init_global(...).map(|tracker| ...)</code>.)</p>
 </li>
 <li>
@@ -324,7 +372,7 @@ short form). Returns <code>(0.0, 0.0)</code> on miss and triggers a one-shot
 frozen at first init; if the operator flips <code>cost.enabled</code> after
 that, the daemon must restart for the tracker to honor the new
 value. The orchestrator’s pricing map, in contrast, is rebuilt on
-every daemon reload from the live config — so rate edits take
+every daemon reload from the live config, so rate edits take
 effect on the next request after reload.</p>
 </li>
 </ol>
@@ -334,7 +382,7 @@ priced response to <code>&lt;workspace&gt;/state/costs.jsonl</code>, one JSON ob
 per line. The file is read on startup to seed <code>daily_records()</code> so
 the dashboard’s per-agent rollup survives restarts.</p>
 <p><code>cost_usd</code> is computed at record time from the rate sheet in effect
-<strong>at that moment</strong>. Records are immutable — if the operator adds
+<strong>at that moment</strong>. Records are immutable: if the operator adds
 rates after some requests have already been recorded, those existing
 records keep <code>cost_usd = 0</code>. Only requests made after the rate is
 configured (and the daemon reloaded so the orchestrator’s pricing
@@ -346,10 +394,10 @@ The fix is to wait for new requests; there’s no retroactive repricing.</p>
 cost would push <code>daily_total</code> or <code>monthly_total</code> past the configured
 limit:</p>
 <ul>
-<li><code>warn</code> — the default; record the event with a warn-level log and
+<li><code>warn</code>: the default; record the event with a warn-level log and
 let the request through.</li>
-<li><code>block</code> — refuse the request with a <code>BudgetExceeded</code> error.</li>
-<li><code>route_down</code> — substitute <code>route_down_model</code> (a cheaper
+<li><code>block</code>: refuse the request with a <code>BudgetExceeded</code> error.</li>
+<li><code>route_down</code>: substitute <code>route_down_model</code> (a cheaper
 alternative) for the original model. The substitution happens before
 the request is dispatched.</li>
 </ul>
@@ -369,7 +417,7 @@ profiles; the trade-off is losing the per-agent dimension everywhere.</p>
 <ul>
 <li><code>/config/cost</code> → <strong>Limits</strong> tab: every flat <code>[cost].*</code> field
 (enabled, limits, enforcement, track_per_agent). Rate-sheet rows
-are not edited here — they’re tied to the provider that owns the
+are not edited here, they’re tied to the provider that owns the
 model, so they live one tier down.</li>
 <li><code>/config/providers.&lt;category&gt;/&lt;type&gt;</code> → <strong>Costs</strong> tab: rate-sheet
 editor for that provider type. The <code>+ Add</code> input suggests upstream
@@ -382,10 +430,10 @@ point for editing <code>[cost.rates.providers.&lt;category&gt;.&lt;type&gt;.*]</
 <p>The dashboard’s <strong>Cost</strong> tab shows three panels plus a Window picker
 (today / last 7 days / last 30 days / this month / all time):</p>
 <ul>
-<li><strong>Spend totals</strong> — daily and monthly totals from <code>costs.jsonl</code>.</li>
-<li><strong>Spend by agent · <code>&lt;window&gt;</code></strong> — per-agent rollup over the picked
+<li><strong>Spend totals</strong>: daily and monthly totals from <code>costs.jsonl</code>.</li>
+<li><strong>Spend by agent · <code>&lt;window&gt;</code></strong>: per-agent rollup over the picked
 window. Visible when <code>track_per_agent</code> is true.</li>
-<li><strong>Spend by model · <code>&lt;window&gt;</code></strong> — per-model rollup. Each row’s model
+<li><strong>Spend by model · <code>&lt;window&gt;</code></strong>: per-model rollup. Each row’s model
 id is clickable; the click resolves the owning provider type from
 configured aliases and navigates to that provider’s Costs tab. When
 the model id isn’t bound to any configured provider the click is a
@@ -393,26 +441,26 @@ no-op (there’s no qualified rate-sheet route for an orphan model).</li>
 </ul>
 <h3 id="gateway"><a class="header" href="#gateway">Gateway</a></h3>
 <ul>
-<li><code>GET /api/cost</code> — current <code>CostSummary</code> (matches the dashboard’s
+<li><code>GET /api/cost</code>: current <code>CostSummary</code> (matches the dashboard’s
 Cost overview shape). Add <code>?agent=&lt;alias&gt;</code> for a single-agent view.</li>
-<li><code>GET /api/config/templates</code> — every map-keyed section the schema
+<li><code>GET /api/config/templates</code>: every map-keyed section the schema
 registers, used by the Rates tab’s category × provider-type
 dropdowns.</li>
 <li><code>POST /api/config/map-key?path=cost.rates.providers.&lt;category&gt;.&lt;type&gt;&amp;key=&lt;resource&gt;</code>
-— create a new rate row. The path is rejected if no such map
+create a new rate row. The path is rejected if no such map
 section exists; the resource key passes <code>#[resource_key]</code> instead
 of <code>validate_alias_key</code>.</li>
 </ul>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
 <p><strong>Dashboard shows $0.0000 for all agents after configuring rates.</strong>
-Old records are immutable — they were recorded with <code>cost_usd = 0</code>
+Old records are immutable, they were recorded with <code>cost_usd = 0</code>
 because no rate was set when they happened. Make a new chat request
 after the daemon reload and check <strong>Cost overview &gt; Session</strong> plus
 <strong>Spend by model</strong>; both should populate for the new request.</p>
 <p><strong>Drift detected against <code>cost.rates.*</code> paths after save.</strong> A pre
 v0.8.0 daemon mangled hyphenated HashMap keys in the dirty-save path,
 silently dropping every write to the rate sheet. If you see this on
-v0.8.0+ it’s a real bug — the dirty-path resolution lives in
+v0.8.0+ it’s a real bug: the dirty-path resolution lives in
 <code>crates/zeroclaw-config/src/schema.rs::apply_dirty_path</code>; file an
 issue with the daemon version and the path that drifted.</p>
 <p><strong><code>missing_pricing</code> warns spam the log.</strong> Emitted once per

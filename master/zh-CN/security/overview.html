@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,88 +292,14 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="安全性--概述"><a class="header" href="#安全性--概述">安全性 — 概述</a></h1>
+                        <h1 id="security-overview"><a class="header" href="#security-overview">Security: Overview</a></h1>
 <p>能够执行 shell 命令、打开 URL 并写入文件的代理是一个特权进程。ZeroClaw 的安全模型作用于每次工具调用和每条通道消息之上，在运行时限制代理实际允许执行的操作。</p>
-<p>共有六层，从外到内依次为：</p>
-<h2 id="1-通道配对与访问控制"><a class="header" href="#1-通道配对与访问控制">1. 通道配对与访问控制</a></h2>
-<p>在频道消息到达代理之前，会检查频道的配对和允许列表。<code>allowed_users</code>、<code>allowed_chats</code>、Webhook 的 IP 允许列表——所有这些都在频道适配器层面强制执行，在运行时看到事件之前。</p>
-<p>文档：每个频道页面位于 <a href="../channels/overview.html">频道</a> 下。</p>
-<h2 id="2-自主性级别"><a class="header" href="#2-自主性级别">2. 自主性级别</a></h2>
-<p>粗粒度旋钮。三个设置：</p>
+<p>Each agent runs under a risk profile and a runtime profile it references; see <a href="../agents/overview.html">Agents</a> for how those references attach to an agent.</p>
 <ul>
-<li><strong>ReadOnly</strong> — 智能体可以观察（读取文件、查询记忆、获取其被允许获取的 URL），但不能写入或执行命令。</li>
-<li><strong>监督式</strong>（默认）——低风险操作运行；中风险操作询问操作员；高风险操作阻止。</li>
-<li><strong>Full</strong> — 无审批关卡；<code>workspace_only</code> 被隐式禁用。<code>forbidden_paths</code>、<code>forbidden_commands</code> 和操作系统沙箱仍然生效。</li>
-</ul>
-<p>文档：<a href="./autonomy.html">自主级别</a>。</p>
-<h2 id="3-工作区边界和路径规则"><a class="header" href="#3-工作区边界和路径规则">3. 工作区边界和路径规则</a></h2>
-<p>代理在配置的<strong>工作区目录</strong>中运行。除非设置 <code>workspace_only = false</code>，否则 <code>file_read</code>、<code>file_write</code> 和 <code>shell</code>（用于操作文件系统的命令）将拒绝访问该目录之外的路径。</p>
-<p><strong>按会话隔离的沙箱根目录（ACP 和网关 WebSocket）：</strong> 当通过 ACP（带 <code>cwd</code> 参数的 <code>session/new</code>）或通过网关 WebSocket（连接时的 <code>cwd</code> 参数）打开会话时，该路径将在会话的整个生命周期内，成为所有文件和 shell 工具的 <code>SecurityPolicy</code> 工作区边界。守护进程的全局 <code>workspace_dir</code> 仍作为内存、身份、cron 和其他持久状态的数据目录。其模型为：<code>session cwd</code> = 代理可访问的项目边界；<code>workspace_dir</code> = ZeroClaw 存储自身文件的位置。注意：代理的系统提示词目前反映的是守护进程的 <code>workspace_dir</code>，而非会话的 <code>cwd</code>；强制执行是正确的，但模型自报的位置可能有所不同。</p>
-<p><strong>重要：</strong> <code>cwd</code> 参数会更改 agent 在 <strong>ZeroClaw 主机</strong>上被沙箱限制到的目录——但它不会影响工具在哪台机器上运行。工具使用（shell 命令、文件读写）始终在运行 ZeroClaw 的机器上执行。如果你通过网关 WebSocket 连接到远程 ZeroClaw 实例，工具调用将作用于远程机器的文件系统，而不是你的本地机器。对于仅限 localhost 的部署，这一区别无关紧要，但远程部署应当将其纳入考虑。</p>
-<p>在工作区之外，<code>forbidden_paths</code> 列表（默认值：<code>/etc</code>、<code>/sys</code>、<code>/boot</code>、<code>~/.ssh</code> 等）始终会被阻止，不受工作区设置的影响。</p>
-<h2 id="4-shell-命令策略"><a class="header" href="#4-shell-命令策略">4. Shell 命令策略</a></h2>
-<p>对于 shell 调用：</p>
-<ul>
-<li><code>allowed_commands</code> — 如果非空，则 shell 仅运行其 basename 在此列表中的命令</li>
-<li><code>forbidden_commands</code> — 显式禁止列表（<code>rm -rf /</code>、<code>shutdown</code>、内核操作）</li>
-<li><code>validate_command_execution</code> — 一个模式匹配传递，用于查找危险的标志、管道和参数形状</li>
-</ul>
-<p>验证器在命令执行到 shell 之前运行。被阻止的命令会作为工具错误呈现给模型，模型可以对此做出反应。</p>
-<h2 id="5-操作系统级沙箱"><a class="header" href="#5-操作系统级沙箱">5. 操作系统级沙箱</a></h2>
-<p>当有沙箱后端可用时，工具调用将在其中运行：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>平台</th><th>默认后端</th></tr>
-</thead>
-<tbody>
-<tr><td>Linux</td><td>Landlock（内核）/ Bubblewrap / Firejail / Docker — 自动检测</td></tr>
-<tr><td>macOS</td><td>安全带（原生）</td></tr>
-<tr><td>Windows</td><td>AppContainer（实验性）</td></tr>
-<tr><td>任何</td><td>Docker（如果守护进程可访问）</td></tr>
-</tbody>
-</table>
-</div>
-<p>沙箱将文件系统访问限制在工作区范围内，仅保留工具明确需要的网络可达性，并移除对父进程密钥的访问权限。</p>
-<p>文档：<a href="./sandboxing.html">沙箱化</a>。</p>
-<h2 id="6-工具收据"><a class="header" href="#6-工具收据">6. 工具收据</a></h2>
-<p>每次工具调用——无论其是否执行、被阻止或需要批准——都会在链中生成一个签名收据。每个收据都包含前一个收据的哈希值，因此篡改任何收据都会使其余收据失效。</p>
-<p>收据是“代理昨天做了什么”的真实来源。它们可读、可搜索且持久。</p>
-<p>文档：<a href="./tool-receipts.html">工具收据</a>。</p>
-<h2 id="附加门"><a class="header" href="#附加门">附加门</a></h2>
-<p>超越这六层：</p>
-<ul>
-<li><strong>OTP 门控</strong> — <code>[security.otp] gated_actions = ["shell", "browser", "file_write"]</code> 要求在列出每个操作之前提供一次性代码。适用于远程访问场景。</li>
-<li><strong>紧急停止</strong> — <code>zeroclaw estop</code> 会中止所有正在进行的工具调用。当 <code>[security.estop] enabled = true</code> 时，恢复操作需要一次性密码（OTP）。</li>
-<li><strong>提示注入防护</strong> — 在验证工具调用之前，扫描模型输出以检测已知的注入模式。</li>
-<li><strong>泄漏检测器</strong> — 扫描出站消息中的敏感信息（如 API 密钥模式、私钥），并阻止发送匹配的内容。</li>
-<li><strong>配对保护</strong> — 用于通道身份验证的设备配对；防止被盗用的凭据在新设备上生效。</li>
-</ul>
-<h2 id="当出现问题时"><a class="header" href="#当出现问题时">当出现问题时</a></h2>
-<p>被阻止的工具调用不会静默失败：</p>
-<ol>
-<li>安全验证器返回错误</li>
-<li>运行时将其包装为 <code>ToolResult::Err</code> 并返回给模型</li>
-<li>模型看到“错误：Shell 命令被策略阻止：禁止的模式 <code>rm -rf /</code>”，可以重试、道歉或询问用户</li>
-</ol>
-<p>如果某个工具通过 <code>[autonomy].non_cli_excluded_tools</code> 从通道中被排除（该配置将非 CLI 通道作为一个整体进行管控），那么它就不会在这些通道上向模型公布。模型永远不会看到自己无法使用的工具。</p>
-<h2 id="默认姿势"><a class="header" href="#默认姿势">默认姿势</a></h2>
-<p>开箱即用：</p>
-<ul>
-<li>自主性：<code>监督</code></li>
-<li>仅工作区：<code>true</code></li>
-<li>沙盒：自动检测（使用操作系统提供的功能）</li>
-<li>审计日志记录：<code>false</code>（显式启用）</li>
-<li>OTP：<code>false</code></li>
-<li>急停：<code>false</code></li>
-</ul>
-<p>这是一个合理的折中方案——对笔记本电脑来说足够安全，同时也不会让人感到沮丧。在生产环境中可以调高（OTP、审计、受限工具），或者在开发机上调低到 <a href="../getting-started/yolo.html">YOLO</a> 模式。</p>
-<h2 id="另见"><a class="header" href="#另见">另见</a></h2>
-<ul>
-<li><a href="./autonomy.html">自主级别</a></li>
-<li><a href="./sandboxing.html">沙盒化</a></li>
-<li><a href="./tool-receipts.html">工具收据</a></li>
-<li><a href="../getting-started/yolo.html">YOLO 模式</a></li>
+<li><a href="./model.html">The security model</a>: the six enforcement layers, additional gates, failure behavior, and the default posture.</li>
+<li><a href="./autonomy.html">Autonomy levels</a>: the coarse-grained ReadOnly / Supervised / Full knob.</li>
+<li><a href="./sandboxing.html">Sandboxing</a>: OS-level isolation backends per platform.</li>
+<li><a href="./tool-receipts.html">Tool receipts</a>: the signed, chained audit log of every tool call.</li>
 </ul>
 
                     </main>
@@ -308,7 +310,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../security/autonomy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../security/model.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -322,7 +324,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../security/autonomy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../security/model.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

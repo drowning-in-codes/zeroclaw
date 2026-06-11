@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,37 +293,53 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="prレビュープロトコル"><a class="header" href="#prレビュープロトコル">PRレビュープロトコル</a></h1>
-<p>これは <code>zeroclaw-labs/zeroclaw</code> でプルリクエストをレビューする際に従う手順です。この手順は <code>github-pr-review-session</code> スキルによって読み込まれ、人間のレビュアーによって参照されます。両者にとってこれが権威ある情報となります。</p>
+<p>This is the procedure followed when reviewing a pull request in <code>zeroclaw-labs/zeroclaw</code>. It’s loaded by the <code>github-pr-review-session</code> skill and read by human reviewers, it’s authoritative for both.</p>
 <p><code>gh</code> CLI が利用可能で認証済みであると仮定します。</p>
 <h2 id="注文の取得"><a class="header" href="#注文の取得">注文の取得</a></h2>
 <p>これらすべてを実行してください。データは、続くすべてのステップを決定づけます。</p>
 <ol>
 <li>
 <p><strong>PR概要</strong></p>
-<pre><code class="language-bash">gh pr view &lt;number&gt; --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh pr view &lt;number&gt; --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 <p>説明、ラベル、リンクされた問題、検証証拠。</p>
 </li>
 <li>
 <p><strong>トップレベルの会話</strong></p>
-<pre><code class="language-bash">gh pr view &lt;number&gt; --comments --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">gh pr view &lt;number&gt; --comments --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 </li>
 <li>
 <p><strong>インラインスレッド（すべての返信チェーン）</strong></p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/comments --paginate
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/comments --paginate
 </code></pre>
-<p>何かがオープンか、それとも決着がついているかについて結論を出す前に、返信チェーン全体を読み込んでください。返信で行われた著者のコミットメントは重要なので、注意してください。</p>
+</div>
+
+<p>Read full reply chains before drawing any conclusion about whether something is open or settled. Note author commitments made in replies, they’re load-bearing.</p>
 </li>
 <li>
 <p><strong>公式レビュー</strong></p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/reviews --paginate
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/reviews --paginate
 </code></pre>
+</div>
+
 <p>まだ有効な <code>CHANGES_REQUESTED</code>（後の <code>APPROVED</code> や <code>DISMISSED</code> で上書きされていないもの）を確認してください。この PR をすでにレビューしたかどうかを確認してください。</p>
 </li>
 <li>
 <p><strong>関連する基盤ドキュメント</strong></p>
-<p>常に FND-005 (Contribution Culture) を読んでください。それ以外については、以下の関連性テーブルを使用してください — PR のスコープに該当するものを読んでください。批准されたバージョンはローカルファイルです。API 呼び出しは不要です。</p>
+<p>Always read FND-005 (Contribution Culture). For others, use the relevance table below, read what applies to the PR’s scope. The ratified versions are local files; no API call needed.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -266,8 +358,12 @@
 </li>
 <li>
 <p><strong>差分</strong></p>
-<pre><code class="language-bash">gh pr diff &lt;number&gt; --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">gh pr diff &lt;number&gt; --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 <p>差分全体を確認してください。ステップ3で著者がコミットした内容が実際にリリースされたものと照合してください。変更が適用されるローカルリポジトリとも照合してください。</p>
 </li>
 </ol>
@@ -301,11 +397,11 @@
 <h2 id="フィードバック分類"><a class="header" href="#フィードバック分類">フィードバック分類</a></h2>
 <p>レビュー本文およびインライン コメント内の指摘事項には、FND-005 を基にした PR レビュー スケールを使用します。<code>✅ [resolved]</code> エントリは、対応済みの指摘事項を確認する再レビュー向けです。</p>
 <ul>
-<li><strong>🔴 [blocking]</strong> — マージ前に解決する必要があります。慎重に使用してください。すべてのブロックが本物である場合のみ、そのスケールの意味が保たれます。</li>
-<li><strong>🟡 [warning]</strong> — 対応が必要です。ブロックするものではありませんが、レビュアーは著者に確認してほしいと考えています。</li>
-<li><strong>🔵 [suggestion]</strong> — オプション。著者はこれを承認またはスキップできます。</li>
-<li><strong>🟢 [praise]</strong> — 何がうまくいっているか。具体的な称賛は、何を繰り返すべきかを教えます。一般的な「よくやった」という称賛は何も教えません。</li>
-<li><strong>✅ [解決済み]</strong> — 以前の発見が後のコミットで対処されたことを明示的に認識します。再レビュー時に使用してください。これにより、著者の作業が反映されたことが示されます。</li>
+<li><strong>🔴 [blocking]</strong>: must be addressed before merge. Use sparingly; every blocker is real or the scale loses meaning.</li>
+<li><strong>🟡 [warning]</strong>: should be addressed; not blocking but the reviewer wants the author to look.</li>
+<li><strong>🔵 [suggestion]</strong>: optional. Author can accept or pass.</li>
+<li><strong>🟢 [praise]</strong>: what’s working. Specific praise teaches what to repeat. Generic “great work” teaches nothing.</li>
+<li><strong>✅ [resolved]</strong>: explicitly acknowledging that a prior finding has been addressed in a later commit. Use this when you’re re-reviewing, it shows the author their work registered.</li>
 </ul>
 <h2 id="レビュー本文のmarkdown形式"><a class="header" href="#レビュー本文のmarkdown形式">レビュー本文のMarkdown形式</a></h2>
 <p>レビュー本文の所見は、分類絵文字で始まるH3見出しを使用してください。これにより、重要度と必要なアクションを一目で確認しやすくなります。</p>
@@ -341,16 +437,20 @@
 <ul>
 <li>特定の行に関連付けられた 🔴 blocking、🟡 warning、🔵 suggestion の各指摘事項に対する<strong>インライン差分コメント</strong>。作成者がインラインで解決できるよう、フィードバックをコードに紐付けます。</li>
 <li><strong>レビュー本文</strong>は、総合的な判断、理解の要約、他のPRへのクロスリファレンス、および特定の行に紐づかないテンプレートレベルの問題を含みます。</li>
-<li><strong>Bare commit hashes</strong> (never wrap in backticks — GitHub auto-links bare hashes; backticks block the auto-link).</li>
+<li><strong>Bare commit hashes</strong> (never wrap in backticks: GitHub auto-links bare hashes; backticks block the auto-link).</li>
 <li><strong><code>@</code>-プレフィックス付きのユーザー名</strong> は、すべてのレビューコンテンツ（チャット、本文、インライン）で <code>@WareWolf-MoonWall</code> のように使用してください。<code>WareWolf-MoonWall</code> ではありません。</li>
 </ul>
 <h2 id="投稿"><a class="header" href="#投稿">投稿</a></h2>
-<p>まず、レビュー本文を <code>tmp/review-&lt;number&gt;.md</code> のファイルに書き込んでください。これは、投稿された内容の真正な情報源であり、公開前にユーザーが確認できるようにするためです。その後:</p>
-<pre><code class="language-bash">gh pr review &lt;number&gt; --repo zeroclaw-labs/zeroclaw \
+<p>Write the review body to a file under <code>tmp/review-&lt;number&gt;.md</code> first: this is the source of truth for what was posted and lets the user inspect before publishing. Then:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">gh pr review &lt;number&gt; --repo zeroclaw-labs/zeroclaw \
   &lt;--approve | --request-changes | --comment&gt; \
   --body-file tmp/review-&lt;number&gt;.md
 </code></pre>
-<p>常に完全なドラフトを表示し、投稿する前に人間からの明確な承認を得てください。「次」や「進む」などの継続的な言葉は承認としてカウントされません。明確な「はい」「承認」「開始」のみが有効です。</p>
+</div>
+
+<p>Always show the full draft and get explicit approval from the human before posting. Continuation words like “next” or “move on” don’t count as approval, only an unambiguous “yes” / “approve” / “go” does.</p>
 <h2 id="投稿後"><a class="header" href="#投稿後">投稿後</a></h2>
 <p>セッションレベルのハンドオフファイル（<code>tmp/handoff.md</code>）が存在する場合は、判定結果、レビュー済みのヘッドコミット、および未完了の項目を更新してください。このハンドオフにより、新しいセッションが会話全体を読み直すことなく、中断した箇所から再開できます。</p>
 <h2 id="決して"><a class="header" href="#決して">決して</a></h2>

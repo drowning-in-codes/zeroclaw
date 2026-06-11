@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="マルチエージェントのセットアップ手順"><a class="header" href="#マルチエージェントのセットアップ手順">マルチエージェントのセットアップ手順</a></h1>
-<p>これは<a href="../architecture/multi-agent.html">マルチエージェントアーキテクチャのページ</a>のオペレーター向けの補足ドキュメントです。これに従って、インストールに2つ目のエージェントを追加し、エージェント間のメモリアクセスを設定し、両方のエージェントを同じチャンネル上のピアグループに配置してください。</p>
+<p>This is the operator-side companion to the <a href="../agents/overview.html">Agents section</a>. Follow it to add a second agent to an install, configure cross-agent memory access, and put both agents in a peer group on the same channel.</p>
 <p>背景: 各エージェントは <code>&lt;install&gt;/agents/&lt;alias&gt;/workspace/</code> に独自のワークスペースディレクトリを持ち、作成時に1つのメモリバックエンドを選択し(変更不可)、<code>[risk_profiles.&lt;profile&gt;]</code> エントリによって制御されます。</p>
 <p>このウォークスルー全体を通して、既存の単一エージェントは <code>primary</code> と呼ばれます（実際のインストールで使用されているものに置き換えてください）。新しく追加されるエージェントは <code>researcher</code> です。</p>
 <h2 id="前提条件"><a class="header" href="#前提条件">前提条件</a></h2>
@@ -226,53 +302,29 @@
 <li>新しいエージェントが継承する <code>[risk_profiles.&lt;name&gt;]</code> エントリ。ほとんどの用途では <code>primary</code> のプロファイルを再利用して問題ありません。新しいエージェントが異なる信頼境界を持つ場合は、より厳格なエイリアス（例: <code>hardened</code>）を選択してください。</li>
 </ul>
 <h2 id="2-つ目のエージェントを追加"><a class="header" href="#2-つ目のエージェントを追加">2 つ目のエージェントを追加</a></h2>
-<p><code>config.toml</code> に新しい <code>[agents.&lt;alias&gt;]</code> ブロックを追加します:</p>
-<pre><code class="language-toml">[agents.researcher]
-model_provider = "anthropic.home"
-risk_profile   = "hardened"
-channels       = []                          # 次のステップでチャンネル参照を追加
+<p>Add another agent through the gateway dashboard, zerocode, or <code>zeroclaw config set</code>. The runtime creates <code>&lt;install&gt;/agents/&lt;alias&gt;/workspace/</code> on first agent-loop entry. On every start the agent loop injects the workspace identity files that exist into the system prompt: <code>AGENTS.md</code>, <code>SOUL.md</code>, <code>TOOLS.md</code>, <code>IDENTITY.md</code>, <code>USER.md</code>, then <code>BOOTSTRAP.md</code> (first run only) and <code>MEMORY.md</code> (main session only). <code>HEARTBEAT.md</code> is also a workspace personality file but it is read by the heartbeat engine, not injected into the prompt. The dashboard’s personality editor exposes <code>SOUL.md</code>, <code>IDENTITY.md</code>, <code>USER.md</code>, <code>AGENTS.md</code>, <code>TOOLS.md</code>, <code>HEARTBEAT.md</code>, and <code>MEMORY.md</code> for editing. Create and edit those files to give the agent its persona. (<code>BOOTSTRAP.md</code> is a first-run scaffold the agent reads once and removes; the editor does not expose it.)</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/agents"><code>/config/agents</code></a> in the web dashboard.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Agents</strong>.</p>
+</div>
 
-[agents.researcher.memory]
-backend = "sqlite"
-
-[agents.researcher.workspace]
-# `path` のデフォルトは &lt;install&gt;/agents/researcher/workspace/
-</code></pre>
-<p>ランタイムは、エージェントループへの初回エントリ時に <code>&lt;install&gt;/agents/researcher/workspace/</code> を作成し、デフォルトのアイデンティティファイル（<code>AGENTS.md</code>、<code>SOUL.md</code>、<code>IDENTITY.md</code>、<code>USER.md</code>、<code>TOOLS.md</code>、<code>BOOTSTRAP.md</code>）が存在しない場合はそれらをシードします。これらのアイデンティティファイルを編集してエージェントにペルソナを与えます。エージェントループは起動のたびにこれらを読み込みます。</p>
 <h2 id="チャンネルをバインド"><a class="header" href="#チャンネルをバインド">チャンネルをバインド</a></h2>
-<p>チャネルがないと、エージェントは待ち受ける場所を持ちません。エージェントのブロックにある <code>channels</code> 配列に1つ追加してください:</p>
-<pre><code class="language-toml">[agents.researcher]
-channels = ["telegram.prod"]                 # 設定済みの [channels.telegram.prod] を参照する必要があります
-</code></pre>
-<p>デーモンを保存して再起動してください。エージェントは次回起動時にチャンネルを取得します。</p>
+<p>Without a channel the agent has nowhere to listen. Bind one via the agent’s <code>channels</code> list, then restart the daemon. The agent picks up its channel on next start.</p>
 <h2 id="エージェント間ファイルアクセス"><a class="header" href="#エージェント間ファイルアクセス">エージェント間ファイルアクセス</a></h2>
-<p>デフォルトでは、エージェントは自身のワークスペースディレクトリ内でのみ読み書きできます。<code>researcher</code> に <code>primary</code> のワークスペースへの書き込みアクセス権と、3番目の <code>archivist</code> エージェントのワークスペースへの読み取りアクセス権を付与するには：</p>
-<pre><code class="language-toml">[agents.researcher.workspace.access]
-primary   = "write"
-archivist = "read"
-</code></pre>
-<p>有効な動作:</p>
+<p>By default, an agent can only read and write within its own workspace dir. You can grant one agent read or write access into another agent’s workspace (configured via the gateway, zerocode, or <code>zeroclaw config set</code>). Effective behavior, e.g. <code>researcher</code> granted write to <code>primary</code> and read to <code>archivist</code>:</p>
 <ul>
 <li><code>researcher</code>の<code>file_read</code>は、<code>&lt;install&gt;/agents/primary/workspace/</code>と<code>&lt;install&gt;/agents/archivist/workspace/</code>の両方を読み取ることができます。</li>
 <li><code>researcher</code> の <code>file_write</code> と <code>file_edit</code> は <code>&lt;install&gt;/agents/primary/workspace/</code> に書き込めますが、<code>&lt;install&gt;/agents/archivist/workspace/</code> には<strong>書き込めません</strong>。</li>
 </ul>
 <p>POSIXデバイスファイル（<code>/dev/null</code>、<code>/dev/zero</code>、<code>/dev/random</code>、<code>/dev/urandom</code>）は常に読み取り可能であり、エージェントごとの設定は不要です。</p>
 <h2 id="エージェント間のメモリアクセス"><a class="header" href="#エージェント間のメモリアクセス">エージェント間のメモリアクセス</a></h2>
-<p>同一バックエンドのみ。<code>researcher</code> が <code>primary</code> の書き込んだメモリを呼び出せるようにするには、両方のエージェントが同じメモリバックエンド（例: 両方とも <code>sqlite</code>）を使用する必要があります:</p>
-<pre><code class="language-toml">[agents.researcher.workspace]
-read_memory_from = ["primary"]
-</code></pre>
-<p>スキーマバリデーターは、異なるバックエンド上の兄弟要素を指すエントリーを拒否します。ランタイムが各エージェントのメモリラッパーを構築する時点までに、バックエンドをまたぐ許可リストを目にすることは決してありません。</p>
+<p>Same-backend only. To let <code>researcher</code> recall memories that <code>primary</code> wrote, both agents must use the same memory backend (e.g. both <code>sqlite</code>). The schema validator rejects entries that point at a sibling on a different backend; the runtime never sees a cross-backend allowlist by the time it builds the per-agent memory wrapper.</p>
 <p>バインドされたエージェントは常に自身の行を参照できます。許可リストは純粋に追加的なものです。エージェント自身の行を、そのエージェントから <em>隠す</em> 方法はありません。</p>
 <h2 id="共有チャネル上のピアグループ"><a class="header" href="#共有チャネル上のピアグループ">共有チャネル上のピアグループ</a></h2>
-<p>2つのエージェントは、<strong>両方</strong>が同じ <code>[peer_groups.&lt;name&gt;]</code> ブロックに含まれている場合にのみ「peers」（チャンネル上で互いにアドレス指定できる関係）になります：</p>
-<pre><code class="language-toml">[peer_groups.research]
-channel = "telegram.prod"
-agents = ["primary", "researcher"]
-external_peers = ["operator"]
-ignore = []
-</code></pre>
-<p><code>external_peers</code> は、グループが同じチャンネルに参加すると想定している人間または外部ボットを列挙します。ランタイムは、それらのユーザー名からの受信をエージェント間トラフィックとして受け入れます。<code>ignore</code> はグループ単位のブロックリストで、すべてのメンバーが参照する解決済みのピアセットから差し引かれます。これは、ノイズの多い特定のボットアカウントを除外するのに便利です。</p>
+<p>Two agents become “peers” (each can address the other on a channel) only when <strong>both</strong> appear in the same peer group. See <a href="../channels/peer-groups.html">Peer Groups</a>.</p>
+<p><code>external_peers</code> lists humans or external bots the group expects on the same channel; the runtime accepts inbound from those usernames as cross-agent traffic. <code>ignore</code> is a per-group blocklist that subtracts from the resolved peer set every member sees, useful for excluding a specific bot account that’s noisy.</p>
 <p>設定読み込み時のスキーマバリデーターは、以下を強制します:</p>
 <ol>
 <li>すべてのメンバーの<code>channels</code>リストには、グループの<code>channel</code>が含まれます（そこをリッスンしていないエージェントは、そこでピアになることができません）。</li>
@@ -280,10 +332,17 @@ ignore = []
 <li><code>read_memory_from</code> がエージェント自身を指していません。</li>
 </ol>
 <h2 id="インストールを確認する"><a class="header" href="#インストールを確認する">インストールを確認する</a></h2>
-<p>設定された各エージェントは、<code>config.toml</code> 内の <code>[agents.&lt;alias&gt;]</code> ブロックに、リスクプロファイル、モデルプロバイダー、メモリバックエンド、チャネルセットとともに定義されます。</p>
+<p>Every configured agent lives under an <code>agents.&lt;alias&gt;</code> entry with its risk profile, model provider, memory backend, and channel set.</p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/agents"><code>/config/agents</code></a> in the web dashboard.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, under <strong>Agents</strong>.</p>
+</div>
+
 <h2 id="エージェントを削除"><a class="header" href="#エージェントを削除">エージェントを削除</a></h2>
 <ol>
-<li><code>config.toml</code> から <code>[agents.&lt;alias&gt;]</code> ブロック（およびネストされた <code>[agents.&lt;alias&gt;.workspace]</code> / <code>[agents.&lt;alias&gt;.memory]</code> テーブル）を削除します。</li>
+<li>Remove the <code>agents.&lt;alias&gt;</code> entry (and any nested <code>workspace</code> / <code>memory</code> tables) through the gateway, zerocode, or <code>zeroclaw config set</code>.</li>
 <li>すべての <code>[peer_groups.&lt;name&gt;]</code> ブロックの <code>agents</code> リストからエイリアスを除去します。</li>
 <li>ワークスペースディレクトリを削除します: <code>rm -rf &lt;install&gt;/agents/&lt;alias&gt;/workspace/</code>。</li>
 <li>エージェントのメモリ行は任意でクリーンアップできます（<code>agent_id = &lt;alias-uuid&gt;</code> の属性は保持されますが、そのUUIDにマッピングされる稼働中のエージェントは存在しなくなります）：</li>
@@ -293,10 +352,14 @@ DELETE FROM agents WHERE alias = 'researcher';
 </code></pre>
 <p>スキーマバリデータは、<code>[peer_groups.&lt;name&gt;]</code> が削除されたエイリアスをまだリストしている場合は読み込みを拒否するため、デーモンが正常に起動するにはステップ 2 が必要です。</p>
 <h2 id="確認"><a class="header" href="#確認">確認</a></h2>
-<p>マージされたログストリームを確認してください。各行に <code>[&lt;alias&gt;]</code> または <code>[system]</code> のプレフィックスが付いているはずです。</p>
-<pre><code class="language-bash">zeroclaw daemon 2&gt;&amp;1 | grep '\[researcher\]'   # researcher's lines only
+<p>Look at the merged log stream; every line should now carry <code>[&lt;alias&gt;]</code> or <code>[system]</code> prefixes:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw daemon 2&gt;&amp;1 | grep '\[researcher\]'   # researcher's lines only
 zeroclaw daemon 2&gt;&amp;1 | grep '\[system\]'       # ブート/マイグレーション/スケジューラの行のみ
 </code></pre>
+</div>
+
 <p>境界チェックが正しく機能している場合、任意のエージェントからの <code>file_read /dev/null</code> は成功し（POSIX デバイスファイルの許可リスト）、ワークスペースおよびアクセスリストの外部に対する <code>file_read</code> は <code>Path escapes workspace directory</code> で失敗し、読み取り専用で許可リストに登録された兄弟ディレクトリへの <code>file_write</code> も同じメッセージで失敗します。</p>
 
                     </main>

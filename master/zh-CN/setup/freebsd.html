@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -220,24 +296,28 @@
 <p>ZeroClaw runs natively on FreeBSD (tested on FreeBSD 15.0-RELEASE, <code>amd64</code>). Two things differ from the Linux/macOS/Windows paths:</p>
 <ol>
 <li><strong>No prebuilt binary and no <code>install.sh</code> support.</strong> FreeBSD is not a target of the bootstrap installer, so you build from source with the system Rust toolchain.</li>
-<li><strong>No <code>zeroclaw service</code> backend.</strong> The <code>zeroclaw service install</code> command knows systemd, launchd, and Windows Task Scheduler — not FreeBSD <code>rc.d</code>. You install a small <code>rc.d</code> script yourself. This page gives you a complete, tested one.</li>
+<li><strong>No <code>zeroclaw service</code> backend.</strong> The <code>zeroclaw service install</code> command knows systemd, OpenRC, launchd, and Windows Task Scheduler, not FreeBSD <code>rc.d</code>. You install a small <code>rc.d</code> script yourself. This page gives you a complete, tested one.</li>
 </ol>
-<p>Everything else — config, providers, channels, the daemon, the gateway — is identical to any other platform.</p>
+<p>Everything else, config, providers, channels, the daemon, the gateway, is identical to any other platform.</p>
 <blockquote>
 <p><strong>When to use FreeBSD.</strong> FreeBSD deployments are common in network-appliance, embedded, and jail-based hosting where operators want the base system’s stability, ZFS + jail primitives, or need FreeBSD for policy/licensing reasons. Because there is no prebuilt binary and the <code>rc.d</code> setup is manual, this path suits operators comfortable with FreeBSD conventions. If you are only evaluating platforms with no specific FreeBSD requirement, Linux (systemd) or macOS (launchd) onboard faster via <code>install.sh</code> and <code>zeroclaw service install</code>.</p>
-<p><strong>Grab the files instead of copy-pasting.</strong> Every shell script and sample config shown below ships in <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/</code></a> — copy them to your host directly. The walkthrough explains what each piece does and why.</p>
+<p><strong>Grab the files instead of copy-pasting.</strong> Every shell script and sample config shown below ships in <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/</code></a>: copy them to your host directly. The walkthrough explains what each piece does and why.</p>
 </blockquote>
 <h2 id="系统依赖"><a class="header" href="#系统依赖">系统依赖</a></h2>
 <p>Install the toolchain and runtime from <code>pkg</code>:</p>
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
 <pre><code class="language-sh">doas pkg install -y rust git
 </code></pre>
+</div>
+
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Package</th><th>为什么</th></tr>
 </thead>
 <tbody>
-<tr><td><code>rust</code></td><td>Provides <code>cargo</code> and <code>rustc</code> to build the binary. The port tracks a recent stable (1.94+ at time of writing).</td></tr>
+<tr><td><code>rust</code></td><td>Provides <code>cargo</code> and <code>rustc</code> to build the binary. ZeroClaw’s workspace MSRV is Rust 1.87; the FreeBSD <code>rust</code> port tracks a newer stable, so <code>pkg install rust</code> satisfies it.</td></tr>
 <tr><td><code>git</code></td><td>Cloning the repo, and required at runtime if you use any git-backed tools.</td></tr>
 </tbody>
 </table>
@@ -248,50 +328,69 @@
 </code></pre>
 </blockquote>
 <h2 id="从源代码构建"><a class="header" href="#从源代码构建">从源代码构建</a></h2>
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh">git clone https://github.com/zeroclaw-labs/zeroclaw.git
 cd zeroclaw
 cargo build --release
 </code></pre>
-<p>The release binary lands at <code>target/release/zeroclaw</code>. A clean build of the default feature set takes a while on modest hardware — this is expected; ZeroClaw is a large Rust workspace.</p>
+</div>
+
+<p>The release binary lands at <code>target/release/zeroclaw</code>. A clean build of the default feature set takes a while on modest hardware, this is expected; ZeroClaw is a large Rust workspace.</p>
 <p>To trim the build, disable features you don’t need (see <code>./install.sh --list-features</code> on a Linux box, or <code>Cargo.toml</code>):</p>
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
 <pre><code class="language-sh">cargo build --release --no-default-features --features agent-runtime
 </code></pre>
+</div>
+
 <h2 id="install-the-binary"><a class="header" href="#install-the-binary">Install the binary</a></h2>
 <p>Put it somewhere on <code>PATH</code>. <code>/usr/local/bin</code> is the conventional location for ports-installed binaries on FreeBSD:</p>
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
 <pre><code class="language-sh">doas install -m 755 target/release/zeroclaw /usr/local/bin/zeroclaw
 zeroclaw --version
 </code></pre>
+</div>
+
 <p>(<code>~/.cargo/bin/zeroclaw</code> works just as well if you’d rather keep it per-user.)</p>
 <h2 id="first-run-configuration"><a class="header" href="#first-run-configuration">First-run configuration</a></h2>
-<pre><code class="language-sh">zeroclaw onboard
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">zeroclaw quickstart
 </code></pre>
-<p>This creates <code>~/.zeroclaw/</code> with a starter <code>config.toml</code> and walks you through provider setup. Config layout and precedence are identical to every other platform — see <a href="../reference/config.html">Reference → Config</a>.</p>
+</div>
+
+<p>This creates <code>~/.zeroclaw/</code> with a starter config and walks you through provider setup. Config layout and precedence are identical to every other platform: see <a href="../reference/config.html">Reference → Config</a>.</p>
 <h2 id="provider-authentication"><a class="header" href="#provider-authentication">Provider authentication</a></h2>
-<p>API-key providers need nothing FreeBSD-specific — set the key in <code>config.toml</code> or the environment and you’re done.</p>
-<p>For OAuth-based providers (e.g. an OpenAI/Codex ChatGPT subscription), import the credential with:</p>
-<pre><code class="language-sh">zeroclaw auth login --model-provider openai-codex --import /path/to/auth.json
-zeroclaw auth status
-</code></pre>
-<blockquote>
-<p><strong>Auth profiles are encrypted per-host and are <em>not</em> portable.</strong> ZeroClaw stores resolved credentials in <code>~/.zeroclaw/auth-profiles.json</code>, encrypted with the host-local key at <code>~/.zeroclaw/.secret_key</code>. <strong>Do not copy <code>auth-profiles.json</code> between machines</strong> — the target host’s <code>.secret_key</code> won’t decrypt it and every request fails with <code>enc2: decryption failed</code>. Instead, copy the <em>raw</em> upstream credential (the un-encrypted <code>auth.json</code> your provider’s own login produced) and re-run <code>zeroclaw auth login --import</code> on each host so it re-encrypts locally. If you hit a stale/undecryptable profile, move it aside (<code>mv ~/.zeroclaw/auth-profiles.json ~/.zeroclaw/auth-profiles.json.bak</code>) before re-importing.</p>
-</blockquote>
+<p>Provider auth is not FreeBSD-specific. API-key providers just need the key set through the gateway, zerocode, <code>zeroclaw config set</code>, or the environment. OAuth and subscription providers (e.g. an OpenAI/Codex ChatGPT subscription, Anthropic Claude Pro/Team) get their token from the vendor’s own dashboard or login flow, which you then configure the same way you would an API key.</p>
+<p>For the full credential model (API keys, OAuth/subscription tokens, env overrides, and the secrets store), see <a href="../providers/configuration.html#credentials">Provider Configuration → Credentials</a> and <a href="../providers/configuration.html#oauth-and-subscription-auth">OAuth and subscription auth</a>. That page is the source of truth for every platform.</p>
 <h2 id="running-as-a-service-rcd"><a class="header" href="#running-as-a-service-rcd">Running as a service (<code>rc.d</code>)</a></h2>
 <p>Because <code>zeroclaw service install</code> has no FreeBSD backend, supervise the daemon with FreeBSD’s native <a href="https://man.freebsd.org/cgi/man.cgi?daemon%288%29"><code>daemon(8)</code></a> under an <code>rc.d</code> script. This gives you <code>service zeroclaw start|stop|restart|status</code>, restart-on-crash, a pidfile, and boot-time startup.</p>
 <blockquote>
-<p><strong>Ready-to-install copies of every script below live in <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/</code></a></strong> (<code>zeroclaw-run.sh</code>, the basic <code>zeroclaw.rc</code>, and the hardened <code>zeroclaw-hardened.rc</code>). The two <code>rc.d</code> scripts carry a <code>@@ZEROCLAW_USER@@</code> placeholder you <code>sed</code> in on install, so you can grab the files instead of copy-pasting — see <code>dist/freebsd/README.md</code>. The walkthrough below explains what each piece does.</p>
+<p><strong>Ready-to-install copies of every script below live in <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/</code></a></strong> (<code>zeroclaw-run.sh</code>, the basic <code>zeroclaw.rc</code>, and the hardened <code>zeroclaw-hardened.rc</code>). The two <code>rc.d</code> scripts carry a <code>@@ZEROCLAW_USER@@</code> placeholder you <code>sed</code> in on install, so you can grab the files instead of copy-pasting: see <code>dist/freebsd/README.md</code>. The walkthrough below explains what each piece does.</p>
 </blockquote>
 <h3 id="1-launcher-script"><a class="header" href="#1-launcher-script">1. Launcher script</a></h3>
-<p><code>daemon(8)</code> starts the child with a minimal environment, so export a full <code>PATH</code> (FreeBSD puts <code>git</code>, <code>python3</code>, etc. under <code>/usr/local/bin</code>, which is <em>not</em> on the default service <code>PATH</code>). The <code>rc.d</code> script runs this through <code>daemon -u &lt;user&gt;</code>, so the launcher already executes as the service account — derive <code>HOME</code> from that account’s passwd entry rather than hardcoding <code>/home/&lt;user&gt;</code>, so accounts whose home is elsewhere (and <code>rc.conf</code> run-as overrides) keep working. Save as <code>/usr/local/libexec/zeroclaw-run.sh</code>:</p>
+<p><code>daemon(8)</code> starts the child with a minimal environment, so export a full <code>PATH</code> (FreeBSD puts <code>git</code>, <code>python3</code>, etc. under <code>/usr/local/bin</code>, which is <em>not</em> on the default service <code>PATH</code>). The <code>rc.d</code> script runs this through <code>daemon -u &lt;user&gt;</code>, which per <code>daemon(8)</code> sets <code>HOME</code>, <code>USER</code>, and <code>SHELL</code> from that account’s passwd entry before exec, so <code>${HOME}</code> is already the service account’s home (accounts whose home is elsewhere, and <code>rc.conf</code> run-as overrides, just work). Save as <code>/usr/local/libexec/zeroclaw-run.sh</code>:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
 <pre><code class="language-sh">#!/bin/sh
-: "${HOME:=$(eval echo ~)}"
-export HOME
+# daemon -u &lt;user&gt; has already set HOME from the account's passwd entry.
 export PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin:${HOME}/bin"
 exec /usr/local/bin/zeroclaw daemon --config-dir "${HOME}/.zeroclaw"
 </code></pre>
+</div>
+
+<div class="os-tabs-src">
+<h4 id="sh-6"><a class="header" href="#sh-6">sh</a></h4>
 <pre><code class="language-sh">doas install -m 755 zeroclaw-run.sh /usr/local/libexec/zeroclaw-run.sh
 </code></pre>
+</div>
+
 <h3 id="2-rcd-script"><a class="header" href="#2-rcd-script">2. <code>rc.d</code> script</a></h3>
 <p>Save as <code>/usr/local/etc/rc.d/zeroclaw</code>:</p>
+<div class="os-tabs-src">
+<h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
 <pre><code class="language-sh">#!/bin/sh
 #
 # PROVIDE: zeroclaw
@@ -331,39 +430,55 @@ zeroclaw_precmd()
 
 run_rc_command "$1"
 </code></pre>
+</div>
+
+<div class="os-tabs-src">
+<h4 id="sh-8"><a class="header" href="#sh-8">sh</a></h4>
 <pre><code class="language-sh">doas install -m 755 zeroclaw /usr/local/etc/rc.d/zeroclaw
 </code></pre>
+</div>
+
 <p>What the flags do:</p>
 <ul>
-<li><code>-r</code> — supervise and restart the child if it exits (crash recovery).</li>
-<li><code>-P ${pidfile}</code> — write the <em>supervisor’s</em> pid so <code>service zeroclaw stop</code> can signal it.</li>
-<li><code>-o ${logfile}</code> — redirect the child’s stdout/stderr to a logfile.</li>
-<li><code>-u ${zeroclaw_runas}</code> — run zeroclaw as an unprivileged user, not root.</li>
+<li><code>-r</code>: supervise and restart the child if it exits (crash recovery).</li>
+<li><code>-P ${pidfile}</code>: write the <em>supervisor’s</em> pid so <code>service zeroclaw stop</code> can signal it.</li>
+<li><code>-o ${logfile}</code>: redirect the child’s stdout/stderr to a logfile.</li>
+<li><code>-u ${zeroclaw_runas}</code>: run zeroclaw as an unprivileged user, not root.</li>
 </ul>
 <blockquote>
-<p><strong>Why <code>daemon -u</code> and not <code>su -m</code>.</strong> A common pattern is <code>daemon ... su -m user -c launcher</code>. Avoid it: <code>su(1)</code> does <strong>not</strong> forward <code>SIGTERM</code> to its child, so <code>service zeroclaw stop</code> kills the <code>daemon</code> supervisor but leaves an orphaned <code>zeroclaw</code> process behind — and the next <code>start</code> stacks a second copy. <code>daemon -u user</code> makes <code>daemon(8)</code> the direct parent of <code>zeroclaw</code>, so it forwards the stop signal and shuts down cleanly. (If you’re stuck with a <code>su</code>-based script for other reasons, add a <code>pkill -f "zeroclaw daemon"</code> sweep to its stop path.)</p>
+<p><strong>Why <code>daemon -u</code> and not <code>su -m</code>.</strong> A common pattern is <code>daemon ... su -m user -c launcher</code>. Avoid it: <code>su(1)</code> does <strong>not</strong> forward <code>SIGTERM</code> to its child, so <code>service zeroclaw stop</code> kills the <code>daemon</code> supervisor but leaves an orphaned <code>zeroclaw</code> process behind, and the next <code>start</code> stacks a second copy. <code>daemon -u user</code> makes <code>daemon(8)</code> the direct parent of <code>zeroclaw</code>, so it forwards the stop signal and shuts down cleanly. (If you’re stuck with a <code>su</code>-based script for other reasons, add a <code>pkill -f "zeroclaw daemon"</code> sweep to its stop path.)</p>
 </blockquote>
 <h3 id="3-enable-and-start"><a class="header" href="#3-enable-and-start">3. Enable and start</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-9"><a class="header" href="#sh-9">sh</a></h4>
 <pre><code class="language-sh">doas sysrc zeroclaw_enable=YES
 doas sysrc zeroclaw_runas=youruser     # the account that owns ~/.zeroclaw
 
 doas service zeroclaw start
 doas service zeroclaw status
 </code></pre>
+</div>
+
 <p><code>service zeroclaw stop</code> / <code>restart</code> work as expected. Because <code>zeroclaw_enable=YES</code> is in <code>/etc/rc.conf</code> (written by <code>sysrc</code>), the daemon also starts on boot.</p>
 <h3 id="4-hardening-for-unattended-and-remote-operation"><a class="header" href="#4-hardening-for-unattended-and-remote-operation">4. Hardening for unattended and remote operation</a></h3>
-<p>The script above is correct for an interactive, single-instance install. Three <code>daemon(8)</code> behaviours will surprise you the moment you drive the service remotely (over <code>ssh</code>) or run more than one copy. All three bit a production deployment; the fixes are small. A complete script folding in every fix below ships as <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/zeroclaw-hardened.rc</code></a> — install it in place of the basic <code>zeroclaw</code> script.</p>
-<p><strong>Remote <code>service ... start</code> hangs.</strong> <code>daemon -r</code> inherits and holds open whatever stdin/stdout/stderr it was launched with. Run <code>ssh host 'service zeroclaw start'</code> and the supervisor keeps your <code>ssh</code> session’s stdout fd open forever, so <code>ssh</code> never sees EOF and the command hangs even though the daemon started fine. Detach the supervisor’s own descriptors — <code>-o ${logfile}</code> already routes the <em>child’s</em> output, so nothing is lost:</p>
+<p>The script above is correct for an interactive, single-instance install. Three <code>daemon(8)</code> behaviours will surprise you the moment you drive the service remotely (over <code>ssh</code>) or run more than one copy. All three bit a production deployment; the fixes are small. A complete script folding in every fix below ships as <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/zeroclaw-hardened.rc</code></a>: install it in place of the basic <code>zeroclaw</code> script.</p>
+<p><strong>Remote <code>service ... start</code> hangs.</strong> <code>daemon -r</code> inherits and holds open whatever stdin/stdout/stderr it was launched with. Run <code>ssh host 'service zeroclaw start'</code> and the supervisor keeps your <code>ssh</code> session’s stdout fd open forever, so <code>ssh</code> never sees EOF and the command hangs even though the daemon started fine. Detach the supervisor’s own descriptors: <code>-o ${logfile}</code> already routes the <em>child’s</em> output, so nothing is lost:</p>
+<div class="os-tabs-src">
+<h4 id="sh-10"><a class="header" href="#sh-10">sh</a></h4>
 <pre><code class="language-sh">command_args="-r -P ${pidfile} -o ${logfile} -u ${zeroclaw_runas} ${launcher}"
 # ...invoke daemon with its own std{in,out,err} sent to /dev/null:
 /usr/sbin/daemon ${command_args} &lt;/dev/null &gt;/dev/null 2&gt;&amp;1
 </code></pre>
+</div>
+
 <p>If you use the stock <code>command</code>/<code>command_args</code> form, wrap the start in a custom <code>start_cmd</code> so you control the redirection. This one change is what makes <code>service zeroclaw start</code> safe to call from <code>ssh</code>, CI, or a config-management push.</p>
 <p><strong>Repeated <code>start</code> stacks orphan supervisors.</strong> A plain <code>start</code> does not check whether a supervisor is already running, so a second <code>start</code> (or a <code>start</code> after a crash that left a stale pidfile) launches another <code>daemon</code> that fights the first over the gateway port. Make <code>start</code> idempotent by refusing when a live supervisor already exists. Match the supervisor by the launcher path, <strong>not</strong> the pidfile alone (the pidfile can be stale). Two FreeBSD-specific traps when you do this:</p>
 <ul>
-<li><code>daemon(8)</code> <em>retitles its supervisor</em> to <code>daemon: /usr/local/libexec/zeroclaw-run.sh[&lt;childpid&gt;] (daemon)</code>. So <code>pgrep -f zeroclaw-run.sh</code> matches the supervisor, but a <code>pgrep -f</code> for the binary name does not. Bind on the literal <code>daemon:</code> prefix — that matches the supervisor and never the child, a hand-run of the launcher, or the rc shell itself. Bind the trailing <code>[</code> that opens daemon’s <code>[&lt;childpid&gt;]</code> too, so a sibling launcher whose name merely <em>starts with</em> <code>zeroclaw-run.sh</code> can’t match (this matters once you run a pool — see <a href="#4-hardening-for-unattended-and-remote-operation">Running a pool of instances</a> below).</li>
-<li>FreeBSD <code>pgrep -f</code> does <strong>not</strong> honour a leading <code>^</code> anchor against that retitle string — <code>pgrep -f '^daemon: ...'</code> matches nothing. Drop the <code>^</code>; rely on the <code>daemon:</code> prefix for specificity and escape the dot in <code>.sh</code> as <code>[.]</code> (and the bracket as <code>[[]</code>) so they are literal.</li>
+<li><code>daemon(8)</code> <em>retitles its supervisor</em> to <code>daemon: /usr/local/libexec/zeroclaw-run.sh[&lt;childpid&gt;] (daemon)</code>. So <code>pgrep -f zeroclaw-run.sh</code> matches the supervisor, but a <code>pgrep -f</code> for the binary name does not. Bind on the literal <code>daemon:</code> prefix: that matches the supervisor and never the child, a hand-run of the launcher, or the rc shell itself. Bind the trailing <code>[</code> that opens daemon’s <code>[&lt;childpid&gt;]</code> too, so a sibling launcher whose name merely <em>starts with</em> <code>zeroclaw-run.sh</code> can’t match (this matters once you run a pool, see <a href="#4-hardening-for-unattended-and-remote-operation">Running a pool of instances</a> below).</li>
+<li>FreeBSD <code>pgrep -f</code> does <strong>not</strong> honour a leading <code>^</code> anchor against that retitle string: <code>pgrep -f '^daemon: ...'</code> matches nothing. Drop the <code>^</code>; rely on the <code>daemon:</code> prefix for specificity and escape the dot in <code>.sh</code> as <code>[.]</code> (and the bracket as <code>[[]</code>) so they are literal.</li>
 </ul>
+<div class="os-tabs-src">
+<h4 id="sh-11"><a class="header" href="#sh-11">sh</a></h4>
 <pre><code class="language-sh">launcher_pat="daemon: /usr/local/libexec/zeroclaw-run[.]sh[[]"
 
 zeroclaw_running()
@@ -371,20 +486,28 @@ zeroclaw_running()
     pgrep -f "${launcher_pat}" &gt;/dev/null 2&gt;&amp;1
 }
 </code></pre>
-<p><strong><code>read</code> from a <code>daemon -P</code> pidfile reports a false negative.</strong> <code>daemon -P</code> writes the pid with <strong>no trailing newline</strong>, so <code>IFS= read -r pid &lt; "${pidfile}"</code> returns a <em>non-zero</em> status (EOF before newline) even though it set <code>pid</code> correctly. If you guard it as <code>read -r pid &lt; "$pf" || return 1</code>, every running instance looks stopped and your idempotent <code>start</code> happily launches a duplicate. Don’t key the success path on <code>read</code>’s exit status — validate the value instead:</p>
+</div>
+
+<p><strong><code>read</code> from a <code>daemon -P</code> pidfile reports a false negative.</strong> <code>daemon -P</code> writes the pid with <strong>no trailing newline</strong>, so <code>IFS= read -r pid &lt; "${pidfile}"</code> returns a <em>non-zero</em> status (EOF before newline) even though it set <code>pid</code> correctly. If you guard it as <code>read -r pid &lt; "$pf" || return 1</code>, every running instance looks stopped and your idempotent <code>start</code> happily launches a duplicate. Don’t key the success path on <code>read</code>’s exit status: validate the value instead:</p>
+<div class="os-tabs-src">
+<h4 id="sh-12"><a class="header" href="#sh-12">sh</a></h4>
 <pre><code class="language-sh">pid=""
 IFS= read -r pid &lt; "${pidfile}"     # do NOT `|| return 1` here
 case "${pid}" in
     ''|*[!0-9]*) return 1 ;;        # empty or non-numeric → treat as not running
 esac
 </code></pre>
-<p><strong>Running a pool of instances.</strong> To run N daemons (e.g. a worker pool), give each its own pidfile and logfile (<code>worker.$i.pid</code>, <code>worker.$i.log</code>) and loop the start/stop over <code>$i</code>. Because the supervisor retitle is identical for every instance and does not include per-instance arguments, the <strong>pidfile is the only per-instance handle</strong> — drive stop/status from the pidfile, and on a full stop sweep any leftover supervisor that no live pidfile points at (started by hand, or whose pidfile went stale).</p>
+</div>
+
+<p><strong>Running a pool of instances.</strong> To run N daemons (e.g. a worker pool), give each its own pidfile and logfile (<code>worker.$i.pid</code>, <code>worker.$i.log</code>) and loop the start/stop over <code>$i</code>. Because the supervisor retitle is identical for every instance and does not include per-instance arguments, the <strong>pidfile is the only per-instance handle</strong>: drive stop/status from the pidfile, and on a full stop sweep any leftover supervisor that no live pidfile points at (started by hand, or whose pidfile went stale).</p>
 <h2 id="running-in-a-jail"><a class="header" href="#running-in-a-jail">Running in a jail</a></h2>
-<p><a href="https://docs.freebsd.org/en/books/handbook/jails/">Jails</a> give ZeroClaw an isolated root with its own packages, service user, and optionally its own IP — useful if the host runs other services or you want to constrain the agent. <strong>The service setup is identical to the host case; you just run it <em>inside</em> the jail.</strong> This walks through a classic thick jail with base-system tooling (no jail manager required).</p>
+<p><a href="https://docs.freebsd.org/en/books/handbook/jails/">Jails</a> give ZeroClaw an isolated root with its own packages, service user, and optionally its own IP, useful if the host runs other services or you want to constrain the agent. <strong>The service setup is identical to the host case; you just run it <em>inside</em> the jail.</strong> This walks through a classic thick jail with base-system tooling (no jail manager required).</p>
 <blockquote>
-<p><strong>One-step option.</strong> <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/zeroclaw-jail-setup.sh</code></a> automates steps 1–3 below — it creates the jail, extracts a matching base, adds the <code>/etc/jail.conf</code> entry, starts the jail, and installs the launcher + hardened <code>rc.d</code> script inside it (<code>doas sh zeroclaw-jail-setup.sh</code>, with <code>JAIL_NAME</code> / <code>JAIL_PATH</code> / <code>ZPOOL</code> / <code>ZEROCLAW_USER</code> overridable via env). The manual walkthrough below explains what it does.</p>
+<p><strong>One-step option.</strong> <a href="https://github.com/zeroclaw-labs/zeroclaw/tree/master/dist/freebsd"><code>dist/freebsd/zeroclaw-jail-setup.sh</code></a> automates steps 1–3 below: it creates the jail, extracts a matching base, adds the <code>/etc/jail.conf</code> entry, starts the jail, and installs the launcher + hardened <code>rc.d</code> script inside it (<code>doas sh zeroclaw-jail-setup.sh</code>, with <code>JAIL_NAME</code> / <code>JAIL_PATH</code> / <code>ZPOOL</code> / <code>ZEROCLAW_USER</code> overridable via env). The manual walkthrough below explains what it does.</p>
 </blockquote>
 <h3 id="1-create-the-jail"><a class="header" href="#1-create-the-jail">1. Create the jail</a></h3>
+<div class="os-tabs-src">
+<h4 id="sh-13"><a class="header" href="#sh-13">sh</a></h4>
 <pre><code class="language-sh"># ZFS dataset for the jail (use a plain directory if you're on UFS).
 doas zfs create -o mountpoint=/jails/zeroclaw zroot/jails/zeroclaw   # adjust pool
 
@@ -394,6 +517,8 @@ doas fetch -o /tmp/base.txz \
 doas tar -xpf /tmp/base.txz -C /jails/zeroclaw
 doas cp /etc/resolv.conf /jails/zeroclaw/etc/
 </code></pre>
+</div>
+
 <h3 id="2-configure-and-start"><a class="header" href="#2-configure-and-start">2. Configure and start</a></h3>
 <p>Add a jail entry to <code>/etc/jail.conf</code> (host side). This example shares the host network; set <code>ip4.addr</code> instead if you give the jail a dedicated address.</p>
 <pre><code>zeroclaw {
@@ -406,86 +531,127 @@ doas cp /etc/resolv.conf /jails/zeroclaw/etc/
     persist;
 }
 </code></pre>
+<div class="os-tabs-src">
+<h4 id="sh-14"><a class="header" href="#sh-14">sh</a></h4>
 <pre><code class="language-sh">doas sysrc jail_enable=YES
 doas sysrc jail_list+=" zeroclaw"
 doas service jail start zeroclaw
 </code></pre>
+</div>
+
 <h3 id="3-install-zeroclaw-inside-the-jail"><a class="header" href="#3-install-zeroclaw-inside-the-jail">3. Install ZeroClaw inside the jail</a></h3>
-<p>Everything from the sections above runs <em>inside</em> the jail — prefix commands with <code>doas jexec zeroclaw …</code>, or open a shell with <code>doas jexec zeroclaw /bin/sh</code>:</p>
+<p>Everything from the sections above runs <em>inside</em> the jail: prefix commands with <code>doas jexec zeroclaw …</code>, or open a shell with <code>doas jexec zeroclaw /bin/sh</code>:</p>
+<div class="os-tabs-src">
+<h4 id="sh-15"><a class="header" href="#sh-15">sh</a></h4>
 <pre><code class="language-sh">doas jexec zeroclaw pkg install -y rust git     # or copy a binary built on the host
 # build + install zeroclaw to /usr/local/bin/zeroclaw exactly as above, then:
 doas jexec zeroclaw pw useradd zeroclaw -m -s /usr/sbin/nologin
 </code></pre>
+</div>
+
 <p>Install the launcher and <code>rc.d</code> script into the <strong>jail’s</strong> filesystem (from the host, the jail root is prefixed: <code>/jails/zeroclaw/usr/local/libexec/…</code> and <code>/jails/zeroclaw/usr/local/etc/rc.d/…</code>). Then enable and start the service <em>inside</em> the jail:</p>
+<div class="os-tabs-src">
+<h4 id="sh-16"><a class="header" href="#sh-16">sh</a></h4>
 <pre><code class="language-sh">doas jexec zeroclaw sysrc zeroclaw_enable=YES
 doas jexec zeroclaw service zeroclaw start
 doas jexec zeroclaw service zeroclaw status
 </code></pre>
+</div>
+
 <h3 id="jail-specific-notes"><a class="header" href="#jail-specific-notes">Jail-specific notes</a></h3>
 <ul>
 <li><strong>Edit jail files from the host with <code>tee</code>, not <code>cp /dev/stdin</code>.</strong> Pipe through <code>… | doas tee /jails/zeroclaw/usr/local/etc/rc.d/zeroclaw &gt;/dev/null</code>; <code>doas cp /dev/stdin …</code> can fail mid-copy with <code>cp: /dev/stdin: File changed</code>.</li>
-<li><strong>The gateway binds inside the jail.</strong> The daemon listens on loopback by default — to reach it from the host or LAN, launch zeroclaw with <code>--host 0.0.0.0</code> (edit <code>zeroclaw-run.sh</code>) and give the jail a reachable address, or proxy from the host.</li>
-<li><strong>Prefer the hardened <code>rc.d</code> script in a jail.</strong> You’ll typically drive <code>service</code> non-interactively via <code>jexec</code>/<code>ssh</code>, which is exactly where the basic script’s <code>start</code> hang and orphan-stacking bite — see <a href="#4-hardening-for-unattended-and-remote-operation">Hardening</a>. It also keeps <code>/var/run/zeroclaw</code> root-owned inside the jail so the unprivileged service user can’t forge the supervisor pidfile.</li>
+<li><strong>The gateway binds inside the jail.</strong> The daemon listens on loopback by default: to reach it from the host or LAN, launch zeroclaw with <code>--host 0.0.0.0</code> (edit <code>zeroclaw-run.sh</code>) and give the jail a reachable address, or proxy from the host.</li>
+<li><strong>Prefer the hardened <code>rc.d</code> script in a jail.</strong> You’ll typically drive <code>service</code> non-interactively via <code>jexec</code>/<code>ssh</code>, which is exactly where the basic script’s <code>start</code> hang and orphan-stacking bite: see <a href="#4-hardening-for-unattended-and-remote-operation">Hardening</a>. It also keeps <code>/var/run/zeroclaw</code> root-owned inside the jail so the unprivileged service user can’t forge the supervisor pidfile.</li>
 <li><strong>Running several daemons in one jail</strong> (e.g. a worker pool) follows the pool note in the hardening section: one pidfile/logfile per instance and a <code>pgrep</code> bound to the launcher retitle, since the jail shares one process table.</li>
 </ul>
 <h2 id="running-the-linux-image-under-podman--linuxulator"><a class="header" href="#running-the-linux-image-under-podman--linuxulator">Running the Linux image under Podman + Linuxulator</a></h2>
-<p>The native build above is the right path for ZeroClaw itself. But some Python-backed tools and skills depend on <strong>manylinux-only wheels</strong> — <code>polars</code>, <code>pyarrow</code>, and <code>oracledb</code>, for example, publish no FreeBSD wheels, so a tool that imports them can’t run under the native FreeBSD <code>python3</code>. FreeBSD’s <a href="https://docs.freebsd.org/en/books/handbook/linuxemu/">Linuxulator</a> (Linux binary-compatibility layer) plus Podman lets you run the <strong>official Linux container image</strong> on a FreeBSD host, giving those tools the Linux ABI they expect. This complements the native <code>rc.d</code> daemon — you can run either, or both side by side.</p>
+<p>The native build above is the right path for ZeroClaw itself. But some Python-backed tools and skills depend on <strong>manylinux-only wheels</strong>: <code>polars</code>, <code>pyarrow</code>, and <code>oracledb</code>, for example, publish no FreeBSD wheels, so a tool that imports them can’t run under the native FreeBSD <code>python3</code>. FreeBSD’s <a href="https://docs.freebsd.org/en/books/handbook/linuxemu/">Linuxulator</a> (Linux binary-compatibility layer) plus Podman lets you run the <strong>official Linux container image</strong> on a FreeBSD host, giving those tools the Linux ABI they expect. This complements the native <code>rc.d</code> daemon: you can run either, or both side by side.</p>
 <h3 id="1-prerequisites"><a class="header" href="#1-prerequisites">1. Prerequisites</a></h3>
-<p>Load the Linuxulator modules and confirm they report a Linux release:</p>
-<pre><code class="language-sh">doas kldload linux linux64
-sysctl compat.linux.osrelease        # e.g. compat.linux.osrelease: 5.15.0
+<p>Enable the Linux ABI and confirm it reports a Linux release:</p>
+<div class="os-tabs-src">
+<h4 id="sh-17"><a class="header" href="#sh-17">sh</a></h4>
+<pre><code class="language-sh">doas sysrc linux_enable="YES"
+doas service linux start              # loads the modules and mounts /compat/linux
+sysctl compat.linux.osrelease         # e.g. compat.linux.osrelease: 5.15.0
 </code></pre>
-<p>To load them on boot, add <code>linux_enable="YES"</code> to <code>/etc/rc.conf</code>. Then install Podman:</p>
+</div>
+
+<p><code>linux_enable="YES"</code> in <code>/etc/rc.conf</code> also loads the ABI on boot. Then install Podman:</p>
+<div class="os-tabs-src">
+<h4 id="sh-18"><a class="header" href="#sh-18">sh</a></h4>
 <pre><code class="language-sh">doas pkg install -y podman
 </code></pre>
-<h3 id="2-pull-the-image--force-the-linux-platform"><a class="header" href="#2-pull-the-image--force-the-linux-platform">2. Pull the image — force the Linux platform</a></h3>
+</div>
+
+<h3 id="2-pull-the-image-force-the-linux-platform"><a class="header" href="#2-pull-the-image-force-the-linux-platform">2. Pull the image: force the Linux platform</a></h3>
 <p>FreeBSD Podman defaults to <code>os=freebsd</code> when resolving a manifest list. ZeroClaw’s images are published only for <code>linux/amd64</code> and <code>linux/arm64</code>, so a plain <code>podman pull</code> fails with <code>no image found in manifest list for architecture ..., OS freebsd</code>. Force the Linux platform explicitly:</p>
+<div class="os-tabs-src">
+<h4 id="sh-19"><a class="header" href="#sh-19">sh</a></h4>
 <pre><code class="language-sh">doas podman pull --os linux --arch amd64 ghcr.io/zeroclaw-labs/zeroclaw:debian
 </code></pre>
+</div>
+
 <blockquote>
 <p>Use the <code>debian</code> tag rather than <code>latest</code>: the distroless <code>latest</code> image has no shell, which makes it awkward to debug under emulation. See <a href="./container.html">Docker &amp; Containers</a> for the full image list.</p>
 </blockquote>
 <h3 id="3-run-the-container"><a class="header" href="#3-run-the-container">3. Run the container</a></h3>
-<p>The Linux image behaves exactly as documented in <a href="./container.html">Docker &amp; Containers</a> — it expects persistent state at <code>/zeroclaw-data</code> and bootstraps a config on first run:</p>
+<p>The Linux image behaves exactly as documented in <a href="./container.html">Docker &amp; Containers</a>, it expects persistent state at <code>/zeroclaw-data</code> and bootstraps a config on first run:</p>
+<div class="os-tabs-src">
+<h4 id="sh-20"><a class="header" href="#sh-20">sh</a></h4>
 <pre><code class="language-sh">doas podman run -d --name zeroclaw --restart=always \
     --os linux --arch amd64 \
     -p 42617:42617 \
     -v /var/db/zeroclaw:/zeroclaw-data \
     ghcr.io/zeroclaw-labs/zeroclaw:debian
 
-doas podman exec -it zeroclaw zeroclaw onboard
+doas podman exec -it zeroclaw zeroclaw quickstart
 </code></pre>
+</div>
+
 <p>Keep the <code>--os linux --arch amd64</code> flags on every <code>run</code> (not just <code>pull</code>) so Podman doesn’t re-resolve to the FreeBSD default.</p>
 <h3 id="linuxulator-notes"><a class="header" href="#linuxulator-notes">Linuxulator notes</a></h3>
 <ul>
 <li><strong>Boot persistence.</strong> Podman’s own <code>--restart=always</code> only restarts the container within a running Podman; it won’t survive a host reboot on its own. Supervise the <code>podman start</code> from an <code>rc.d</code> script (same pattern as the <a href="#running-as-a-service-rcd">native service</a>) or a <code>@reboot</code> cron entry so the container comes back after the host restarts.</li>
-<li><strong>Networking.</strong> <code>-p 42617:42617</code> publishes the gateway through Podman’s bridge. If the bridge/CNI setup isn’t configured on your host, <code>--network host</code> is the simplest alternative — the container then shares the host’s network stack directly.</li>
+<li><strong>Networking.</strong> <code>-p 42617:42617</code> publishes the gateway through Podman’s bridge. If the bridge/CNI setup isn’t configured on your host, <code>--network host</code> is the simplest alternative: the container then shares the host’s network stack directly.</li>
 <li><strong>Not everything emulates cleanly.</strong> Linuxulator covers the common syscall surface, but exotic binaries may hit unimplemented calls. If a tool misbehaves, check <code>dmesg</code> for <code>linux:</code> warnings before assuming a ZeroClaw bug.</li>
 </ul>
 <h2 id="日志"><a class="header" href="#日志">日志</a></h2>
+<div class="os-tabs-src">
+<h4 id="sh-21"><a class="header" href="#sh-21">sh</a></h4>
 <pre><code class="language-sh">tail -f /var/log/zeroclaw.log
 </code></pre>
-<p>Set the log level via the standard config / env knobs — see <a href="../ops/observability.html">Operations → Logs &amp; observability</a>.</p>
+</div>
+
+<p>Set the log level via the standard config / env knobs: see <a href="../ops/observability.html">Operations → Logs &amp; observability</a>.</p>
 <h2 id="验证"><a class="header" href="#验证">验证</a></h2>
+<div class="os-tabs-src">
+<h4 id="sh-22"><a class="header" href="#sh-22">sh</a></h4>
 <pre><code class="language-sh">zeroclaw --version
 service zeroclaw status
 # if the daemon exposes the local gateway (default 127.0.0.1:42617):
 fetch -qo - http://127.0.0.1:42617/health
 </code></pre>
-<p>A <code>"status":"ok"</code> health payload means the gateway, daemon, and channels came up.</p>
+</div>
+
+<p>A <code>"status":"ok"</code> health payload means the gateway is up; the response’s <code>runtime</code> field carries the per-component health (channels, providers, and so on).</p>
 <h2 id="卸载"><a class="header" href="#卸载">卸载</a></h2>
+<div class="os-tabs-src">
+<h4 id="sh-23"><a class="header" href="#sh-23">sh</a></h4>
 <pre><code class="language-sh">doas service zeroclaw stop
 doas sysrc -x zeroclaw_enable
 doas rm /usr/local/etc/rc.d/zeroclaw /usr/local/libexec/zeroclaw-run.sh
 doas rm /usr/local/bin/zeroclaw
 rm -rf ~/.zeroclaw        # optional — deletes config + history
 </code></pre>
+</div>
+
 <h2 id="下一个"><a class="header" href="#下一个">下一个</a></h2>
 <ul>
-<li><a href="./service.html">Service management</a> — how the first-party backends work on other platforms</li>
-<li><a href="../reference/config.html">Reference → Config</a> — config file layout</li>
-<li><a href="../getting-started/quick-start.html">Quick start</a> — first conversation</li>
-<li><a href="../ops/overview.html">操作 → 概览</a> — 在生产环境中运行</li>
+<li><a href="./service.html">Service management</a>: how the first-party backends work on other platforms</li>
+<li><a href="../reference/config.html">Reference → Config</a>: config file layout</li>
+<li><a href="../getting-started/quickstart.html">Quickstart</a>: first conversation</li>
+<li><a href="../ops/overview.html">Operations → Overview</a>: running in production</li>
 </ul>
 
                     </main>
@@ -496,7 +662,7 @@ rm -rf ~/.zeroclaw        # optional — deletes config + history
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../setup/container.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../setup/nixos.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -510,7 +676,7 @@ rm -rf ~/.zeroclaw        # optional — deletes config + history
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../setup/container.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../setup/nixos.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

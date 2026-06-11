@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,19 +295,241 @@
                         <h1 id="webhooks"><a class="header" href="#webhooks">Webhooks</a></h1>
 <p>The <code>webhook</code> channel is a generic inbound/outbound HTTP adapter. It runs its own embedded HTTP server on a port you choose, accepts JSON-shaped messages, hands them to the agent, and (optionally) POSTs the agent’s replies to a URL you specify. Use it as the universal adapter for any system that can produce an HTTP POST.</p>
 <blockquote>
-<p><strong>Not the same as the gateway’s <code>/webhook</code> endpoint.</strong> The gateway service has its own <code>POST /webhook</code> for paired clients hitting the agent over HTTP — that lives under <code>[gateway]</code> and is described in <a href="../ops/network-deployment.html">Operations → Network deployment</a>. This page documents the <code>[channels.webhook]</code> channel only.</p>
+<p><strong>Not the same as the gateway’s <code>/webhook</code> endpoint.</strong> The gateway service has its own <code>POST /webhook</code> for paired clients hitting the agent over HTTP, that lives under <code>[gateway]</code> and is described in <a href="../ops/network-deployment.html">Operations → Network deployment</a>. This page documents the <code>[channels.webhook]</code> channel only.</p>
 </blockquote>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<pre><code class="language-toml">[channels.webhook]
-enabled = true
-port = 8090                                     # TCP port the channel binds (0.0.0.0:{port})
-listen_path = "/webhook"                        # path the embedded server listens on; default "/webhook"
-send_url = "https://example.com/callback"       # optional outbound URL for agent replies
-send_method = "POST"                            # "POST" (default) or "PUT"
-auth_header = "Bearer s3cret"                   # optional Authorization header value for outbound requests
-secret = "..."                                  # optional shared secret for inbound HMAC-SHA256 verification
+<div class="cfg-fields">
+<details class="cfg-field">
+<summary><code>auth_header</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>null</code></span></summary>
+<p>Optional <code>Authorization</code> header value for outbound requests.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.auth_header</code> field.</p>
+<h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.auth_header</code> field.</p>
+<h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.auth_header    # masked input, stored encrypted
 </code></pre>
-<p>Full field reference: <a href="../reference/config.html#channelswebhook">Config</a>.</p>
+<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__auth_header=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>excluded_tools</code> <span class="cfg-field-meta"><code>string[]</code> · default <code>[]</code></span></summary>
+<p>Tools excluded from this channel’s tool spec. When set, these tools are not exposed to the model when responding via this channel.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.excluded_tools</code> field.</p>
+<h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.excluded_tools &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__excluded_tools=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>listen_path</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>URL path to listen on (default: <code>/webhook</code>).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.listen_path</code> field.</p>
+<h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.listen_path</code> field.</p>
+<h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.listen_path &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__listen_path=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>max_retries</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>null</code></span></summary>
+<p>Maximum number of retry attempts for outbound sends on transient failures (network errors, 429, 5xx). Set to <code>0</code> to disable retries. Default: <code>3</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-3"><a class="header" href="#gateway-dashboard-3">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.max_retries</code> field.</p>
+<h4 id="zerocode-3"><a class="header" href="#zerocode-3">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.max_retries</code> field.</p>
+<h4 id="zeroclaw-config-3"><a class="header" href="#zeroclaw-config-3">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.max_retries &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-3"><a class="header" href="#environment-variable-3">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__max_retries=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>port</code> <span class="cfg-field-meta"><code>integer</code> · default <code>8090</code></span></summary>
+<p>Port to listen on for incoming webhooks.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-4"><a class="header" href="#gateway-dashboard-4">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.port</code> field.</p>
+<h4 id="zerocode-4"><a class="header" href="#zerocode-4">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.port</code> field.</p>
+<h4 id="zeroclaw-config-4"><a class="header" href="#zeroclaw-config-4">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.port &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-4"><a class="header" href="#environment-variable-4">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__port=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_min_interval_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing floor in seconds. Range: <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code> (0 disables).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-5"><a class="header" href="#gateway-dashboard-5">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zerocode-5"><a class="header" href="#zerocode-5">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.reply_min_interval_secs</code> field.</p>
+<h4 id="zeroclaw-config-5"><a class="header" href="#zeroclaw-config-5">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.reply_min_interval_secs &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-5"><a class="header" href="#environment-variable-5">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__reply_min_interval_secs=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>reply_queue_depth_max</code> <span class="cfg-field-meta"><code>integer</code> · default <code>0</code></span></summary>
+<p>Per-(channel, recipient) outbound pacing queue depth. Range: <code>0..=REPLY_QUEUE_DEPTH_CEILING</code>. When <code>reply_min_interval_secs &gt; 0</code> and this value is <code>0</code>, the pacing wrapper substitutes <code>DEFAULT_REPLY_QUEUE_DEPTH</code> (16). When the queue is full, the newest send is dropped and a <code>WARN</code> is logged.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-6"><a class="header" href="#gateway-dashboard-6">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zerocode-6"><a class="header" href="#zerocode-6">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.reply_queue_depth_max</code> field.</p>
+<h4 id="zeroclaw-config-6"><a class="header" href="#zeroclaw-config-6">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.reply_queue_depth_max &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-6"><a class="header" href="#environment-variable-6">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__reply_queue_depth_max=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>retry_base_delay_ms</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>null</code></span></summary>
+<p>Base delay in milliseconds for exponential backoff between retries. Default: <code>500</code>. Values below <code>1</code> are clamped to <code>1ms</code> at runtime to avoid busy-retry loops.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-7"><a class="header" href="#gateway-dashboard-7">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.retry_base_delay_ms</code> field.</p>
+<h4 id="zerocode-7"><a class="header" href="#zerocode-7">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.retry_base_delay_ms</code> field.</p>
+<h4 id="zeroclaw-config-7"><a class="header" href="#zeroclaw-config-7">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.retry_base_delay_ms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-7"><a class="header" href="#environment-variable-7">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__retry_base_delay_ms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>retry_max_delay_ms</code> <span class="cfg-field-meta"><code>integer?</code> · default <code>null</code></span></summary>
+<p>Maximum delay cap in milliseconds for any single retry wait. Default: <code>30000</code> (30s). Values below <code>1</code> are clamped to <code>1ms</code> at runtime to avoid busy-retry loops.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-8"><a class="header" href="#gateway-dashboard-8">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.retry_max_delay_ms</code> field.</p>
+<h4 id="zerocode-8"><a class="header" href="#zerocode-8">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.retry_max_delay_ms</code> field.</p>
+<h4 id="zeroclaw-config-8"><a class="header" href="#zeroclaw-config-8">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.retry_max_delay_ms &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-8"><a class="header" href="#environment-variable-8">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__retry_max_delay_ms=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>secret</code> 🔑 <span class="cfg-field-meta"><code>secret</code> · default <code>—</code></span></summary>
+<p>Optional shared secret for webhook signature verification (HMAC-SHA256).</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-9"><a class="header" href="#gateway-dashboard-9">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.secret</code> field.</p>
+<h4 id="zerocode-9"><a class="header" href="#zerocode-9">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.secret</code> field.</p>
+<h4 id="zeroclaw-config-9"><a class="header" href="#zeroclaw-config-9">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.secret    # masked input, stored encrypted
+</code></pre>
+<h4 id="environment-variable-9"><a class="header" href="#environment-variable-9">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__secret=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>send_method</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>HTTP method for outbound messages (<code>POST</code> or <code>PUT</code>). Default: <code>POST</code>.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-10"><a class="header" href="#gateway-dashboard-10">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.send_method</code> field.</p>
+<h4 id="zerocode-10"><a class="header" href="#zerocode-10">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.send_method</code> field.</p>
+<h4 id="zeroclaw-config-10"><a class="header" href="#zeroclaw-config-10">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.send_method &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-10"><a class="header" href="#environment-variable-10">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__send_method=
+</code></pre>
+</div>
+
+</details>
+<details class="cfg-field">
+<summary><code>send_url</code> <span class="cfg-field-meta"><code>string?</code> · default <code>null</code></span></summary>
+<p>URL to POST/PUT outbound messages to.</p>
+<p><strong>Set it on any surface:</strong></p>
+<div class="os-tabs-src">
+<h4 id="gateway-dashboard-11"><a class="header" href="#gateway-dashboard-11">Gateway dashboard</a></h4>
+<p>Open <a href="http://127.0.0.1:42617/config/channels/webhook"><code>/config/channels/webhook</code></a> and set the <code>channels.webhook.&lt;alias&gt;.send_url</code> field.</p>
+<h4 id="zerocode-11"><a class="header" href="#zerocode-11">zerocode</a></h4>
+<p>In the <strong>Config</strong> pane, set the <code>channels.webhook.&lt;alias&gt;.send_url</code> field.</p>
+<h4 id="zeroclaw-config-11"><a class="header" href="#zeroclaw-config-11">zeroclaw config</a></h4>
+<pre><code class="language-sh">zeroclaw config set channels.webhook.&lt;alias&gt;.send_url &lt;value&gt;
+</code></pre>
+<h4 id="environment-variable-11"><a class="header" href="#environment-variable-11">Environment variable</a></h4>
+<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<pre><code class="language-sh">export ZEROCLAW_channels__webhook__&lt;alias&gt;__send_url=
+</code></pre>
+</div>
+
+</details>
+</div>
+
+<p>Full field reference: <a href="../reference/config.html#channels">config reference</a>.</p>
 <h2 id="inbound"><a class="header" href="#inbound">Inbound</a></h2>
 <p>The channel binds <code>0.0.0.0:{port}</code> and routes <code>POST {listen_path}</code>.</p>
 <p>Request body (JSON):</p>
@@ -242,9 +540,9 @@ secret = "..."                                  # optional shared secret for inb
 }
 </code></pre>
 <ul>
-<li><code>sender</code> — required, used as the message’s sender identity.</li>
-<li><code>content</code> — required, the user message handed to the agent. Empty content returns <code>400</code>.</li>
-<li><code>thread_id</code> — optional. If set, the agent’s reply targets the same thread; otherwise replies target <code>sender</code>.</li>
+<li><code>sender</code>: required, used as the message’s sender identity.</li>
+<li><code>content</code>: required, the user message handed to the agent. Empty content returns <code>400</code>.</li>
+<li><code>thread_id</code>: optional. If set, the agent’s reply targets the same thread; otherwise replies target <code>sender</code>.</li>
 </ul>
 <p>Success returns <code>200 OK</code>. Malformed JSON or empty <code>content</code> returns <code>400</code>. Backpressure (channel queue full) returns <code>503</code>.</p>
 <h2 id="signature-verification"><a class="header" href="#signature-verification">Signature verification</a></h2>
@@ -252,7 +550,7 @@ secret = "..."                                  # optional shared secret for inb
 <pre><code>X-Webhook-Signature: sha256=&lt;hex-encoded HMAC-SHA256 of the raw body&gt;
 </code></pre>
 <p>The channel computes <code>HMAC-SHA256(secret, raw_body)</code>, hex-encodes it, and compares against the header value (the <code>sha256=</code> prefix is stripped before decode). Mismatch or missing header returns <code>401</code>.</p>
-<p>When <code>secret</code> is unset, <strong>no verification runs</strong> — every request is accepted. Don’t expose an unsecured webhook channel to the public internet; either set <code>secret</code>, restrict access at a reverse proxy, or run the listener bound to a private network only.</p>
+<p>When <code>secret</code> is unset, <strong>no verification runs</strong>: every request is accepted. Don’t expose an unsecured webhook channel to the public internet; either set <code>secret</code>, restrict access at a reverse proxy, or run the listener bound to a private network only.</p>
 <h2 id="outbound"><a class="header" href="#outbound">Outbound</a></h2>
 <p>When <code>send_url</code> is set, every agent reply is delivered as an HTTP request to that URL:</p>
 <pre><code>{send_method} {send_url}
@@ -267,7 +565,7 @@ Content-Type: application/json
 </code></pre>
 <ul>
 <li><code>send_method</code> is <code>POST</code> (default) or <code>PUT</code>. Any other value falls back to <code>POST</code>.</li>
-<li><code>auth_header</code> is sent verbatim as the <code>Authorization</code> header value — include the scheme yourself (e.g. <code>Bearer xyz</code>, <code>Basic dXNlcjpwYXNz</code>).</li>
+<li><code>auth_header</code> is sent verbatim as the <code>Authorization</code> header value, include the scheme yourself (e.g. <code>Bearer xyz</code>, <code>Basic dXNlcjpwYXNz</code>).</li>
 <li><code>recipient</code> is omitted when empty.</li>
 <li>Non-2xx responses raise an error in logs; the agent reply is considered failed.</li>
 </ul>
@@ -275,32 +573,16 @@ Content-Type: application/json
 <h2 id="public-exposure"><a class="header" href="#public-exposure">Public exposure</a></h2>
 <p>The channel binds to <code>0.0.0.0</code> directly. To expose it on the public internet:</p>
 <ol>
-<li><strong>Reverse proxy</strong> — terminate TLS at nginx / Caddy / Traefik and proxy to the channel’s port. See <a href="../ops/network-deployment.html">Operations → Network deployment</a>.</li>
-<li><strong>Tunnel</strong> — configure <code>[tunnel]</code> (<code>ngrok</code>, <code>cloudflare</code>, or <code>tailscale</code>) and the daemon brings up the tunnel alongside the channel.</li>
-<li><strong>Local-only</strong> — run inside a private network and have your producer hit the LAN/loopback address directly.</li>
+<li><strong>Reverse proxy</strong>: terminate TLS at nginx / Caddy / Traefik and proxy to the channel’s port. See <a href="../ops/network-deployment.html">Operations → Network deployment</a>.</li>
+<li><strong>Tunnel</strong>: configure <code>[tunnel]</code> (<code>ngrok</code>, <code>cloudflare</code>, or <code>tailscale</code>) and the daemon brings up the tunnel alongside the channel.</li>
+<li><strong>Local-only</strong>: run inside a private network and have your producer hit the LAN/loopback address directly.</li>
 </ol>
 <p>Always pair public exposure with <code>secret</code>. An unauthenticated webhook listener is an open ingress to the agent.</p>
-<h2 id="outbound-sends"><a class="header" href="#outbound-sends">Outbound sends</a></h2>
-<p>Webhook channels can also POST/PUT <em>outbound</em> messages to a configured <code>send_url</code> — used when the agent replies through the channel rather than only receiving inbound events. Outbound delivery is configured under the singular <code>[channels.webhook]</code> prefix (a separate schema surface from the inbound <code>[channels.webhooks.&lt;name&gt;]</code> blocks above; reconciling that shape difference in this page is tracked separately):</p>
-<pre><code class="language-toml">[channels.webhook]
-send_url = "https://example.com/callback"
-send_method = "POST"        # or "PUT"; default: "POST"
-auth_header = "Bearer ..."  # optional Authorization header
-
-# Retry tunables (all optional):
-max_retries = 3             # default: 3; set to 0 to disable retries
-retry_base_delay_ms = 500   # exponential-backoff base; default: 500
-retry_max_delay_ms = 30000  # per-wait cap; default: 30000 (30s)
-</code></pre>
-<p>Outbound sends retry transient failures — network errors, HTTP <code>429</code>, and HTTP <code>5xx</code> — with exponential backoff (±25% jitter) capped by <code>retry_max_delay_ms</code>. Non-<code>429</code> <code>4xx</code> responses fail immediately without retrying. When the server returns a <code>Retry-After</code> header on <code>429</code> or <code>503</code>, that value is honored and also clamped by <code>retry_max_delay_ms</code>. Setting <code>max_retries = 0</code> preserves the prior fire-and-forget behavior byte-for-byte.</p>
-<h2 id="code"><a class="header" href="#code">Code</a></h2>
-<ul>
-<li>Channel: <code>crates/zeroclaw-channels/src/webhook.rs</code></li>
-<li>Config: <code>crates/zeroclaw-config/src/schema.rs</code> (<code>WebhookConfig</code>)</li>
-</ul>
+<h2 id="outbound-retries"><a class="header" href="#outbound-retries">Outbound retries</a></h2>
+<p>When <code>send_url</code> is set, outbound delivery retries transient failures, network errors, HTTP <code>429</code>, and HTTP <code>5xx</code>, with exponential backoff (±25% jitter) capped by <code>retry_max_delay_ms</code>. Non-<code>429</code> <code>4xx</code> responses fail immediately without retrying. When the server returns a <code>Retry-After</code> header on <code>429</code> or <code>503</code>, that value is honored and also clamped by <code>retry_max_delay_ms</code>. Setting <code>max_retries = 0</code> is fire-and-forget.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li><a href="../ops/network-deployment.html">Operations → Network deployment</a> — TLS termination, tunnels, the gateway’s separate <code>/webhook</code></li>
+<li><a href="../ops/network-deployment.html">Operations → Network deployment</a>: TLS termination, tunnels, the gateway’s separate <code>/webhook</code></li>
 <li><a href="./overview.html">Channels → Overview</a></li>
 </ul>
 

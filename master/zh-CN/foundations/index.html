@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -216,16 +292,15 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="零爪成熟度框架"><a class="header" href="#零爪成熟度框架">零爪成熟度框架</a></h1>
+                        <h1 id="zeroclaw-maturity-framework"><a class="header" href="#zeroclaw-maturity-framework">ZeroClaw Maturity Framework</a></h1>
 <p><em>致发现此信的人。</em></p>
 <hr>
-<p>如果你正在阅读这段文字，说明你已找到我们团队真正引以为豪的文件夹——并非因为这里的文档完美无缺，而是因为它们真实可信。</p>
+<p>If you are reading this, you have found your way into a folder that represents something this team is genuinely proud of, not because the documents here are perfect, but because they are honest.</p>
 <p>ZeroClaw 最初是偶然诞生的。它从一个现有的代码库中引导而来，由 AI 工具塑造，其速度之快远超任何人的理解能力，最终成长为一个功能强大但架构上缺乏规划的代码库。没有人刻意选择这样的结果，它是逐渐积累而成的。大多数软件都是如此。</p>
-<p>接下来发生的事情较为少见。一个小型团队——其中许多人是学生、初级工程师，以及首次公开学习的人——选择停下来，清晰地审视他们构建的内容，然后决定以不同的方式继续构建。他们并没有抛弃之前的工作，而是围绕它增强了意图性。这些文档正是这一选择的记录。</p>
-<p>该系列被称为“成熟度框架”（Maturity Framework），因为它正是如此：一套基础文档，描述了本团队如何共同构建软件。它不是需要遵循的规则，而是需要内化的思维；不是需要遵守的流程，而是一套伴随你前行的心智模型——无论你加入何种语言、使用何种工具、身处哪个团队，它都适用，因为它关乎技艺、判断与用心，而非任何特定技术。</p>
-<p>这些内容是为一个经验背景各异的团队编写的。其中一些人拥有数十年的专业实践经验，而另一些人则是在编写他们的第一个生产级代码。他们都在一个关键时期工作：AI 工具正变得足够强大，足以改变技术的可能性边界，同时，如何与这些工具高效协作的问题也尚未有定论。这些内容出自那些坚信“投资于人比投资于代码更有价值”的人之手，因为人能够将所学持续传承下去，而代码则不能。</p>
+<p>What happened next is less common. A small team, many of them students, early-career engineers, and people learning in public for the first time, chose to stop and look clearly at what they had built, and then chose to build differently. Not by throwing away the work that came before, but by growing intention around it. These documents are the record of that choice.</p>
+<p>The series is called the Maturity Framework because that is exactly what it is: a set of foundational documents that describe how this team thinks about building software together. Not rules to follow, but thinking to internalize. Not a process to comply with, but a set of mental models that travel with you, through every language, every tool, every team you will ever join, because they are about craft and judgment and care, not about any specific technology.</p>
+<p>They were written for a team of people with a wide range of experience. Some brought decades of professional practice. Some were writing their first production code. All of them were working at a moment when AI tools were becoming powerful enough to change what was possible, and when the question of how to work well alongside those tools was genuinely open. They were written by people who believed that investing in people was a better investment than investing in code, because people carry what they learn forward, and code does not.</p>
 <hr>
-<h2 id="阅读顺序"><a class="header" href="#阅读顺序">阅读顺序</a></h2>
 <p>如果可能的话，请按顺序阅读这些文档。每份文档都建立在前面的文档基础之上，整个序列讲述了一个完整的故事。你可以从任何地方开始阅读并学到有用的知识，但从头开始阅读能让你完整地理解整个脉络：从架构的形状，到如何记录、协调、发布和协作，再到如何在句子层面写出优秀的代码。</p>
 <p>如果你正在尝试确定哪个基础适用于特定的更改，请从<a href="../contributing/architecture-map.html">架构与贡献地图</a>开始。</p>
 <div class="table-wrapper">
@@ -234,28 +309,26 @@
 <tr><th>#</th><th>文档</th><th>它回答的问题</th><th>讨论线程</th></tr>
 </thead>
 <tbody>
-<tr><td>1</td><td><a href="./fnd-001-intentional-architecture.html">有意架构 — 微内核过渡</a></td><td>我们要构建什么，它应该是什么形状？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5574">#5574</a></td></tr>
+<tr><td>1</td><td><a href="./fnd-001-intentional-architecture.html">Intentional Architecture: Microkernel Transition</a></td><td>我们要构建什么，它应该是什么形状？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5574">#5574</a></td></tr>
 <tr><td>2</td><td><a href="./fnd-002-documentation-standards.html">文档标准与知识架构</a></td><td>我们如何记录和传递我们所知道的知识？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5576">#5576</a></td></tr>
 <tr><td>3</td><td><a href="./fnd-003-governance.html">团队组织与项目治理</a></td><td>我们如何协调并共同做出决策？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5577">#5577</a></td></tr>
-<tr><td>4</td><td><a href="./fnd-004-engineering-infrastructure.html">工程基础设施 — CI/CD 流水线</a></td><td>我们如何可靠地构建、测试和发布？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5579">#5579</a></td></tr>
-<tr><td>5</td><td><a href="./fnd-005-contribution-culture.html">贡献文化 — 人类协作与 AI 伙伴关系</a></td><td>我们如何协作并共同成长？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5615">#5615</a></td></tr>
-<tr><td>6</td><td><a href="./fnd-006-zero-compromise-in-practice.html">实践中的零妥协——代码健康、错误纪律与生产就绪标准</a></td><td>如何编写持久化的代码？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5653">#5653</a></td></tr>
+<tr><td>4</td><td><a href="./fnd-004-engineering-infrastructure.html">Engineering Infrastructure: CI/CD Pipeline</a></td><td>我们如何可靠地构建、测试和发布？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5579">#5579</a></td></tr>
+<tr><td>5</td><td><a href="./fnd-005-contribution-culture.html">Contribution Culture: Human Collaboration and AI Partnership</a></td><td>我们如何协作并共同成长？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5615">#5615</a></td></tr>
+<tr><td>6</td><td><a href="./fnd-006-zero-compromise-in-practice.html">Zero Compromise in Practice: Code Health, Error Discipline, and the Production Readiness Standard</a></td><td>如何编写持久化的代码？</td><td><a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5653">#5653</a></td></tr>
 </tbody>
 </table>
 </div>
-<p>前五个文档回答了结构和人员方面的问题。第六个文档回答了所有文档中共同存在的问题：在给定结构、团队和工具的情况下，如何写出高质量的代码？</p>
+<p>The first five documents answer structural and human questions. The sixth answers the question that sits inside all of them: given the structure, given the team, given the tools: what does it mean to write the code well?</p>
 <hr>
-<h2 id="这些文档是如何到达这里的"><a class="header" href="#这些文档是如何到达这里的">这些文档是如何到达这里的</a></h2>
-<p>本系列中的每份文档最初都是作为 GitHub 上的一个问题（RFC）发起的，面向整个团队开放讨论、挑战和完善。上面链接的讨论线程是该过程的生动记录：提出的问题、提出的反对意见，以及塑造最终形式的思考过程。</p>
-<p>本文件夹中的文件是经过正式确认的版本——即团队讨论过、认可并决定作为权威参考文档继续推进的文档。它们存在于本仓库中，并与代码一同进行版本管理，因为这些文档所体现的设计思路影响着仓库内的每一项决策。无论是阅读此代码库的 AI 助手、正在熟悉项目的新贡献者，还是回顾两年前所做决策的维护者，都应能够清晰地追溯代码背后的设计思路。</p>
-<p>GitHub 上的问题（issues）将作为永久性的讨论记录保留。如果您有疑问、异议或这些文档未能涵盖的观点，最合适的地方是这些讨论线程之一——或者，如果您是在这些对话结束后很久才阅读此内容，可以在社区中发起新的讨论。这些文档是参考材料，而非最终裁决。它们所开启的对话应当继续下去。</p>
+<p>Each document in this series began as a GitHub issue, an RFC, open for discussion, challenge, and refinement by the whole team. The linked discussion threads above are the living record of that process: the questions asked, the pushback offered, and the thinking that shaped the final form.</p>
+<p>The files in this folder are the ratified versions, documents the team discussed, stood behind, and chose to carry forward as canonical references. They live in this repository, versioned alongside the code, because the thinking they represent influences every decision made within it. An AI assistant reading this codebase, a new contributor finding their footing, or a maintainer revisiting a decision made two years ago should all be able to trace a line from the code back to the reasoning that shaped it.</p>
+<p>The GitHub issues remain open as permanent discussion records. If you have a question, a disagreement, or a perspective these documents do not capture, the right place for it is one of those threads, or, if you are reading this long after those conversations closed, a new discussion in the community. These documents are references, not verdicts. The conversation they started is meant to continue.</p>
 <hr>
-<h2 id="致未来贡献者的一封信"><a class="header" href="#致未来贡献者的一封信">致未来贡献者的一封信</a></h2>
 <p>您可能在该项目编写完成多年后才加入。工具已经发生了变化，代码库的外观也有所不同。其中一些内容可能已被后续文档所取代、完善或替换。</p>
-<p>这些文档试图在你心中建立的判断力并未改变，也不会改变。它们所提出的问题——当此操作失败时该怎么办？这个接口承诺了什么？我的测试究竟证明了什么？接手此问题的人需要知道什么？——这些并非 Rust 或软件工程领域特有的问题。它们关乎如何构建他人可以信赖的事物。这些问题在任何语言、任何系统以及你未来从事的任何领域中都是一样的。只要你持续提出这些问题，它们就会在后台悄然累积，伴随你的整个实践过程。</p>
+<p>The judgment these documents are trying to develop in you has not changed, and will not. The questions they are asking: what should happen when this fails, what does this interface promise, what does my test actually prove, what would the person who inherits this problem need to know, are not Rust questions or software questions. They are questions about how to build things that other people can trust. Those questions are the same in every language, every system, and every discipline you will ever work in. They compound quietly, in the background, for as long as you practice asking them.</p>
 <p>这就是本系列对你所做的投资。欢迎加入团队。</p>
 <hr>
-<p>ZeroClaw 成熟度框架是一个持续演进的文档体系。当团队积累了值得保留的经验时，便会新增相关文档。每份文档最初都以公开 RFC 讨论的形式启动，并通过与上述六份文档相同的流程获得认可：开放对话、坦诚分歧，以及团队集体决定将其纳入并持续推进。</p>
+<p>ZeroClaw Maturity Framework 是一个持续演进的文档体系。当团队积累了值得保留的经验时，便会新增相关文档。每份文档最初都以公开 RFC 讨论的形式启动，并通过与上述六份文档相同的流程获得认可：开放对话、坦诚分歧，以及团队集体决定将其纳入并持续推进。</p>
 
                     </main>
 

@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-b01be178.js";
+            window.path_to_searchindex_js = "../searchindex-113efe41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a643e72b.js"></script>
+        <script src="../toc-141ed634.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,7 +293,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="compétences-de-claude-code"><a class="header" href="#compétences-de-claude-code">Compétences de Claude Code</a></h1>
-<p>Le dépôt propose un ensemble de <a href="https://docs.claude.com/en/docs/agents/skills">compétences Claude Code</a> sous <code>.claude/skills/</code> qui automatisent les tâches les plus lourdes du workflow des mainteneurs — revues de PR, tri des issues, squash-merging, génération de changelog, et plus encore.</p>
+<p>The repo ships a set of <a href="https://docs.claude.com/en/docs/agents/skills">Claude Code skills</a> under <code>.claude/skills/</code> that automate the heavier parts of the maintainer workflow: PR reviews, issue triage, squash-merging, changelog generation, and more.</p>
 <p>Chaque compétence réside dans son propre répertoire avec un fichier <code>SKILL.md</code>. Claude Code les charge automatiquement lorsque vous ouvrez le dépôt ; vous pouvez les invoquer en décrivant ce que vous souhaitez en langage naturel, ou par référence explicite (par exemple, <code>/squash-merge 1234</code>).</p>
 <h2 id="compétences-disponibles"><a class="header" href="#compétences-disponibles">Compétences disponibles</a></h2>
 <div class="table-wrapper">
@@ -226,12 +302,12 @@
 <tr><th>Compétence</th><th>Utilisez-le lorsque</th></tr>
 </thead>
 <tbody>
-<tr><td><code>github-pr-review-session</code></td><td>Examen d’une PR spécifique ou travail dans la file d’attente des révisions — rédige le corps de la révision, vérifie par rapport au code source, publie via <code>gh</code> en tant que WareWolf-MoonWall</td></tr>
+<tr><td><code>github-pr-review-session</code></td><td>Reviewing a specific PR or working through the review queue: drafts the review body, cross-checks against source, posts via <code>gh</code> under the active account holder’s identity</td></tr>
 <tr><td><code>github-issue-triage</code></td><td>Exécution d’un nettoyage du backlog, fermeture des problèmes périmés/dupliqués, application des étiquettes, application de la politique de péremption des RFC.</td></tr>
 <tr><td><code>github-issue</code></td><td>Soumettre un problème structuré (rapport de bug ou demande de fonctionnalité)</td></tr>
 <tr><td><code>github-pr</code></td><td>Ouverture ou mise à jour d’une PR avec un corps de modèle entièrement rempli</td></tr>
 <tr><td><code>squash-merge</code></td><td>Fusionner une PR approuvée dans <code>master</code> en préservant l’historique des commits et le badge <strong>Merged</strong> en violet.</td></tr>
-<tr><td><code>génération-du-changelog</code></td><td>Préparation de <code>CHANGELOG-next.md</code> pour une version — résume les fusions depuis la dernière étiquette</td></tr>
+<tr><td><code>génération-du-changelog</code></td><td>Preparing <code>CHANGELOG-next.md</code> for a release: summarises merges since the last tag</td></tr>
 <tr><td><code>skill-creator</code></td><td>Création, modification ou benchmark des compétences elles-mêmes</td></tr>
 <tr><td><code>zeroclaw</code></td><td>Utilisation de l’instance ZeroClaw en cours d’exécution (CLI + API gateway)</td></tr>
 </tbody>
@@ -243,13 +319,13 @@
 </code></pre>
 <p>La compétence lit <code>AGENTS.md</code>, le manuel du réviseur, ainsi que la différence (diff) et les commits de la PR, puis rédige une revue. Elle utilise :</p>
 <ul>
-<li><strong>Commentaires en ligne</strong> pour chaque résultat <code>[blocking]</code> / <code>[suggestion]</code> / <code>[question]</code></li>
-<li><strong>Corps de la revue</strong> uniquement pour le verdict global et les problèmes au niveau du modèle</li>
-<li><strong>Hachages de commit bruts</strong> (jamais entourés de backticks — GitHub les lie automatiquement)</li>
+<li><strong>Inline diff comments</strong> for every 🔴 blocking, 🟡 warning, or 🔵 suggestion finding tied to a specific line</li>
+<li><strong>Review body</strong> for overall verdict, comprehension summary, cross-references, and template-level issues not tied to a line</li>
+<li><strong>Bare commit hashes</strong> (never wrapped in backticks: GitHub auto-links them)</li>
 <li><strong>Noms d’utilisateurs précédés de @</strong> dans tout le contenu des commentaires</li>
 </ul>
-<p>Les résultats suivent le système de niveaux de la maison : <code>[blocking]</code> bloque la PR, <code>[suggestion]</code> est optionnel, <code>[question]</code> demande une clarification.</p>
-<p>Le skill affiche toujours un brouillon à approuver avant la publication. Les commentaires sont publiés sous l’identité du réviseur humain — et non en tant que bot.</p>
+<p>Findings follow the <a href="../contributing/pr-review-protocol.html#feedback-taxonomy">feedback taxonomy</a>: 🔴 [blocking] holds the PR, 🟡 [warning] should be addressed, 🔵 [suggestion] is optional, 🟢 [praise] names what works, and ✅ [resolved] acknowledges an addressed finding on re-review. The <a href="../contributing/pr-review-protocol.html">PR Review Protocol</a> is canonical for the tiers and the review-body Markdown format.</p>
+<p>The skill always shows a draft for approval before posting. Reviews are posted under the human reviewer’s identity, not as a bot.</p>
 <p>Re-vérifier après les modifications :</p>
 <pre><code>&gt; re-review 1234
 </code></pre>
@@ -257,15 +333,15 @@
 <pre><code>&gt; go through the queue
 </code></pre>
 <h2 id="flux-de-travail-de-tri-des-problèmes"><a class="header" href="#flux-de-travail-de-tri-des-problèmes">Flux de travail de tri des problèmes</a></h2>
-<p>La compétence <code>github-issue-triage</code> effectue des analyses autonomes du backlog dans les limites d’autorité définies. Modes :</p>
+<p>The <code>github-issue-triage</code> skill runs autonomous backlog sweeps within defined authority bounds. With no argument it runs an <strong>accounting</strong> pass (backlog state, then prompts for a mode); otherwise the modes are:</p>
 <ul>
-<li><strong>Pass de tri</strong> — étiqueter, lier aux PRs connexes, appliquer <code>needs-author-action</code> si applicable</li>
-<li><strong>Passage périmée</strong> — Fermer les problèmes qui sont restés inactifs au-delà du seuil défini par la politique.</li>
-<li><strong>Passage « Wont-fix »</strong> — Fermez les problèmes qui ne seront pas acceptés, avec une brève justification.</li>
-<li><strong>Problème spécifique</strong> — gérer un problème unique par son numéro</li>
+<li><strong>Triage</strong>: process issues with no triage labels: classify, apply labels, link to open PRs, flag thin bug reports, redirect security issues</li>
+<li><strong>Sweep</strong>: full backlog pass in priority order (fixed-by-merged-PR → duplicates → <code>r:support</code> → stale candidates)</li>
+<li><strong>Stale</strong>: RFC stale-policy enforcement (<code>status:stale</code> then close per the policy window and exclusion rules)</li>
+<li><strong>Won’t-fix</strong>: close issues that violate a named core engineering constraint, citing the constraint and its <code>AGENTS.md</code>/RFC reference</li>
+<li><strong>Single</strong>: handle one issue by number or URL</li>
 </ul>
-<p>Les définitions des libellés se trouvent dans <a href="./labels.html">Labels</a>. La procédure de traitement des éléments obsolètes se trouve dans le protocole de la compétence issue-triage, avec le contexte côté relecteur dans <a href="./reviewer-playbook.html#issue-triage">Reviewer playbook → Issue triage</a>. La compétence remonte les ambiguïtés à l’utilisateur avant d’agir.</p>
-<p>Les PRs avec des conflits de fusion reçoivent uniquement le label <code>needs-author-action</code> — aucune revue, aucun commentaire de diff — conformément à <code>feedback_conflicts_label_only</code>.</p>
+<p>Label definitions live in <a href="./labels.html">Labels</a>; the triage labels the skill applies (<code>r:needs-repro</code>, <code>r:support</code>, <code>stale-candidate</code>, the <code>status:*</code> lifecycle labels, and the resolution labels) are all defined there. Stale procedure lives in the issue-triage skill protocol, with reviewer-side context in <a href="./reviewer-playbook.html#issue-triage">Reviewer playbook → Issue triage</a>. The skill escalates ambiguity to the user before acting.</p>
 <h2 id="stratégie-de-fusion-squash"><a class="header" href="#stratégie-de-fusion-squash">Stratégie de fusion squash</a></h2>
 <p>ZeroClaw utilise la fusion par écrasement (squash-merge) pour toutes les PR. La compétence <code>squash-merge</code> génère à la fois le badge violet <strong>Fusionné</strong> et un message de squash au format conventional-commits avec l’historique complet des commits dans le corps du message.</p>
 <h3 id="pourquoi-cette-compétence-existe"><a class="header" href="#pourquoi-cette-compétence-existe">Pourquoi cette compétence existe</a></h3>
@@ -275,10 +351,10 @@
 <li>Formate le corps de manière incohérente</li>
 <li>Ne correspond pas aux conventions du projet</li>
 </ul>
-<p>Le fait de pousser directement un squash vers master contourne le mécanisme de fusion des PR — la PR affiche « Fermée » au lieu de « Fusionnée » (pas de badge violet, pas de fermeture automatique des issues liées, pas d’association de fusion). L’outil utilise <code>gh pr merge --subject --body</code> pour obtenir à la fois le badge et le commit correctement formaté.</p>
+<p>Direct-pushing a squash to master bypasses the PR merge mechanism: the PR shows “Closed” instead of “Merged” (no purple badge, no linked issue auto-close, no merge association). The skill uses <code>gh pr merge --subject --body</code> to get both the badge and the correctly formatted commit.</p>
 <h3 id="format"><a class="header" href="#format">Format</a></h3>
 <ul>
-<li><strong>Objet :</strong> <code>&lt;titre de la PR&gt; (#&lt;numéro&gt;)</code> — doit respecter les conventions de commits (<code>feat(scope): …</code>, <code>fix: …</code>, etc.)</li>
+<li><strong>Subject:</strong> <code>&lt;PR title&gt; (#&lt;number&gt;)</code>: must be conventional commits (<code>feat(scope): …</code>, <code>fix: …</code>, etc.)</li>
 <li><strong>Corps (PR multi-commit) :</strong> liste à puces de <code>- &lt;sha court&gt; &lt;sujet du commit&gt;</code> depuis la branche du PR</li>
 <li><strong>Corps (PR à un seul commit) :</strong> corps complet du commit, ou vide s’il n’y en a pas</li>
 </ul>
@@ -302,7 +378,7 @@
 <h2 id="génération-du-journal-des-modifications"><a class="header" href="#génération-du-journal-des-modifications">Génération du journal des modifications</a></h2>
 <p><code>changelog-generation</code> génère <code>CHANGELOG-next.md</code> pour une version en interrogeant <code>gh</code> pour obtenir les PR fusionnées depuis le dernier tag, en les regroupant par préfixe conventional-commits, et en les formatant selon le style de changelog de la maison. Utilisez-le dans le cadre du runbook de version, avant de déclencher <code>release-stable-manual.yml</code>.</p>
 <h2 id="modification-des-compétences"><a class="header" href="#modification-des-compétences">Modification des compétences</a></h2>
-<p>Les compétences sont du Markdown simple avec un en-tête YAML. Le champ <code>description</code> est ce que Claude Code utilise pour décider quand les déclencher — soyez précis et incluez des phrases de déclenchement concrètes (<code>"review 1234"</code>, <code>"triage issues"</code>, etc.). Utilisez <code>skill-creator</code> pour les modifier ; il impose la structure et aide à exécuter des évaluations pour mesurer la précision des déclencheurs.</p>
+<p>Skills are plain Markdown with YAML frontmatter. Their <code>description</code> field is what Claude Code uses to decide when to trigger them: be specific and include concrete trigger phrases (<code>"review 1234"</code>, <code>"triage issues"</code>, etc.). Use <code>skill-creator</code> to edit them; it enforces the structure and helps run evals to measure trigger accuracy.</p>
 <p>Lorsque le comportement d’une compétence diverge de ce qui est décrit dans la documentation (par exemple, si le jeu de révision du réviseur est modifié), mettez à jour la compétence <strong>et</strong> toute documentation qui y fait référence. Le fichier <code>SKILL.md</code> de la compétence est la référence pour l’automatisation ; la documentation de contribution est la référence pour les humains.</p>
 
                     </main>

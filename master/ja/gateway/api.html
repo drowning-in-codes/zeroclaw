@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -231,7 +307,7 @@
 <li><code>OPTIONS /api/config</code> は、構成全体の型の JSON Schema と、リソースでサポートされているメソッドを列挙した <code>Allow</code> ヘッダーを返します。ビルドごとに静的であるため、クライアントは <code>ETag</code> ヘッダーに対してキャッシュする必要があります。</li>
 <li><code>OPTIONS /api/config/prop?path=&lt;dotted&gt;</code> は、特定のパスに対応するスキーマフラグメントを <code>Allow: GET, PUT, DELETE, OPTIONS</code> とともに返します。パスがスキーマ内に存在しない場合は 404 を返します。</li>
 </ul>
-<p><code>OPTIONS</code> は機能（capabilities）を返します。<code>GET /api/config/prop</code> と <code>GET /api/config/list</code> はユーザーの現在の値を返します。ダッシュボードのフォームは、読み込み時に一度 <code>OPTIONS</code> を発行して型と制約を取得し、次に <code>GET</code> でフィールドを設定し、その後 <code>PUT</code>/<code>PATCH</code> で書き込みます。ファイル全体を取得する <code>GET /api/config</code> は——意図的に——存在しません。プロパティ単位のサーフェスをたどってください。どのフィールドが存在するかについては、スキーマが信頼できる唯一の情報源（source of truth）です。</p>
+<p><code>OPTIONS</code> returns capabilities. <code>GET /api/config/prop</code> and <code>GET /api/config/list</code> return the user’s current values. Forms in the dashboard issue <code>OPTIONS</code> once at load time to learn types and constraints, then <code>GET</code> to populate fields, then <code>PUT</code>/<code>PATCH</code> to write. There is no whole-file <code>GET /api/config</code>, deliberately. Walk the per-property surface; the schema is the source of truth for what fields exist.</p>
 <p>CORSプリフライトリクエスト（<code>Access-Control-Request-Method</code> を含むもの）は、標準のプリフライトレスポンスを受け取り、スキーマ本体が返される前にショートサーキットされます。</p>
 <h2 id="プロパティ単位のcrud"><a class="header" href="#プロパティ単位のcrud">プロパティ単位のCRUD</a></h2>
 <div class="table-wrapper">
@@ -252,13 +328,13 @@
 </tbody>
 </table>
 </div>
-<h2 id="アトミックなバッチ書き込み--json-patch"><a class="header" href="#アトミックなバッチ書き込み--json-patch">アトミックなバッチ書き込み — JSON Patch</a></h2>
+<h2 id="atomic-batch-writes-json-patch"><a class="header" href="#atomic-batch-writes-json-patch">Atomic batch writes: JSON Patch</a></h2>
 <p><code>PATCH /api/config</code> は JSON Patch ドキュメント（RFC 6902）を受け付けます。サポートされている op のサブセットは <code>add</code>、<code>replace</code>、<code>remove</code>、<code>test</code> です。各 op は設定のインメモリコピーに対して実行され、すべての op が適用された後に、結果に対して <code>Config::validate()</code> が一度だけ実行されます。検証が成功した場合、新しい状態が永続化され、切り替えられます。いずれかの op または最終的な検証が失敗した場合、ディスク上およびインメモリの状態は変更されません。</p>
-<p><code>move</code> と <code>copy</code> は、安全な参照グラフの書き換えがこのサーフェスの対象外であるため、<code>400 op_not_supported</code> を返します。<code>#[secret]</code> パスに対する <code>test</code> は <code>secret_test_forbidden</code> で拒否されます。差分のある結果はクライアントが読み取れる唯一のシグナルとなり、それは値を漏洩させてしまうためです。</p>
+<p><code>move</code> and <code>copy</code> return <code>400 op_not_supported</code> because safe reference-graph rewriting is not part of this surface. <code>test</code> against a <code>#[secret]</code> path is rejected with <code>secret_test_forbidden</code>: a differential outcome would be the only signal a client could read, and that would leak the value.</p>
 <p>パス構文: JSON Pointer (<code>/agents/researcher/model_provider</code>) またはドット形式 (<code>agents.researcher.model_provider</code>)。どちらも使用でき、サーバー側で正規化されます。</p>
 <p>CLI に対応するのは <code>zeroclaw config patch &lt;file-or-stdin&gt;</code> で、ローカルの Config に対して同じ op セットを適用し、同じ構造化レスポンス形式を返します（スクリプト向けには <code>--json</code>）。</p>
-<h2 id="シークレット--http-経由で書き込み専用"><a class="header" href="#シークレット--http-経由で書き込み専用">シークレット — HTTP 経由で書き込み専用</a></h2>
-<p>シークレットフィールド（スキーマ内で <code>#[secret]</code> または <code>#[derived_from_secret]</code> とマークされたもの）は、いかなる形式でも HTTP 経由で<strong>決して</strong>読み取れません。シークレットのレスポンスは <code>{populated: bool}</code> のみを返します — 値も、長さも、マスクされた代替文字列も、ハッシュも含まれません。これは、どのエンドポイントが呼び出されたかに関わらず、レスポンスレイヤーで強制されます。</p>
+<h2 id="secrets-write-only-over-http"><a class="header" href="#secrets-write-only-over-http">Secrets: write-only over HTTP</a></h2>
+<p>Secret fields (those marked <code>#[secret]</code> or <code>#[derived_from_secret]</code> in the schema) are <strong>never</strong> readable over HTTP in any form. Responses for secrets carry <code>{populated: bool}</code> only, no value, no length, no masked stand-in, no hash. This is enforced at the response layer regardless of which endpoint is called.</p>
 <p><code>PUT</code> と <code>PATCH</code> は新しいシークレット値を書き込み、<code>{populated: true}</code> を返します。<code>DELETE</code> はそれをクリアし、<code>{populated: false}</code> を返します。いかなる方法でもシークレットを取得する HTTP パスはありません。</p>
 <h2 id="安定したエラーコード"><a class="header" href="#安定したエラーコード">安定したエラーコード</a></h2>
 <p>エラーは安定した <code>code</code> フィールドと人間が読める <code>message</code> を含む JSON を返します。フロントエンドやスクリプトは code で照合し、UI は path で照合します。</p>
@@ -282,7 +358,7 @@
 </div>
 <h2 id="ライブ探索"><a class="header" href="#ライブ探索">ライブ探索</a></h2>
 <p>ゲートウェイが起動したら、<code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> にアクセスすると Scalar API エクスプローラーを利用できます。スキーマ定義と「Try it out」フォームは、デーモンが使用するものと同じ <code>schemars</code> アノテーションから生成されるため、ドキュメントが実行時の挙動と食い違うことはありません。</p>
-<p>エクスプローラーの認証パネルは、仕様で宣言された <code>bearerAuth</code> スキームにバインドされます。ライブ呼び出しを実行する前に、ペアリングで生成したベアラートークンをそこに貼り付けてください。この URL の CLI ショートカットは <code>zeroclaw config docs</code> です。</p>
+<p>The explorer’s authentication panel binds to the <code>bearerAuth</code> scheme declared in the spec, paste your pairing-derived bearer token there before issuing live calls. The CLI shortcut for the URL is <code>zeroclaw config docs</code>.</p>
 <p>Scalarバンドルが CDN から読み込めない場合（オフライン／エアギャップ環境でのインストール）、ページは適切にデグレードし、<code>/api/openapi.json</code> の生の仕様を案内します。これにより、互換性のある任意のビューア（Insomnia、Postman、Swagger UI など）を使用できます。</p>
 
                     </main>

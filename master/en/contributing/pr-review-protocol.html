@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-183b4c4a.js";
+            window.path_to_searchindex_js = "../searchindex-0b41063b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-acb59c9f.js"></script>
+        <script src="../toc-8b3eb20a.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,38 +293,54 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="pr-review-protocol"><a class="header" href="#pr-review-protocol">PR Review Protocol</a></h1>
-<p>This is the procedure followed when reviewing a pull request in <code>zeroclaw-labs/zeroclaw</code>. It’s loaded by the <code>github-pr-review-session</code> skill and read by human reviewers — it’s authoritative for both.</p>
+<p>This is the procedure followed when reviewing a pull request in <code>zeroclaw-labs/zeroclaw</code>. It’s loaded by the <code>github-pr-review-session</code> skill and read by human reviewers, it’s authoritative for both.</p>
 <p>The <code>gh</code> CLI is assumed available and authenticated.</p>
 <h2 id="fetch-order"><a class="header" href="#fetch-order">Fetch order</a></h2>
 <p>Run all of these. The data informs every step that follows.</p>
 <ol>
 <li>
 <p><strong>PR overview</strong></p>
-<pre><code class="language-bash">gh pr view &lt;number&gt; --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">gh pr view &lt;number&gt; --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 <p>Description, labels, linked issues, validation evidence.</p>
 </li>
 <li>
 <p><strong>Top-level conversation</strong></p>
-<pre><code class="language-bash">gh pr view &lt;number&gt; --comments --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">gh pr view &lt;number&gt; --comments --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 </li>
 <li>
 <p><strong>Inline threads (every reply chain)</strong></p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/comments --paginate
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/comments --paginate
 </code></pre>
-<p>Read full reply chains before drawing any conclusion about whether something is open or settled. Note author commitments made in replies — they’re load-bearing.</p>
+</div>
+
+<p>Read full reply chains before drawing any conclusion about whether something is open or settled. Note author commitments made in replies, they’re load-bearing.</p>
 </li>
 <li>
 <p><strong>Formal reviews</strong></p>
-<pre><code class="language-bash">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/reviews --paginate
+<div class="os-tabs-src">
+<h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
+<pre><code class="language-sh">gh api repos/zeroclaw-labs/zeroclaw/pulls/&lt;number&gt;/reviews --paginate
 </code></pre>
+</div>
+
 <p>Note which <code>CHANGES_REQUESTED</code> are still active (not superseded by a later <code>APPROVED</code> or <code>DISMISSED</code>). Check whether you’ve already reviewed this PR.</p>
 </li>
 <li>
 <p><strong>Relevant foundations documents</strong></p>
 <p>Always read FND-005 (Contribution Culture). For others, use the relevance
-table below — read what applies to the PR’s scope. The ratified versions
+table below, read what applies to the PR’s scope. The ratified versions
 are local files; no API call needed.</p>
 <div class="table-wrapper">
 <table>
@@ -268,8 +360,12 @@ are local files; no API call needed.</p>
 </li>
 <li>
 <p><strong>Diff</strong></p>
-<pre><code class="language-bash">gh pr diff &lt;number&gt; --repo zeroclaw-labs/zeroclaw
+<div class="os-tabs-src">
+<h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
+<pre><code class="language-sh">gh pr diff &lt;number&gt; --repo zeroclaw-labs/zeroclaw
 </code></pre>
+</div>
+
 <p>Read the full diff. Cross-check author commitments from step 3 against what actually shipped. Cross-check against the local repository where the change lands.</p>
 </li>
 </ol>
@@ -303,11 +399,11 @@ are local files; no API call needed.</p>
 <h2 id="feedback-taxonomy"><a class="header" href="#feedback-taxonomy">Feedback taxonomy</a></h2>
 <p>Findings in review bodies and inline comments use this PR-review scale, adapted from FND-005. The <code>✅ [resolved]</code> entry is for re-reviews that acknowledge addressed findings.</p>
 <ul>
-<li><strong>🔴 [blocking]</strong> — must be addressed before merge. Use sparingly; every blocker is real or the scale loses meaning.</li>
-<li><strong>🟡 [warning]</strong> — should be addressed; not blocking but the reviewer wants the author to look.</li>
-<li><strong>🔵 [suggestion]</strong> — optional. Author can accept or pass.</li>
-<li><strong>🟢 [praise]</strong> — what’s working. Specific praise teaches what to repeat. Generic “great work” teaches nothing.</li>
-<li><strong>✅ [resolved]</strong> — explicitly acknowledging that a prior finding has been addressed in a later commit. Use this when you’re re-reviewing — it shows the author their work registered.</li>
+<li><strong>🔴 [blocking]</strong>: must be addressed before merge. Use sparingly; every blocker is real or the scale loses meaning.</li>
+<li><strong>🟡 [warning]</strong>: should be addressed; not blocking but the reviewer wants the author to look.</li>
+<li><strong>🔵 [suggestion]</strong>: optional. Author can accept or pass.</li>
+<li><strong>🟢 [praise]</strong>: what’s working. Specific praise teaches what to repeat. Generic “great work” teaches nothing.</li>
+<li><strong>✅ [resolved]</strong>: explicitly acknowledging that a prior finding has been addressed in a later commit. Use this when you’re re-reviewing, it shows the author their work registered.</li>
 </ul>
 <h2 id="review-body-markdown-format"><a class="header" href="#review-body-markdown-format">Review body Markdown format</a></h2>
 <p>Formal review body findings should use H3 headings that start with the taxonomy emoji. This keeps severity and required action easy to scan.</p>
@@ -336,16 +432,20 @@ are local files; no API call needed.</p>
 finding tied to a specific line. Anchor the feedback to the code so the
 author can resolve it inline.</li>
 <li><strong>Review body</strong> for overall verdict, comprehension summary, cross-references to other PRs, and template-level issues that aren’t tied to a specific line.</li>
-<li><strong>Bare commit hashes</strong> (never wrap in backticks — GitHub auto-links bare hashes; backticks block the auto-link).</li>
+<li><strong>Bare commit hashes</strong> (never wrap in backticks: GitHub auto-links bare hashes; backticks block the auto-link).</li>
 <li><strong><code>@</code>-prefixed usernames</strong> in all review content (chat, body, inline). <code>@WareWolf-MoonWall</code>, not <code>WareWolf-MoonWall</code>.</li>
 </ul>
 <h2 id="posting"><a class="header" href="#posting">Posting</a></h2>
-<p>Write the review body to a file under <code>tmp/review-&lt;number&gt;.md</code> first — this is the source of truth for what was posted and lets the user inspect before publishing. Then:</p>
-<pre><code class="language-bash">gh pr review &lt;number&gt; --repo zeroclaw-labs/zeroclaw \
+<p>Write the review body to a file under <code>tmp/review-&lt;number&gt;.md</code> first: this is the source of truth for what was posted and lets the user inspect before publishing. Then:</p>
+<div class="os-tabs-src">
+<h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
+<pre><code class="language-sh">gh pr review &lt;number&gt; --repo zeroclaw-labs/zeroclaw \
   &lt;--approve | --request-changes | --comment&gt; \
   --body-file tmp/review-&lt;number&gt;.md
 </code></pre>
-<p>Always show the full draft and get explicit approval from the human before posting. Continuation words like “next” or “move on” don’t count as approval — only an unambiguous “yes” / “approve” / “go” does.</p>
+</div>
+
+<p>Always show the full draft and get explicit approval from the human before posting. Continuation words like “next” or “move on” don’t count as approval, only an unambiguous “yes” / “approve” / “go” does.</p>
 <h2 id="after-posting"><a class="header" href="#after-posting">After posting</a></h2>
 <p>If a session-level handoff file exists (<code>tmp/handoff.md</code>), update it with the verdict, the head commit reviewed, and what remains open. The handoff is what lets a new session pick up cold without re-reading the whole conversation.</p>
 <h2 id="never"><a class="header" href="#never">Never</a></h2>

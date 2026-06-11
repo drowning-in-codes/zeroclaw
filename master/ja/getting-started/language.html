@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-331be6eb.js";
+            window.path_to_searchindex_js = "../searchindex-008c496b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c98164c8.js"></script>
+        <script src="../toc-5c63d324.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -219,20 +295,24 @@
                         <h1 id="言語と翻訳"><a class="header" href="#言語と翻訳">言語と翻訳</a></h1>
 <p>ZeroClawのインターフェース文字列（CLIメッセージ、コマンドヘルプ、<code>zerocode</code> TUI）は、英語以外の言語でも表示できます。英語は常に組み込まれており、その他の言語は必要に応じてダウンロードされます。</p>
 <h2 id="言語を設定する"><a class="header" href="#言語を設定する">言語を設定する</a></h2>
-<p>ZeroClawは設定ファイルのトップレベルにある<code>locale</code>キーを読み取ります。<code>ja</code>、<code>fr</code>、<code>zh-CN</code>などのロケールコードを設定してください。</p>
-<pre><code class="language-toml"># ~/.zeroclaw/config.toml
-locale = "ja"
-</code></pre>
-<p><code>locale</code> が設定されていない場合、ZeroClaw はオペレーティングシステムの言語を使用し、翻訳が利用できない場合は英語にフォールバックします。</p>
+<p>ZeroClaw reads a top-level <code>locale</code> key from your config. Set it to a locale code such as <code>ja</code>, <code>fr</code>, or <code>zh-CN</code>. If <code>locale</code> is unset, ZeroClaw uses your operating system’s language and falls back to English when no translation is available.</p>
 <h2 id="言語ファイルを取得する"><a class="header" href="#言語ファイルを取得する">言語ファイルを取得する</a></h2>
 <p>英語はバイナリ内に同梱されています。それ以外の言語については、翻訳ファイルを一度だけ取得します。</p>
-<pre><code class="language-bash">zeroclaw locales fetch ja
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">zeroclaw locales fetch ja
 </code></pre>
+</div>
+
 <p>これにより、ZeroClawプロジェクトから日本語の翻訳ファイルをダウンロードし、<code>~/.zeroclaw/data/ftl/ja/</code>にインストールします。この場所はZeroClawが起動時に参照するディレクトリです。インストール後、ZeroClaw（および<code>zerocode</code>）を再起動して反映してください。</p>
 <p>任意のロケールを同じ方法で取得します。</p>
-<pre><code class="language-bash">zeroclaw locales fetch fr        # フランス語
+<div class="os-tabs-src">
+<h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
+<pre><code class="language-sh">zeroclaw locales fetch fr        # フランス語
 zeroclaw locales fetch zh-CN     # 簡体字中国語
 </code></pre>
+</div>
+
 <h3 id="言語の一部のみを取得する"><a class="header" href="#言語の一部のみを取得する">言語の一部のみを取得する</a></h3>
 <p>デフォルトでは、<code>fetch</code> はそのロケールのすべてのカタログをダウンロードします。一部のカタログのみをダウンロードするには、<code>--catalog</code> にカンマ区切りのリストを指定します。</p>
 <div class="table-wrapper">
@@ -247,10 +327,14 @@ zeroclaw locales fetch zh-CN     # 簡体字中国語
 </tbody>
 </table>
 </div>
-<pre><code class="language-bash">zeroclaw locales fetch ja --catalog cli            # just CLI 文字列
+<div class="os-tabs-src">
+<h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
+<pre><code class="language-sh">zeroclaw locales fetch ja --catalog cli            # just CLI 文字列
 zeroclaw locales fetch ja --catalog cli,zerocode   # CLI + TUI
 </code></pre>
-<p>カタログがまだお使いの言語に翻訳されていない場合、<code>fetch</code> はそれをスキップしてその旨を通知します。既に存在するカタログはそのままインストールされます。</p>
+</div>
+
+<p>If a catalogue has not been translated for your language yet, <code>fetch</code> skips it and tells you: the catalogues that do exist are still installed.</p>
 <h2 id="ファイルの保存場所"><a class="header" href="#ファイルの保存場所">ファイルの保存場所</a></h2>
 <div class="table-wrapper">
 <table>

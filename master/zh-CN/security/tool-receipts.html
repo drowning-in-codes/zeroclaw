@@ -37,10 +37,84 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-cdda1b91.js";
+            window.path_to_searchindex_js = "../searchindex-128ad286.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0fc3b529.js"></script>
+        <script src="../toc-88046f44.js"></script>
+        <script>
+            // Persist sidebar fold state across navigations. mdBook's toc.js
+            // expands only the active page's ancestor chain on every load,
+            // collapsing every other section the reader opened. Wrap the
+            // scrollbox element's connectedCallback so saved state is applied
+            // synchronously at the end of its own render — same paint, no
+            // flicker — and record state whenever a fold is toggled.
+            (function () {
+                var KEY = 'pc-sidebar-folds';
+                var proto = window.MDBookSidebarScrollbox
+                    && window.MDBookSidebarScrollbox.prototype;
+                var ce = window.customElements
+                    && window.customElements.get('mdbook-sidebar-scrollbox');
+                proto = (ce && ce.prototype) || proto;
+                if (!proto || proto.__pcFolds) { return; }
+                proto.__pcFolds = true;
+
+                function read() {
+                    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+                    catch (e) { return {}; }
+                }
+                function write(s) {
+                    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+                    catch (e) { /* storage unavailable */ }
+                }
+                function foldables(box) {
+                    return Array.prototype.filter.call(
+                        box.querySelectorAll('li.chapter-item'),
+                        function (li) {
+                            return li.querySelector(':scope > .chapter-link-wrapper > a.chapter-fold-toggle');
+                        }
+                    );
+                }
+                function keyFor(li) {
+                    var wrap = li.querySelector(':scope > .chapter-link-wrapper');
+                    if (!wrap) { return null; }
+                    var link = wrap.querySelector(':scope > a[href]');
+                    if (link) { return 'h:' + link.getAttribute('href'); }
+                    var strong = wrap.querySelector(':scope > span strong, :scope > a strong');
+                    return strong ? 'n:' + strong.textContent.trim() : null;
+                }
+                function applyState(box) {
+                    var state = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k == null || !(k in state)) { return; }
+                        // Never collapse the section holding the active page.
+                        if (!state[k] && li.querySelector('a.active')) { return; }
+                        li.classList.toggle('expanded', !!state[k]);
+                    });
+                }
+                function recordState(box) {
+                    var s = read();
+                    foldables(box).forEach(function (li) {
+                        var k = keyFor(li);
+                        if (k != null) { s[k] = li.classList.contains('expanded'); }
+                    });
+                    write(s);
+                }
+
+                var origConnected = proto.connectedCallback;
+                proto.connectedCallback = function () {
+                    if (origConnected) { origConnected.call(this); }
+                    var box = this;
+                    applyState(box);
+                    box.addEventListener('click', function (e) {
+                        if (!e.target.closest('a.chapter-fold-toggle, .chapter-link-wrapper')) {
+                            return;
+                        }
+                        requestAnimationFrame(function () { recordState(box); });
+                    });
+                };
+            })();
+        </script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -85,20 +159,22 @@
 
         <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
-        <!-- Hide / unhide sidebar before it is displayed -->
+        <!-- Hide / unhide sidebar before it is displayed.
+             The user's saved preference (mdbook-sidebar) wins at every width so
+             navigating between pages never collapses an open sidebar. Only when
+             no preference is stored do we pick a width-based default, and only a
+             genuinely narrow (phone) viewport defaults to hidden. -->
         <script>
             let sidebar = null;
             const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
-            if (document.body.clientWidth >= 1080) {
-                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
-                sidebar = sidebar || 'visible';
-            } else {
-                sidebar = 'hidden';
-                sidebar_toggle.checked = false;
+            try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+            if (sidebar !== 'visible' && sidebar !== 'hidden') {
+                sidebar = document.body.clientWidth >= 768 ? 'visible' : 'hidden';
             }
             if (sidebar === 'visible') {
                 sidebar_toggle.checked = true;
             } else {
+                sidebar_toggle.checked = false;
                 html.classList.remove('sidebar-visible');
             }
         </script>
@@ -217,19 +293,19 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="工具收据"><a class="header" href="#工具收据">工具收据</a></h1>
-<p>工具收据是证明工具实际运行的加密凭证。每次工具调用——无论是已批准、已阻止还是自动批准——都会生成一个基于调用及其结果的 HMAC-SHA256 摘要。该摘要会被附加到工具结果文本中，并作为对话的一部分传递回模型。</p>
+<p>Tool receipts are cryptographic proofs that a tool actually ran. Every tool invocation, approved, blocked, or auto-approved, produces an HMAC-SHA256 digest over the call and its result. The digest is appended to the tool-result text and passed back to the model as part of the conversation.</p>
 <p>实际效果是：模型不能声称运行了未运行的工具，也不能伪造工具结果。这两种情况都会导致运行时检测到回执不匹配。</p>
 <h2 id="威胁模型"><a class="header" href="#威胁模型">威胁模型</a></h2>
-<p>大语言模型（LLM）是一个字符串生成器。默认情况下，没有任何机制阻止它虚构自己从未执行过的工具调用（例如：“我运行了 <code>git log</code>，最新的提交是……”），或者为工具调用编造结果（例如：“天气 API 返回 72°F”——而实际上该调用已超时）。对于具有自主性的智能体而言，这不仅仅是一个正确性问题，更是一个可否认性问题。</p>
+<p>An LLM is a string generator. By default, nothing prevents it from narrating a tool call it never made (“I ran <code>git log</code> and the latest commit is…”), or inventing a result for a tool call (“The weather API says 72°F”, when the call timed out). For an agent with autonomy, this is more than a correctness issue: it’s a deniability issue.</p>
 <p>工具回执以尽可能廉价的构造方式弥补了这一缺口：使用具有临时进程生命周期密钥的对称 MAC。</p>
 <blockquote>
-<p><strong>这里的“会话“指什么。</strong> 当 <code>start_channels</code> 初始化通道服务器时，HMAC 密钥会生成一次，并在该守护进程的整个生命周期内有效。该进程内的每个通道、每次对话、每次 <code>delegate</code> 移交以及每个派生的 <a href="../architecture/subagents.html">SubAgent</a> 都使用同一个密钥进行验证。重启守护进程会轮换该密钥；不存在按对话或按通道的作用域划分。本文档其他地方将“会话“作为“此守护进程“的简称使用。</p>
+<p><strong>What “session” means here.</strong> The HMAC key is generated once when <code>start_channels</code> initialises the channel server and lives for the lifetime of that daemon process. Every channel, every conversation, every <code>delegate</code> hand-off, and every spawned <a href="../agents/delegation.html">SubAgent</a> inside that process verifies against the same key. Restarting the daemon rotates it; there is no per-conversation or per-channel scoping. “Session” is used elsewhere in this document as shorthand for “this daemon process.”</p>
 </blockquote>
 <p>基于：Basu, A. (2026). “工具收据，而非零知识证明：AI 代理幻觉检测的实用方法。” <a href="https://doi.org/10.48550/arXiv.2603.10060">arXiv:2603.10060</a>。</p>
 <h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
 <ol>
 <li>
-<p>在 channel-server 启动时，会生成一个 256 位密钥，并在守护进程的整个生命周期内保存在 <code>ChannelRuntimeContext</code> 中。该密钥是临时的——绝不会写入磁盘、发送给模型或记录到日志中。守护进程重启时会轮换密钥。</p>
+<p>At channel-server startup, a 256-bit key is generated and held in <code>ChannelRuntimeContext</code> for the lifetime of the daemon process. It’s ephemeral: never written to disk, never sent to the model, never logged. A daemon restart rotates the key.</p>
 </li>
 <li>
 <p>每次工具调用后，运行时都会计算：</p>
@@ -245,7 +321,7 @@
 <p>工具结果（包含收据）被反馈给模型。</p>
 </li>
 </ol>
-<p>模型会看到其对话历史中的每张收据。它可以在生成的文本中回显这些收据。但它无法生成一张<strong>新的</strong>有效收据——因为 HMAC 需要会话密钥，而模型并不具备该密钥。</p>
+<p>The model sees every receipt in its conversation history. It can echo them in text it produces to the user. But it cannot produce a <em>new</em> valid receipt: the HMAC requires the session key, which the model doesn’t have.</p>
 <h3 id="收据形状"><a class="header" href="#收据形状">收据形状</a></h3>
 <pre><code>zc-receipt-1774608496-gzpEBuUIRYX1vd4fQl4oYkqhq4-GnoJDStmlYzvQiWA
           ^ epoch seconds     ^ base64url(HMAC-SHA256 digest)
@@ -258,7 +334,7 @@
 <tr><th>场景</th><th>没有收据</th><th>带有收据</th></tr>
 </thead>
 <tbody>
-<tr><td>模型声称它运行了一个工具，但实际上没有。</td><td>无法检测</td><td>无收据——制造痕迹明显</td></tr>
+<tr><td>模型声称它运行了一个工具，但实际上没有。</td><td>无法检测</td><td>No receipt: fabrication visible</td></tr>
 <tr><td>模型为真实调用伪造了结果</td><td>无法检测</td><td>验证时 HMAC 不匹配</td></tr>
 <tr><td>模型否认了它确实做出的调用</td><td>无法验证</td><td>日志中的收据证明了这一点</td></tr>
 <tr><td>模型伪造了一个看似合理的收据字符串</td><td>合理的</td><td>HMAC 验证失败</td></tr>
@@ -275,8 +351,12 @@
 </ul>
 <h2 id="查看收据"><a class="header" href="#查看收据">查看收据</a></h2>
 <h3 id="在调试日志中"><a class="header" href="#在调试日志中">在调试日志中</a></h3>
-<pre><code class="language-bash">RUST_LOG=zeroclaw_runtime::agent=debug zeroclaw daemon
+<div class="os-tabs-src">
+<h4 id="sh"><a class="header" href="#sh">sh</a></h4>
+<pre><code class="language-sh">RUST_LOG=zeroclaw_runtime::agent=debug zeroclaw daemon
 </code></pre>
+</div>
+
 <p>产生：</p>
 <pre><code>DEBUG Tool receipt generated tool=shell receipt=zc-receipt-1774604899-fVRG...
 </code></pre>
@@ -289,13 +369,8 @@ Tool receipts:
   weather: zc-receipt-1774608496-gzpEBuUIRYX1vd4fQl4oYkqhq4-GnoJDStmlYzvQiWA
 </code></pre>
 <h3 id="在-llm-自己的输出中"><a class="header" href="#在-llm-自己的输出中">在 LLM 自己的输出中</a></h3>
-<p>由于模型在其上下文中会看到收据，因此在描述工具结果时可能会重复显示它们。泄漏检测器已配置为将 <code>zc-receipt-*</code> 令牌原样传递，因此这种重复显示可以正常工作。如果运行时和模型都包含收据块，用户会看到两个——通过特定于通道的格式规则去除其中一个。</p>
+<p>Because the model sees receipts in its context, it may echo them when describing tool results. The leak detector is configured to pass <code>zc-receipt-*</code> tokens through unmodified so this echoing works. If both the runtime and the model include a receipts block, the user sees two: strip one via channel-specific formatting rules.</p>
 <h2 id="配置"><a class="header" href="#配置">配置</a></h2>
-<pre><code class="language-toml">[agent.tool_receipts]
-enabled = true
-show_in_response = false    # 在响应末尾追加“工具回执：”块
-inject_system_prompt = true # 指示模型逐字回显回执内容
-</code></pre>
 <h2 id="安全属性"><a class="header" href="#安全属性">安全属性</a></h2>
 <ul>
 <li><strong>每个守护进程独立的临时密钥。</strong> 在 <code>start_channels</code> 时生成，仅保存在内存中，每次重启时轮换。从不持久化，从不记录日志，从不出现在模型的上下文中。攻破长期存储一无所获。</li>
@@ -329,8 +404,8 @@ inject_system_prompt = true # 指示模型逐字回显回执内容
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
 <li><a href="./overview.html">安全 → 概述</a></li>
-<li><a href="./autonomy.html">自主级别</a> —— 决定是否有资格生成收据的调用策略层</li>
-<li><a href="../reference/config.html">参考 → 配置</a> — 生成的配置参考</li>
+<li><a href="./autonomy.html">Autonomy levels</a>: the policy layer that decides whether a receipt-worthy call happens</li>
+<li><a href="../reference/config.html">Reference → Config</a>: generated config reference</li>
 </ul>
 
                     </main>
