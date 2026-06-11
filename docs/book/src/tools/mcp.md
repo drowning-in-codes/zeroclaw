@@ -26,6 +26,14 @@ A server is reached over one of three transports (the `transport` field):
 
 Add a server through the gateway, zerocode, or `zeroclaw config set` (for example `zeroclaw config set mcp.servers.filesystem.command npx`). A stdio server needs `command` plus optional `args`/`env`; an http/sse server needs `url` plus optional `headers`. The per-field commands are in the field table below.
 
+## Editing servers
+
+Three surfaces edit the same `[[mcp.servers]]` table:
+
+- **`config.toml`**: hand-edit the keys documented below. The full table is round-tripped on save.
+- **zerocode TUI** (`/config` -> `mcp.servers`): first-class per-field editor. The section shows one row per server, labeled with the server's `name`; enter a row to edit `transport`, `command` / `url`, `headers`, `env`, and `tool_timeout_secs` as individual fields. `+ Add` creates a new entry seeded with the name you supply; deleting from the alias list removes the entry. The `name` field is not edited inline because renaming the natural key mid-edit would invalidate in-flight references; use the dashboard or hand-edit `config.toml` to rename for now.
+- **Web dashboard**: currently renders `mcp.servers` through a JSON-array editor. A migration to the same per-field surface the TUI uses is planned; until then the dashboard remains a usable but coarser editor.
+
 ## Server fields
 
 Per-server fields (`[[mcp.servers]]`), generated from the schema:
