@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["excluded_paths","is_excluded","memory_backend_excludes"]};
+window.SIDEBAR_ITEMS = {"fn":["excluded_paths","is_excluded","memory_backend_excludes","path_matches_prefix"]};

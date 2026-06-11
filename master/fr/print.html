@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-113efe41.js";
+            window.path_to_searchindex_js = "searchindex-fdd74dbd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-141ed634.js"></script>
@@ -629,6 +629,39 @@
 <h2 id="développement-local-avec-alternative-hébergée"><a class="header" href="#développement-local-avec-alternative-hébergée">Développement local avec alternative hébergée</a></h2>
 <p>Exécutez un agent local-Ollama et un agent de fournisseur hébergé côte à côte ; routez chaque canal vers celui que vous souhaitez qu’il utilise.</p>
 <p>The <code>dev</code> agent runs from the CLI (no channel binding required, <code>zeroclaw agent -a dev</code> is enough). When Ollama is down, the dev agent fails fast and surfaces the error. The prod channels are unaffected.</p>
+<h2 id="local-small-no-text-fallback-profile"><a class="header" href="#local-small-no-text-fallback-profile">Local-small no-text-fallback profile</a></h2>
+<p>Small local models usually need a runtime profile, not a provider-specific mode. Keep the Ollama provider focused on connection details, then use <code>[runtime_profiles.&lt;alias&gt;]</code> to tighten the prompt/tool loop behavior.</p>
+<pre><code class="language-toml">[providers.models.ollama.local]
+uri   = "http://localhost:11434"
+model = "qwen2.5-coder:7b"
+
+[agents.local]
+model_provider  = "ollama.local"
+risk_profile    = "supervised"
+runtime_profile = "local_small"
+
+[risk_profiles.supervised]
+level                            = "supervised"
+workspace_only                   = true
+require_approval_for_medium_risk = true
+block_high_risk_commands         = true
+
+[runtime_profiles.local_small]
+compact_context          = true
+strict_tool_parsing      = true
+max_tool_iterations      = 4
+max_history_messages     = 20
+max_context_tokens       = 8000
+max_tool_result_chars    = 4000
+keep_tool_context_turns  = 1
+</code></pre>
+<p>This profile composes existing primitives:</p>
+<ul>
+<li><code>compact_context</code> keeps startup context small.</li>
+<li><code>strict_tool_parsing</code> treats XML/JSON-looking fallback text as assistant text unless the provider returns native tool calls.</li>
+<li><code>max_tool_iterations</code>, <code>max_context_tokens</code>, and <code>max_tool_result_chars</code> bound runaway loops and oversized tool context.</li>
+</ul>
+<p>With Ollama, this is a no-text-fallback profile: authorized tools remain configured in <code>risk_profile</code>, but text-form tool markup from the model is not executed. Use it for chat-first local agents, or for providers that return native/structured tool calls. If a local model must use ZeroClaw’s text fallback tool syntax, set <code>strict_tool_parsing = false</code> and keep the other small-model limits.</p>
 <h2 id="cost-tiering-heavy-model-when-needed-fast-model-otherwise"><a class="header" href="#cost-tiering-heavy-model-when-needed-fast-model-otherwise">Cost tiering: heavy model when needed, fast model otherwise</a></h2>
 <p>Run two agents and route channels to the appropriate tier. The <code>delegate</code> tool lets one agent hand off to another mid-conversation. <a href="#delegation--subagents">Delegation</a> is gated: the caller’s risk profile must set <code>delegation_policy mode = "allow"</code>, and <strong>both agents must share the same risk profile</strong> (delegation does not cross trust tiers). So the frontline and heavy agents below run on the <em>same</em> <code>trusted</code> risk profile, they differ in model and runtime profile (iteration budget), not in trust surface.</p>
 <p>L’agent de première ligne traite chaque message entrant sur Haiku. Lorsqu’il a besoin d’un raisonnement plus approfondi, il appelle l’outil <code>delegate</code> avec <code>agent = "heavy"</code> ; comme les deux agents partagent le profil de risque <code>trusted</code> et que ce profil autorise la délégation, l’agent plus lourd prend en charge la sous-tâche sur Opus.</p>
@@ -5489,7 +5522,7 @@ api_key = "..."
 <h3 id="providersmodels"><a class="header" href="#providersmodels"><code>providers.models</code></a></h3>
 <p>Conteneur typé de fournisseur de modèle — un emplacement par type <code>model_provider</code> canonique.</p>
 <p>Remplace le <code>HashMap&lt;String, HashMap&lt;String, ModelProviderConfig&gt;&gt;</code> par une structure typée afin que la table par alias de chaque famille porte sa propre configuration typée (avec l’énumération <code>*Endpoint</code> de la famille et les extras spécifiques à la famille visibles au niveau du type).</p>
-<p>La structure TOML est préservée à l’octet près : chaque champ nommé est désérialisé à partir du même bloc <code>[model_providers.&lt;type&gt;.&lt;alias&gt;]</code> qu’auparavant.</p>
+<p>TOML shape is preserved byte-identical: each named field deserializes from the same <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code> block as before.</p>
 <p>Adding a new model_provider family means: define the typed config in <code>schema.rs</code>, then add one row to <code>for_each_model_provider_slot!</code>, and every helper picks up the new slot automatically.</p>
 <p>One slot per family (<code>ai21</code>, <code>aihubmix</code>, <code>anthropic</code>, <code>anyscale</code>, <code>arcee</code>, <code>astrai</code>, <code>atomic_chat</code>, <code>avian</code>, <code>azure</code>, <code>baichuan</code>, <code>baseten</code>, <code>bedrock</code>, <code>cerebras</code>, <code>cloudflare</code>, <code>cohere</code>, <code>copilot</code>, <code>custom</code>, <code>deepinfra</code>, <code>deepmyst</code>, <code>deepseek</code>, <code>doubao</code>, <code>featherless</code>, <code>fireworks</code>, <code>friendli</code>, <code>gemini</code>, <code>gemini_cli</code>, <code>github_models</code>, <code>glm</code>, <code>groq</code>, <code>huggingface</code>, <code>hunyuan</code>, <code>hyperbolic</code>, <code>inception</code>, <code>kilo</code>, <code>kilocli</code>, <code>lambda_ai</code>, <code>lepton</code>, <code>litellm</code>, <code>llamacpp</code>, <code>lmstudio</code>, <code>minimax</code>, <code>mistral</code>, <code>moonshot</code>, <code>morph</code>, <code>nebius</code>, <code>novita</code>, <code>nscale</code>, <code>nvidia</code>, <code>ollama</code>, <code>openai</code>, <code>opencode</code>, <code>openrouter</code>, <code>osaurus</code>, <code>ovh</code>, <code>perplexity</code>, <code>qianfan</code>, <code>qwen</code>, <code>reka</code>, <code>sambanova</code>, <code>sglang</code>, <code>siliconflow</code>, <code>stepfun</code>, <code>synthetic</code>, <code>telnyx</code>, <code>together</code>, <code>upstage</code>, <code>venice</code>, <code>vercel</code>, <code>vllm</code>, <code>xai</code>, <code>yi</code>, <code>zai</code>). Each slot is a <code>[providers.models.&lt;slot&gt;.&lt;alias&gt;]</code> map; see the dedicated section page for the per-field reference.</p>
 <h3 id="providerstranscription"><a class="header" href="#providerstranscription"><code>providers.transcription</code></a></h3>
@@ -5829,7 +5862,7 @@ api_key = "..."
 </div>
 <h2 id="stockage"><a class="header" href="#stockage"><code>stockage</code></a></h2>
 <p>Configuration du stockage persistant (section <code>[storage]</code>).</p>
-<p>Le stockage est une carte à deux niveaux indexée par alias : <code>[storage.&lt;backend&gt;.&lt;alias&gt;]</code>, parallèle à <code>[model_providers.&lt;type&gt;.&lt;alias&gt;]</code>. Chaque backend possède sa propre structure de config typée. <code>MemoryConfig.backend</code> contient une référence pointée (<code>"sqlite.default"</code>, <code>"postgres.work"</code>) qui se résout vers l’une de ces entrées via [<code>Config::resolve_active_storage</code>].</p>
+<p>Storage is a two-tier alias-keyed map: <code>[storage.&lt;backend&gt;.&lt;alias&gt;]</code>, parallel to <code>[providers.models.&lt;type&gt;.&lt;alias&gt;]</code>. Each backend has its own typed config struct. <code>MemoryConfig.backend</code> carries a dotted reference (<code>"sqlite.default"</code>, <code>"postgres.work"</code>) that resolves to one of these entries via [<code>Config::resolve_active_storage</code>].</p>
 <p>One slot per family (<code>lucid</code>, <code>markdown</code>, <code>postgres</code>, <code>qdrant</code>, <code>sqlite</code>). Each slot is a <code>[storage.&lt;slot&gt;.&lt;alias&gt;]</code> map; see the dedicated section page for the per-field reference.</p>
 <h2 id="text_browser"><a class="header" href="#text_browser"><code>text_browser</code></a></h2>
 <p>Configuration de l’outil de navigateur de texte (<code>[text_browser]</code> section).</p>
@@ -9060,7 +9093,12 @@ INFO model_provider=anthropic.haiku stream complete tokens={input=512, output=12
 <h2 id="wire-protocol-wire_api--responses"><a class="header" href="#wire-protocol-wire_api--responses">Wire protocol: <code>wire_api = "responses"</code></a></h2>
 <p>Bring-your-own-endpoint slots default to the OpenAI chat-completions wire. An endpoint that only speaks the OpenAI <strong>responses</strong> wire (some self-hosted vLLM / TGI deployments) needs an explicit <code>wire_api = "responses"</code> opt-in on the alias entry.</p>
 <p>When set to <code>"responses"</code>, the provider is built as an <code>OpenAiResponsesModelProvider</code> (full streaming tool calls over the responses protocol) instead of a chat-completions provider. Omit the field, or set <code>"chat_completions"</code>, for the default wire.</p>
-<p><code>wire_api</code> is only honored by the bring-your-own-endpoint families where the wire is operator-configurable: <code>openai</code>, <code>llamacpp</code>, and <code>custom</code> (plus the generic openai-compatible path). Branded vendor slots (<code>groq</code>, <code>mistral</code>, <code>deepseek</code>, …) have a fixed wire protocol and ignore the field. The setting governs both the primary agent path and delegate targets, so a delegate whose target alias declares <code>wire_api = "responses"</code> reaches the endpoint over the responses wire.</p>
+<p><code>wire_api</code> is honored by the bring-your-own-endpoint families where the wire is operator-configurable: <code>openai</code>, <code>llamacpp</code>, and <code>custom</code> (plus the generic openai-compatible path). Branded vendor slots (<code>groq</code>, <code>mistral</code>, <code>deepseek</code>, …) have a fixed wire protocol and ignore the field, with one exception: <code>opencode</code> honors <code>wire_api = "responses"</code> because OpenCode Zen serves both wires. With no <code>uri</code> override, the OpenCode responses route targets <code>https://opencode.ai/zen/v1/responses</code>:</p>
+<pre><code class="language-toml">[providers.models.opencode.default]
+model    = "big-pickle"
+wire_api = "responses"
+</code></pre>
+<p>The setting governs both the primary agent path and delegate targets, so a delegate whose target alias declares <code>wire_api = "responses"</code> reaches the endpoint over the responses wire.</p>
 <h2 id="validation-1"><a class="header" href="#validation-1">Validation</a></h2>
 <p>Quelle que soit l’approche :</p>
 <div class="os-tabs-src">
@@ -18921,11 +18959,12 @@ cargo build --release --features gateway
 <tr><th>Outil</th><th>Installer</th></tr>
 </thead>
 <tbody>
-<tr><td><code>npm</code></td><td><a href="https://nodejs.org/">https://nodejs.org/</a> ou <code>nvm install --lts</code></td></tr>
+<tr><td><code>npm</code></td><td><a href="https://nodejs.org/">https://nodejs.org/</a> or <code>nvm install &amp;&amp; nvm use</code> from the repo root</td></tr>
 <tr><td><code>cargo</code></td><td><a href="https://rustup.rs">https://rustup.rs</a></td></tr>
 </tbody>
 </table>
 </div>
+<p>The repo root <code>.nvmrc</code> pins the Node major version used by release web builds. Use it for local dashboard work so <code>npm install</code>, <code>cargo web check</code>, and manual release builds all run against the same Node line.</p>
 <p><code>cargo web</code> échoue rapidement avec une suggestion d’installation si <code>npm</code> est manquant.</p>
 <h2 id="navigateurs-pris-en-charge-minimum"><a class="header" href="#navigateurs-pris-en-charge-minimum">Navigateurs pris en charge (minimum)</a></h2>
 <p>Le tableau de bord cible les navigateurs evergreen prenant en charge à la fois <code>color-mix()</code> et <code>structuredClone()</code>.</p>

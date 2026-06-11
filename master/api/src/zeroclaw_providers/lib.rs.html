@@ -58,7 +58,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#56 id=56 data-nosnippet>56</a><span class="kw">const </span>MINIMAX_INTL_BASE_URL: <span class="kw-2">&amp;</span>str = <span class="string">"https://api.minimax.io/v1"</span>;
 <a href=#57 id=57 data-nosnippet>57</a><span class="doccomment">/// MiniMax-published OAuth client_id (same one their portal uses).
 <a href=#58 id=58 data-nosnippet>58</a>/// Operators with a custom OAuth app override via
-<a href=#59 id=59 data-nosnippet>59</a>/// `[model_providers.minimax.&lt;alias&gt;] oauth_client_id = "..."`.
+<a href=#59 id=59 data-nosnippet>59</a>/// `[providers.models.minimax.&lt;alias&gt;] oauth_client_id = "..."`.
 <a href=#60 id=60 data-nosnippet>60</a></span><span class="kw">const </span>MINIMAX_OAUTH_DEFAULT_CLIENT_ID: <span class="kw-2">&amp;</span>str = <span class="string">"78257093-7e40-4613-99e0-527b14b39113"</span>;
 <a href=#61 id=61 data-nosnippet>61</a><span class="kw">const </span>GLM_GLOBAL_BASE_URL: <span class="kw-2">&amp;</span>str = <span class="string">"https://api.z.ai/api/paas/v4"</span>;
 <a href=#62 id=62 data-nosnippet>62</a><span class="kw">const </span>MOONSHOT_INTL_BASE_URL: <span class="kw-2">&amp;</span>str = <span class="string">"https://api.moonshot.ai/v1"</span>;
@@ -963,8 +963,8 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#961 id=961 data-nosnippet>961</a><span class="comment">// `parse_custom_provider_url` was deleted in #6273. The legacy colon-URL form
 <a href=#962 id=962 data-nosnippet>962</a>// (`custom:https://...` and `anthropic-custom:https://...`) is collapsed
 <a href=#963 id=963 data-nosnippet>963</a>// at TOML load time by `normalize_model_provider_type` in `schema/v2.rs` into
-<a href=#964 id=964 data-nosnippet>964</a>// `[model_providers.custom.&lt;alias&gt;] uri = "..."` (or
-<a href=#965 id=965 data-nosnippet>965</a>// `[model_providers.anthropic.custom] uri = "..."`). The factory's
+<a href=#964 id=964 data-nosnippet>964</a>// `[providers.models.custom.&lt;alias&gt;] uri = "..."` (or
+<a href=#965 id=965 data-nosnippet>965</a>// `[providers.models.anthropic.custom] uri = "..."`). The factory's
 <a href=#966 id=966 data-nosnippet>966</a>// `"custom"` arm reads `uri` from the alias entry via
 <a href=#967 id=967 data-nosnippet>967</a>// `options.provider_api_url`; URL parsing/validation now happens at
 <a href=#968 id=968 data-nosnippet>968</a>// schema validation time, not at runtime construction.
@@ -1141,7 +1141,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#1139 id=1139 data-nosnippet>1139</a>
 <a href=#1140 id=1140 data-nosnippet>1140</a><span class="doccomment">/// Split a V2 colon-URL family name (`custom:https://...`,
 <a href=#1141 id=1141 data-nosnippet>1141</a>/// `anthropic-custom:https://...`) into a `(name, url)` pair. The V3 typed
-<a href=#1142 id=1142 data-nosnippet>1142</a>/// schema stores custom endpoints as `[model_providers.&lt;family&gt;.&lt;alias&gt;]
+<a href=#1142 id=1142 data-nosnippet>1142</a>/// schema stores custom endpoints as `[providers.models.&lt;family&gt;.&lt;alias&gt;]
 <a href=#1143 id=1143 data-nosnippet>1143</a>/// uri = "..."`; this helper preserves runtime-factory compatibility for
 <a href=#1144 id=1144 data-nosnippet>1144</a>/// callers that still pass the legacy single-token form.
 <a href=#1145 id=1145 data-nosnippet>1145</a></span><span class="kw">fn </span>split_v2_colon_url(name: <span class="kw-2">&amp;</span>str) -&gt; (<span class="kw-2">&amp;</span>str, <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) {
@@ -1188,7 +1188,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#1186 id=1186 data-nosnippet>1186</a>        {
 <a href=#1187 id=1187 data-nosnippet>1187</a>            <span class="macro">anyhow::bail!</span>(
 <a href=#1188 id=1188 data-nosnippet>1188</a>                <span class="string">"Custom model_provider `{prefix}:&lt;url&gt;` requires a URL beginning with http:// or https://. \
-<a href=#1189 id=1189 data-nosnippet>1189</a>                 Set `[model_providers.custom.&lt;alias&gt;] uri = \"https://your-api.com\"` or pass a valid URL."
+<a href=#1189 id=1189 data-nosnippet>1189</a>                 Set `[providers.models.custom.&lt;alias&gt;] uri = \"https://your-api.com\"` or pass a valid URL."
 <a href=#1190 id=1190 data-nosnippet>1190</a>            </span>);
 <a href=#1191 id=1191 data-nosnippet>1191</a>        }
 <a href=#1192 id=1192 data-nosnippet>1192</a>    }
@@ -1487,7 +1487,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#1485 id=1485 data-nosnippet>1485</a><span class="doccomment">/// Build a resilient model provider from a name that may be either a bare
 <a href=#1486 id=1486 data-nosnippet>1486</a>/// family (`"openai"`) or a dotted alias (`"openai.work"`). Dotted names
 <a href=#1487 id=1487 data-nosnippet>1487</a>/// dispatch through the typed alias factory so endpoint URI, family
-<a href=#1488 id=1488 data-nosnippet>1488</a>/// extras, and per-alias credentials from `[model_providers.&lt;family&gt;.&lt;alias&gt;]`
+<a href=#1488 id=1488 data-nosnippet>1488</a>/// extras, and per-alias credentials from `[providers.models.&lt;family&gt;.&lt;alias&gt;]`
 <a href=#1489 id=1489 data-nosnippet>1489</a>/// are honored; bare names route through the family factory directly.
 <a href=#1490 id=1490 data-nosnippet>1490</a></span><span class="kw">pub fn </span>create_resilient_model_provider_from_ref(
 <a href=#1491 id=1491 data-nosnippet>1491</a>    config: <span class="kw-2">&amp;</span>zeroclaw_config::schema::Config,
@@ -1519,7 +1519,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#1517 id=1517 data-nosnippet>1517</a>
 <a href=#1518 id=1518 data-nosnippet>1518</a><span class="doccomment">/// Build a router fronted by `primary_name` plus one provider per unique
 <a href=#1519 id=1519 data-nosnippet>1519</a>/// `model_routes` entry. Each dotted `&lt;family&gt;.&lt;alias&gt;` name resolves
-<a href=#1520 id=1520 data-nosnippet>1520</a>/// through the typed `[model_providers.&lt;family&gt;.&lt;alias&gt;]` config (endpoint
+<a href=#1520 id=1520 data-nosnippet>1520</a>/// through the typed `[providers.models.&lt;family&gt;.&lt;alias&gt;]` config (endpoint
 <a href=#1521 id=1521 data-nosnippet>1521</a>/// URI, Azure resource, Gemini OAuth, etc.); bare family names use family
 <a href=#1522 id=1522 data-nosnippet>1522</a>/// defaults.
 <a href=#1523 id=1523 data-nosnippet>1523</a></span><span class="kw">pub fn </span>create_routed_model_provider_with_options(
@@ -2131,7 +2131,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#2129 id=2129 data-nosnippet>2129</a>    <span class="attr">#[test]
 <a href=#2130 id=2130 data-nosnippet>2130</a>    </span><span class="kw">fn </span>factory_openai_codex() {
 <a href=#2131 id=2131 data-nosnippet>2131</a>        <span class="comment">// Codex is now selected by the typed `base.requires_openai_auth`
-<a href=#2132 id=2132 data-nosnippet>2132</a>        // flag on an `[model_providers.openai.codex]` alias entry — the
+<a href=#2132 id=2132 data-nosnippet>2132</a>        // flag on an `[providers.models.openai.codex]` alias entry — the
 <a href=#2133 id=2133 data-nosnippet>2133</a>        // factory's legacy escape hatch for the bare "openai-codex" /
 <a href=#2134 id=2134 data-nosnippet>2134</a>        // "openai_codex" / "codex" family names still routes through
 <a href=#2135 id=2135 data-nosnippet>2135</a>        // `OpenAiCodexModelProvider::new` when a real Config + alias is
@@ -2467,7 +2467,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#2465 id=2465 data-nosnippet>2465</a>
 <a href=#2466 id=2466 data-nosnippet>2466</a>    <span class="attr">#[test]
 <a href=#2467 id=2467 data-nosnippet>2467</a>    </span><span class="kw">fn </span>factory_groq_honors_native_tools_override_true() {
-<a href=#2468 id=2468 data-nosnippet>2468</a>        <span class="comment">// Operator opt-in via `[model_providers.groq.&lt;alias&gt;] native_tools = true`
+<a href=#2468 id=2468 data-nosnippet>2468</a>        <span class="comment">// Operator opt-in via `[providers.models.groq.&lt;alias&gt;] native_tools = true`
 <a href=#2469 id=2469 data-nosnippet>2469</a>        // skips the default disable so non-llama Groq models can use native
 <a href=#2470 id=2470 data-nosnippet>2470</a>        // tool calling.
 <a href=#2471 id=2471 data-nosnippet>2471</a>        </span><span class="kw">let </span>options = ModelProviderRuntimeOptions {
@@ -2810,8 +2810,8 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#2808 id=2808 data-nosnippet>2808</a>    //
 <a href=#2809 id=2809 data-nosnippet>2809</a>    // The legacy colon-URL form ("custom:https://..." / "anthropic-custom:...")
 <a href=#2810 id=2810 data-nosnippet>2810</a>    // and its in-process URL parser were deleted in #6273. The surface is
-<a href=#2811 id=2811 data-nosnippet>2811</a>    // `[model_providers.custom.&lt;alias&gt;] uri = "https://..."` for OpenAI-
-<a href=#2812 id=2812 data-nosnippet>2812</a>    // compatible endpoints (or `[model_providers.anthropic.&lt;alias&gt;] uri = ...`
+<a href=#2811 id=2811 data-nosnippet>2811</a>    // `[providers.models.custom.&lt;alias&gt;] uri = "https://..."` for OpenAI-
+<a href=#2812 id=2812 data-nosnippet>2812</a>    // compatible endpoints (or `[providers.models.anthropic.&lt;alias&gt;] uri = ...`
 <a href=#2813 id=2813 data-nosnippet>2813</a>    // for Anthropic-compatible). URL validation now happens at schema-load
 <a href=#2814 id=2814 data-nosnippet>2814</a>    // time in `crates/zeroclaw-config/src/schema.rs::validate`, not at runtime
 <a href=#2815 id=2815 data-nosnippet>2815</a>    // construction; tests for that validation belong with the schema, not here.

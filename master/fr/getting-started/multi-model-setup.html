@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-113efe41.js";
+            window.path_to_searchindex_js = "../searchindex-fdd74dbd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-141ed634.js"></script>
@@ -323,6 +323,39 @@
 <h2 id="développement-local-avec-alternative-hébergée"><a class="header" href="#développement-local-avec-alternative-hébergée">Développement local avec alternative hébergée</a></h2>
 <p>Exécutez un agent local-Ollama et un agent de fournisseur hébergé côte à côte ; routez chaque canal vers celui que vous souhaitez qu’il utilise.</p>
 <p>The <code>dev</code> agent runs from the CLI (no channel binding required, <code>zeroclaw agent -a dev</code> is enough). When Ollama is down, the dev agent fails fast and surfaces the error. The prod channels are unaffected.</p>
+<h2 id="local-small-no-text-fallback-profile"><a class="header" href="#local-small-no-text-fallback-profile">Local-small no-text-fallback profile</a></h2>
+<p>Small local models usually need a runtime profile, not a provider-specific mode. Keep the Ollama provider focused on connection details, then use <code>[runtime_profiles.&lt;alias&gt;]</code> to tighten the prompt/tool loop behavior.</p>
+<pre><code class="language-toml">[providers.models.ollama.local]
+uri   = "http://localhost:11434"
+model = "qwen2.5-coder:7b"
+
+[agents.local]
+model_provider  = "ollama.local"
+risk_profile    = "supervised"
+runtime_profile = "local_small"
+
+[risk_profiles.supervised]
+level                            = "supervised"
+workspace_only                   = true
+require_approval_for_medium_risk = true
+block_high_risk_commands         = true
+
+[runtime_profiles.local_small]
+compact_context          = true
+strict_tool_parsing      = true
+max_tool_iterations      = 4
+max_history_messages     = 20
+max_context_tokens       = 8000
+max_tool_result_chars    = 4000
+keep_tool_context_turns  = 1
+</code></pre>
+<p>This profile composes existing primitives:</p>
+<ul>
+<li><code>compact_context</code> keeps startup context small.</li>
+<li><code>strict_tool_parsing</code> treats XML/JSON-looking fallback text as assistant text unless the provider returns native tool calls.</li>
+<li><code>max_tool_iterations</code>, <code>max_context_tokens</code>, and <code>max_tool_result_chars</code> bound runaway loops and oversized tool context.</li>
+</ul>
+<p>With Ollama, this is a no-text-fallback profile: authorized tools remain configured in <code>risk_profile</code>, but text-form tool markup from the model is not executed. Use it for chat-first local agents, or for providers that return native/structured tool calls. If a local model must use ZeroClaw’s text fallback tool syntax, set <code>strict_tool_parsing = false</code> and keep the other small-model limits.</p>
 <h2 id="cost-tiering-heavy-model-when-needed-fast-model-otherwise"><a class="header" href="#cost-tiering-heavy-model-when-needed-fast-model-otherwise">Cost tiering: heavy model when needed, fast model otherwise</a></h2>
 <p>Run two agents and route channels to the appropriate tier. The <code>delegate</code> tool lets one agent hand off to another mid-conversation. <a href="../agents/delegation.html">Delegation</a> is gated: the caller’s risk profile must set <code>delegation_policy mode = "allow"</code>, and <strong>both agents must share the same risk profile</strong> (delegation does not cross trust tiers). So the frontline and heavy agents below run on the <em>same</em> <code>trusted</code> risk profile, they differ in model and runtime profile (iteration budget), not in trust surface.</p>
 <p>L’agent de première ligne traite chaque message entrant sur Haiku. Lorsqu’il a besoin d’un raisonnement plus approfondi, il appelle l’outil <code>delegate</code> avec <code>agent = "heavy"</code> ; comme les deux agents partagent le profil de risque <code>trusted</code> et que ce profil autorise la délégation, l’agent plus lourd prend en charge la sous-tâche sur Opus.</p>

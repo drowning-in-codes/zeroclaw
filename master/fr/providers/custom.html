@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-113efe41.js";
+            window.path_to_searchindex_js = "../searchindex-fdd74dbd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-141ed634.js"></script>
@@ -677,7 +677,12 @@
 <h2 id="wire-protocol-wire_api--responses"><a class="header" href="#wire-protocol-wire_api--responses">Wire protocol: <code>wire_api = "responses"</code></a></h2>
 <p>Bring-your-own-endpoint slots default to the OpenAI chat-completions wire. An endpoint that only speaks the OpenAI <strong>responses</strong> wire (some self-hosted vLLM / TGI deployments) needs an explicit <code>wire_api = "responses"</code> opt-in on the alias entry.</p>
 <p>When set to <code>"responses"</code>, the provider is built as an <code>OpenAiResponsesModelProvider</code> (full streaming tool calls over the responses protocol) instead of a chat-completions provider. Omit the field, or set <code>"chat_completions"</code>, for the default wire.</p>
-<p><code>wire_api</code> is only honored by the bring-your-own-endpoint families where the wire is operator-configurable: <code>openai</code>, <code>llamacpp</code>, and <code>custom</code> (plus the generic openai-compatible path). Branded vendor slots (<code>groq</code>, <code>mistral</code>, <code>deepseek</code>, …) have a fixed wire protocol and ignore the field. The setting governs both the primary agent path and delegate targets, so a delegate whose target alias declares <code>wire_api = "responses"</code> reaches the endpoint over the responses wire.</p>
+<p><code>wire_api</code> is honored by the bring-your-own-endpoint families where the wire is operator-configurable: <code>openai</code>, <code>llamacpp</code>, and <code>custom</code> (plus the generic openai-compatible path). Branded vendor slots (<code>groq</code>, <code>mistral</code>, <code>deepseek</code>, …) have a fixed wire protocol and ignore the field, with one exception: <code>opencode</code> honors <code>wire_api = "responses"</code> because OpenCode Zen serves both wires. With no <code>uri</code> override, the OpenCode responses route targets <code>https://opencode.ai/zen/v1/responses</code>:</p>
+<pre><code class="language-toml">[providers.models.opencode.default]
+model    = "big-pickle"
+wire_api = "responses"
+</code></pre>
+<p>The setting governs both the primary agent path and delegate targets, so a delegate whose target alias declares <code>wire_api = "responses"</code> reaches the endpoint over the responses wire.</p>
 <h2 id="validation"><a class="header" href="#validation">Validation</a></h2>
 <p>Quelle que soit l’approche :</p>
 <div class="os-tabs-src">
