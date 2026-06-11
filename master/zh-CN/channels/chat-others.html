@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -294,36 +295,36 @@
                     <main>
                         <h1 id="其他聊天平台"><a class="header" href="#其他聊天平台">其他聊天平台</a></h1>
 <p>具有可用集成但尚未提取为独立指南的通道。每个通道都通过功能门控进行控制；在构建时启用相应的 <code>channel-&lt;name&gt;</code> 功能。</p>
-<h2 id="pacing-outbound-replies-reply_min_interval_secs"><a class="header" href="#pacing-outbound-replies-reply_min_interval_secs">Pacing outbound replies (<code>reply_min_interval_secs</code>)</a></h2>
-<p>Every outbound channel accepts an optional <code>reply_min_interval_secs = N</code> field (range <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>, default <code>0</code>). When set, the orchestrator wraps the channel in a per-(channel, recipient) pacing layer so consecutive outbound replies to the same peer wait at least <code>N</code> seconds apart. <code>0</code> (the default) is a passthrough, no wrapper allocated, no overhead.</p>
-<p>When the floor is active, sends that arrive before the floor elapses enter a bounded FIFO queue. A background worker drains the queue at the floor rate so replies still land in order at the configured cadence. The queue depth defaults to <strong>16</strong> (good for the “agent went briefly bursty” case) and is capped at <code>REPLY_QUEUE_DEPTH_CEILING</code> (<code>1024</code>). When the queue is full the <strong>newest</strong> send is dropped and a <code>WARN</code> is emitted with <code>channel_alias</code>, redacted <code>recipient</code>, <code>queue_depth</code>, <code>queue_max</code>, and <code>dropped_chars</code>: body content stays out of logs.</p>
-<p>Streaming draft updates within a single reply are <strong>not</strong> paced (they would freeze the live preview); only the final <code>send</code> (and the terminal <code>finalize_draft</code> write) enter the queue. Different recipients are independent: pacing for one peer does not block messages to another. The wrapper retains state for up to <code>PACING_RECIPIENT_CAP</code> (1024) distinct peers via idle-state LRU eviction: only rows with no queued work and no in-flight send are reclaimed, so the cap is a target for idle state rather than an unconditional hard bound under an all-active burst.</p>
-<p>Use case: paired-identity channels where sub-second replies are an AI-tell. Wire-level coverage exists end-to-end across nine channels (Telegram, Discord, Slack, Mattermost, Webhook, iMessage, Matrix, Signal, WhatsApp); integration tests pin the floor + overflow contract on Telegram and WhatsApp Web.</p>
+<h2 id="限制出站回复的速率reply_min_interval_secs"><a class="header" href="#限制出站回复的速率reply_min_interval_secs">限制出站回复的速率（<code>reply_min_interval_secs</code>）</a></h2>
+<p>每个出站通道都接受一个可选的 <code>reply_min_interval_secs = N</code> 字段（范围为 <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>，默认值为 <code>0</code>）。设置后，编排器会将该通道包装在一个按 (channel, recipient) 划分的节流层中，使得发往同一对端的连续出站回复之间至少间隔 <code>N</code> 秒。<code>0</code>（默认值）为直通模式，不会分配包装器，也不会产生额外开销。</p>
+<p>当下限处于活动状态时，在下限耗尽前到达的发送请求会进入一个有界 FIFO 队列。后台工作进程会按下限速率排空队列，以便回复仍能按配置的节奏有序送达。队列深度默认为 <strong>16</strong>（适用于“智能体短暂突发“的情况），并以 <code>REPLY_QUEUE_DEPTH_CEILING</code>（<code>1024</code>）为上限。当队列已满时，会丢弃<strong>最新的</strong>发送请求，并发出一条带有 <code>channel_alias</code>、脱敏后的 <code>recipient</code>、<code>queue_depth</code>、<code>queue_max</code> 和 <code>dropped_chars</code> 的 <code>WARN</code>：消息正文内容不会写入日志。</p>
+<p>单条回复中的流式草稿更新<strong>不会</strong>进行节奏控制（否则会冻结实时预览）；只有最终的 <code>send</code>（以及末尾的 <code>finalize_draft</code> 写入）才会进入队列。不同收件人之间相互独立：对某个对端的节奏控制不会阻塞发往另一个对端的消息。该包装器通过空闲状态 LRU 淘汰机制，为最多 <code>PACING_RECIPIENT_CAP</code>（1024）个不同对端保留状态：只有没有排队任务且没有进行中发送的条目才会被回收，因此该上限是针对空闲状态的目标值，而非在全部活跃的突发场景下的无条件硬性边界。</p>
+<p>用例：成对身份的通道，其中亚秒级回复是 AI 的破绽。在九个通道（Telegram、Discord、Slack、Mattermost、Webhook、iMessage、Matrix、Signal、WhatsApp）上存在端到端的线级覆盖；集成测试在 Telegram 和 WhatsApp Web 上锁定了下限 + 溢出契约。</p>
 <blockquote>
-<p><strong>Webhook caveat:</strong> on a synchronous webhook channel the outbound reply is the HTTP response to the caller’s request. A non-zero <code>reply_min_interval_secs</code> floor can hold that response open for the floor duration, which may exceed the caller’s own request timeout. Set the floor only when the webhook caller tolerates a delayed response, or leave it at <code>0</code> and pace upstream.</p>
+<p><strong>Webhook 注意事项：</strong> 在同步 webhook 通道上，出站回复就是对调用方请求的 HTTP 响应。非零的 <code>reply_min_interval_secs</code> 下限会使该响应保持打开状态，持续时间为下限时长，这可能超过调用方自己的请求超时时间。仅当 webhook 调用方能够容忍延迟响应时才设置该下限，否则将其保持为 <code>0</code> 并在上游进行节流。</p>
 </blockquote>
 <h2 id="telegram"><a class="header" href="#telegram">Telegram</a></h2>
-<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
-<p>A peer group for telegram sets <code>channel</code> to <code>telegram</code>, lists the allowed senders in <code>external_peers</code> (for telegram, the Telegram user ID or @username; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
-<p>Where to set this:</p>
+<p>入站发送方会根据为绑定代理解析出的<strong>对等集合</strong>进行限制，该集合来自代理所属的 <code>peer_groups</code> 配置。匹配时会去除开头的 <code>@</code>，并对通道的原生发送方标识符执行不区分大小写的比对。<strong>空</strong>集合会拒绝所有人；包含 <code>"*"</code> 的集合会接受所有人；否则仅接受列出的外部对等方（以及对等代理）。这与网关配对（<code>gateway.require_pairing</code>）不同，后者验证的是 HTTP/WebSocket 客户端，而非聊天通道的发送方。</p>
+<p>telegram 的对等组将 <code>channel</code> 设置为 <code>telegram</code>，在 <code>external_peers</code> 中列出允许的发送者（对于 telegram，即 Telegram 用户 ID 或 @username；<code>["*"]</code> 接受任何人），可选地命名用于跨代理分发的对等 <code>agents</code>、一个 <code>ignore</code> 屏蔽列表，以及一个 <code>output_modality</code>（<code>mirror</code>、<code>voice</code> 或 <code>text</code>）。字段参考请参见 <a href="peer-groups.html">Peer Groups</a>。</p>
+<p>在何处设置：</p>
 <div class="os-tabs-src">
-<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
-<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="网关仪表板"><a class="header" href="#网关仪表板">网关仪表板</a></h4>
+<p>在 Web 仪表板中打开 <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a>。</p>
 <h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
-<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+<p>在 <strong>Config</strong> 窗格中的 <strong>Peer groups</strong> 下。</p>
 </div>
 
 <ul>
-<li>Long polling is the default; no public URL required.</li>
+<li>长轮询为默认方式，无需公开 URL。</li>
 <li>支持流式草稿编辑，但受 Telegram 速率限制的限制。如果看到“Too Many Requests”错误，请调整 <code>draft_update_interval_ms</code>。</li>
 </ul>
 <h2 id="imessage仅限-macos"><a class="header" href="#imessage仅限-macos">iMessage（仅限 macOS）</a></h2>
-<p>iMessage is bridged through the Linq Partner API (<code>[channels.linq.&lt;alias&gt;]</code>):</p>
+<p>iMessage 通过 Linq Partner API（<code>[channels.linq.&lt;alias&gt;]</code>）进行桥接：</p>
 <p><strong>仅限 macOS</strong>，需要 Linq 作为第三方中继，或直接使用 AppleScript 自动化（实验性功能，需要完全磁盘访问权限和辅助功能权限）。</p>
 <h2 id="wechat-personal-ilink-bot-微信个人号-ilink"><a class="header" href="#wechat-personal-ilink-bot-微信个人号-ilink">WeChat personal iLink Bot (微信个人号 iLink)</a></h2>
-<p>WeChat personal iLink Bot uses QR-code login against the iLink Bot API for personal WeChat conversations.</p>
+<p>微信个人版 iLink Bot 使用二维码登录方式接入 iLink Bot API，用于处理个人微信会话。</p>
 <h2 id="钉钉"><a class="header" href="#钉钉">钉钉</a></h2>
-<p>Alibaba’s enterprise messenger.</p>
+<p>阿里巴巴的企业级即时通讯工具。</p>
 <h2 id="飞书"><a class="header" href="#飞书">飞书</a></h2>
 <p>使用 <code>channel-lark</code> 为 Lark 或飞书进行构建。根 <code>channel-feishu</code> 特性是 <code>channel-lark</code> 的别名；运行时选择仍通过 <code>use_feishu = true</code> 进行。</p>
 <h2 id="qq"><a class="header" href="#qq">QQ</a></h2>
@@ -337,7 +338,7 @@
 <h2 id="何时选择专用指南"><a class="header" href="#何时选择专用指南">何时选择专用指南</a></h2>
 <p>具有更复杂设置（OAuth 流程、端到端加密、多设备考虑）的频道位于其各自的页面中：</p>
 <ul>
-<li><a href="./matrix.html">Matrix</a>: E2EE, device verification, Synapse/Dendrite specifics</li>
+<li><a href="./matrix.html">Matrix</a>：端到端加密、设备验证、Synapse/Dendrite 相关细节</li>
 <li><a href="./discord.html">Discord</a></li>
 <li><a href="./slack.html">Slack</a></li>
 <li><a href="./mattermost.html">Mattermost</a></li>
@@ -392,6 +393,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

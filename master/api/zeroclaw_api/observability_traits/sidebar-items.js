@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ObserverEvent","ObserverMetric"],"trait":["Observer"]};
+window.SIDEBAR_ITEMS = {"enum":["ObserverEvent","ObserverMetric"],"struct":["TurnTokenUsage"],"trait":["Observer"]};

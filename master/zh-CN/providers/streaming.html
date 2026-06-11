@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -295,7 +296,7 @@
                         <h1 id="流式传输"><a class="header" href="#流式传输">流式传输</a></h1>
 <p>ZeroClaw 中所有支持流式 API 的提供商都会以 token 为单位进行流式传输。运行时会将这些流转发给支持部分更新的通道适配器（如 Discord、Slack、Telegram 以及网关的 WebSocket），从而让用户在模型生成文本时实时看到内容逐步呈现。</p>
 <h2 id="流式传输的内容"><a class="header" href="#流式传输的内容">流式传输的内容</a></h2>
-<p>The provider trait emits <code>StreamEvent</code> values as the model generates output: text deltas, structured tool calls, provider-side pre-executed tool calls and their results, token-usage reports, and a final completion marker. The authoritative, per-variant definitions live with the type in <code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>enum StreamEvent</code>); reasoning tokens arrive as text deltas, not a separate variant.</p>
+<p>提供方 trait 会在模型生成输出时发出 <code>StreamEvent</code> 值：文本增量、结构化工具调用、提供方侧预执行的工具调用及其结果、令牌用量报告，以及最终的完成标记。各变体的权威定义随类型一起位于 <code>crates/zeroclaw-api/src/model_provider.rs</code>（<code>enum StreamEvent</code>）中；推理令牌作为文本增量到达，而非单独的变体。</p>
 <p>通道通过 <code>Channel</code> 特性的出站流钩子消费这些事件。</p>
 <h2 id="功能标志"><a class="header" href="#功能标志">功能标志</a></h2>
 <p>一个提供程序暴露了两个标志，以便运行时知道它可以期望什么：</p>
@@ -305,18 +306,18 @@
 fn supports_streaming_tool_events(&amp;self) -&gt; bool { true }
 <span class="boring">}</span></code></pre>
 <ul>
-<li><strong><code>supports_streaming</code></strong>: true for every actively maintained provider</li>
-<li><strong><code>supports_streaming_tool_events</code></strong>: true when the provider emits <code>ToolCall</code> events during the stream rather than at the end</li>
+<li><strong><code>supports_streaming</code></strong>：对于每个积极维护的提供商均为 true</li>
+<li><strong><code>supports_streaming_tool_events</code></strong>：当提供方在流式传输过程中（而非结束时）发出 <code>ToolCall</code> 事件时为 true</li>
 </ul>
 <p>OpenAI 兼容提供商的行为存在差异：有些提供商会逐块流式传输工具调用参数增量，而另一些提供商仅在调用完成后才发出调用。<code>compatible.rs</code> 中的 SSE 解析器能够处理这两种情况。</p>
 <h2 id="通道侧流式传输"><a class="header" href="#通道侧流式传输">通道侧流式传输</a></h2>
-<p>Channels advertise their own streaming capabilities through the <code>Channel</code> trait:</p>
+<p>通道通过 <code>Channel</code> trait 来声明自身的流式传输能力：</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>fn supports_draft_updates(&amp;self) -&gt; bool;           // 就地编辑消息
 fn supports_multi_message_streaming(&amp;self) -&gt; bool; // 将一条回复拆分为多条消息
 <span class="boring">}</span></code></pre>
-<p>A channel’s capability follows from its config: a channel with the <code>stream_mode</code> enum (off / partial / multi_message) supports both draft updates and multi-message; a channel with the <code>stream_drafts</code> boolean supports draft updates only. This table is generated from the channel config schema, so it stays correct as channels gain or lose streaming support:</p>
+<p>通道的能力由其配置决定：带有 <code>stream_mode</code> 枚举（off / partial / multi_message）的通道同时支持草稿更新和多消息；带有 <code>stream_drafts</code> 布尔值的通道仅支持草稿更新。此表由通道配置 schema 生成，因此当通道获得或失去流式传输支持时，它能始终保持正确：</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -325,7 +326,7 @@ fn supports_multi_message_streaming(&amp;self) -&gt; bool; // 将一条回复拆
 <tbody>
 <tr><td><code>discord</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
 <tr><td><code>lark</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
-<tr><td><code>矩阵</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
+<tr><td><code>matrix</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
 <tr><td><code>nextcloud_talk</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
 <tr><td><code>slack</code></td><td style="text-align: center">✓</td><td style="text-align: center"></td></tr>
 <tr><td><code>telegram</code></td><td style="text-align: center">✓</td><td style="text-align: center">✓</td></tr>
@@ -335,28 +336,28 @@ fn supports_multi_message_streaming(&amp;self) -&gt; bool; // 将一条回复拆
 </div>
 <p>当提供者和通道均支持流式传输时，流程如下：提供者发出 <code>TextDelta</code> → 运行时将其传递给通道 → 通道编辑已发送的消息。编辑频率受通道配置中的 <code>draft_update_interval_ms</code> 限制（默认值：500 毫秒），以避免触发速率限制。</p>
 <h2 id="推理块"><a class="header" href="#推理块">推理块</a></h2>
-<p>Reasoning models (OpenAI o-series, DeepSeek-R1, Qwen-thinking variants) emit <code>ReasoningDelta</code> events separate from regular text. By default the runtime strips these from outbound streams, see <code>&lt;think&gt;…&lt;/think&gt;</code> handling in <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>. Users see the final answer, not the chain-of-thought.</p>
-<p>To surface reasoning to the user, enable it on the alias entry. This is off by default because reasoning content is (a) often verbose and (b) sometimes reveals internal deliberation that looks confusing to an end user.</p>
-<p>To disable reasoning entirely on a reasoning-capable model, set the relevant reasoning field to off. Both fields are top-level; the right name depends on the provider/endpoint. Setting both covers Ollama native, Ollama OpenAI-compat, and upstream APIs that honour <code>reasoning_effort</code>.</p>
+<p>推理模型（OpenAI o-series、DeepSeek-R1、Qwen-thinking 变体）会发出独立于常规文本的 <code>ReasoningDelta</code> 事件。默认情况下，运行时会将这些内容从出站流中剥离，参见 <code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code> 中的 <code>&lt;think&gt;…&lt;/think&gt;</code> 处理逻辑。用户看到的是最终答案，而非思维链。</p>
+<p>为了向用户展示推理过程，请在别名条目上启用它。该功能默认关闭，因为推理内容（a）通常比较冗长，（b）有时会暴露内部的思考过程，可能让最终用户感到困惑。</p>
+<p>要在支持推理的模型上完全禁用推理，请将相关的推理字段设置为 off。这两个字段都是顶级字段；具体使用哪个名称取决于提供方/端点。同时设置这两个字段可覆盖 Ollama 原生、Ollama OpenAI 兼容以及遵循 <code>reasoning_effort</code> 的上游 API。</p>
 <h2 id="中途工具调用"><a class="header" href="#中途工具调用">中途工具调用</a></h2>
 <p>当模型决定调用工具时，提供者会发出 <code>ToolCall</code>。运行时：</p>
 <ol>
 <li>暂停从提供者的流中读取</li>
 <li>将任何缓冲的文本刷新到通道</li>
-<li>Runs the tool (subject to security validation, see <a href="../security/overview.html">Security → Overview</a>)</li>
+<li>运行该工具（需通过安全验证，详见 <a href="../security/overview.html">安全 → 概述</a>）</li>
 <li>恢复对话，并附加工具结果</li>
 <li>为下一个助手回合打开一个新的流式调用</li>
 </ol>
 <p>从用户的角度来看：文本，然后是一个可见的指示器，表明代理通过特定于频道的提示运行了工具，然后是更多文本。对于没有输入指示器的频道，工具调用与下一个文本块之间的间隙是唯一的信号。</p>
 <h2 id="非流式提供商"><a class="header" href="#非流式提供商">非流式提供商</a></h2>
-<p>If a provider returns the entire response in one shot (older OpenAI-compat endpoints, legacy Gemini), the runtime synthesises a single <code>TextDelta</code> containing the full reply followed by <code>Final</code>. Channel adapters still work; they just don’t see partials.</p>
+<p>如果某个提供方一次性返回整个响应（较旧的 OpenAI 兼容端点、旧版 Gemini），运行时会合成一个包含完整回复的 <code>TextDelta</code>，随后跟上 <code>Final</code>。通道适配器仍然可以正常工作；只是它们看不到中间的部分内容。</p>
 <h2 id="代码引用"><a class="header" href="#代码引用">代码引用</a></h2>
 <ul>
-<li><code>crates/zeroclaw-api/src/model_provider.rs</code>: <code>ModelProvider</code> trait, <code>StreamEvent</code> enum</li>
-<li><code>crates/zeroclaw-providers/src/compatible.rs</code>: OpenAI-compat SSE parser</li>
-<li><code>crates/zeroclaw-providers/src/anthropic.rs</code>: Anthropic streaming</li>
-<li><code>crates/zeroclaw-providers/src/ollama.rs</code>: Ollama streaming</li>
-<li><code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>: channel-side stream consumption</li>
+<li><code>crates/zeroclaw-api/src/model_provider.rs</code>：<code>ModelProvider</code> trait、<code>StreamEvent</code> 枚举</li>
+<li><code>crates/zeroclaw-providers/src/compatible.rs</code>：OpenAI 兼容的 SSE 解析器</li>
+<li><code>crates/zeroclaw-providers/src/anthropic.rs</code>：Anthropic 流式传输</li>
+<li><code>crates/zeroclaw-providers/src/ollama.rs</code>：Ollama 流式传输</li>
+<li><code>crates/zeroclaw-channels/src/orchestrator/mod.rs</code>：通道侧的流消费</li>
 </ul>
 
                     </main>
@@ -403,6 +404,114 @@ fn supports_multi_message_streaming(&amp;self) -&gt; bool; // 将一条回复拆
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

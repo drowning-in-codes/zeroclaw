@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -296,10 +297,10 @@
 <p>每个 ZeroClaw 发出的事件都流经一个 crate：<code>zeroclaw-log</code>。该 crate 拥有磁盘上的 JSONL schema、仪表板读取的进程内广播流、连接到类型化 <code>Observer</code>（Prometheus / OTel）的桥接，以及子系统调用的宏（<code>record!</code>、<code>scope!</code>、<code>spawn!</code>）。</p>
 <p>本页介绍运维人员所需的内容：配置、日志位置、事件结构以及如何查询它们。</p>
 <h2 id="配置observability"><a class="header" href="#配置observability">配置（<code>[observability]</code>）</a></h2>
-<p>Defaults: <code>log_persistence = "rolling"</code>, <code>log_persistence_max_entries = 200</code>, <code>log_tool_io = "redacted"</code>, <code>log_tool_io_truncate_bytes = 40960</code>. A fresh install produces a 200-event rolling JSONL at <code>~/.zeroclaw/data/state/runtime-trace.jsonl</code>, and the dashboard’s Logs page works without further configuration.</p>
+<p>默认值：<code>log_persistence = "rolling"</code>、<code>log_persistence_max_entries = 200</code>、<code>log_tool_io = "redacted"</code>、<code>log_tool_io_truncate_bytes = 40960</code>。全新安装会在 <code>~/.zeroclaw/data/state/runtime-trace.jsonl</code> 生成一个包含 200 条事件的滚动 JSONL 文件，且仪表板的 Logs 页面无需进一步配置即可使用。</p>
 <p><code>log_persistence = "none"</code> 会完全禁用持久化。广播流（仪表盘 SSE）和类型化的 <code>Observer</code> 桥接仍会接收事件；仅 JSONL 写入器会被限制。</p>
 <h2 id="磁盘存储格式"><a class="header" href="#磁盘存储格式">磁盘存储格式</a></h2>
-<p>JSONL: one event per line, UTF-8, <code>0o600</code> permissions on Unix. Every line is <code>sync_data</code>’d after write, the line is durable before the emitting code returns.</p>
+<p>JSONL：每行一个事件，UTF-8 编码，在 Unix 上具有 <code>0o600</code> 权限。每行在写入后都会执行 <code>sync_data</code>，因此在发出事件的代码返回之前该行已持久化。</p>
 <p>行结构镜像 <code>zeroclaw_log::event::LogEvent</code>。顶层键：</p>
 <div class="table-wrapper">
 <table>
@@ -319,7 +320,7 @@
 <tr><td><code>trace_id</code></td><td>十六进制字符串 | 省略</td><td>每轮关联。一个智能体轮次 = 一个 trace_id。</td></tr>
 <tr><td><code>span_id</code></td><td>十六进制字符串 | 省略</td><td>回合内的子区间。</td></tr>
 <tr><td><code>zeroclaw.*</code></td><td>扁平字符串映射</td><td>别名绑定归因（见下文）。</td></tr>
-<tr><td><code>消息</code></td><td>string | omitted</td><td>可读的行内容。</td></tr>
+<tr><td><code>message</code></td><td>string | omitted</td><td>可读的行内容。</td></tr>
 <tr><td><code>attributes</code></td><td>object | omitted</td><td>自由格式的按操作负载。</td></tr>
 <tr><td><code>schema_version</code></td><td>u8</td><td>当前为 <code>2</code>。v1 行在启动时就地迁移。</td></tr>
 </tbody>
@@ -328,13 +329,13 @@
 <h3 id="zeroclaw-归属"><a class="header" href="#zeroclaw-归属"><code>zeroclaw.*</code> 归属</a></h3>
 <p>Rust 的事实来源是 <code>crates/zeroclaw-log/src/event.rs</code> 中的 <code>ATTRIBUTION_FIELDS</code> + <code>COMPOSITE_PREFIXES</code>。<code>/api/logs</code> 响应以 <code>attribution_keys</code> 形式携带规范列表；请获取它，而不要硬编码。</p>
 <p>普通字段（<code>ATTRIBUTION_FIELDS</code>）各自携带一个字符串。复合前缀会获得三个键：<code>&lt;prefix&gt;</code>、<code>&lt;prefix&gt;_type</code>、<code>&lt;prefix&gt;_alias</code>（例如 <code>channel = "discord.glados"</code>、<code>channel_type = "discord"</code>、<code>channel_alias = "glados"</code>）。过滤器可以进行粗略匹配或精确匹配。</p>
-<p>When a tracing call sets a composite-prefix field to a bare type (no <code>.</code>), only the <code>_type</code> slot is populated, that way a <code>tracing::*!(model_provider = name, …)</code> call inside a span that already carries the full <code>&lt;type&gt;.&lt;alias&gt;</code> composite doesn’t clobber it on the leaf→root merge.</p>
+<p>当某个跟踪调用将复合前缀字段设置为裸类型（不含 <code>.</code>）时，仅填充 <code>_type</code> 槽位，这样一来，在已携带完整 <code>&lt;type&gt;.&lt;alias&gt;</code> 复合值的 span 内部调用 <code>tracing::*!(model_provider = name, …)</code> 时，就不会在叶→根合并过程中覆盖它。</p>
 <h2 id="查询中"><a class="header" href="#查询中">查询中</a></h2>
 <p>仪表板的日志页面是主要界面。在其下方：</p>
 <pre><code>GET /api/logs
 </code></pre>
 <p>顶级筛选器（查询参数）：<code>since_ts</code>、<code>until_ts</code>、<code>until_id</code>、<code>action</code>、<code>category</code>、<code>outcome</code>、<code>severity_min</code>、<code>trace_id</code>、<code>q</code>（对 <code>message</code> + <code>attributes</code> 进行子串匹配）、<code>hide_internal</code>（剔除 <code>event.category = "internal"</code>）、<code>limit</code>。</p>
-<p>Every other <code>?&lt;key&gt;=&lt;value&gt;</code> is treated as a per-attribution equality filter, the gateway validates the key against <code>is_attribution_field</code> and rejects unknowns with <code>400</code>. The response includes <code>attribution_keys: string[]</code>, so callers don’t have to guess.</p>
+<p>每个其他 <code>?&lt;key&gt;=&lt;value&gt;</code> 都被视为单个归因等值过滤器，网关会根据 <code>is_attribution_field</code> 验证键，并以 <code>400</code> 拒绝未知键。响应中包含 <code>attribution_keys: string[]</code>，因此调用方无需猜测。</p>
 <p>示例：</p>
 <div class="os-tabs-src">
 <h4 id="sh"><a class="header" href="#sh">sh</a></h4>
@@ -405,22 +406,22 @@ curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 </ul>
 <p>跨度链如下：<code>channel_listener{channel=discord.glados}: …</code>。跨度字段内联可见。</p>
 <h2 id="架构迁移"><a class="header" href="#架构迁移">架构迁移</a></h2>
-<p>On startup, if <code>log_persistence</code> is enabled and the file exists, the writer streams any schema-1 rows through an in-place migration to schema-2 before the first append. Pure streaming, bounded by a single line’s allocation regardless of file size. The migrated file is atomically renamed into place. Files already at v2 are left untouched.</p>
+<p>启动时，如果启用了 <code>log_persistence</code> 且文件已存在，写入器会在首次追加之前，将所有 schema-1 行通过就地迁移流式转换为 schema-2。这是纯流式处理，无论文件大小如何，内存占用都限定在单行的分配范围内。迁移后的文件会通过原子重命名就位。已是 v2 的文件将保持不变。</p>
 <p>如果迁移失败，守护进程会记录一条 <code>warn</code> 日志并继续写入 v2 追加数据；旧的 v1 行仍可被理解 v1 的工具读取，但无法通过 v2 读取器的反序列化器。</p>
 <h2 id="什么是-internal"><a class="header" href="#什么是-internal">什么是 <code>internal</code>？</a></h2>
 <p><code>event.category = "internal"</code> 用于归集运维噪声，即操作员默认无需在仪表板上看到的事件：心跳信号、空闲广播、有损同步重试等。仪表板的“隐藏内部事件“开关（默认开启）会过滤掉这些事件。</p>
 <p>当某个高频事件的出现对取证分析很重要，但其缺失才是正常状态时，使用它。不要将它用作真正错误的流量调节器。</p>
 <h2 id="相关文件"><a class="header" href="#相关文件">相关文件</a></h2>
 <ul>
-<li><code>crates/zeroclaw-log/src/event.rs</code>: the canonical <code>LogEvent</code> shape.</li>
-<li><code>crates/zeroclaw-log/src/layer.rs</code>: the <code>tracing-subscriber</code> Layer that captures every <code>tracing::*</code> call and feeds the pipeline.</li>
-<li><code>crates/zeroclaw-log/src/macro.rs</code>: <code>record!</code>, <code>scope!</code>, <code>spawn!</code>.</li>
-<li><code>crates/zeroclaw-log/src/writer.rs</code>: append + rolling trim.</li>
-<li><code>crates/zeroclaw-log/src/reader.rs</code>: <code>/api/logs</code> reader.</li>
-<li><code>crates/zeroclaw-log/src/config.rs</code>: <code>StoragePolicy</code>, <code>ToolIoPolicy</code>, <code>ResolvedPolicy</code>.</li>
-<li><code>crates/zeroclaw-log/src/migrate.rs</code>: schema-1 → schema-2 streaming migration.</li>
-<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code>: typed <code>Observer</code> projection for Prometheus / OTel consumers.</li>
-<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code>: the HTTP adapter.</li>
+<li><code>crates/zeroclaw-log/src/event.rs</code>：规范的 <code>LogEvent</code> 结构。</li>
+<li><code>crates/zeroclaw-log/src/layer.rs</code>：用于捕获每个 <code>tracing::*</code> 调用并将其馈送到流水线的 <code>tracing-subscriber</code> Layer。</li>
+<li><code>crates/zeroclaw-log/src/macro.rs</code>：<code>record!</code>、<code>scope!</code>、<code>spawn!</code>。</li>
+<li><code>crates/zeroclaw-log/src/writer.rs</code>：追加写入 + 滚动裁剪。</li>
+<li><code>crates/zeroclaw-log/src/reader.rs</code>：<code>/api/logs</code> 读取器。</li>
+<li><code>crates/zeroclaw-log/src/config.rs</code>：<code>StoragePolicy</code>、<code>ToolIoPolicy</code>、<code>ResolvedPolicy</code>。</li>
+<li><code>crates/zeroclaw-log/src/migrate.rs</code>：schema-1 → schema-2 流式迁移。</li>
+<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code>：面向 Prometheus / OTel 使用方的类型化 <code>Observer</code> 投影。</li>
+<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code>：HTTP 适配器。</li>
 </ul>
 <p>在信任本页文字之前，请先查阅源代码。</p>
 
@@ -468,6 +469,114 @@ curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

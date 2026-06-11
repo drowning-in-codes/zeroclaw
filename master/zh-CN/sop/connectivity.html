@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -297,41 +298,41 @@
 <h2 id="快速路径"><a class="header" href="#快速路径">快速路径</a></h2>
 <ul>
 <li><a href="#2-mqtt-integration">MQTT 集成</a></li>
-<li><a href="#3-other-trigger-types">Other Trigger Types</a></li>
-<li><a href="#4-security-defaults">Security Defaults</a></li>
-<li><a href="#5-troubleshooting">Troubleshooting</a></li>
+<li><a href="#3-other-trigger-types">其他触发器类型</a></li>
+<li><a href="#4-security-defaults">安全默认设置</a></li>
+<li><a href="#5-troubleshooting">故障排除</a></li>
 </ul>
 <h2 id="1-概述"><a class="header" href="#1-概述">1. 概述</a></h2>
-<p>SOP runs are driven by events delivered to the SOP engine through <code>dispatch_sop_event</code>. The engine matches each event against every loaded SOP’s triggers and starts runs for those that match.</p>
+<p>SOP 运行由通过 <code>dispatch_sop_event</code> 传递给 SOP 引擎的事件驱动。引擎将每个事件与所有已加载 SOP 的触发器进行匹配，并为匹配成功的 SOP 启动运行。</p>
 <p>关键行为：</p>
 <ul>
-<li><strong>Consistent trigger matching:</strong> one matcher path evaluates all trigger types.</li>
+<li><strong>一致的触发器匹配：</strong> 一条匹配器路径评估所有触发器类型。</li>
 <li><strong>运行开始审计：</strong> 已启动的运行通过 <code>SopAuditLogger</code> 进行持久化。</li>
-<li><strong>Headless safety:</strong> in non-agent-loop contexts, <code>process_headless_results</code> logs <code>ExecuteStep</code> actions as pending instead of silently executing them.</li>
+<li><strong>无头安全性：</strong> 在非智能体循环上下文中，<code>process_headless_results</code> 会将 <code>ExecuteStep</code> 操作记录为待处理状态，而不是静默执行它们。</li>
 </ul>
-<p>Of the defined trigger types, <strong>MQTT</strong> is the only event source wired to a live listener in the daemon. Runs can also be started directly from an agent turn with the <code>sop_execute</code> tool. The webhook, cron, and peripheral trigger types are defined and matched by the engine, but no runtime currently feeds those event sources into <code>dispatch_sop_event</code>. See <a href="#3-other-trigger-types">Other Trigger Types</a>.</p>
+<p>在已定义的触发器类型中，<strong>MQTT</strong> 是唯一一个在守护进程中连接到实时监听器的事件源。运行也可以通过 <code>sop_execute</code> 工具直接从代理回合启动。webhook、cron 和外设触发器类型由引擎定义和匹配，但目前没有运行时将这些事件源馈送到 <code>dispatch_sop_event</code>。请参阅<a href="#3-other-trigger-types">其他触发器类型</a>。</p>
 <h2 id="2-mqtt-集成"><a class="header" href="#2-mqtt-集成">2. MQTT 集成</a></h2>
-<p>MQTT is delivered by <code>run_mqtt_sop_listener</code>, which subscribes to the broker, builds an MQTT <code>SopEvent</code> per message, and calls <code>dispatch_sop_event</code>. This path is gated by the <code>channel-mqtt</code> build feature.</p>
+<p>MQTT 由 <code>run_mqtt_sop_listener</code> 提供，它订阅 broker，为每条消息构建一个 MQTT <code>SopEvent</code>，并调用 <code>dispatch_sop_event</code>。此路径由 <code>channel-mqtt</code> 构建特性控制启用。</p>
 <h3 id="21-配置"><a class="header" href="#21-配置">2.1 配置</a></h3>
-<p>Configure broker access with <code>zeroclaw config set channels.mqtt.&lt;field&gt; &lt;value&gt;</code>: the keys land under <code>[channels.mqtt]</code> in the stored config. See the <a href="../reference/config.html">Config reference</a> for all fields. The <code>use_tls</code> flag must match the scheme of <code>broker_url</code> (<code>mqtts://</code> ⇒ <code>true</code>, <code>mqtt://</code> ⇒ <code>false</code>).</p>
+<p>使用 <code>zeroclaw config set channels.mqtt.&lt;field&gt; &lt;value&gt;</code> 配置 broker 访问：这些键会写入存储配置中的 <code>[channels.mqtt]</code> 下。所有字段请参阅<a href="../reference/config.html">配置参考</a>。<code>use_tls</code> 标志必须与 <code>broker_url</code> 的协议方案匹配（<code>mqtts://</code> ⇒ <code>true</code>，<code>mqtt://</code> ⇒ <code>false</code>）。</p>
 <h3 id="22-触发器定义"><a class="header" href="#22-触发器定义">2.2 触发器定义</a></h3>
-<p>The SOP’s trigger is defined in its <code>SOP.toml</code> (see <a href="./syntax.html">Syntax</a>). Topic patterns support <code>+</code> (single-level) and <code>#</code> (multi-level) wildcards. The MQTT payload is forwarded into the SOP event payload (<code>event.payload</code>) and is available to an optional trigger <code>condition</code>, then shown in step context.</p>
-<h2 id="3-other-trigger-types"><a class="header" href="#3-other-trigger-types">3. Other Trigger Types</a></h2>
-<p>The engine defines and matches three further trigger types, but no live event source currently routes events into the dispatcher for them. The trigger syntax is accepted in <code>SOP.toml</code> and validated (see <a href="./syntax.html">Syntax</a>); the matching logic is exercised by tests, but the runtime fan-in is not yet wired.</p>
+<p>SOP 的触发器在其 <code>SOP.toml</code> 中定义（参见 <a href="./syntax.html">Syntax</a>）。主题模式支持 <code>+</code>（单层级）和 <code>#</code>（多层级）通配符。MQTT 负载会被转发到 SOP 事件负载（<code>event.payload</code>）中，可供可选的触发器 <code>condition</code> 使用，随后会在步骤上下文中显示。</p>
+<h2 id="3-其他触发器类型"><a class="header" href="#3-其他触发器类型">3. 其他触发器类型</a></h2>
+<p>引擎定义并匹配另外三种触发器类型，但目前没有实时事件源将相应事件路由到调度器。这些触发器语法在 <code>SOP.toml</code> 中被接受并经过校验（参见 <a href="./syntax.html">Syntax</a>）；匹配逻辑已通过测试验证，但运行时的扇入尚未接入。</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Trigger type</th><th>Matcher</th><th>Wiring status</th></tr>
+<tr><th>触发器类型</th><th>匹配器</th><th>接线状态</th></tr>
 </thead>
 <tbody>
-<tr><td><code>webhook</code></td><td>Exact match against the trigger <code>path</code></td><td>No HTTP route delivers webhook <code>SopEvent</code>s; the gateway has no SOP endpoint.</td></tr>
-<tr><td><code>cron</code></td><td><code>check_sop_cron_triggers</code> performs a window-based check over cached cron triggers</td><td>Defined, but no scheduler caller invokes it outside tests.</td></tr>
-<tr><td>外围设备</td><td>Exact match against <code>"{board}/{signal}"</code></td><td><code>dispatch_peripheral_signal</code> exists, but no peripheral listener calls it outside tests.</td></tr>
+<tr><td><code>webhook</code></td><td>与触发器 <code>path</code> 完全匹配</td><td>没有 HTTP 路由用于投递 webhook <code>SopEvent</code>；该网关没有 SOP 端点。</td></tr>
+<tr><td><code>cron</code></td><td><code>check_sop_cron_triggers</code> 对缓存的 cron 触发器执行基于时间窗口的检查</td><td>已定义，但在测试之外没有调度程序调用方调用它。</td></tr>
+<tr><td><code>peripheral</code></td><td>精确匹配 <code>"{board}/{signal}"</code></td><td><code>dispatch_peripheral_signal</code> 存在，但在测试之外没有任何外设监听器调用它。</td></tr>
 </tbody>
 </table>
 </div>
-<p>Defining one of these triggers in a <code>SOP.toml</code> is valid and will not error, but the SOP will only ever start via MQTT or <code>sop_execute</code> until the corresponding event source is wired.</p>
-<h2 id="4-security-defaults"><a class="header" href="#4-security-defaults">4. Security Defaults</a></h2>
+<p>在 <code>SOP.toml</code> 中定义这些触发器之一是有效的，并且不会报错，但在相应的事件源接入之前，该 SOP 只能通过 MQTT 或 <code>sop_execute</code> 启动。</p>
+<h2 id="4-安全默认值"><a class="header" href="#4-安全默认值">4. 安全默认值</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -340,11 +341,11 @@
 <tbody>
 <tr><td><strong>MQTT 传输</strong></td><td><code>mqtts://</code> + <code>use_tls = true</code> 用于 TLS 传输</td></tr>
 <tr><td><strong>Cron 验证</strong></td><td>在解析/缓存构建期间，无效的 cron 表达式会失败并关闭</td></tr>
-<tr><td><strong>Headless dispatch</strong></td><td>Headless callers log run progression instead of auto-executing <code>ExecuteStep</code></td></tr>
+<tr><td><strong>无头调度</strong></td><td>无头调用方会记录运行进度，而不是自动执行 <code>ExecuteStep</code></td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="5-troubleshooting"><a class="header" href="#5-troubleshooting">5. Troubleshooting</a></h2>
+<h2 id="5-故障排除"><a class="header" href="#5-故障排除">5. 故障排除</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -352,9 +353,9 @@
 </thead>
 <tbody>
 <tr><td><strong>MQTT</strong> 连接错误</td><td>代理 URL/TLS 不匹配</td><td>验证方案与 TLS 标志配对（<code>mqtt://</code>/<code>false</code>、<code>mqtts://</code>/<code>true</code>）</td></tr>
-<tr><td><strong>MQTT</strong> SOP not starting</td><td>topic pattern mismatch or failing <code>condition</code></td><td>Verify the trigger topic/wildcards match the published topic; check the <code>condition</code> against the payload</td></tr>
-<tr><td><strong>SOP 已启动，但步骤未执行</strong></td><td>无活动代理循环的无头触发</td><td>run an agent loop for <code>ExecuteStep</code>, or design the run to pause on approvals</td></tr>
-<tr><td><strong>Webhook/cron/peripheral trigger never fires</strong></td><td>event source not wired into the dispatcher</td><td>use an MQTT trigger or start the run with <code>sop_execute</code></td></tr>
+<tr><td><strong>MQTT</strong> SOP 未启动</td><td>主题模式不匹配或 <code>condition</code> 失败</td><td>验证触发器的主题/通配符与发布的主题相匹配；对照载荷检查 <code>condition</code></td></tr>
+<tr><td><strong>SOP 已启动，但步骤未执行</strong></td><td>无活动代理循环的无头触发</td><td>为 <code>ExecuteStep</code> 运行一个 agent 循环，或将运行设计为在审批时暂停</td></tr>
+<tr><td><strong>Webhook/cron/外设触发器从不触发</strong></td><td>事件源未连接到调度器</td><td>使用 MQTT 触发器或通过 <code>sop_execute</code> 启动运行</td></tr>
 </tbody>
 </table>
 </div>
@@ -403,6 +404,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

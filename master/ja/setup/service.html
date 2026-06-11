@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11602f8d.js";
+            window.path_to_searchindex_js = "../searchindex-44ad045e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5c63d324.js"></script>
+        <script src="../toc-8e2df50e.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -305,18 +306,18 @@ zeroclaw service uninstall   # 削除してください
 </code></pre>
 </div>
 
-<p>The platform-specific backends are implemented in <code>crates/zeroclaw-runtime/src/service/</code>. You don’t have to think about them, but knowing what they produce helps when debugging.</p>
+<p>プラットフォーム固有のバックエンドは <code>crates/zeroclaw-runtime/src/service/</code> に実装されています。それらについて意識する必要はありませんが、何を生成するかを把握しておくとデバッグ時に役立ちます。</p>
 <h2 id="linux-systemd"><a class="header" href="#linux-systemd">Linux: systemd</a></h2>
 <p><code>zeroclaw service install</code> は、<code>~/.config/systemd/user/zeroclaw.service</code> にユーザースコープのユニットファイルを書き込みます。</p>
 <p>単位：</p>
 <ul>
 <li><code>Type=simple</code> とエージェントプロセスがフォアグラウンドで実行される</li>
 <li><code>ExecStart={cargo-bin}/zeroclaw daemon</code></li>
-<li><code>Restart=always</code> with <code>RestartSec=3</code></li>
-<li><code>Environment=HOME=%h</code> and <code>PassEnvironment=DISPLAY XDG_RUNTIME_DIR</code> so headless browser tools can create profile/cache dirs and reach the user session</li>
+<li><code>Restart=always</code> （<code>RestartSec=3</code> 付き）</li>
+<li><code>Environment=HOME=%h</code> と <code>PassEnvironment=DISPLAY XDG_RUNTIME_DIR</code> を設定することで、ヘッドレスブラウザツールがプロファイル/キャッシュディレクトリを作成し、ユーザーセッションにアクセスできるようになります</li>
 <li><code>WantedBy=default.target</code></li>
 </ul>
-<h3 id="manual-control-systemd"><a class="header" href="#manual-control-systemd">Manual control (systemd)</a></h3>
+<h3 id="手動制御-systemd"><a class="header" href="#手動制御-systemd">手動制御 (systemd)</a></h3>
 <div class="os-tabs-src">
 <h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh">systemctl --user start zeroclaw
@@ -334,8 +335,8 @@ journalctl --user -u zeroclaw --since 1時間前
 </code></pre>
 </div>
 
-<h3 id="starting-before-user-login"><a class="header" href="#starting-before-user-login">Starting before user login</a></h3>
-<p>The CLI only ever writes a user-scoped unit (<code>systemctl --user</code>), which by default starts at login and stops at logout. To keep ZeroClaw running on a headless box without an active session, enable lingering for the service user:</p>
+<h3 id="ユーザーログイン前の起動"><a class="header" href="#ユーザーログイン前の起動">ユーザーログイン前の起動</a></h3>
+<p>CLIは常にユーザースコープのユニット（<code>systemctl --user</code>）のみを書き込みます。これはデフォルトでログイン時に開始し、ログアウト時に停止します。アクティブなセッションのないヘッドレスマシンでZeroClawを実行し続けるには、サービスユーザーに対してlingeringを有効にしてください。</p>
 <div class="os-tabs-src">
 <h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
 <pre><code class="language-sh">sudo loginctl enable-linger $USER
@@ -343,7 +344,7 @@ systemctl --user enable --now zeroclaw
 </code></pre>
 </div>
 
-<p>If you need a true system-scope unit (root-owned, <code>/etc/systemd/system/</code>, dedicated service account, or hardware groups via <code>SupplementaryGroups</code>), the CLI does not generate one; adapt the system-level template at <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/scripts/zeroclaw.service"><code>scripts/zeroclaw.service</code></a> and install it yourself. On OpenRC hosts, <code>sudo zeroclaw service install</code> does provision a dedicated <code>zeroclaw</code> user and system paths (see below).</p>
+<p>真にシステムスコープのユニット（root所有、<code>/etc/systemd/system/</code>、専用のサービスアカウント、または<code>SupplementaryGroups</code>によるハードウェアグループ）が必要な場合、CLIはそれを生成しません。<a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/scripts/zeroclaw.service"><code>scripts/zeroclaw.service</code></a>にあるシステムレベルのテンプレートを適応させて、ご自身でインストールしてください。OpenRCホストでは、<code>sudo zeroclaw service install</code>が専用の<code>zeroclaw</code>ユーザーとシステムパスをプロビジョニングします（下記参照）。</p>
 <h2 id="linux-openrc"><a class="header" href="#linux-openrc">Linux: OpenRC</a></h2>
 <p><code>/run/openrc</code> が存在するときに自動的に検出されます（Alpine、一部のGentoo設定など）。</p>
 <div class="os-tabs-src">
@@ -364,7 +365,7 @@ launchctl load ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 </code></pre>
 </div>
 
-<p>Logs go to <code>&lt;config-dir&gt;/logs/</code> as <code>daemon.stdout.log</code> and <code>daemon.stderr.log</code> (for a default install, <code>~/.zeroclaw/logs/</code>). Homebrew installs write to <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code> instead.</p>
+<p>ログは <code>&lt;config-dir&gt;/logs/</code> に <code>daemon.stdout.log</code> および <code>daemon.stderr.log</code> として出力されます（デフォルトインストールの場合は <code>~/.zeroclaw/logs/</code>）。Homebrew でインストールした場合は、代わりに <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code> に書き込まれます。</p>
 <h3 id="homebrew管理"><a class="header" href="#homebrew管理">Homebrew管理</a></h3>
 <p>Homebrew経由でインストールした場合、<code>brew services</code> が推奨されるインターフェースです：</p>
 <div class="os-tabs-src">
@@ -375,24 +376,24 @@ brew services info zeroclaw
 </code></pre>
 </div>
 
-<p>Don’t mix <code>zeroclaw service</code> CLI commands with <code>brew services</code>, pick one. Both end up writing a plist; having both around confuses <code>launchctl</code>.</p>
-<h2 id="windows-task-scheduler"><a class="header" href="#windows-task-scheduler">Windows: Task Scheduler</a></h2>
-<p><code>zeroclaw service install</code> creates a per-user scheduled task named <strong>ZeroClaw Daemon</strong>:</p>
+<p><code>zeroclaw service</code> CLIコマンドと<code>brew services</code>を混在させず、どちらか一方を選んでください。どちらも最終的にはplistを書き込むため、両方が存在すると<code>launchctl</code>が混乱します。</p>
+<h2 id="windows-タスク-スケジューラ"><a class="header" href="#windows-タスク-スケジューラ">Windows: タスク スケジューラ</a></h2>
+<p><code>zeroclaw service install</code> は、<strong>ZeroClaw Daemon</strong> という名前のユーザーごとのスケジュールタスクを作成します:</p>
 <ul>
-<li>Trigger: at logon (<code>/SC ONLOGON</code>)</li>
-<li>Run level: <code>LIMITED</code> (runs as the current user, not elevated)</li>
-<li>Action: runs the install wrapper <code>zeroclaw-daemon.cmd</code>, which launches <code>zeroclaw daemon</code></li>
+<li>トリガー: ログオン時 (<code>/SC ONLOGON</code>)</li>
+<li>実行レベル: <code>LIMITED</code> (昇格せず、現在のユーザーとして実行)</li>
+<li>操作: インストールラッパー <code>zeroclaw-daemon.cmd</code> を実行し、<code>zeroclaw daemon</code> を起動します</li>
 </ul>
-<p>Verify in Task Scheduler GUI (<code>taskschd.msc</code>) under Task Scheduler Library → ZeroClaw Daemon.</p>
-<p>Logs go to <code>&lt;config-dir&gt;\logs\</code> as <code>daemon.stdout.log</code> and <code>daemon.stderr.log</code> (for a default install, <code>%USERPROFILE%\.zeroclaw\logs\</code>):</p>
+<p>タスク スケジューラ GUI (<code>taskschd.msc</code>) で、タスク スケジューラ ライブラリ → ZeroClaw Daemon の順に確認してください。</p>
+<p>ログは <code>&lt;config-dir&gt;\logs\</code> に <code>daemon.stdout.log</code> および <code>daemon.stderr.log</code> として出力されます（デフォルトのインストールでは <code>%USERPROFILE%\.zeroclaw\logs\</code>）:</p>
 <div class="os-tabs-src">
 <h4 id="cmd"><a class="header" href="#cmd">cmd</a></h4>
 <pre><code class="language-cmd">type %USERPROFILE%\.zeroclaw\logs\daemon.stdout.log
 </code></pre>
 </div>
 
-<h3 id="manual-control-task-scheduler"><a class="header" href="#manual-control-task-scheduler">Manual control (Task Scheduler)</a></h3>
-<p>The task is driven through <code>zeroclaw service start|stop|status</code>, which wrap <code>schtasks /Run</code>, <code>/End</code>, and <code>/Query</code> against the <strong>ZeroClaw Daemon</strong> task. You can also manage it directly:</p>
+<h3 id="手動制御タスクスケジューラ"><a class="header" href="#手動制御タスクスケジューラ">手動制御（タスクスケジューラ）</a></h3>
+<p>このタスクは <code>zeroclaw service start|stop|status</code> で操作します。これらは <strong>ZeroClaw Daemon</strong> タスクに対して <code>schtasks /Run</code>、<code>/End</code>、<code>/Query</code> をラップしたものです。直接管理することもできます。</p>
 <div class="os-tabs-src">
 <h4 id="cmd-1"><a class="header" href="#cmd-1">cmd</a></h4>
 <pre><code class="language-cmd">schtasks /Run /TN "ZeroClaw Daemon"
@@ -401,27 +402,27 @@ schtasks /Query /TN "ZeroClaw Daemon" /FO LIST
 </code></pre>
 </div>
 
-<p>The CLI installs only a per-user ONLOGON task; it does not register a <code>LocalSystem</code> Windows Service. For a true system service, wrap the binary with a third-party supervisor (e.g. NSSM) yourself.</p>
+<p>CLI はユーザーごとの ONLOGON タスクのみをインストールします。<code>LocalSystem</code> の Windows サービスは登録しません。本格的なシステムサービスにするには、サードパーティ製のスーパーバイザー（例: NSSM）を使ってバイナリを自分でラップしてください。</p>
 <h2 id="設定ファイルパスの解決"><a class="header" href="#設定ファイルパスの解決">設定ファイルパスの解決</a></h2>
-<p>The service reads config from whichever directory resolved at install time. Precedence (first match wins):</p>
+<p>サービスは、インストール時に解決されたディレクトリから設定を読み込みます。優先順位（最初に一致したものが優先されます）：</p>
 <ol>
-<li><code>$ZEROCLAW_CONFIG_DIR</code> (config lives directly under <code>$ZEROCLAW_CONFIG_DIR</code>)</li>
+<li><code>$ZEROCLAW_CONFIG_DIR</code>（設定は <code>$ZEROCLAW_CONFIG_DIR</code> の直下に配置されます）</li>
 <li><code>$ZEROCLAW_DATA_DIR</code></li>
-<li><code>$ZEROCLAW_WORKSPACE</code> (<strong>deprecated</strong>, prefer <code>ZEROCLAW_DATA_DIR</code>; resolves either <code>$ZEROCLAW_WORKSPACE</code> or the legacy sibling <code>.zeroclaw/</code>)</li>
-<li>On macOS only, the Homebrew config dir (<code>$HOMEBREW_PREFIX/var/zeroclaw/</code>) when installed via Homebrew</li>
-<li>Default <code>~/.zeroclaw/</code> (Linux/macOS) or <code>%USERPROFILE%\.zeroclaw\</code> (Windows)</li>
+<li><code>$ZEROCLAW_WORKSPACE</code>（<strong>非推奨</strong>。<code>ZEROCLAW_DATA_DIR</code> の使用を推奨します。<code>$ZEROCLAW_WORKSPACE</code> またはレガシーの同階層 <code>.zeroclaw/</code> のいずれかを解決します）</li>
+<li>macOS のみ、Homebrew 経由でインストールした場合の Homebrew 設定ディレクトリ (<code>$HOMEBREW_PREFIX/var/zeroclaw/</code>)</li>
+<li>デフォルトは <code>~/.zeroclaw/</code>（Linux/macOS）または <code>%USERPROFILE%\.zeroclaw\</code>（Windows）</li>
 </ol>
-<p><code>ZEROCLAW_CONFIG_DIR</code> overrides everything; setting it alongside <code>ZEROCLAW_DATA_DIR</code> or <code>ZEROCLAW_WORKSPACE</code> logs a warning and ignores the others.</p>
-<p>If your service seems to ignore config changes, check which path the daemon resolved against, <code>zeroclaw status</code> reports the active config file, and the runtime logs a resolution-source line at startup:</p>
+<p><code>ZEROCLAW_CONFIG_DIR</code> はすべてに優先されます。<code>ZEROCLAW_DATA_DIR</code> や <code>ZEROCLAW_WORKSPACE</code> と併せて設定すると、警告がログに記録され、他の設定は無視されます。</p>
+<p>サービスが構成変更を無視しているように見える場合は、デーモンがどのパスを解決したかを確認してください。<code>zeroclaw status</code> はアクティブな構成ファイルを報告し、ランタイムは起動時に解決元の行をログに記録します:</p>
 <div class="os-tabs-src">
 <h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
 <pre><code class="language-sh">zeroclaw status
 </code></pre>
 </div>
 
-<p>The output includes the config file path it resolved against.</p>
+<p>解決に使用した設定ファイルのパスが出力に含まれます。</p>
 <h2 id="自動更新"><a class="header" href="#自動更新">自動更新</a></h2>
-<p>The service does <strong>not</strong> auto-update. That’s deliberate; you pick when to take new code. Subscribe to the GitHub release feed or the Discord <code>#releases</code> channel (see <a href="../contributing/communication.html">Contributing → Communication</a>).</p>
+<p>このサービスは自動更新を<strong>行いません</strong>。これは意図的なもので、新しいコードを取り込むタイミングを自分で選べます。GitHubのリリースフィードまたはDiscordの<code>#releases</code>チャンネルを購読してください（<a href="../contributing/communication.html">コントリビュート → コミュニケーション</a>を参照）。</p>
 <h2 id="関連項目も参照してください"><a class="header" href="#関連項目も参照してください">関連項目も参照してください</a></h2>
 <ul>
 <li><a href="./linux.html">Linux のセットアップ</a>、<a href="./macos.html">macOS のセットアップ</a>、<a href="./windows.html">Windows のセットアップ</a></li>
@@ -473,6 +474,114 @@ schtasks /Query /TN "ZeroClaw Daemon" /FO LIST
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

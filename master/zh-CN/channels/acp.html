@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -292,8 +293,8 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="acp-agent-client-protocol"><a class="header" href="#acp-agent-client-protocol">ACP: Agent Client Protocol</a></h1>
-<p><strong>ACP</strong> is a JSON-RPC 2.0 protocol over stdio that lets editors and IDEs drive a running ZeroClaw agent as a session host. Newline-delimited JSON, lightweight, streamable, easy to wire to a subprocess.</p>
+                        <h1 id="acpagent-client-protocol"><a class="header" href="#acpagent-client-protocol">ACP：Agent Client Protocol</a></h1>
+<p><strong>ACP</strong> 是一个基于 stdio 的 JSON-RPC 2.0 协议，让编辑器和 IDE 能够将正在运行的 ZeroClaw 代理作为会话主机来驱动。它采用换行符分隔的 JSON，轻量、可流式传输，易于连接到子进程。</p>
 <p>可以将其理解为“面向智能体的 LSP”：编辑器启动 <code>zeroclaw acp</code>，通过 stdin 发送提示词，并在 stdout 上接收会话更新。</p>
 <h2 id="你打算用它做什么"><a class="header" href="#你打算用它做什么">你打算用它做什么</a></h2>
 <ul>
@@ -302,7 +303,7 @@
 <li>一个通过编程方式驱动代理的 CI 运行器，无需完整的网关设置</li>
 <li>任何希望在不使用 HTTP 且无需绑定端口的情况下使用代理会话的功能</li>
 </ul>
-<h2 id="protocol-shape-v1"><a class="header" href="#protocol-shape-v1">Protocol shape: v1</a></h2>
+<h2 id="协议形态v1"><a class="header" href="#协议形态v1">协议形态：v1</a></h2>
 <p>所有消息均为 JSON-RPC 2.0 格式（以换行符分隔）。ZeroClaw 实现的是<strong>协议版本 1</strong>。</p>
 <h3 id="initialize"><a class="header" href="#initialize"><code>initialize</code></a></h3>
 <p>握手。返回服务器能力。</p>
@@ -332,11 +333,11 @@
 </code></pre>
 <p><code>loadSession: true</code> 和 <code>sessionCapabilities: {"resume": {}, "close": {}}</code> 表示会话持久化已激活。如果在启动时无法打开 SQLite 存储，这三项都将缺失或为 false，并且 <code>session/load</code>、<code>session/resume</code> 和 <code>session/close</code> 将返回 <code>SESSION_NOT_FOUND</code> 错误。</p>
 <p><code>_meta.zeroclaw</code> 携带基础 ACP 规范中未包含的 ZeroClaw 专属扩展字段。仅实现基础规范的客户端可以忽略此对象。</p>
-<p>The server always responds <code>protocolVersion: 1</code>. If you send a client-side <code>protocolVersion: 0</code>, you still get <code>1</code> back, v0 clients will see parse errors on the new message shapes; see <a href="#version-compatibility">version compatibility</a> below.</p>
+<p>服务器始终返回 <code>protocolVersion: 1</code>。如果你在客户端发送 <code>protocolVersion: 0</code>，仍会收到 <code>1</code> 的响应，v0 客户端在处理新的消息结构时会遇到解析错误；详见下方的<a href="#version-compatibility">版本兼容性</a>。</p>
 <h3 id="sessionnew"><a class="header" href="#sessionnew"><code>session/new</code></a></h3>
 <p>打开一个隔离的代理会话。</p>
 <p><strong><code>agentAlias</code></strong> 用于指定要使用的 <code>[agents.&lt;alias&gt;]</code> 配置项。当配置了多个 agent 时，此字段为必填项；当仅存在一个 agent 时，会自动选中该 agent，此字段可省略。该别名支持驼峰式 <code>agentAlias</code>、蛇形式 <code>agent_alias</code> 或简写形式 <code>agent</code>。</p>
-<p>The optional <strong><code>cwd</code></strong> parameter (aliases: <code>workspaceDir</code>, <code>workspace_dir</code>) pins the per-session file-access boundary, it becomes the <code>workspace_dir</code> inside the <code>SecurityPolicy</code> that all file tools enforce. The agent’s persistent data directory (memory, identity, cron) remains the daemon-level <code>workspace_dir</code> from config.</p>
+<p>可选的 <strong><code>cwd</code></strong> 参数（别名：<code>workspaceDir</code>、<code>workspace_dir</code>）用于固定每个会话的文件访问边界，它会成为所有文件工具强制执行的 <code>SecurityPolicy</code> 中的 <code>workspace_dir</code>。代理的持久化数据目录（memory、identity、cron）仍然使用配置中守护进程级别的 <code>workspace_dir</code>。</p>
 <pre><code class="language-json">→ {`jsonrpc`:"2.0","id":2,方法:"session/new","参数":{
     "agentAlias": myagent,
     当前工作目录: "/path/to/project"
@@ -346,7 +347,7 @@
     workspaceDir: "/path/to/project"
   }}
 </code></pre>
-<p><code>cwd</code> is canonicalized on intake, <code>../</code> traversal cannot escape the intended root. If <code>cwd</code> is omitted, the server uses the daemon’s launch directory.</p>
+<p><code>cwd</code> 在接收时会进行规范化处理，<code>../</code> 遍历无法逃逸出预期的根目录。如果省略 <code>cwd</code>，服务器将使用守护进程的启动目录。</p>
 <h3 id="sessionprompt"><a class="header" href="#sessionprompt"><code>session/prompt</code></a></h3>
 <p>发送提示。响应是一系列流式返回的 <code>session/update</code> 通知，以 <code>session/prompt</code> 结果作为结束。</p>
 <p><code>prompt</code> 参数接受纯字符串或内容片段数组：</p>
@@ -387,7 +388,7 @@
 </thead>
 <tbody>
 <tr><td><code>-32000</code> <code>SESSION_NOT_FOUND</code></td><td>给定的 <code>sessionId</code> 没有活动会话</td></tr>
-<tr><td><code>-32002</code> <code>SESSION_BUSY</code></td><td>A prompt turn is already in flight for this session, wait for it to complete or cancel it first</td></tr>
+<tr><td><code>-32002</code> <code>SESSION_BUSY</code></td><td>当前会话已有一个提示词请求正在处理中，请等待其完成或先取消该请求</td></tr>
 <tr><td><code>-32602</code> <code>INVALID_PARAMS</code></td><td>缺少或格式错误的 <code>sessionId</code> / <code>prompt</code></td></tr>
 <tr><td><code>-32603</code> <code>INTERNAL_ERROR</code></td><td>代理任务崩溃或回合失败</td></tr>
 </tbody>
@@ -408,7 +409,7 @@
 </tbody>
 </table>
 </div>
-<p><code>toolCallId</code> on <code>tool_call</code> and <code>tool_call_update</code> are stable and correlated, the update completing a call carries the same <code>toolCallId</code> as the one that opened it.</p>
+<p><code>tool_call</code> 和 <code>tool_call_update</code> 上的 <code>toolCallId</code> 是稳定且相互关联的，完成某个调用的更新所携带的 <code>toolCallId</code> 与发起该调用时的 <code>toolCallId</code> 相同。</p>
 <p><code>tool_call_update</code> 上的 <code>name</code> 字段是 ZeroClaw 的扩展（基础 ACP 规范并不要求）。客户端可将其用于显示；忽略它也是安全的。</p>
 <h3 id="sessionrequest_permissionagent--client出站请求"><a class="header" href="#sessionrequest_permissionagent--client出站请求"><code>session/request_permission</code>（agent → client，出站请求）</a></h3>
 <p>当某个工具需要用户审批时（通过 autonomy 配置中的 <code>always_ask</code>，或 <code>ask_user</code>/<code>escalate_to_human</code> 工具），ZeroClaw 会从 agent 向 client 发出一个 <strong>JSON-RPC 请求</strong>。client 必须先返回结果，工具调用才会继续执行。</p>
@@ -432,17 +433,17 @@
     结果: {结果: 已选择, optionId: allow-once}
   }}
 </code></pre>
-<p>The server-issued id (<code>"zc-out-N"</code>) is always a string prefixed <code>zc-out-</code>, disjoint from any integer or string ids the client uses for its own requests.</p>
+<p>服务器签发的 id（<code>"zc-out-N"</code>）始终是以 <code>zc-out-</code> 为前缀的字符串，与客户端为自身请求使用的任何整数或字符串 id 互不相交。</p>
 <p>响应结构：</p>
 <ul>
-<li><code>{"outcome": {"outcome": "selected", "optionId": "&lt;id&gt;"}}</code>, user picked an option</li>
-<li><code>{"outcome": {"outcome": "cancelled"}}</code>, user dismissed the prompt</li>
+<li><code>{"outcome": {"outcome": "selected", "optionId": "&lt;id&gt;"}}</code>，用户选择了某个选项</li>
+<li><code>{"outcome": {"outcome": "cancelled"}}</code>，用户关闭了提示</li>
 </ul>
 <p>如果客户端始终未响应（崩溃、网络中断、用户关闭 IDE），请求将在 <code>sessionTimeoutSecs</code> 后超时，工具调用将被拒绝。</p>
 <p><code>ask_user</code> 使用相同的 <code>session/request_permission</code> 机制，将问题的 <code>choices</code> 映射为权限选项。在 <a href="https://github.com/zed-industries/agent-client-protocol/blob/main/docs/rfds/elicitation.mdx">ACP elicitation RFD</a> 落地之前，不支持自由格式（无 choices）的 <code>ask_user</code>。在 ACP 会话中调用不带 <code>choices</code> 的 <code>ask_user</code> 会快速失败并返回明确的错误。</p>
 <h3 id="sessioncancel-zeroclaw-扩展"><a class="header" href="#sessioncancel-zeroclaw-扩展"><code>session/cancel</code> <em>(ZeroClaw 扩展)</em></a></h3>
 <p>中止正在进行的 <code>session/prompt</code> 回合。此方法是 ZeroClaw 的扩展，并非基础 ACP 规范的一部分。如果 ACP 后续标准化了一个有冲突的 <code>session/cancel</code>，ZeroClaw 会将其扩展迁移到 <code>_meta/session/cancel</code>。</p>
-<p><strong>Cancel vs. stop:</strong> <code>session/cancel</code> aborts an in-flight prompt turn and returns <code>stopReason: "cancelled"</code> with any streamed text accumulated up to the interrupt point. <code>session/stop</code> gracefully ends the session after the current turn completes, it waits for the turn to finish rather than interrupting it.</p>
+<p><strong>取消与停止的区别：</strong> <code>session/cancel</code> 会中止正在进行的提示轮次，并返回 <code>stopReason: "cancelled"</code>，同时附带截至中断点为止累积的所有流式文本。<code>session/stop</code> 会在当前轮次完成后正常结束会话，它会等待该轮次完成，而不是中断它。</p>
 <p>规范的参数名为 <code>sessionId</code>；<code>session_id</code> 作为兼容性别名也可接受。</p>
 <pre><code class="language-json">→ {`jsonrpc`:"2.0",方法:session/cancel,"参数":{"会话ID":"s-ab12cd"}}
 ← {`jsonrpc`:"2.0",方法:"session/update","参数":{
@@ -455,16 +456,16 @@
     "内容": "部分...\n\n[已被用户中断]"
   }}
 </code></pre>
-<p>If no turn is active for the session, the cancel is a noop, it succeeds silently without error. This follows ACP notification semantics: notifications must not produce errors.</p>
+<p>如果会话没有活动的轮次，则取消操作为空操作（noop），会静默成功而不报错。这遵循 ACP 通知语义：通知不得产生错误。</p>
 <h3 id="sessionstop-zeroclaw-扩展"><a class="header" href="#sessionstop-zeroclaw-扩展"><code>session/stop</code> <em>(ZeroClaw 扩展)</em></a></h3>
-<p>Cleanly end a session. Not in the base ACP spec: ZeroClaw-specific. If a future ACP spec revision adds <code>session/stop</code> with different semantics, this will be renamed <code>_meta/session/stop</code>.</p>
+<p>干净地结束一个会话。不属于基础 ACP 规范：这是 ZeroClaw 特有的。如果未来 ACP 规范修订版添加了语义不同的 <code>session/stop</code>，此项将被重命名为 <code>_meta/session/stop</code>。</p>
 <pre><code class="language-json">→ {`jsonrpc`:"2.0","id":4,方法:"session/stop","参数":{"会话ID":"s-ab12cd"}}
 ← {`jsonrpc`:"2.0","id":4,"结果":{"会话ID": "s-ab12cd", 已停止:true}}
 </code></pre>
 <h3 id="sessionupdate客户端--服务器zeroclaw-扩展"><a class="header" href="#sessionupdate客户端--服务器zeroclaw-扩展"><code>session/update</code>（客户端 → 服务器）<em>(ZeroClaw 扩展)</em></a></h3>
-<p>ZeroClaw also accepts inbound <code>session/update</code> (and the legacy <code>session/event</code> alias) notifications from the client for custom event injection. Not in the base ACP spec: ZeroClaw-specific. If the ACP spec later defines an inbound <code>session/update</code> with different semantics, this will be renamed <code>_meta/session/update</code>.</p>
+<p>ZeroClaw 还接受来自客户端的入站 <code>session/update</code>（以及旧版别名 <code>session/event</code>）通知，用于注入自定义事件。这不在基础 ACP 规范中：属于 ZeroClaw 特有功能。如果 ACP 规范后续定义了语义不同的入站 <code>session/update</code>，此功能将重命名为 <code>_meta/session/update</code>。</p>
 <h2 id="会话持久化"><a class="header" href="#会话持久化">会话持久化</a></h2>
-<p>ZeroClaw automatically persists ACP sessions to SQLite. No configuration is required, the store opens at <code>&lt;workspace_dir&gt;/sessions/acp-sessions.db</code> whenever <code>zeroclaw acp</code> starts or a gateway WebSocket ACP connection is accepted. If the file cannot be created (read-only filesystem, bad permissions), the server falls back to in-memory-only sessions and <code>loadSession</code> reports <code>false</code> in the <code>initialize</code> response.</p>
+<p>ZeroClaw 会自动将 ACP 会话持久化到 SQLite。无需任何配置，每当 <code>zeroclaw acp</code> 启动或网关接受 WebSocket ACP 连接时，存储就会在 <code>&lt;workspace_dir&gt;/sessions/acp-sessions.db</code> 打开。如果该文件无法创建（只读文件系统、权限错误），服务器将回退到仅内存会话，并在 <code>initialize</code> 响应中将 <code>loadSession</code> 报告为 <code>false</code>。</p>
 <p>持久化的内容：</p>
 <ul>
 <li>会话元数据：<code>sessionId</code>、<code>workspaceDir</code>、<code>created_at</code>、<code>last_activity</code></li>
@@ -493,7 +494,7 @@
 <tbody>
 <tr><td><code>-32000</code> <code>SESSION_NOT_FOUND</code></td><td>存储中不存在给定 <code>sessionId</code> 对应的记录</td></tr>
 <tr><td><code>-32001</code> <code>SESSION_LIMIT_REACHED</code></td><td>当前活动会话数已达到 <code>max_sessions</code> 上限</td></tr>
-<tr><td><code>-32602</code> <code>INVALID_PARAMS</code></td><td>Session is already active, call <code>session/close</code> first</td></tr>
+<tr><td><code>-32602</code> <code>INVALID_PARAMS</code></td><td>会话已处于活动状态，请先调用 <code>session/close</code></td></tr>
 <tr><td><code>-32603</code> <code>INTERNAL_ERROR</code></td><td>SQLite 读取失败</td></tr>
 </tbody>
 </table>
@@ -506,7 +507,7 @@
 <p><code>session/resume</code> 返回后，会话即处于活动状态，可以接受 <code>session/prompt</code> 调用。错误情况与 <code>session/load</code> 相同。</p>
 <p><strong>加载与恢复对比：</strong> 当意外断开连接后重新连接，且客户端需要根据存储的历史记录重建其 UI 时，使用 <code>session/load</code>。当客户端已经拥有历史记录（例如，已将其存储在本地），仅需恢复服务端的 agent 状态时，使用 <code>session/resume</code>。</p>
 <h3 id="sessionclose-zeroclaw-扩展"><a class="header" href="#sessionclose-zeroclaw-扩展"><code>session/close</code> <em>(ZeroClaw 扩展)</em></a></h3>
-<p>Deactivate an active session: cancels any in-flight turn, removes the session from the in-memory active set, and unregisters the ACP back-channel. The session record in the SQLite store is <strong>not deleted</strong>, the session can still be restored with <code>session/load</code> or <code>session/resume</code> later.</p>
+<p>停用活动会话：取消所有进行中的轮次，将该会话从内存中的活动集合移除，并注销 ACP 反向通道。SQLite 存储中的会话记录<strong>不会被删除</strong>，之后仍可通过 <code>session/load</code> 或 <code>session/resume</code> 恢复该会话。</p>
 <pre><code class="language-json">→ {`jsonrpc`:"2.0","id":6,方法:session/close,"参数":{"会话ID":"s-ab12cd"}}
 ← {`jsonrpc`:"2.0","id":6,"结果":{}}
 </code></pre>
@@ -517,18 +518,18 @@
 <div class="cfg-fields">
 <details class="cfg-field">
 <summary><code>default_agent</code> <span class="cfg-field-meta"><code>string?</code> · default <code>—</code></span></summary>
-<p>Agent alias to use when <code>session/new</code> omits <code>agentAlias</code> and more than one agent is configured. When exactly one agent exists it is auto-selected regardless of this field.</p>
-<p><strong>Set it on any surface:</strong></p>
+<p>当 <code>session/new</code> 省略 <code>agentAlias</code> 且配置了多个 agent 时所使用的 agent 别名。当恰好只有一个 agent 存在时，无论此字段如何，都会自动选择该 agent。</p>
+<p><strong>将它放置在任何表面上：</strong></p>
 <div class="os-tabs-src">
-<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
-<p>Open <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> and set the <code>acp.default_agent</code> field.</p>
+<h4 id="网关仪表板"><a class="header" href="#网关仪表板">网关仪表板</a></h4>
+<p>打开 <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> 并设置 <code>acp.default_agent</code> 字段。</p>
 <h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
-<p>In the <strong>Config</strong> pane, set the <code>acp.default_agent</code> field.</p>
+<p>在 <strong>Config</strong> 窗格中，设置 <code>acp.default_agent</code> 字段。</p>
 <h4 id="zeroclaw-config"><a class="header" href="#zeroclaw-config">zeroclaw config</a></h4>
 <pre><code class="language-sh">zeroclaw config set acp.default_agent &lt;value&gt;
 </code></pre>
-<h4 id="environment-variable"><a class="header" href="#environment-variable">Environment variable</a></h4>
-<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<h4 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h4>
+<p>导出此覆盖配置（POSIX shell；可放入 <code>~/.bashrc</code>、<code>~/.zshrc</code>、<code>.env</code> 或 Dockerfile 中）。将 <code>&lt;alias&gt;</code> 替换为实际的别名：</p>
 <pre><code class="language-sh">export ZEROCLAW_acp__default_agent=
 </code></pre>
 </div>
@@ -536,18 +537,18 @@
 </details>
 <details class="cfg-field">
 <summary><code>max_sessions</code> <span class="cfg-field-meta"><code>integer</code> · default <code>10</code></span></summary>
-<p>Maximum number of concurrent ACP sessions. Default: <code>10</code>.</p>
-<p><strong>Set it on any surface:</strong></p>
+<p>并发 ACP 会话的最大数量。默认值：<code>10</code>。</p>
+<p><strong>将它放置在任何表面上：</strong></p>
 <div class="os-tabs-src">
-<h4 id="gateway-dashboard-1"><a class="header" href="#gateway-dashboard-1">Gateway dashboard</a></h4>
-<p>Open <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> and set the <code>acp.max_sessions</code> field.</p>
+<h4 id="网关仪表板-1"><a class="header" href="#网关仪表板-1">网关仪表板</a></h4>
+<p>打开 <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> 并设置 <code>acp.max_sessions</code> 字段。</p>
 <h4 id="zerocode-1"><a class="header" href="#zerocode-1">zerocode</a></h4>
-<p>In the <strong>Config</strong> pane, set the <code>acp.max_sessions</code> field.</p>
+<p>在 <strong>Config</strong> 窗格中，设置 <code>acp.max_sessions</code> 字段。</p>
 <h4 id="zeroclaw-config-1"><a class="header" href="#zeroclaw-config-1">zeroclaw config</a></h4>
 <pre><code class="language-sh">zeroclaw config set acp.max_sessions &lt;value&gt;
 </code></pre>
-<h4 id="environment-variable-1"><a class="header" href="#environment-variable-1">Environment variable</a></h4>
-<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<h4 id="环境变量-1"><a class="header" href="#环境变量-1">环境变量</a></h4>
+<p>导出此覆盖配置（POSIX shell；可放入 <code>~/.bashrc</code>、<code>~/.zshrc</code>、<code>.env</code> 或 Dockerfile 中）。将 <code>&lt;alias&gt;</code> 替换为实际的别名：</p>
 <pre><code class="language-sh">export ZEROCLAW_acp__max_sessions=
 </code></pre>
 </div>
@@ -555,18 +556,18 @@
 </details>
 <details class="cfg-field">
 <summary><code>session_timeout_secs</code> <span class="cfg-field-meta"><code>integer</code> · default <code>3600</code></span></summary>
-<p>Idle session timeout in seconds. Sessions with no activity for this duration are eligible for eviction. Default: <code>3600</code> (1 hour).</p>
-<p><strong>Set it on any surface:</strong></p>
+<p>空闲会话超时时间（以秒为单位）。在此时长内没有任何活动的会话将被回收。默认值：<code>3600</code>（1 小时）。</p>
+<p><strong>将它放置在任何表面上：</strong></p>
 <div class="os-tabs-src">
-<h4 id="gateway-dashboard-2"><a class="header" href="#gateway-dashboard-2">Gateway dashboard</a></h4>
-<p>Open <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> and set the <code>acp.session_timeout_secs</code> field.</p>
+<h4 id="网关仪表板-2"><a class="header" href="#网关仪表板-2">网关仪表板</a></h4>
+<p>打开 <a href="http://127.0.0.1:42617/config/acp"><code>/config/acp</code></a> 并设置 <code>acp.session_timeout_secs</code> 字段。</p>
 <h4 id="zerocode-2"><a class="header" href="#zerocode-2">zerocode</a></h4>
-<p>In the <strong>Config</strong> pane, set the <code>acp.session_timeout_secs</code> field.</p>
+<p>在 <strong>Config</strong> 窗格中，设置 <code>acp.session_timeout_secs</code> 字段。</p>
 <h4 id="zeroclaw-config-2"><a class="header" href="#zeroclaw-config-2">zeroclaw config</a></h4>
 <pre><code class="language-sh">zeroclaw config set acp.session_timeout_secs &lt;value&gt;
 </code></pre>
-<h4 id="environment-variable-2"><a class="header" href="#environment-variable-2">Environment variable</a></h4>
-<p>Export the override (POSIX shells; drop into <code>~/.bashrc</code>, <code>~/.zshrc</code>, <code>.env</code>, or a Dockerfile). Replace <code>&lt;alias&gt;</code> with the literal alias:</p>
+<h4 id="环境变量-2"><a class="header" href="#环境变量-2">环境变量</a></h4>
+<p>导出此覆盖配置（POSIX shell；可放入 <code>~/.bashrc</code>、<code>~/.zshrc</code>、<code>.env</code> 或 Dockerfile 中）。将 <code>&lt;alias&gt;</code> 替换为实际的别名：</p>
 <pre><code class="language-sh">export ZEROCLAW_acp__session_timeout_secs=
 </code></pre>
 </div>
@@ -574,7 +575,7 @@
 </details>
 </div>
 
-<p><code>default_agent</code> is consulted when <code>session/new</code> omits <code>agentAlias</code> and more than one agent is configured; if it is absent and exactly one <code>[agents.&lt;alias&gt;]</code> entry exists, that agent is auto-selected.</p>
+<p>当 <code>session/new</code> 省略 <code>agentAlias</code> 且配置了多个 agent 时，会参考 <code>default_agent</code>；如果它不存在且恰好只有一个 <code>[agents.&lt;alias&gt;]</code> 条目，则会自动选择该 agent。</p>
 <p>当作为子进程运行 <code>zeroclaw acp</code> 时，该命令会无条件启动服务器。当作为守护进程运行时，网关会在 <code>/acp</code> 上通过 WebSocket 暴露 ACP，无需额外配置。</p>
 <h2 id="运行中"><a class="header" href="#运行中">运行中</a></h2>
 <p><strong>作为子进程（典型的 IDE 集成）：</strong></p>
@@ -586,14 +587,14 @@
 
 <p>该二进制文件读取标准输入，写入标准输出，在遇到文件末尾（EOF）时退出。</p>
 <p><strong>通过守护进程网关（远程或同主机）：</strong></p>
-<p>Start the daemon normally. The gateway always exposes ACP over WebSocket at <code>/acp</code>, no extra config flag is required. Clients connect directly, or through <code>zeroclaw-acp-bridge</code>, which bridges the stdio ACP protocol to the gateway WebSocket:</p>
+<p>正常启动守护进程。网关始终在 <code>/acp</code> 上通过 WebSocket 暴露 ACP，无需额外的配置标志。客户端可以直接连接，或者通过 <code>zeroclaw-acp-bridge</code> 连接，它将 stdio ACP 协议桥接到网关 WebSocket：</p>
 <div class="os-tabs-src">
 <h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh">zeroclaw-acp-bridge
 </code></pre>
 </div>
 
-<p>The bridge reads the gateway address and auth token from the same config as the daemon. When the daemon runs with a non-default config directory (e.g. <code>--config-dir /tmp/zeroclaw</code>), point the bridge at the same directory:</p>
+<p>网桥从与守护进程相同的配置中读取网关地址和认证令牌。当守护进程使用非默认配置目录运行时（例如 <code>--config-dir /tmp/zeroclaw</code>），请将网桥指向同一目录：</p>
 <div class="os-tabs-src">
 <h4 id="sh-2"><a class="header" href="#sh-2">sh</a></h4>
 <pre><code class="language-sh">zeroclaw-acp-bridge --config-dir /tmp/zeroclaw
@@ -608,12 +609,12 @@ zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 <ul>
 <li>使用 <code>sessionUpdate</code>（而非 <code>kind</code>）来区分 <code>session/update</code> 通知。</li>
 <li>将 <code>session/prompt</code> 结果解析为 <code>{sessionId, stopReason, content}</code>（而非 <code>{finished, usage}</code>）。</li>
-<li>Implement <code>session/request_permission</code> response handling: the approval mechanism moved from a server notification to a client-answered RPC.</li>
-<li>Drop the <code>systemPrompt</code> param from <code>session/new</code>, it is not read.</li>
+<li>实现 <code>session/request_permission</code> 响应处理：审批机制已从服务器通知改为由客户端应答的 RPC。</li>
+<li>从 <code>session/new</code> 中移除 <code>systemPrompt</code> 参数，该参数未被读取。</li>
 </ul>
 <h2 id="安全"><a class="header" href="#安全">安全</a></h2>
-<p>ACP inherits the running config’s autonomy level. When <code>[autonomy] level = "supervised"</code>, medium-risk tool calls trigger approval via the ACP back-channel, a <code>session/request_permission</code> outbound request the client must acknowledge. In <code>full</code> mode, tool calls execute without approval and <code>workspace_only</code> is implicitly disabled (the agent can reach paths outside the session cwd); <code>forbidden_paths</code> still apply.</p>
-<p>The <code>cwd</code> from <code>session/new</code> becomes the <code>SecurityPolicy</code> workspace boundary used by all file and shell tools for that session. Note: the agent’s system prompt currently reflects the daemon’s global <code>workspace_dir</code> rather than the session <code>cwd</code>, this does not affect enforcement, only the directory the model believes it is working in.</p>
+<p>ACP 继承运行配置的自治级别。当 <code>[autonomy] level = "supervised"</code> 时，中等风险的工具调用会通过 ACP 反向通道触发审批，即一个 <code>session/request_permission</code> 出站请求，客户端必须对其进行确认。在 <code>full</code> 模式下，工具调用无需审批即可执行，且 <code>workspace_only</code> 会被隐式禁用（agent 可以访问会话 cwd 之外的路径）；<code>forbidden_paths</code> 仍然生效。</p>
+<p>来自 <code>session/new</code> 的 <code>cwd</code> 会成为该会话中所有文件和 shell 工具所使用的 <code>SecurityPolicy</code> 工作区边界。注意：代理的系统提示当前反映的是守护进程的全局 <code>workspace_dir</code>，而非会话的 <code>cwd</code>，这不会影响策略的强制执行，仅会影响模型认为自己正在其中工作的目录。</p>
 <h2 id="内存"><a class="header" href="#内存">内存</a></h2>
 <p>ACP 会话不会与智能体的持久化记忆系统交互。这是一个有意为之的设计决策：ACP 适用于 IDE 驱动的编码任务，而非长期的关系构建。</p>
 <p><strong>ACP 会话从代理配置中继承的内容</strong>：个性、技能、风险配置、运行时配置、模型提供商以及所有非内存工具。</p>
@@ -623,7 +624,7 @@ zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 <li>自动记忆调用（每轮对话基于长期记忆构建的上下文前导）已禁用</li>
 <li>会话自动保存到智能体记忆存储的功能已禁用</li>
 </ul>
-<p><strong>Session context</strong> comes from the persisted conversation history in <code>acp-sessions.db</code>. Sessions are persistent, resumable, and deleteable, the session history serves as the working context, not the agent’s long-term memory.</p>
+<p><strong>会话上下文</strong>来自 <code>acp-sessions.db</code> 中持久化的对话历史。会话是持久化的、可恢复的、可删除的，会话历史用作工作上下文，而非智能体的长期记忆。</p>
 <p>这种分离确保临时的编码辅助对话不会污染智能体的长期记忆，同时来自聊天频道的无关知识也不会渗入 ACP 会话中。</p>
 <h2 id="代码参考"><a class="header" href="#代码参考">代码参考</a></h2>
 <ul>
@@ -637,7 +638,7 @@ zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
 <li><a href="./overview.html">通道 → 概述</a></li>
-<li><a href="../tools/mcp.html">Tools → MCP</a>: clients providing tools to the agent; ACP is the inverse</li>
+<li><a href="../tools/mcp.html">工具 → MCP</a>：为代理提供工具的客户端；ACP 则相反</li>
 <li><a href="../security/autonomy.html">安全性 → 自主性</a></li>
 <li><a href="../security/overview.html">安全 → 概述</a></li>
 </ul>
@@ -686,6 +687,114 @@ zeroclaw-acp-bridge --config-dir=/tmp/zeroclaw
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

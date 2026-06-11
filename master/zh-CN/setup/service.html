@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -305,18 +306,18 @@ zeroclaw service uninstall   # 删除它
 </code></pre>
 </div>
 
-<p>The platform-specific backends are implemented in <code>crates/zeroclaw-runtime/src/service/</code>. You don’t have to think about them, but knowing what they produce helps when debugging.</p>
-<h2 id="linux-systemd"><a class="header" href="#linux-systemd">Linux: systemd</a></h2>
+<p>平台相关的后端实现位于 <code>crates/zeroclaw-runtime/src/service/</code> 中。你不必关心它们的细节，但了解它们的产出在调试时会有所帮助。</p>
+<h2 id="linuxsystemd"><a class="header" href="#linuxsystemd">Linux：systemd</a></h2>
 <p><code>zeroclaw service install</code> 会在 <code>~/.config/systemd/user/zeroclaw.service</code> 写入一个用户作用域的单元文件。</p>
 <p>单位：</p>
 <ul>
 <li><code>Type=simple</code>，代理进程保持在前台</li>
 <li><code>ExecStart={cargo-bin}/zeroclaw daemon</code></li>
-<li><code>Restart=always</code> with <code>RestartSec=3</code></li>
-<li><code>Environment=HOME=%h</code> and <code>PassEnvironment=DISPLAY XDG_RUNTIME_DIR</code> so headless browser tools can create profile/cache dirs and reach the user session</li>
-<li><code>WantedBy=default.target</code></li>
+<li><code>Restart=always</code> 配合 <code>RestartSec=3</code></li>
+<li><code>Environment=HOME=%h</code> 和 <code>PassEnvironment=DISPLAY XDG_RUNTIME_DIR</code>，使无头浏览器工具能够创建配置文件/缓存目录并访问用户会话</li>
+<li>WantedBy=default.target</li>
 </ul>
-<h3 id="manual-control-systemd"><a class="header" href="#manual-control-systemd">Manual control (systemd)</a></h3>
+<h3 id="手动控制systemd"><a class="header" href="#手动控制systemd">手动控制（systemd）</a></h3>
 <div class="os-tabs-src">
 <h4 id="sh-1"><a class="header" href="#sh-1">sh</a></h4>
 <pre><code class="language-sh">systemctl --user start zeroclaw
@@ -334,8 +335,8 @@ journalctl --user -u zeroclaw --since 1小时前
 </code></pre>
 </div>
 
-<h3 id="starting-before-user-login"><a class="header" href="#starting-before-user-login">Starting before user login</a></h3>
-<p>The CLI only ever writes a user-scoped unit (<code>systemctl --user</code>), which by default starts at login and stops at logout. To keep ZeroClaw running on a headless box without an active session, enable lingering for the service user:</p>
+<h3 id="在用户登录前启动"><a class="header" href="#在用户登录前启动">在用户登录前启动</a></h3>
+<p>CLI 只会写入用户范围的单元（<code>systemctl --user</code>），默认在登录时启动、注销时停止。若要在无活动会话的无头服务器上保持 ZeroClaw 运行，请为该服务用户启用 lingering：</p>
 <div class="os-tabs-src">
 <h4 id="sh-3"><a class="header" href="#sh-3">sh</a></h4>
 <pre><code class="language-sh">sudo loginctl enable-linger $USER
@@ -343,8 +344,8 @@ systemctl --user enable --now zeroclaw
 </code></pre>
 </div>
 
-<p>If you need a true system-scope unit (root-owned, <code>/etc/systemd/system/</code>, dedicated service account, or hardware groups via <code>SupplementaryGroups</code>), the CLI does not generate one; adapt the system-level template at <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/scripts/zeroclaw.service"><code>scripts/zeroclaw.service</code></a> and install it yourself. On OpenRC hosts, <code>sudo zeroclaw service install</code> does provision a dedicated <code>zeroclaw</code> user and system paths (see below).</p>
-<h2 id="linux-openrc"><a class="header" href="#linux-openrc">Linux: OpenRC</a></h2>
+<p>如果你需要一个真正的系统级单元（root 所有、<code>/etc/systemd/system/</code>、专用服务账户，或通过 <code>SupplementaryGroups</code> 配置硬件组），CLI 不会生成这样的单元；请改用 <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/scripts/zeroclaw.service"><code>scripts/zeroclaw.service</code></a> 中的系统级模板并自行安装。在 OpenRC 主机上，<code>sudo zeroclaw service install</code> 确实会配置一个专用的 <code>zeroclaw</code> 用户和系统路径（见下文）。</p>
+<h2 id="linuxopenrc"><a class="header" href="#linuxopenrc">Linux：OpenRC</a></h2>
 <p>当存在 <code>/run/openrc</code> 时自动检测（Alpine、某些 Gentoo 配置）。</p>
 <div class="os-tabs-src">
 <h4 id="sh-4"><a class="header" href="#sh-4">sh</a></h4>
@@ -354,7 +355,7 @@ rc-update add zeroclaw default    # 开机启动
 </code></pre>
 </div>
 
-<h2 id="macos-launchagent"><a class="header" href="#macos-launchagent">macOS: LaunchAgent</a></h2>
+<h2 id="macoslaunchagent"><a class="header" href="#macoslaunchagent">macOS：LaunchAgent</a></h2>
 <p><code>zeroclaw service install</code> 会写入 <code>~/Library/LaunchAgents/com.zeroclaw.daemon.plist</code> 并加载它。</p>
 <div class="os-tabs-src">
 <h4 id="sh-5"><a class="header" href="#sh-5">sh</a></h4>
@@ -364,7 +365,7 @@ launchctl load ~/Library/LaunchAgents/com.zeroclaw.daemon.plist
 </code></pre>
 </div>
 
-<p>Logs go to <code>&lt;config-dir&gt;/logs/</code> as <code>daemon.stdout.log</code> and <code>daemon.stderr.log</code> (for a default install, <code>~/.zeroclaw/logs/</code>). Homebrew installs write to <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code> instead.</p>
+<p>日志会输出到 <code>&lt;config-dir&gt;/logs/</code> 下的 <code>daemon.stdout.log</code> 和 <code>daemon.stderr.log</code>（默认安装时为 <code>~/.zeroclaw/logs/</code>）。Homebrew 安装则会写入 <code>$HOMEBREW_PREFIX/var/zeroclaw/logs/</code>。</p>
 <h3 id="由-homebrew-管理"><a class="header" href="#由-homebrew-管理">由 Homebrew 管理</a></h3>
 <p>如果通过 Homebrew 安装，<code>brew services</code> 是首选的接口：</p>
 <div class="os-tabs-src">
@@ -375,53 +376,53 @@ brew services info zeroclaw
 </code></pre>
 </div>
 
-<p>Don’t mix <code>zeroclaw service</code> CLI commands with <code>brew services</code>, pick one. Both end up writing a plist; having both around confuses <code>launchctl</code>.</p>
-<h2 id="windows-task-scheduler"><a class="header" href="#windows-task-scheduler">Windows: Task Scheduler</a></h2>
-<p><code>zeroclaw service install</code> creates a per-user scheduled task named <strong>ZeroClaw Daemon</strong>:</p>
+<p>不要混用 <code>zeroclaw service</code> CLI 命令和 <code>brew services</code>，请选择其中一种。两者最终都会写入 plist 文件，同时使用会让 <code>launchctl</code> 产生混乱。</p>
+<h2 id="windows任务计划程序"><a class="header" href="#windows任务计划程序">Windows：任务计划程序</a></h2>
+<p><code>zeroclaw service install</code> 会创建一个名为 <strong>ZeroClaw Daemon</strong> 的每用户计划任务：</p>
 <ul>
-<li>Trigger: at logon (<code>/SC ONLOGON</code>)</li>
-<li>Run level: <code>LIMITED</code> (runs as the current user, not elevated)</li>
-<li>Action: runs the install wrapper <code>zeroclaw-daemon.cmd</code>, which launches <code>zeroclaw daemon</code></li>
+<li>触发器：登录时（<code>/SC ONLOGON</code>）</li>
+<li>运行级别：<code>LIMITED</code>（以当前用户身份运行，未提升权限）</li>
+<li>操作：运行安装包装脚本 <code>zeroclaw-daemon.cmd</code>，该脚本将启动 <code>zeroclaw daemon</code></li>
 </ul>
-<p>Verify in Task Scheduler GUI (<code>taskschd.msc</code>) under Task Scheduler Library → ZeroClaw Daemon.</p>
-<p>Logs go to <code>&lt;config-dir&gt;\logs\</code> as <code>daemon.stdout.log</code> and <code>daemon.stderr.log</code> (for a default install, <code>%USERPROFILE%\.zeroclaw\logs\</code>):</p>
+<p>在任务计划程序 GUI (<code>taskschd.msc</code>) 中，依次展开“任务计划程序库 → ZeroClaw Daemon“进行验证。</p>
+<p>日志将写入 <code>&lt;config-dir&gt;\logs\</code>，文件名为 <code>daemon.stdout.log</code> 和 <code>daemon.stderr.log</code>（默认安装路径为 <code>%USERPROFILE%\.zeroclaw\logs\</code>）：</p>
 <div class="os-tabs-src">
 <h4 id="cmd"><a class="header" href="#cmd">cmd</a></h4>
 <pre><code class="language-cmd">type %USERPROFILE%\.zeroclaw\logs\daemon.stdout.log
 </code></pre>
 </div>
 
-<h3 id="manual-control-task-scheduler"><a class="header" href="#manual-control-task-scheduler">Manual control (Task Scheduler)</a></h3>
-<p>The task is driven through <code>zeroclaw service start|stop|status</code>, which wrap <code>schtasks /Run</code>, <code>/End</code>, and <code>/Query</code> against the <strong>ZeroClaw Daemon</strong> task. You can also manage it directly:</p>
+<h3 id="手动控制任务计划程序"><a class="header" href="#手动控制任务计划程序">手动控制（任务计划程序）</a></h3>
+<p>该任务通过 <code>zeroclaw service start|stop|status</code> 来驱动，它们对 <strong>ZeroClaw Daemon</strong> 任务分别封装了 <code>schtasks /Run</code>、<code>/End</code> 和 <code>/Query</code>。你也可以直接管理它：</p>
 <div class="os-tabs-src">
 <h4 id="cmd-1"><a class="header" href="#cmd-1">cmd</a></h4>
-<pre><code class="language-cmd">schtasks /Run /TN "ZeroClaw Daemon"
-schtasks /End /TN "ZeroClaw Daemon"
-schtasks /Query /TN "ZeroClaw Daemon" /FO LIST
+<pre><code class="language-cmd">schtasks /Run /TN ZeroClaw Daemon
+schtasks /End /TN ZeroClaw Daemon
+schtasks /Query /TN ZeroClaw Daemon /FO LIST
 </code></pre>
 </div>
 
-<p>The CLI installs only a per-user ONLOGON task; it does not register a <code>LocalSystem</code> Windows Service. For a true system service, wrap the binary with a third-party supervisor (e.g. NSSM) yourself.</p>
+<p>该 CLI 仅安装每个用户的 ONLOGON 任务；它不会注册 <code>LocalSystem</code> Windows 服务。如需真正的系统服务，请自行使用第三方监管程序（例如 NSSM）封装该二进制文件。</p>
 <h2 id="配置路径解析"><a class="header" href="#配置路径解析">配置路径解析</a></h2>
-<p>The service reads config from whichever directory resolved at install time. Precedence (first match wins):</p>
+<p>服务从安装时解析到的目录读取配置。优先级（首个匹配项生效）：</p>
 <ol>
-<li><code>$ZEROCLAW_CONFIG_DIR</code> (config lives directly under <code>$ZEROCLAW_CONFIG_DIR</code>)</li>
+<li><code>$ZEROCLAW_CONFIG_DIR</code>（配置文件直接位于 <code>$ZEROCLAW_CONFIG_DIR</code> 下）</li>
 <li><code>$ZEROCLAW_DATA_DIR</code></li>
-<li><code>$ZEROCLAW_WORKSPACE</code> (<strong>deprecated</strong>, prefer <code>ZEROCLAW_DATA_DIR</code>; resolves either <code>$ZEROCLAW_WORKSPACE</code> or the legacy sibling <code>.zeroclaw/</code>)</li>
-<li>On macOS only, the Homebrew config dir (<code>$HOMEBREW_PREFIX/var/zeroclaw/</code>) when installed via Homebrew</li>
-<li>Default <code>~/.zeroclaw/</code> (Linux/macOS) or <code>%USERPROFILE%\.zeroclaw\</code> (Windows)</li>
+<li><code>$ZEROCLAW_WORKSPACE</code>（<strong>已弃用</strong>，建议使用 <code>ZEROCLAW_DATA_DIR</code>；将解析 <code>$ZEROCLAW_WORKSPACE</code> 或旧版同级目录 <code>.zeroclaw/</code>）</li>
+<li>仅在 macOS 上，通过 Homebrew 安装时的 Homebrew 配置目录（<code>$HOMEBREW_PREFIX/var/zeroclaw/</code>）</li>
+<li>默认为 <code>~/.zeroclaw/</code>（Linux/macOS）或 <code>%USERPROFILE%\.zeroclaw\</code>（Windows）</li>
 </ol>
-<p><code>ZEROCLAW_CONFIG_DIR</code> overrides everything; setting it alongside <code>ZEROCLAW_DATA_DIR</code> or <code>ZEROCLAW_WORKSPACE</code> logs a warning and ignores the others.</p>
-<p>If your service seems to ignore config changes, check which path the daemon resolved against, <code>zeroclaw status</code> reports the active config file, and the runtime logs a resolution-source line at startup:</p>
+<p><code>ZEROCLAW_CONFIG_DIR</code> 会覆盖所有其他设置；与 <code>ZEROCLAW_DATA_DIR</code> 或 <code>ZEROCLAW_WORKSPACE</code> 一同设置时会记录一条警告并忽略其他项。</p>
+<p>如果你的服务似乎忽略了配置更改，请检查守护进程解析的是哪个路径，<code>zeroclaw status</code> 会报告当前生效的配置文件，并且运行时会在启动时记录一行解析来源信息：</p>
 <div class="os-tabs-src">
 <h4 id="sh-7"><a class="header" href="#sh-7">sh</a></h4>
 <pre><code class="language-sh">zeroclaw status
 </code></pre>
 </div>
 
-<p>The output includes the config file path it resolved against.</p>
+<p>输出中包含其解析所依据的配置文件路径。</p>
 <h2 id="自动更新"><a class="header" href="#自动更新">自动更新</a></h2>
-<p>The service does <strong>not</strong> auto-update. That’s deliberate; you pick when to take new code. Subscribe to the GitHub release feed or the Discord <code>#releases</code> channel (see <a href="../contributing/communication.html">Contributing → Communication</a>).</p>
+<p>该服务<strong>不会</strong>自动更新。这是有意为之；你可以自行决定何时采用新代码。请订阅 GitHub 发布动态或 Discord 的 <code>#releases</code> 频道（参见 <a href="../contributing/communication.html">Contributing → Communication</a>）。</p>
 <h2 id="另见"><a class="header" href="#另见">另见</a></h2>
 <ul>
 <li><a href="./linux.html">Linux 设置</a>，<a href="./macos.html">macOS 设置</a>，<a href="./windows.html">Windows 设置</a></li>
@@ -473,6 +474,114 @@ schtasks /Query /TN "ZeroClaw Daemon" /FO LIST
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

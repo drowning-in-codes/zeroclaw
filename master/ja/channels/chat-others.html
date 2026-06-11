@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11602f8d.js";
+            window.path_to_searchindex_js = "../searchindex-44ad045e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5c63d324.js"></script>
+        <script src="../toc-8e2df50e.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -294,36 +295,36 @@
                     <main>
                         <h1 id="他のチャットプラットフォーム"><a class="header" href="#他のチャットプラットフォーム">他のチャットプラットフォーム</a></h1>
 <p>統合が動作しているが、まだ個別のガイドに分離されていないチャンネル。各チャンネルは機能ゲートで制御されており、ビルド時に <code>channel-&lt;name&gt;</code> 機能を有効にしてください。</p>
-<h2 id="pacing-outbound-replies-reply_min_interval_secs"><a class="header" href="#pacing-outbound-replies-reply_min_interval_secs">Pacing outbound replies (<code>reply_min_interval_secs</code>)</a></h2>
-<p>Every outbound channel accepts an optional <code>reply_min_interval_secs = N</code> field (range <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>, default <code>0</code>). When set, the orchestrator wraps the channel in a per-(channel, recipient) pacing layer so consecutive outbound replies to the same peer wait at least <code>N</code> seconds apart. <code>0</code> (the default) is a passthrough, no wrapper allocated, no overhead.</p>
-<p>When the floor is active, sends that arrive before the floor elapses enter a bounded FIFO queue. A background worker drains the queue at the floor rate so replies still land in order at the configured cadence. The queue depth defaults to <strong>16</strong> (good for the “agent went briefly bursty” case) and is capped at <code>REPLY_QUEUE_DEPTH_CEILING</code> (<code>1024</code>). When the queue is full the <strong>newest</strong> send is dropped and a <code>WARN</code> is emitted with <code>channel_alias</code>, redacted <code>recipient</code>, <code>queue_depth</code>, <code>queue_max</code>, and <code>dropped_chars</code>: body content stays out of logs.</p>
-<p>Streaming draft updates within a single reply are <strong>not</strong> paced (they would freeze the live preview); only the final <code>send</code> (and the terminal <code>finalize_draft</code> write) enter the queue. Different recipients are independent: pacing for one peer does not block messages to another. The wrapper retains state for up to <code>PACING_RECIPIENT_CAP</code> (1024) distinct peers via idle-state LRU eviction: only rows with no queued work and no in-flight send are reclaimed, so the cap is a target for idle state rather than an unconditional hard bound under an all-active burst.</p>
-<p>Use case: paired-identity channels where sub-second replies are an AI-tell. Wire-level coverage exists end-to-end across nine channels (Telegram, Discord, Slack, Mattermost, Webhook, iMessage, Matrix, Signal, WhatsApp); integration tests pin the floor + overflow contract on Telegram and WhatsApp Web.</p>
+<h2 id="送信応答のペース調整-reply_min_interval_secs"><a class="header" href="#送信応答のペース調整-reply_min_interval_secs">送信応答のペース調整 (<code>reply_min_interval_secs</code>)</a></h2>
+<p>すべての送信チャネルは、オプションの <code>reply_min_interval_secs = N</code> フィールド（範囲 <code>0..=REPLY_MIN_INTERVAL_MAX_SECS</code>、デフォルト <code>0</code>）を受け付けます。設定すると、オーケストレーターはチャネルを (channel, recipient) ごとのペーシングレイヤーでラップし、同じピアへの連続した送信応答が少なくとも <code>N</code> 秒の間隔を空けるようにします。<code>0</code>（デフォルト）はパススルーで、ラッパーは割り当てられず、オーバーヘッドもありません。</p>
+<p>フロアがアクティブな間、フロアが経過する前に到着した送信は、境界付きのFIFOキューに入ります。バックグラウンドワーカーがフロアレートでキューを排出するため、設定されたケイデンスで応答が順序どおりに届きます。キューの深さはデフォルトで <strong>16</strong>（「エージェントが一時的にバースト状態になった」ケースに適しています）で、<code>REPLY_QUEUE_DEPTH_CEILING</code>（<code>1024</code>）が上限です。キューが満杯の場合、<strong>最新の</strong>送信が破棄され、<code>channel_alias</code>、編集済みの<code>recipient</code>、<code>queue_depth</code>、<code>queue_max</code>、<code>dropped_chars</code>を含む<code>WARN</code>が出力されます。本文の内容はログに残りません。</p>
+<p>単一の返信内のストリーミングによる下書き更新は、ペース調整の対象には<strong>なりません</strong>（ライブプレビューがフリーズしてしまうため）。キューに入るのは最終的な <code>send</code>（およびターミナルの <code>finalize_draft</code> 書き込み）のみです。異なる受信者は互いに独立しており、ある相手へのペース調整が別の相手へのメッセージをブロックすることはありません。このラッパーは、アイドル状態のLRU方式による退避を通じて、最大 <code>PACING_RECIPIENT_CAP</code>（1024）個の異なる相手の状態を保持します。キューに入っている処理がなく、送信中でもない行のみが回収されるため、この上限はアイドル状態に対する目標値であり、すべてがアクティブなバースト時における無条件のハードリミットではありません。</p>
+<p>用途: ミリ秒未満の即時応答がAIであることを露呈してしまう、ペアになったアイデンティティを持つチャネル。ワイヤレベルの対応は9つのチャネル(Telegram、Discord、Slack、Mattermost、Webhook、iMessage、Matrix、Signal、WhatsApp)でエンドツーエンドに実装済み。統合テストでは、TelegramとWhatsApp Webで下限値とオーバーフローのコントラクトを固定しています。</p>
 <blockquote>
-<p><strong>Webhook caveat:</strong> on a synchronous webhook channel the outbound reply is the HTTP response to the caller’s request. A non-zero <code>reply_min_interval_secs</code> floor can hold that response open for the floor duration, which may exceed the caller’s own request timeout. Set the floor only when the webhook caller tolerates a delayed response, or leave it at <code>0</code> and pace upstream.</p>
+<p><strong>Webhook に関する注意:</strong> 同期 Webhook チャネルでは、送信側の応答は呼び出し元のリクエストに対する HTTP レスポンスになります。<code>reply_min_interval_secs</code> の下限値が 0 以外の場合、そのレスポンスは下限値の期間だけ保留されることがあり、呼び出し元自身のリクエストタイムアウトを超える可能性があります。Webhook の呼び出し元が遅延応答を許容できる場合にのみ下限値を設定するか、<code>0</code> のままにして上流側でペース調整を行ってください。</p>
 </blockquote>
 <h2 id="telegram"><a class="header" href="#telegram">Telegram</a></h2>
-<p>Inbound senders are gated against the <strong>peer set</strong> resolved for the bound agent, drawn from the <code>peer_groups</code> config the agent belongs to. Matching strips a leading <code>@</code> and is case-insensitive against the channel’s native sender identifier. An <strong>empty</strong> set denies everyone; a set containing <code>"*"</code> accepts anyone; otherwise only the listed external peers (and peer agents) are accepted. This is separate from gateway pairing (<code>gateway.require_pairing</code>), which authenticates HTTP/WebSocket clients, not chat-channel senders.</p>
-<p>A peer group for telegram sets <code>channel</code> to <code>telegram</code>, lists the allowed senders in <code>external_peers</code> (for telegram, the Telegram user ID or @username; <code>["*"]</code> accepts anyone), optionally names peer <code>agents</code> for cross-agent dispatch, an <code>ignore</code> blocklist, and an <code>output_modality</code> (<code>mirror</code>, <code>voice</code>, or <code>text</code>). See <a href="peer-groups.html">Peer Groups</a> for the field reference.</p>
-<p>Where to set this:</p>
+<p>受信側の送信者は、バインドされたエージェントに対して解決された<strong>ピアセット</strong>に照らして制御されます。これはエージェントが所属する <code>peer_groups</code> 設定から導出されます。照合では先頭の <code>@</code> を取り除き、チャネルのネイティブな送信者識別子に対して大文字・小文字を区別せずに行われます。<strong>空</strong>のセットはすべてを拒否し、<code>"*"</code> を含むセットはすべてを受け入れます。それ以外の場合は、リストに記載された外部ピア（およびピアエージェント）のみが受け入れられます。これはゲートウェイのペアリング（<code>gateway.require_pairing</code>）とは別物であり、ペアリングはチャットチャネルの送信者ではなく HTTP/WebSocket クライアントを認証します。</p>
+<p>telegram のピアグループでは、<code>channel</code> を <code>telegram</code> に設定し、<code>external_peers</code> に許可する送信者を列挙し（telegram の場合、Telegram のユーザー ID または @username。<code>["*"]</code> は誰でも受け付けます）、必要に応じてクロスエージェントディスパッチ用のピア <code>agents</code> を指定し、<code>ignore</code> ブロックリストおよび <code>output_modality</code>（<code>mirror</code>、<code>voice</code>、または <code>text</code>）を設定します。フィールドのリファレンスについては <a href="peer-groups.html">Peer Groups</a> を参照してください。</p>
+<p>この設定の場所:</p>
 <div class="os-tabs-src">
-<h4 id="gateway-dashboard"><a class="header" href="#gateway-dashboard">Gateway dashboard</a></h4>
-<p>Open <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> in the web dashboard.</p>
+<h4 id="ゲートウェイダッシュボード"><a class="header" href="#ゲートウェイダッシュボード">ゲートウェイダッシュボード</a></h4>
+<p>Web ダッシュボードで <a href="http://127.0.0.1:42617/config/peer_groups"><code>/config/peer_groups</code></a> を開きます。</p>
 <h4 id="zerocode"><a class="header" href="#zerocode">zerocode</a></h4>
-<p>In the <strong>Config</strong> pane, under <strong>Peer groups</strong>.</p>
+<p><strong>Config</strong> ペインの <strong>Peer groups</strong> の下。</p>
 </div>
 
 <ul>
-<li>Long polling is the default; no public URL required.</li>
+<li>ロングポーリングがデフォルトであり、公開URLは不要です。</li>
 <li>ドラフト編集のストリーミングはサポートされていますが、Telegram のレート制限によって制限されます。「Too Many Requests」が表示される場合は、<code>draft_update_interval_ms</code> を調整してください。</li>
 </ul>
 <h2 id="imessagemacos-のみ"><a class="header" href="#imessagemacos-のみ">iMessage（macOS のみ）</a></h2>
-<p>iMessage is bridged through the Linq Partner API (<code>[channels.linq.&lt;alias&gt;]</code>):</p>
+<p>iMessage は Linq Partner API（<code>[channels.linq.&lt;alias&gt;]</code>）を通じてブリッジされます:</p>
 <p><strong>macOS専用</strong>であり、サードパーティのリレーとしてLinqを使用するか、AppleScriptの自動化（実験的、フルディスクアクセスとアクセシビリティの権限が必要）のいずれかが必要です。</p>
 <h2 id="wechat-personal-ilink-bot-微信个人号-ilink"><a class="header" href="#wechat-personal-ilink-bot-微信个人号-ilink">WeChat personal iLink Bot (微信个人号 iLink)</a></h2>
-<p>WeChat personal iLink Bot uses QR-code login against the iLink Bot API for personal WeChat conversations.</p>
+<p>WeChat personal iLink Bot は、個人の WeChat 会話向けに iLink Bot API に対して QR コードログインを使用します。</p>
 <h2 id="dingtalk"><a class="header" href="#dingtalk">DingTalk</a></h2>
-<p>Alibaba’s enterprise messenger.</p>
+<p>Alibabaのエンタープライズメッセンジャー。</p>
 <h2 id="lark--feishu"><a class="header" href="#lark--feishu">Lark / Feishu</a></h2>
 <p>Lark または Feishu のどちらにも <code>channel-lark</code> を使ってビルドします。ルートの <code>channel-feishu</code> 機能は <code>channel-lark</code> のエイリアスです。実行時の選択は引き続き <code>use_feishu = true</code> で行われます。</p>
 <h2 id="qq"><a class="header" href="#qq">QQ</a></h2>
@@ -337,7 +338,7 @@
 <h2 id="専用ガイドを優先すべき場合"><a class="header" href="#専用ガイドを優先すべき場合">専用ガイドを優先すべき場合</a></h2>
 <p>より複雑なセットアップ（OAuthフロー、エンドツーエンド暗号化、マルチデバイス対応など）が必要なチャンネルは、それぞれ独立したページに記述されています：</p>
 <ul>
-<li><a href="./matrix.html">Matrix</a>: E2EE, device verification, Synapse/Dendrite specifics</li>
+<li><a href="./matrix.html">Matrix</a>: E2EE、デバイス検証、Synapse/Dendrite固有の事項</li>
 <li><a href="./discord.html">Discord</a></li>
 <li><a href="./slack.html">Slack</a></li>
 <li><a href="./mattermost.html">Mattermost</a></li>
@@ -392,6 +393,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

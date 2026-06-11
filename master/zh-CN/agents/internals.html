@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Runtime internals - ZeroClaw Docs</title>
+        <title>运行时内部机制 - ZeroClaw Docs</title>
 
 
         <!-- Custom HTML head -->
@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -292,8 +293,8 @@
                 <div id="mdbook-content" class="content">
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
-                        <h1 id="runtime-internals"><a class="header" href="#runtime-internals">Runtime internals</a></h1>
-<p>This page is the architecture-depth companion to the rest of the Agents section: how the runtime enforces per-agent permissions, scopes memory, and attributes logs. For configuring and running agents, start at <a href="./overview.html">Agents</a>; for the schema-level field reference, see <a href="../reference/config.html">Config</a>; for live setup steps, see <a href="../contributing/multi-agent-setup.html">Multi-agent setup</a>.</p>
+                        <h1 id="运行时内部机制"><a class="header" href="#运行时内部机制">运行时内部机制</a></h1>
+<p>本页面是 Agents 部分其余内容的架构深度配套文档：介绍运行时如何强制执行每个代理的权限、限定内存范围以及归属日志。有关配置和运行代理，请从 <a href="./overview.html">Agents</a> 开始；有关架构级别的字段参考，请参阅 <a href="../reference/config.html">Config</a>；有关实时设置步骤，请参阅 <a href="../contributing/multi-agent-setup.html">Multi-agent setup</a>。</p>
 <h2 id="权限模型"><a class="header" href="#权限模型">权限模型</a></h2>
 <p>每个智能体的有效 <code>SecurityPolicy</code> 由 <code>SecurityPolicy::for_agent(config, alias)</code> 构建：</p>
 <ol>
@@ -308,7 +309,7 @@
 <li>如果 <code>[agents.&lt;alias&gt;.workspace.unrestricted_filesystem]</code> 为 <code>true</code>，请关闭 <code>workspace_only</code>。</li>
 </ol>
 <p>只读白名单由 <code>file_read</code>（以及其他读取类工具）遵循；读写白名单则控制 <code>file_write</code>、<code>file_edit</code>、<code>git_operations</code> 以及 shell 工具涉及路径操作的调用。POSIX 设备文件（<code>/dev/null</code>、<code>/dev/zero</code>、<code>/dev/random</code>、<code>/dev/urandom</code>）始终可读，因此 shell 习惯用法无需为每个 agent 配置即可正常工作。</p>
-<p>SubAgent spawns enforce the rule that a child cannot escalate beyond its parent. The validator’s full axis list and the budget-sharing behavior are documented at <a href="./delegation.html#permission-inheritance">Delegation → Permission inheritance</a>.</p>
+<p>SubAgent 生成会强制执行子代理不能超越其父代理权限的规则。验证器的完整轴列表和预算共享行为记录在 <a href="./delegation.html#permission-inheritance">委派 → 权限继承</a>。</p>
 <h2 id="内存模型"><a class="header" href="#内存模型">内存模型</a></h2>
 <p>每个智能体都有自己的 <code>Arc&lt;dyn Memory&gt;</code> 实例。该工厂（<code>zeroclaw_memory::create_memory_for_agent</code>）会根据后端类型进行分发：</p>
 <ul>
@@ -323,7 +324,7 @@
 <li>跨后端跨代理内存访问（例如 SQLite 代理读取 Postgres 代理的行）。</li>
 <li>智能体重命名（<code>agents.id</code> UUID 间接引用是支持重命名的基础，但目前尚无对应的 CLI/UI 入口）。</li>
 <li>删除前归档并恢复。</li>
-<li>Per-agent secret namespacing: there is a single workspace-wide <code>SecretStore</code>.</li>
+<li>每个 agent 的密钥命名空间隔离：存在一个工作区范围的 <code>SecretStore</code>。</li>
 <li>用于跨代理作用域的 Lucid 线格式扩展。</li>
 <li>一个专用的 <code>zeroclaw agents</code> 管理 CLI，用于创建/删除/列出 agents。</li>
 </ol>
@@ -372,6 +373,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

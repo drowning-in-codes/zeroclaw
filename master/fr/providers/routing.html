@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-fdd74dbd.js";
+            window.path_to_searchindex_js = "../searchindex-85e3e40f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-141ed634.js"></script>
+        <script src="../toc-98474cc2.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -296,25 +297,25 @@
 <p>Le routage se produit au niveau de la <strong>couche agent</strong>. Chaque agent pointe vers exactement un fournisseur ; les canaux pointent vers les agents.</p>
 <p>Deux niveaux de décisions :</p>
 <ol>
-<li><strong>Per-call backend selection</strong>: “use the cheap model unless this prompt looks like reasoning.” Each routing target is its own <code>[agents.&lt;alias&gt;]</code> entry with its own <code>model_provider</code>. Channels are routed to whichever agent should handle their traffic.</li>
-<li><strong>Provider reliability</strong>: vendor-redundancy lives behind a single first-class provider. Configure OpenRouter (or an equivalent) as one provider and let it handle vendor fan-out at its endpoint.</li>
+<li><strong>Sélection du backend par appel</strong> : « utiliser le modèle économique sauf si ce prompt ressemble à du raisonnement. » Chaque cible de routage est une entrée <code>[agents.&lt;alias&gt;]</code> distincte avec son propre <code>model_provider</code>. Les canaux sont routés vers l’agent qui doit traiter leur trafic.</li>
+<li><strong>Fiabilité des fournisseurs</strong> : la redondance multi-fournisseurs est gérée derrière un seul fournisseur de premier ordre. Configurez OpenRouter (ou un équivalent) comme fournisseur unique et laissez-le gérer la répartition entre fournisseurs au niveau de son point de terminaison.</li>
 </ol>
 <h2 id="répartition-par-agent"><a class="header" href="#répartition-par-agent">Répartition par agent</a></h2>
 <p>Définissez chaque cible de routage comme son propre agent, puis dirigez les canaux vers l’agent qui doit gérer leur trafic.</p>
 <p>Chaque canal est lié à un agent. Les canaux passent d’un agent à l’autre en modifiant <code>channels = [...]</code> sur l’agent qui doit les prendre en charge ; <code>Config::validate()</code> s’assure que les références sont résolues.</p>
 <p>Pour le routage multi-étapes ad hoc au sein d’une même conversation, l’outil <code>spawn_subagent</code> permet à un agent d’exécuter un enfant éphémère sous sa propre identité. L’enfant hérite de l’enveloppe de permissions du parent (voir <code>[risk_profiles.&lt;alias&gt;].allowed_tools</code>) et renvoie sa réponse finale à la boucle d’outils du parent.</p>
 <h2 id="routage-de-modèle-basé-sur-des-indications"><a class="header" href="#routage-de-modèle-basé-sur-des-indications">Routage de modèle basé sur des indications</a></h2>
-<p>A narrower mechanism: <code>[[model_routes]]</code> lets an agent override the configured <code>model_provider</code> for prompts marked with a hint string. Useful when one agent should occasionally reach for a different model without spinning up a second agent. Each route entry carries a <code>hint</code> (the string a prompt must declare to fire it), a <code>model_provider</code> (the dotted <code>&lt;type&gt;.&lt;alias&gt;</code> profile to switch to, e.g. <code>deepseek.reasoner</code>), and a <code>model</code> (the provider-local model id, e.g. <code>deepseek-reasoner</code>). Configure routes through the gateway, zerocode, or <code>zeroclaw config set</code>; see the <a href="../reference/config.html#model_routes">Config reference</a> for the field schema.</p>
+<p>Un mécanisme plus restreint : <code>[[model_routes]]</code> permet à un agent de remplacer le <code>model_provider</code> configuré pour les prompts marqués d’une chaîne d’indication. Utile lorsqu’un agent doit occasionnellement recourir à un modèle différent sans lancer un second agent. Chaque entrée de route comporte un <code>hint</code> (la chaîne qu’un prompt doit déclarer pour la déclencher), un <code>model_provider</code> (le profil en notation pointée <code>&lt;type&gt;.&lt;alias&gt;</code> vers lequel basculer, p. ex. <code>deepseek.reasoner</code>) et un <code>model</code> (l’identifiant de modèle local au fournisseur, p. ex. <code>deepseek-reasoner</code>). Configurez les routes via la passerelle, zerocode ou <code>zeroclaw config set</code> ; consultez la <a href="../reference/config.html#model_routes">Config reference</a> pour le schéma des champs.</p>
 <p>Les routes ne se déclenchent que lorsqu’un prompt comporte explicitement l’indice correspondant. Le chemin de requête par défaut utilise le <code>model_provider</code> principal de l’agent.</p>
-<p><code>model_provider</code> is always a provider profile reference in dotted <code>&lt;type&gt;.&lt;alias&gt;</code> form, such as <code>anthropic.sonnet</code> or <code>openai.default</code>. The profile carries the endpoint, credential reference, compatibility flavor, fallback chain, and configured default model. The <code>model</code> field is provider-local state under that profile.</p>
-<h2 id="runtime-model-switching"><a class="header" href="#runtime-model-switching">Runtime model switching</a></h2>
-<p>Runtime switches use the same provider-profile contract as config-backed routing:</p>
+<p><code>model_provider</code> est toujours une référence de profil de fournisseur sous la forme pointée <code>&lt;type&gt;.&lt;alias&gt;</code>, comme <code>anthropic.sonnet</code> ou <code>openai.default</code>. Le profil contient le point de terminaison, la référence d’identifiants, la variante de compatibilité, la chaîne de repli et le modèle par défaut configuré. Le champ <code>model</code> est un état local au fournisseur sous ce profil.</p>
+<h2 id="changement-de-modèle-à-lexécution"><a class="header" href="#changement-de-modèle-à-lexécution">Changement de modèle à l’exécution</a></h2>
+<p>Les commutateurs d’exécution utilisent le même contrat provider-profile que le routage basé sur la configuration :</p>
 <ul>
-<li><code>/models &lt;type&gt;.&lt;alias&gt;</code> selects the active provider profile for the sender session. Channel runtimes can also accept a bare <code>&lt;type&gt;</code> shorthand when exactly one configured alias exists for that provider family.</li>
-<li><code>/model &lt;model-id&gt;</code> selects a model within the active provider profile. If the value matches a <code>[[model_routes]]</code> hint or model, that route can switch both provider profile and model together.</li>
-<li>The <code>model_switch</code> tool uses <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code> plus <code>model = "&lt;provider-local-model-id&gt;"</code>.</li>
+<li><code>/models &lt;type&gt;.&lt;alias&gt;</code> sélectionne le profil de fournisseur actif pour la session de l’expéditeur. Les runtimes de canal peuvent également accepter le raccourci <code>&lt;type&gt;</code> seul lorsqu’il existe exactement un alias configuré pour cette famille de fournisseurs.</li>
+<li><code>/model &lt;model-id&gt;</code> sélectionne un modèle au sein du profil de fournisseur actif. Si la valeur correspond à une indication ou un modèle <code>[[model_routes]]</code>, cette route peut changer à la fois le profil de fournisseur et le modèle.</li>
+<li>L’outil <code>model_switch</code> utilise <code>model_provider = "&lt;type&gt;.&lt;alias&gt;"</code> ainsi que <code>model = "&lt;provider-local-model-id&gt;"</code>.</li>
 </ul>
-<p>Runtime switches are session/runtime state. They do not edit <code>config.toml</code>; persisted defaults require an explicit config write. For tool-driven switches, bare provider family names such as <code>openai</code> are not switch targets because they do not identify which configured profile, credential, endpoint, or compatibility mode should be used.</p>
+<p>Les commutateurs d’exécution relèvent de l’état de session/d’exécution. Ils ne modifient pas <code>config.toml</code> ; les valeurs par défaut persistées nécessitent une écriture explicite dans la configuration. Pour les commutateurs pilotés par des outils, les noms de famille de fournisseurs seuls tels que <code>openai</code> ne sont pas des cibles de commutation, car ils n’identifient pas quel profil configuré, quelle information d’identification, quel point de terminaison ou quel mode de compatibilité doit être utilisé.</p>
 <h2 id="observabilité"><a class="header" href="#observabilité">Observabilité</a></h2>
 <p>Les décisions de répartition par agent sont visibles dans les journaux de traçage :</p>
 <pre><code>INFO channel=telegram.home routed to agent=fast
@@ -324,9 +325,9 @@ INFO model_provider=anthropic.haiku stream complete tokens={input=512, output=12
 <p>Pour les déploiements en production, connectez la sortie des journaux à Loki / Grafana. Consultez <a href="../ops/observability.html">Opérations → Journaux et observabilité</a>.</p>
 <h2 id="voir-aussi"><a class="header" href="#voir-aussi">Voir aussi</a></h2>
 <ul>
-<li><a href="./overview.html">Overview</a>: provider model and per-agent dispatch</li>
-<li><a href="./configuration.html">Configuration</a>: full <code>[providers.*]</code> schema</li>
-<li><a href="./catalog.html">Provider catalog</a>: every canonical slot</li>
+<li><a href="./overview.html">Overview</a> : modèle de fournisseur et répartition par agent</li>
+<li><a href="./configuration.html">Configuration</a> : schéma complet <code>[providers.*]</code></li>
+<li><a href="./catalog.html">Catalogue des fournisseurs</a> : chaque emplacement canonique</li>
 </ul>
 
                     </main>
@@ -373,6 +374,114 @@ INFO model_provider=anthropic.haiku stream complete tokens={input=512, output=12
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

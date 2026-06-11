@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-fdd74dbd.js";
+            window.path_to_searchindex_js = "../searchindex-85e3e40f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-141ed634.js"></script>
+        <script src="../toc-98474cc2.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -293,7 +294,7 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="cycle-de-vie-de-la-requête"><a class="header" href="#cycle-de-vie-de-la-requête">Cycle de vie de la requête</a></h1>
-<p>What happens between “user sends a message” and “agent replies”: the full path, with streaming, tool calls, and security gates annotated.</p>
+<p>Ce qui se passe entre « l’utilisateur envoie un message » et « l’agent répond » : le chemin complet, avec annotations sur le streaming, les appels d’outils et les barrières de sécurité.</p>
 <h2 id="entrant"><a class="header" href="#entrant">Entrant</a></h2>
 <pre class="mermaid">flowchart LR
     A[External event] --&gt;|webhook / push / poll / WS| B[Channel adapter]
@@ -303,9 +304,9 @@
 
 <p>Un adaptateur de canal (par exemple <code>discord.rs</code>, <code>telegram.rs</code>, <code>email_channel.rs</code>) reçoit des événements natifs à la plateforme et les convertit en une enveloppe d’entrée uniforme. L’adaptateur gère :</p>
 <ul>
-<li><strong>Decoding</strong>: platform-specific payload → canonical message format</li>
-<li><strong>Deduplication</strong>: prevents replaying the same message twice (restarts, retries)</li>
-<li><strong>Pair-check</strong>: enforces the <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM policy before the event reaches the runtime</li>
+<li><strong>Décodage</strong> : payload spécifique à la plateforme → format de message canonique</li>
+<li><strong>Déduplication</strong> : empêche de rejouer deux fois le même message (redémarrages, nouvelles tentatives)</li>
+<li><strong>Vérification par paire</strong> : applique la politique <code>[channels.&lt;name&gt;.allowed_users]</code> / IAM avant que l’événement n’atteigne le runtime</li>
 </ul>
 <p>Si le canal n’est pas appairé ou si l’utilisateur n’est pas autorisé, l’événement est supprimé avant que le runtime ne le voie.</p>
 <h2 id="boucle-dagent"><a class="header" href="#boucle-dagent">Boucle d’agent</a></h2>
@@ -349,19 +350,19 @@
 <ul>
 <li><strong>Le streaming est de bout en bout.</strong> Le fournisseur diffuse des jetons. Si l’adaptateur de canal indique <code>supports_draft_updates()</code>, l’exécution modifie un message envoyé en place au fur et à mesure que le texte arrive. Discord, Slack et Telegram prennent en charge cette fonctionnalité.</li>
 <li><strong>Les appels d’outils sont en cours de flux.</strong> Le modèle peut émettre un appel d’outil tout en continuant à générer du texte. Le runtime met le flux en pause, valide, invoque, renvoie le résultat et reprend.</li>
-<li><strong>Security gates every tool call.</strong> <code>evaluate_tool_access</code> consults the <a href="../security/autonomy.html">autonomy level</a>, allow/deny lists, and path boundaries. Medium-risk calls under <code>Supervised</code> autonomy go to the operator-approval path.</li>
-<li><strong>Memory is persistent.</strong> The conversation, tool calls, and tool results are written to the memory backend. (Receipts ride in-band in the conversation text rather than as a separate persisted artifact.)</li>
+<li><strong>La sécurité contrôle chaque appel d’outil.</strong> <code>evaluate_tool_access</code> consulte le <a href="../security/autonomy.html">niveau d’autonomie</a>, les listes d’autorisation/de refus et les limites de chemins. Les appels à risque moyen sous l’autonomie <code>Supervised</code> passent par le circuit d’approbation de l’opérateur.</li>
+<li><strong>La mémoire est persistante.</strong> La conversation, les appels d’outils et les résultats d’outils sont écrits dans le backend de mémoire. (Les accusés de réception circulent dans le texte de la conversation plutôt que sous forme d’artefact persisté séparé.)</li>
 </ul>
 <h2 id="reçus-doutils"><a class="header" href="#reçus-doutils">Reçus d’outils</a></h2>
-<p>Every tool invocation produces an HMAC-SHA256 receipt that is appended to the tool-result text and passed back to the model in the conversation, proving the tool actually ran. The HMAC is keyed by a per-daemon-process key and computed over <code>tool_name || args || result || timestamp</code>. Receipts are not written to a separate on-disk log and are not chained; the model can echo them but cannot forge a new valid one without the key. See <a href="../security/tool-receipts.html">Tool receipts</a>.</p>
+<p>Chaque invocation d’outil produit un reçu HMAC-SHA256 qui est ajouté au texte du résultat de l’outil et renvoyé au modèle dans la conversation, prouvant que l’outil a réellement été exécuté. Le HMAC utilise une clé propre à chaque processus du démon et est calculé sur <code>tool_name || args || result || timestamp</code>. Les reçus ne sont pas écrits dans un journal séparé sur disque et ne sont pas chaînés ; le modèle peut les répéter mais ne peut pas en forger un nouveau valide sans la clé. Voir <a href="../security/tool-receipts.html">Reçus d’outils</a>.</p>
 <h2 id="sortant"><a class="header" href="#sortant">Sortant</a></h2>
 <p>Les messages sortants repassent par le même adaptateur de canal. Les adaptateurs prenant en charge les messages multiples (Discord, Slack) peuvent diffuser de longues réponses sous forme d’une séquence de messages ; les autres (email, SMS) sont vidés à la fin du flux.</p>
 <h2 id="où-il-se-trouve-dans-le-code"><a class="header" href="#où-il-se-trouve-dans-le-code">Où il se trouve dans le code</a></h2>
 <ul>
-<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
-<li>Tool-call access checks: <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
+<li>Boucle d’agent : <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Vérifications d’accès aux appels d’outils : <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>Orchestration des canaux : <code>crates/zeroclaw-channels/src/orchestrator/</code></li>
-<li>Provider streaming: <code>crates/zeroclaw-api/src/model_provider.rs</code> (<code>StreamEvent</code> enum, re-exported from <code>zeroclaw-providers</code>), <code>compatible.rs</code> (SSE parser)</li>
+<li>Streaming du fournisseur : <code>crates/zeroclaw-api/src/model_provider.rs</code> (énumération <code>StreamEvent</code>, réexportée depuis <code>zeroclaw-providers</code>), <code>compatible.rs</code> (analyseur SSE)</li>
 </ul>
 
                     </main>
@@ -408,6 +409,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

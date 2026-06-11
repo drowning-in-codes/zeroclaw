@@ -754,178 +754,188 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../../" d
 <a href=#752 id=752 data-nosnippet>752</a>    }
 <a href=#753 id=753 data-nosnippet>753</a>
 <a href=#754 id=754 data-nosnippet>754</a>    <span class="attr">#[test]
-<a href=#755 id=755 data-nosnippet>755</a>    </span><span class="kw">fn </span>non_interactive_weather_is_auto_approved() {
+<a href=#755 id=755 data-nosnippet>755</a>    </span><span class="kw">fn </span>non_interactive_tool_search_is_auto_approved() {
 <a href=#756 id=756 data-nosnippet>756</a>        <span class="kw">let </span>config = RiskProfileConfig::default();
 <a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">let </span>mgr = ApprovalManager::for_non_interactive(<span class="kw-2">&amp;</span>config);
 <a href=#758 id=758 data-nosnippet>758</a>        <span class="macro">assert!</span>(
-<a href=#759 id=759 data-nosnippet>759</a>            !mgr.needs_approval(<span class="string">"weather"</span>),
-<a href=#760 id=760 data-nosnippet>760</a>            <span class="string">"weather tool must not need approval — it is in the default auto_approve list"
+<a href=#759 id=759 data-nosnippet>759</a>            !mgr.needs_approval(<span class="string">"tool_search"</span>),
+<a href=#760 id=760 data-nosnippet>760</a>            <span class="string">"tool_search discovery must not need approval in non-interactive mode"
 <a href=#761 id=761 data-nosnippet>761</a>        </span>);
 <a href=#762 id=762 data-nosnippet>762</a>    }
 <a href=#763 id=763 data-nosnippet>763</a>
 <a href=#764 id=764 data-nosnippet>764</a>    <span class="attr">#[test]
-<a href=#765 id=765 data-nosnippet>765</a>    </span><span class="kw">fn </span>always_ask_overrides_auto_approve() {
-<a href=#766 id=766 data-nosnippet>766</a>        <span class="kw">let </span>config = RiskProfileConfig {
-<a href=#767 id=767 data-nosnippet>767</a>            always_ask: <span class="macro">vec!</span>[<span class="string">"weather"</span>.into()],
-<a href=#768 id=768 data-nosnippet>768</a>            ..RiskProfileConfig::default()
-<a href=#769 id=769 data-nosnippet>769</a>        };
-<a href=#770 id=770 data-nosnippet>770</a>        <span class="kw">let </span>mgr = ApprovalManager::for_non_interactive(<span class="kw-2">&amp;</span>config);
-<a href=#771 id=771 data-nosnippet>771</a>        <span class="macro">assert!</span>(
-<a href=#772 id=772 data-nosnippet>772</a>            mgr.needs_approval(<span class="string">"weather"</span>),
-<a href=#773 id=773 data-nosnippet>773</a>            <span class="string">"always_ask must override auto_approve"
-<a href=#774 id=774 data-nosnippet>774</a>        </span>);
-<a href=#775 id=775 data-nosnippet>775</a>    }
-<a href=#776 id=776 data-nosnippet>776</a>
-<a href=#777 id=777 data-nosnippet>777</a>    <span class="comment">// ── ChannelApprovalResponse → ApprovalResponse mapping ──────
-<a href=#778 id=778 data-nosnippet>778</a>
-<a href=#779 id=779 data-nosnippet>779</a>    </span><span class="attr">#[test]
-<a href=#780 id=780 data-nosnippet>780</a>    </span><span class="kw">fn </span>channel_approve_maps_to_yes() {
-<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
-<a href=#782 id=782 data-nosnippet>782</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>ChannelApprovalResponse::Approve {
-<a href=#783 id=783 data-nosnippet>783</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
-<a href=#784 id=784 data-nosnippet>784</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
-<a href=#785 id=785 data-nosnippet>785</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
-<a href=#786 id=786 data-nosnippet>786</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
-<a href=#787 id=787 data-nosnippet>787</a>                ApprovalResponse::ReplaceWith(replacement)
-<a href=#788 id=788 data-nosnippet>788</a>            }
-<a href=#789 id=789 data-nosnippet>789</a>        };
-<a href=#790 id=790 data-nosnippet>790</a>        <span class="macro">assert_eq!</span>(mapped, ApprovalResponse::Yes);
-<a href=#791 id=791 data-nosnippet>791</a>    }
-<a href=#792 id=792 data-nosnippet>792</a>
-<a href=#793 id=793 data-nosnippet>793</a>    <span class="attr">#[test]
-<a href=#794 id=794 data-nosnippet>794</a>    </span><span class="kw">fn </span>channel_always_approve_maps_to_always() {
-<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
-<a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>ChannelApprovalResponse::AlwaysApprove {
-<a href=#797 id=797 data-nosnippet>797</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
-<a href=#798 id=798 data-nosnippet>798</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
-<a href=#799 id=799 data-nosnippet>799</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
-<a href=#800 id=800 data-nosnippet>800</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
-<a href=#801 id=801 data-nosnippet>801</a>                ApprovalResponse::ReplaceWith(replacement)
-<a href=#802 id=802 data-nosnippet>802</a>            }
-<a href=#803 id=803 data-nosnippet>803</a>        };
-<a href=#804 id=804 data-nosnippet>804</a>        <span class="macro">assert_eq!</span>(mapped, ApprovalResponse::Always);
-<a href=#805 id=805 data-nosnippet>805</a>    }
-<a href=#806 id=806 data-nosnippet>806</a>
-<a href=#807 id=807 data-nosnippet>807</a>    <span class="attr">#[test]
-<a href=#808 id=808 data-nosnippet>808</a>    </span><span class="kw">fn </span>channel_deny_maps_to_no() {
-<a href=#809 id=809 data-nosnippet>809</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
-<a href=#810 id=810 data-nosnippet>810</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>ChannelApprovalResponse::Deny {
-<a href=#811 id=811 data-nosnippet>811</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
-<a href=#812 id=812 data-nosnippet>812</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
-<a href=#813 id=813 data-nosnippet>813</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
-<a href=#814 id=814 data-nosnippet>814</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
-<a href=#815 id=815 data-nosnippet>815</a>                ApprovalResponse::ReplaceWith(replacement)
-<a href=#816 id=816 data-nosnippet>816</a>            }
-<a href=#817 id=817 data-nosnippet>817</a>        };
-<a href=#818 id=818 data-nosnippet>818</a>        <span class="macro">assert_eq!</span>(mapped, ApprovalResponse::No);
-<a href=#819 id=819 data-nosnippet>819</a>    }
-<a href=#820 id=820 data-nosnippet>820</a>
-<a href=#821 id=821 data-nosnippet>821</a>    <span class="attr">#[test]
-<a href=#822 id=822 data-nosnippet>822</a>    </span><span class="kw">fn </span>channel_deny_with_edit_maps_to_replace_with() {
-<a href=#823 id=823 data-nosnippet>823</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
-<a href=#824 id=824 data-nosnippet>824</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>(ChannelApprovalResponse::DenyWithEdit {
-<a href=#825 id=825 data-nosnippet>825</a>            replacement: <span class="string">"x"</span>.to_string(),
-<a href=#826 id=826 data-nosnippet>826</a>        }) {
-<a href=#827 id=827 data-nosnippet>827</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
-<a href=#828 id=828 data-nosnippet>828</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
-<a href=#829 id=829 data-nosnippet>829</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
-<a href=#830 id=830 data-nosnippet>830</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
-<a href=#831 id=831 data-nosnippet>831</a>                ApprovalResponse::ReplaceWith(replacement)
-<a href=#832 id=832 data-nosnippet>832</a>            }
-<a href=#833 id=833 data-nosnippet>833</a>        };
-<a href=#834 id=834 data-nosnippet>834</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(mapped, ApprovalResponse::ReplaceWith(s) <span class="kw">if </span>s == <span class="string">"x"</span>));
-<a href=#835 id=835 data-nosnippet>835</a>    }
-<a href=#836 id=836 data-nosnippet>836</a>
-<a href=#837 id=837 data-nosnippet>837</a>    <span class="attr">#[test]
-<a href=#838 id=838 data-nosnippet>838</a>    </span><span class="kw">fn </span>replace_with_is_not_yes_or_no() {
-<a href=#839 id=839 data-nosnippet>839</a>        <span class="kw">let </span>r = ApprovalResponse::ReplaceWith(<span class="string">"new text"</span>.to_string());
-<a href=#840 id=840 data-nosnippet>840</a>        <span class="macro">assert_ne!</span>(r, ApprovalResponse::Yes);
-<a href=#841 id=841 data-nosnippet>841</a>        <span class="macro">assert_ne!</span>(r, ApprovalResponse::No);
-<a href=#842 id=842 data-nosnippet>842</a>    }
-<a href=#843 id=843 data-nosnippet>843</a>
-<a href=#844 id=844 data-nosnippet>844</a>    <span class="attr">#[test]
-<a href=#845 id=845 data-nosnippet>845</a>    </span><span class="kw">fn </span>channel_approval_request_serde_roundtrip() {
-<a href=#846 id=846 data-nosnippet>846</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalRequest;
-<a href=#847 id=847 data-nosnippet>847</a>        <span class="kw">let </span>req = ChannelApprovalRequest {
-<a href=#848 id=848 data-nosnippet>848</a>            tool_name: <span class="string">"shell"</span>.into(),
-<a href=#849 id=849 data-nosnippet>849</a>            arguments_summary: <span class="string">"command: ls -la"</span>.into(),
-<a href=#850 id=850 data-nosnippet>850</a>            raw_arguments: <span class="prelude-val">None</span>,
-<a href=#851 id=851 data-nosnippet>851</a>        };
-<a href=#852 id=852 data-nosnippet>852</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>req).unwrap();
-<a href=#853 id=853 data-nosnippet>853</a>        <span class="kw">let </span>parsed: ChannelApprovalRequest = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
-<a href=#854 id=854 data-nosnippet>854</a>        <span class="macro">assert_eq!</span>(parsed.tool_name, <span class="string">"shell"</span>);
-<a href=#855 id=855 data-nosnippet>855</a>        <span class="macro">assert_eq!</span>(parsed.arguments_summary, <span class="string">"command: ls -la"</span>);
-<a href=#856 id=856 data-nosnippet>856</a>    }
-<a href=#857 id=857 data-nosnippet>857</a>
-<a href=#858 id=858 data-nosnippet>858</a>    <span class="attr">#[test]
-<a href=#859 id=859 data-nosnippet>859</a>    </span><span class="kw">fn </span>channel_approval_response_serde_roundtrip() {
-<a href=#860 id=860 data-nosnippet>860</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
-<a href=#861 id=861 data-nosnippet>861</a>        <span class="comment">// AlwaysApprove serializes to "always" to match the CLI-side
-<a href=#862 id=862 data-nosnippet>862</a>        // ApprovalResponse::Always and keep audit logs consistent.
-<a href=#863 id=863 data-nosnippet>863</a>        </span><span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>ChannelApprovalResponse::AlwaysApprove).unwrap();
-<a href=#864 id=864 data-nosnippet>864</a>        <span class="macro">assert_eq!</span>(json, <span class="string">"\"always\""</span>);
-<a href=#865 id=865 data-nosnippet>865</a>        <span class="kw">let </span>parsed: ChannelApprovalResponse = serde_json::from_str(<span class="string">"\"always\""</span>).unwrap();
-<a href=#866 id=866 data-nosnippet>866</a>        <span class="macro">assert_eq!</span>(parsed, ChannelApprovalResponse::AlwaysApprove);
-<a href=#867 id=867 data-nosnippet>867</a>        <span class="kw">let </span>parsed: ChannelApprovalResponse = serde_json::from_str(<span class="string">"\"deny\""</span>).unwrap();
-<a href=#868 id=868 data-nosnippet>868</a>        <span class="macro">assert_eq!</span>(parsed, ChannelApprovalResponse::Deny);
-<a href=#869 id=869 data-nosnippet>869</a>    }
-<a href=#870 id=870 data-nosnippet>870</a>
-<a href=#871 id=871 data-nosnippet>871</a>    <span class="comment">// ── summarize_args secret-key redaction ────────────────────
-<a href=#872 id=872 data-nosnippet>872</a>
-<a href=#873 id=873 data-nosnippet>873</a>    </span><span class="attr">#[test]
-<a href=#874 id=874 data-nosnippet>874</a>    </span><span class="kw">fn </span>summarize_args_redacts_known_secret_key_names() {
-<a href=#875 id=875 data-nosnippet>875</a>        <span class="kw">let </span>args = <span class="macro">serde_json::json!</span>({
-<a href=#876 id=876 data-nosnippet>876</a>            <span class="string">"endpoint"</span>: <span class="string">"https://api.example.com"</span>,
-<a href=#877 id=877 data-nosnippet>877</a>            <span class="string">"api_key"</span>: <span class="string">"sk-very-secret-key-value"</span>,
-<a href=#878 id=878 data-nosnippet>878</a>            <span class="string">"oauth_token"</span>: <span class="string">"oauth-secret"</span>,
-<a href=#879 id=879 data-nosnippet>879</a>            <span class="string">"client_secret"</span>: <span class="string">"client-secret"</span>,
-<a href=#880 id=880 data-nosnippet>880</a>            <span class="string">"password"</span>: <span class="string">"hunter2"</span>,
-<a href=#881 id=881 data-nosnippet>881</a>            <span class="string">"private_key"</span>: <span class="string">"-----BEGIN PRIVATE KEY-----abc"</span>,
-<a href=#882 id=882 data-nosnippet>882</a>            <span class="string">"bearer_token"</span>: <span class="string">"bearer-thing"</span>,
-<a href=#883 id=883 data-nosnippet>883</a>        });
-<a href=#884 id=884 data-nosnippet>884</a>        <span class="kw">let </span>summary = summarize_args(<span class="kw-2">&amp;</span>args);
-<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">for </span>needle <span class="kw">in </span>[
-<a href=#886 id=886 data-nosnippet>886</a>            <span class="string">"sk-very-secret-key-value"</span>,
-<a href=#887 id=887 data-nosnippet>887</a>            <span class="string">"oauth-secret"</span>,
-<a href=#888 id=888 data-nosnippet>888</a>            <span class="string">"client-secret"</span>,
-<a href=#889 id=889 data-nosnippet>889</a>            <span class="string">"hunter2"</span>,
-<a href=#890 id=890 data-nosnippet>890</a>            <span class="string">"-----BEGIN PRIVATE KEY-----"</span>,
-<a href=#891 id=891 data-nosnippet>891</a>            <span class="string">"bearer-thing"</span>,
-<a href=#892 id=892 data-nosnippet>892</a>        ] {
-<a href=#893 id=893 data-nosnippet>893</a>            <span class="macro">assert!</span>(
-<a href=#894 id=894 data-nosnippet>894</a>                !summary.contains(needle),
-<a href=#895 id=895 data-nosnippet>895</a>                <span class="string">"summary leaked secret value {needle:?}: {summary}"
-<a href=#896 id=896 data-nosnippet>896</a>            </span>);
-<a href=#897 id=897 data-nosnippet>897</a>        }
-<a href=#898 id=898 data-nosnippet>898</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"endpoint:"</span>));
-<a href=#899 id=899 data-nosnippet>899</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"api.example.com"</span>));
-<a href=#900 id=900 data-nosnippet>900</a>    }
-<a href=#901 id=901 data-nosnippet>901</a>
-<a href=#902 id=902 data-nosnippet>902</a>    <span class="attr">#[test]
-<a href=#903 id=903 data-nosnippet>903</a>    </span><span class="kw">fn </span>summarize_args_keeps_non_secret_values() {
-<a href=#904 id=904 data-nosnippet>904</a>        <span class="kw">let </span>args = <span class="macro">serde_json::json!</span>({
-<a href=#905 id=905 data-nosnippet>905</a>            <span class="string">"path"</span>: <span class="string">"/tmp/file.txt"</span>,
-<a href=#906 id=906 data-nosnippet>906</a>            <span class="string">"limit"</span>: <span class="number">42</span>,
-<a href=#907 id=907 data-nosnippet>907</a>        });
-<a href=#908 id=908 data-nosnippet>908</a>        <span class="kw">let </span>summary = summarize_args(<span class="kw-2">&amp;</span>args);
-<a href=#909 id=909 data-nosnippet>909</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"/tmp/file.txt"</span>));
-<a href=#910 id=910 data-nosnippet>910</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"42"</span>));
-<a href=#911 id=911 data-nosnippet>911</a>    }
-<a href=#912 id=912 data-nosnippet>912</a>
-<a href=#913 id=913 data-nosnippet>913</a>    <span class="attr">#[test]
-<a href=#914 id=914 data-nosnippet>914</a>    </span><span class="kw">fn </span>summarize_args_redaction_is_case_insensitive_and_substring_aware() {
-<a href=#915 id=915 data-nosnippet>915</a>        <span class="kw">let </span>args = <span class="macro">serde_json::json!</span>({
-<a href=#916 id=916 data-nosnippet>916</a>            <span class="string">"X-API-Key"</span>: <span class="string">"hdrsecret"</span>,
-<a href=#917 id=917 data-nosnippet>917</a>            <span class="string">"DBPassword"</span>: <span class="string">"dbpw"</span>,
-<a href=#918 id=918 data-nosnippet>918</a>            <span class="string">"AuthHeader"</span>: <span class="string">"auth-thing"</span>,
-<a href=#919 id=919 data-nosnippet>919</a>        });
-<a href=#920 id=920 data-nosnippet>920</a>        <span class="kw">let </span>summary = summarize_args(<span class="kw-2">&amp;</span>args);
-<a href=#921 id=921 data-nosnippet>921</a>        <span class="kw">for </span>leaked <span class="kw">in </span>[<span class="string">"hdrsecret"</span>, <span class="string">"dbpw"</span>, <span class="string">"auth-thing"</span>] {
-<a href=#922 id=922 data-nosnippet>922</a>            <span class="macro">assert!</span>(
-<a href=#923 id=923 data-nosnippet>923</a>                !summary.contains(leaked),
-<a href=#924 id=924 data-nosnippet>924</a>                <span class="string">"redaction missed {leaked:?}: {summary}"
-<a href=#925 id=925 data-nosnippet>925</a>            </span>);
-<a href=#926 id=926 data-nosnippet>926</a>        }
-<a href=#927 id=927 data-nosnippet>927</a>    }
-<a href=#928 id=928 data-nosnippet>928</a>}
+<a href=#765 id=765 data-nosnippet>765</a>    </span><span class="kw">fn </span>non_interactive_weather_is_auto_approved() {
+<a href=#766 id=766 data-nosnippet>766</a>        <span class="kw">let </span>config = RiskProfileConfig::default();
+<a href=#767 id=767 data-nosnippet>767</a>        <span class="kw">let </span>mgr = ApprovalManager::for_non_interactive(<span class="kw-2">&amp;</span>config);
+<a href=#768 id=768 data-nosnippet>768</a>        <span class="macro">assert!</span>(
+<a href=#769 id=769 data-nosnippet>769</a>            !mgr.needs_approval(<span class="string">"weather"</span>),
+<a href=#770 id=770 data-nosnippet>770</a>            <span class="string">"weather tool must not need approval — it is in the default auto_approve list"
+<a href=#771 id=771 data-nosnippet>771</a>        </span>);
+<a href=#772 id=772 data-nosnippet>772</a>    }
+<a href=#773 id=773 data-nosnippet>773</a>
+<a href=#774 id=774 data-nosnippet>774</a>    <span class="attr">#[test]
+<a href=#775 id=775 data-nosnippet>775</a>    </span><span class="kw">fn </span>always_ask_overrides_auto_approve() {
+<a href=#776 id=776 data-nosnippet>776</a>        <span class="kw">let </span>config = RiskProfileConfig {
+<a href=#777 id=777 data-nosnippet>777</a>            always_ask: <span class="macro">vec!</span>[<span class="string">"weather"</span>.into()],
+<a href=#778 id=778 data-nosnippet>778</a>            ..RiskProfileConfig::default()
+<a href=#779 id=779 data-nosnippet>779</a>        };
+<a href=#780 id=780 data-nosnippet>780</a>        <span class="kw">let </span>mgr = ApprovalManager::for_non_interactive(<span class="kw-2">&amp;</span>config);
+<a href=#781 id=781 data-nosnippet>781</a>        <span class="macro">assert!</span>(
+<a href=#782 id=782 data-nosnippet>782</a>            mgr.needs_approval(<span class="string">"weather"</span>),
+<a href=#783 id=783 data-nosnippet>783</a>            <span class="string">"always_ask must override auto_approve"
+<a href=#784 id=784 data-nosnippet>784</a>        </span>);
+<a href=#785 id=785 data-nosnippet>785</a>    }
+<a href=#786 id=786 data-nosnippet>786</a>
+<a href=#787 id=787 data-nosnippet>787</a>    <span class="comment">// ── ChannelApprovalResponse → ApprovalResponse mapping ──────
+<a href=#788 id=788 data-nosnippet>788</a>
+<a href=#789 id=789 data-nosnippet>789</a>    </span><span class="attr">#[test]
+<a href=#790 id=790 data-nosnippet>790</a>    </span><span class="kw">fn </span>channel_approve_maps_to_yes() {
+<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
+<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>ChannelApprovalResponse::Approve {
+<a href=#793 id=793 data-nosnippet>793</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
+<a href=#794 id=794 data-nosnippet>794</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
+<a href=#795 id=795 data-nosnippet>795</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
+<a href=#796 id=796 data-nosnippet>796</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
+<a href=#797 id=797 data-nosnippet>797</a>                ApprovalResponse::ReplaceWith(replacement)
+<a href=#798 id=798 data-nosnippet>798</a>            }
+<a href=#799 id=799 data-nosnippet>799</a>        };
+<a href=#800 id=800 data-nosnippet>800</a>        <span class="macro">assert_eq!</span>(mapped, ApprovalResponse::Yes);
+<a href=#801 id=801 data-nosnippet>801</a>    }
+<a href=#802 id=802 data-nosnippet>802</a>
+<a href=#803 id=803 data-nosnippet>803</a>    <span class="attr">#[test]
+<a href=#804 id=804 data-nosnippet>804</a>    </span><span class="kw">fn </span>channel_always_approve_maps_to_always() {
+<a href=#805 id=805 data-nosnippet>805</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
+<a href=#806 id=806 data-nosnippet>806</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>ChannelApprovalResponse::AlwaysApprove {
+<a href=#807 id=807 data-nosnippet>807</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
+<a href=#808 id=808 data-nosnippet>808</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
+<a href=#809 id=809 data-nosnippet>809</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
+<a href=#810 id=810 data-nosnippet>810</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
+<a href=#811 id=811 data-nosnippet>811</a>                ApprovalResponse::ReplaceWith(replacement)
+<a href=#812 id=812 data-nosnippet>812</a>            }
+<a href=#813 id=813 data-nosnippet>813</a>        };
+<a href=#814 id=814 data-nosnippet>814</a>        <span class="macro">assert_eq!</span>(mapped, ApprovalResponse::Always);
+<a href=#815 id=815 data-nosnippet>815</a>    }
+<a href=#816 id=816 data-nosnippet>816</a>
+<a href=#817 id=817 data-nosnippet>817</a>    <span class="attr">#[test]
+<a href=#818 id=818 data-nosnippet>818</a>    </span><span class="kw">fn </span>channel_deny_maps_to_no() {
+<a href=#819 id=819 data-nosnippet>819</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
+<a href=#820 id=820 data-nosnippet>820</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>ChannelApprovalResponse::Deny {
+<a href=#821 id=821 data-nosnippet>821</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
+<a href=#822 id=822 data-nosnippet>822</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
+<a href=#823 id=823 data-nosnippet>823</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
+<a href=#824 id=824 data-nosnippet>824</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
+<a href=#825 id=825 data-nosnippet>825</a>                ApprovalResponse::ReplaceWith(replacement)
+<a href=#826 id=826 data-nosnippet>826</a>            }
+<a href=#827 id=827 data-nosnippet>827</a>        };
+<a href=#828 id=828 data-nosnippet>828</a>        <span class="macro">assert_eq!</span>(mapped, ApprovalResponse::No);
+<a href=#829 id=829 data-nosnippet>829</a>    }
+<a href=#830 id=830 data-nosnippet>830</a>
+<a href=#831 id=831 data-nosnippet>831</a>    <span class="attr">#[test]
+<a href=#832 id=832 data-nosnippet>832</a>    </span><span class="kw">fn </span>channel_deny_with_edit_maps_to_replace_with() {
+<a href=#833 id=833 data-nosnippet>833</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
+<a href=#834 id=834 data-nosnippet>834</a>        <span class="kw">let </span>mapped = <span class="kw">match </span>(ChannelApprovalResponse::DenyWithEdit {
+<a href=#835 id=835 data-nosnippet>835</a>            replacement: <span class="string">"x"</span>.to_string(),
+<a href=#836 id=836 data-nosnippet>836</a>        }) {
+<a href=#837 id=837 data-nosnippet>837</a>            ChannelApprovalResponse::Approve =&gt; ApprovalResponse::Yes,
+<a href=#838 id=838 data-nosnippet>838</a>            ChannelApprovalResponse::AlwaysApprove =&gt; ApprovalResponse::Always,
+<a href=#839 id=839 data-nosnippet>839</a>            ChannelApprovalResponse::Deny =&gt; ApprovalResponse::No,
+<a href=#840 id=840 data-nosnippet>840</a>            ChannelApprovalResponse::DenyWithEdit { replacement } =&gt; {
+<a href=#841 id=841 data-nosnippet>841</a>                ApprovalResponse::ReplaceWith(replacement)
+<a href=#842 id=842 data-nosnippet>842</a>            }
+<a href=#843 id=843 data-nosnippet>843</a>        };
+<a href=#844 id=844 data-nosnippet>844</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(mapped, ApprovalResponse::ReplaceWith(s) <span class="kw">if </span>s == <span class="string">"x"</span>));
+<a href=#845 id=845 data-nosnippet>845</a>    }
+<a href=#846 id=846 data-nosnippet>846</a>
+<a href=#847 id=847 data-nosnippet>847</a>    <span class="attr">#[test]
+<a href=#848 id=848 data-nosnippet>848</a>    </span><span class="kw">fn </span>replace_with_is_not_yes_or_no() {
+<a href=#849 id=849 data-nosnippet>849</a>        <span class="kw">let </span>r = ApprovalResponse::ReplaceWith(<span class="string">"new text"</span>.to_string());
+<a href=#850 id=850 data-nosnippet>850</a>        <span class="macro">assert_ne!</span>(r, ApprovalResponse::Yes);
+<a href=#851 id=851 data-nosnippet>851</a>        <span class="macro">assert_ne!</span>(r, ApprovalResponse::No);
+<a href=#852 id=852 data-nosnippet>852</a>    }
+<a href=#853 id=853 data-nosnippet>853</a>
+<a href=#854 id=854 data-nosnippet>854</a>    <span class="attr">#[test]
+<a href=#855 id=855 data-nosnippet>855</a>    </span><span class="kw">fn </span>channel_approval_request_serde_roundtrip() {
+<a href=#856 id=856 data-nosnippet>856</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalRequest;
+<a href=#857 id=857 data-nosnippet>857</a>        <span class="kw">let </span>req = ChannelApprovalRequest {
+<a href=#858 id=858 data-nosnippet>858</a>            tool_name: <span class="string">"shell"</span>.into(),
+<a href=#859 id=859 data-nosnippet>859</a>            arguments_summary: <span class="string">"command: ls -la"</span>.into(),
+<a href=#860 id=860 data-nosnippet>860</a>            raw_arguments: <span class="prelude-val">None</span>,
+<a href=#861 id=861 data-nosnippet>861</a>        };
+<a href=#862 id=862 data-nosnippet>862</a>        <span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>req).unwrap();
+<a href=#863 id=863 data-nosnippet>863</a>        <span class="kw">let </span>parsed: ChannelApprovalRequest = serde_json::from_str(<span class="kw-2">&amp;</span>json).unwrap();
+<a href=#864 id=864 data-nosnippet>864</a>        <span class="macro">assert_eq!</span>(parsed.tool_name, <span class="string">"shell"</span>);
+<a href=#865 id=865 data-nosnippet>865</a>        <span class="macro">assert_eq!</span>(parsed.arguments_summary, <span class="string">"command: ls -la"</span>);
+<a href=#866 id=866 data-nosnippet>866</a>    }
+<a href=#867 id=867 data-nosnippet>867</a>
+<a href=#868 id=868 data-nosnippet>868</a>    <span class="attr">#[test]
+<a href=#869 id=869 data-nosnippet>869</a>    </span><span class="kw">fn </span>channel_approval_response_serde_roundtrip() {
+<a href=#870 id=870 data-nosnippet>870</a>        <span class="kw">use </span>zeroclaw_api::channel::ChannelApprovalResponse;
+<a href=#871 id=871 data-nosnippet>871</a>        <span class="comment">// AlwaysApprove serializes to "always" to match the CLI-side
+<a href=#872 id=872 data-nosnippet>872</a>        // ApprovalResponse::Always and keep audit logs consistent.
+<a href=#873 id=873 data-nosnippet>873</a>        </span><span class="kw">let </span>json = serde_json::to_string(<span class="kw-2">&amp;</span>ChannelApprovalResponse::AlwaysApprove).unwrap();
+<a href=#874 id=874 data-nosnippet>874</a>        <span class="macro">assert_eq!</span>(json, <span class="string">"\"always\""</span>);
+<a href=#875 id=875 data-nosnippet>875</a>        <span class="kw">let </span>parsed: ChannelApprovalResponse = serde_json::from_str(<span class="string">"\"always\""</span>).unwrap();
+<a href=#876 id=876 data-nosnippet>876</a>        <span class="macro">assert_eq!</span>(parsed, ChannelApprovalResponse::AlwaysApprove);
+<a href=#877 id=877 data-nosnippet>877</a>        <span class="kw">let </span>parsed: ChannelApprovalResponse = serde_json::from_str(<span class="string">"\"deny\""</span>).unwrap();
+<a href=#878 id=878 data-nosnippet>878</a>        <span class="macro">assert_eq!</span>(parsed, ChannelApprovalResponse::Deny);
+<a href=#879 id=879 data-nosnippet>879</a>    }
+<a href=#880 id=880 data-nosnippet>880</a>
+<a href=#881 id=881 data-nosnippet>881</a>    <span class="comment">// ── summarize_args secret-key redaction ────────────────────
+<a href=#882 id=882 data-nosnippet>882</a>
+<a href=#883 id=883 data-nosnippet>883</a>    </span><span class="attr">#[test]
+<a href=#884 id=884 data-nosnippet>884</a>    </span><span class="kw">fn </span>summarize_args_redacts_known_secret_key_names() {
+<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span>args = <span class="macro">serde_json::json!</span>({
+<a href=#886 id=886 data-nosnippet>886</a>            <span class="string">"endpoint"</span>: <span class="string">"https://api.example.com"</span>,
+<a href=#887 id=887 data-nosnippet>887</a>            <span class="string">"api_key"</span>: <span class="string">"sk-very-secret-key-value"</span>,
+<a href=#888 id=888 data-nosnippet>888</a>            <span class="string">"oauth_token"</span>: <span class="string">"oauth-secret"</span>,
+<a href=#889 id=889 data-nosnippet>889</a>            <span class="string">"client_secret"</span>: <span class="string">"client-secret"</span>,
+<a href=#890 id=890 data-nosnippet>890</a>            <span class="string">"password"</span>: <span class="string">"hunter2"</span>,
+<a href=#891 id=891 data-nosnippet>891</a>            <span class="string">"private_key"</span>: <span class="string">"-----BEGIN PRIVATE KEY-----abc"</span>,
+<a href=#892 id=892 data-nosnippet>892</a>            <span class="string">"bearer_token"</span>: <span class="string">"bearer-thing"</span>,
+<a href=#893 id=893 data-nosnippet>893</a>        });
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">let </span>summary = summarize_args(<span class="kw-2">&amp;</span>args);
+<a href=#895 id=895 data-nosnippet>895</a>        <span class="kw">for </span>needle <span class="kw">in </span>[
+<a href=#896 id=896 data-nosnippet>896</a>            <span class="string">"sk-very-secret-key-value"</span>,
+<a href=#897 id=897 data-nosnippet>897</a>            <span class="string">"oauth-secret"</span>,
+<a href=#898 id=898 data-nosnippet>898</a>            <span class="string">"client-secret"</span>,
+<a href=#899 id=899 data-nosnippet>899</a>            <span class="string">"hunter2"</span>,
+<a href=#900 id=900 data-nosnippet>900</a>            <span class="string">"-----BEGIN PRIVATE KEY-----"</span>,
+<a href=#901 id=901 data-nosnippet>901</a>            <span class="string">"bearer-thing"</span>,
+<a href=#902 id=902 data-nosnippet>902</a>        ] {
+<a href=#903 id=903 data-nosnippet>903</a>            <span class="macro">assert!</span>(
+<a href=#904 id=904 data-nosnippet>904</a>                !summary.contains(needle),
+<a href=#905 id=905 data-nosnippet>905</a>                <span class="string">"summary leaked secret value {needle:?}: {summary}"
+<a href=#906 id=906 data-nosnippet>906</a>            </span>);
+<a href=#907 id=907 data-nosnippet>907</a>        }
+<a href=#908 id=908 data-nosnippet>908</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"endpoint:"</span>));
+<a href=#909 id=909 data-nosnippet>909</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"api.example.com"</span>));
+<a href=#910 id=910 data-nosnippet>910</a>    }
+<a href=#911 id=911 data-nosnippet>911</a>
+<a href=#912 id=912 data-nosnippet>912</a>    <span class="attr">#[test]
+<a href=#913 id=913 data-nosnippet>913</a>    </span><span class="kw">fn </span>summarize_args_keeps_non_secret_values() {
+<a href=#914 id=914 data-nosnippet>914</a>        <span class="kw">let </span>args = <span class="macro">serde_json::json!</span>({
+<a href=#915 id=915 data-nosnippet>915</a>            <span class="string">"path"</span>: <span class="string">"/tmp/file.txt"</span>,
+<a href=#916 id=916 data-nosnippet>916</a>            <span class="string">"limit"</span>: <span class="number">42</span>,
+<a href=#917 id=917 data-nosnippet>917</a>        });
+<a href=#918 id=918 data-nosnippet>918</a>        <span class="kw">let </span>summary = summarize_args(<span class="kw-2">&amp;</span>args);
+<a href=#919 id=919 data-nosnippet>919</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"/tmp/file.txt"</span>));
+<a href=#920 id=920 data-nosnippet>920</a>        <span class="macro">assert!</span>(summary.contains(<span class="string">"42"</span>));
+<a href=#921 id=921 data-nosnippet>921</a>    }
+<a href=#922 id=922 data-nosnippet>922</a>
+<a href=#923 id=923 data-nosnippet>923</a>    <span class="attr">#[test]
+<a href=#924 id=924 data-nosnippet>924</a>    </span><span class="kw">fn </span>summarize_args_redaction_is_case_insensitive_and_substring_aware() {
+<a href=#925 id=925 data-nosnippet>925</a>        <span class="kw">let </span>args = <span class="macro">serde_json::json!</span>({
+<a href=#926 id=926 data-nosnippet>926</a>            <span class="string">"X-API-Key"</span>: <span class="string">"hdrsecret"</span>,
+<a href=#927 id=927 data-nosnippet>927</a>            <span class="string">"DBPassword"</span>: <span class="string">"dbpw"</span>,
+<a href=#928 id=928 data-nosnippet>928</a>            <span class="string">"AuthHeader"</span>: <span class="string">"auth-thing"</span>,
+<a href=#929 id=929 data-nosnippet>929</a>        });
+<a href=#930 id=930 data-nosnippet>930</a>        <span class="kw">let </span>summary = summarize_args(<span class="kw-2">&amp;</span>args);
+<a href=#931 id=931 data-nosnippet>931</a>        <span class="kw">for </span>leaked <span class="kw">in </span>[<span class="string">"hdrsecret"</span>, <span class="string">"dbpw"</span>, <span class="string">"auth-thing"</span>] {
+<a href=#932 id=932 data-nosnippet>932</a>            <span class="macro">assert!</span>(
+<a href=#933 id=933 data-nosnippet>933</a>                !summary.contains(leaked),
+<a href=#934 id=934 data-nosnippet>934</a>                <span class="string">"redaction missed {leaked:?}: {summary}"
+<a href=#935 id=935 data-nosnippet>935</a>            </span>);
+<a href=#936 id=936 data-nosnippet>936</a>        }
+<a href=#937 id=937 data-nosnippet>937</a>    }
+<a href=#938 id=938 data-nosnippet>938</a>}
 </code></pre></div></section></main></body></html>

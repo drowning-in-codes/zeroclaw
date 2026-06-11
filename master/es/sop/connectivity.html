@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-0ea996cb.js";
+            window.path_to_searchindex_js = "../searchindex-098b429f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a9c1be94.js"></script>
+        <script src="../toc-f27dd488.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -297,41 +298,41 @@
 <h2 id="rutas-rápidas"><a class="header" href="#rutas-rápidas">Rutas rápidas</a></h2>
 <ul>
 <li><a href="#2-mqtt-integration">Integración MQTT</a></li>
-<li><a href="#3-other-trigger-types">Other Trigger Types</a></li>
-<li><a href="#4-security-defaults">Security Defaults</a></li>
-<li><a href="#5-troubleshooting">Troubleshooting</a></li>
+<li><a href="#3-other-trigger-types">Otros tipos de desencadenadores</a></li>
+<li><a href="#4-security-defaults">Valores Predeterminados de Seguridad</a></li>
+<li><a href="#5-troubleshooting">Solución de problemas</a></li>
 </ul>
 <h2 id="1-descripción-general"><a class="header" href="#1-descripción-general">1. Descripción general</a></h2>
-<p>SOP runs are driven by events delivered to the SOP engine through <code>dispatch_sop_event</code>. The engine matches each event against every loaded SOP’s triggers and starts runs for those that match.</p>
+<p>Las ejecuciones de SOP se controlan mediante eventos entregados al motor de SOP a través de <code>dispatch_sop_event</code>. El motor compara cada evento con los disparadores de todos los SOP cargados e inicia ejecuciones para aquellos que coinciden.</p>
 <p>Comportamientos clave:</p>
 <ul>
-<li><strong>Consistent trigger matching:</strong> one matcher path evaluates all trigger types.</li>
+<li><strong>Coincidencia de disparadores consistente:</strong> una sola ruta de coincidencia evalúa todos los tipos de disparadores.</li>
 <li><strong>Auditoría de inicio de ejecución:</strong> las ejecuciones iniciadas se persisten mediante <code>SopAuditLogger</code>.</li>
-<li><strong>Headless safety:</strong> in non-agent-loop contexts, <code>process_headless_results</code> logs <code>ExecuteStep</code> actions as pending instead of silently executing them.</li>
+<li><strong>Seguridad en modo headless:</strong> en contextos sin bucle de agente, <code>process_headless_results</code> registra las acciones <code>ExecuteStep</code> como pendientes en lugar de ejecutarlas silenciosamente.</li>
 </ul>
-<p>Of the defined trigger types, <strong>MQTT</strong> is the only event source wired to a live listener in the daemon. Runs can also be started directly from an agent turn with the <code>sop_execute</code> tool. The webhook, cron, and peripheral trigger types are defined and matched by the engine, but no runtime currently feeds those event sources into <code>dispatch_sop_event</code>. See <a href="#3-other-trigger-types">Other Trigger Types</a>.</p>
+<p>De los tipos de trigger definidos, <strong>MQTT</strong> es la única fuente de eventos conectada a un listener activo en el daemon. Las ejecuciones también pueden iniciarse directamente desde un turno del agente con la herramienta <code>sop_execute</code>. Los tipos de trigger webhook, cron y peripheral están definidos y son emparejados por el motor, pero actualmente ningún runtime alimenta esas fuentes de eventos hacia <code>dispatch_sop_event</code>. Consulte <a href="#3-other-trigger-types">Other Trigger Types</a>.</p>
 <h2 id="2-integración-mqtt"><a class="header" href="#2-integración-mqtt">2. Integración MQTT</a></h2>
-<p>MQTT is delivered by <code>run_mqtt_sop_listener</code>, which subscribes to the broker, builds an MQTT <code>SopEvent</code> per message, and calls <code>dispatch_sop_event</code>. This path is gated by the <code>channel-mqtt</code> build feature.</p>
+<p>MQTT es entregado por <code>run_mqtt_sop_listener</code>, que se suscribe al broker, construye un <code>SopEvent</code> MQTT por cada mensaje y llama a <code>dispatch_sop_event</code>. Esta ruta está condicionada por la característica de compilación <code>channel-mqtt</code>.</p>
 <h3 id="21-configuración"><a class="header" href="#21-configuración">2.1 Configuración</a></h3>
-<p>Configure broker access with <code>zeroclaw config set channels.mqtt.&lt;field&gt; &lt;value&gt;</code>: the keys land under <code>[channels.mqtt]</code> in the stored config. See the <a href="../reference/config.html">Config reference</a> for all fields. The <code>use_tls</code> flag must match the scheme of <code>broker_url</code> (<code>mqtts://</code> ⇒ <code>true</code>, <code>mqtt://</code> ⇒ <code>false</code>).</p>
+<p>Configure el acceso al broker con <code>zeroclaw config set channels.mqtt.&lt;field&gt; &lt;value&gt;</code>: las claves se almacenan bajo <code>[channels.mqtt]</code> en la configuración guardada. Consulte la <a href="../reference/config.html">referencia de configuración</a> para ver todos los campos. El flag <code>use_tls</code> debe coincidir con el esquema de <code>broker_url</code> (<code>mqtts://</code> ⇒ <code>true</code>, <code>mqtt://</code> ⇒ <code>false</code>).</p>
 <h3 id="22-definición-del-disparador"><a class="header" href="#22-definición-del-disparador">2.2 Definición del disparador</a></h3>
-<p>The SOP’s trigger is defined in its <code>SOP.toml</code> (see <a href="./syntax.html">Syntax</a>). Topic patterns support <code>+</code> (single-level) and <code>#</code> (multi-level) wildcards. The MQTT payload is forwarded into the SOP event payload (<code>event.payload</code>) and is available to an optional trigger <code>condition</code>, then shown in step context.</p>
-<h2 id="3-other-trigger-types"><a class="header" href="#3-other-trigger-types">3. Other Trigger Types</a></h2>
-<p>The engine defines and matches three further trigger types, but no live event source currently routes events into the dispatcher for them. The trigger syntax is accepted in <code>SOP.toml</code> and validated (see <a href="./syntax.html">Syntax</a>); the matching logic is exercised by tests, but the runtime fan-in is not yet wired.</p>
+<p>El disparador del SOP se define en su <code>SOP.toml</code> (consulte <a href="./syntax.html">Sintaxis</a>). Los patrones de temas admiten los comodines <code>+</code> (un solo nivel) y <code>#</code> (múltiples niveles). La carga útil de MQTT se reenvía a la carga útil del evento del SOP (<code>event.payload</code>) y está disponible para una <code>condition</code> opcional del disparador, y luego se muestra en el contexto del paso.</p>
+<h2 id="3-otros-tipos-de-disparadores"><a class="header" href="#3-otros-tipos-de-disparadores">3. Otros tipos de disparadores</a></h2>
+<p>El motor define y hace coincidir tres tipos de disparadores adicionales, pero actualmente ninguna fuente de eventos en vivo enruta eventos hacia el despachador para ellos. La sintaxis de disparadores se acepta en <code>SOP.toml</code> y se valida (consulte <a href="./syntax.html">Sintaxis</a>); la lógica de coincidencia está cubierta por pruebas, pero la convergencia (fan-in) en tiempo de ejecución aún no está conectada.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Trigger type</th><th>Matcher</th><th>Wiring status</th></tr>
+<tr><th>Tipo de desencadenador</th><th>Matcher</th><th>Estado del cableado</th></tr>
 </thead>
 <tbody>
-<tr><td><code>webhook</code></td><td>Exact match against the trigger <code>path</code></td><td>No HTTP route delivers webhook <code>SopEvent</code>s; the gateway has no SOP endpoint.</td></tr>
-<tr><td><code>cron</code></td><td><code>check_sop_cron_triggers</code> performs a window-based check over cached cron triggers</td><td>Defined, but no scheduler caller invokes it outside tests.</td></tr>
-<tr><td><code>periférico</code></td><td>Exact match against <code>"{board}/{signal}"</code></td><td><code>dispatch_peripheral_signal</code> exists, but no peripheral listener calls it outside tests.</td></tr>
+<tr><td><code>webhook</code></td><td>Coincidencia exacta con el <code>path</code> del desencadenador</td><td>Ninguna ruta HTTP entrega los <code>SopEvent</code>s de webhook; el gateway no tiene un endpoint SOP.</td></tr>
+<tr><td><code>cron</code></td><td><code>check_sop_cron_triggers</code> realiza una verificación basada en ventanas sobre los disparadores cron almacenados en caché</td><td>Definido, pero ningún invocador del planificador lo llama fuera de las pruebas.</td></tr>
+<tr><td><code>peripheral</code></td><td>Coincidencia exacta con <code>"{board}/{signal}"</code></td><td><code>dispatch_peripheral_signal</code> existe, pero ningún listener de periféricos lo llama fuera de las pruebas.</td></tr>
 </tbody>
 </table>
 </div>
-<p>Defining one of these triggers in a <code>SOP.toml</code> is valid and will not error, but the SOP will only ever start via MQTT or <code>sop_execute</code> until the corresponding event source is wired.</p>
-<h2 id="4-security-defaults"><a class="header" href="#4-security-defaults">4. Security Defaults</a></h2>
+<p>Definir uno de estos disparadores en un <code>SOP.toml</code> es válido y no producirá errores, pero el SOP solo se iniciará mediante MQTT o <code>sop_execute</code> hasta que la fuente de eventos correspondiente esté conectada.</p>
+<h2 id="4-valores-predeterminados-de-seguridad"><a class="header" href="#4-valores-predeterminados-de-seguridad">4. Valores Predeterminados de Seguridad</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -340,11 +341,11 @@
 <tbody>
 <tr><td><strong>Transporte MQTT</strong></td><td><code>mqtts://</code> + <code>use_tls = true</code> para transporte TLS</td></tr>
 <tr><td><strong>Validación de Cron</strong></td><td>Las expresiones cron no válidas fallan de forma cerrada durante el análisis/construcción de la caché</td></tr>
-<tr><td><strong>Headless dispatch</strong></td><td>Headless callers log run progression instead of auto-executing <code>ExecuteStep</code></td></tr>
+<tr><td><strong>Despacho headless</strong></td><td>Los invocadores headless registran la progresión de la ejecución en lugar de ejecutar automáticamente <code>ExecuteStep</code></td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="5-troubleshooting"><a class="header" href="#5-troubleshooting">5. Troubleshooting</a></h2>
+<h2 id="5-solución-de-problemas"><a class="header" href="#5-solución-de-problemas">5. Solución de problemas</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -352,9 +353,9 @@
 </thead>
 <tbody>
 <tr><td><strong>MQTT</strong> errores de conexión</td><td>desajuste de URL/TLS del broker</td><td>Verificar la combinación del esquema con la bandera TLS (<code>mqtt://</code>/<code>false</code>, <code>mqtts://</code>/<code>true</code>)</td></tr>
-<tr><td><strong>MQTT</strong> SOP not starting</td><td>topic pattern mismatch or failing <code>condition</code></td><td>Verify the trigger topic/wildcards match the published topic; check the <code>condition</code> against the payload</td></tr>
-<tr><td><strong>SOP iniciado pero paso no ejecutado</strong></td><td>activación sin bucle de agente activo</td><td>run an agent loop for <code>ExecuteStep</code>, or design the run to pause on approvals</td></tr>
-<tr><td><strong>Webhook/cron/peripheral trigger never fires</strong></td><td>event source not wired into the dispatcher</td><td>use an MQTT trigger or start the run with <code>sop_execute</code></td></tr>
+<tr><td><strong>MQTT</strong> SOP no se inicia</td><td>discrepancia en el patrón del tema o <code>condition</code> fallida</td><td>Verifique que el tema/comodines del disparador coincidan con el tema publicado; compruebe la <code>condition</code> contra la carga útil</td></tr>
+<tr><td><strong>SOP iniciado pero paso no ejecutado</strong></td><td>activación sin bucle de agente activo</td><td>ejecutar un bucle de agente para <code>ExecuteStep</code>, o diseñar la ejecución para que se pause en las aprobaciones</td></tr>
+<tr><td><strong>El disparador de webhook/cron/periférico nunca se activa</strong></td><td>fuente de eventos no conectada al despachador</td><td>use un disparador MQTT o inicie la ejecución con <code>sop_execute</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -403,6 +404,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

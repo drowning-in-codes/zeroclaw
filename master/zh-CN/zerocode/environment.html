@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Environment pass-through - ZeroClaw Docs</title>
+        <title>环境变量透传 - ZeroClaw Docs</title>
 
 
         <!-- Custom HTML head -->
@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-09e17305.js";
+            window.path_to_searchindex_js = "../searchindex-c62c6261.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88046f44.js"></script>
+        <script src="../toc-9364d956.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -300,7 +301,7 @@
   → Layer 1: SAFE_ENV_VARS + shell_env_passthrough (from daemon process)
   → Layer 2: zerocode's env snapshot (wins on conflict)
 </code></pre>
-<p>zerocode vars win on conflict: your <code>PATH</code>, <code>HOME</code>, and credential sockets take precedence over whatever the daemon inherited. No configuration required.</p>
+<p>zerocode 变量在冲突时优先：你的 <code>PATH</code>、<code>HOME</code> 和凭据套接字会优先于守护进程所继承的任何值。无需任何配置。</p>
 <p>这就是为什么当你从运行着 ssh-agent 的终端启动 zerocode 时 <code>SSH_AUTH_SOCK</code> 能够生效，即使该守护进程是作为服务启动且没有 agent：</p>
 <div class="os-tabs-src">
 <h4 id="sh"><a class="header" href="#sh">sh</a></h4>
@@ -308,15 +309,15 @@
 echo $SSH_AUTH_SOCK
 # /run/user/1000/gnupg/S.gpg-agent.ssh
 
-# Daemon was started as a systemd service, with no SSH_AUTH_SOCK in its env.
+# 守护进程作为 systemd 服务启动，其环境中没有 SSH_AUTH_SOCK。
 # zerocode forwards its env at connect time, so any shell command the agent
 # runs（git push、ssh、gpg-sign）会从你的终端获取 SSH_AUTH_SOCK。
 </code></pre>
 </div>
 
 <p>zerocode 会发送其完整的环境变量。在共享或远程守护进程中，如果这会带来安全隐患，请使用 WSS 并配合专用用户账户。</p>
-<h2 id="multiple-connected-clients-no-cross-session-clobbering"><a class="header" href="#multiple-connected-clients-no-cross-session-clobbering">Multiple connected clients: no cross-session clobbering</a></h2>
-<p>Each zerocode instance gets a unique <code>tui_id</code> (<code>tui_</code> + 8 random hex chars). The registry is a <code>HashMap&lt;tui_id → TuiEntry&gt;</code>, and entries are completely independent:</p>
+<h2 id="多客户端连接避免跨会话相互覆盖"><a class="header" href="#多客户端连接避免跨会话相互覆盖">多客户端连接：避免跨会话相互覆盖</a></h2>
+<p>每个 zerocode 实例都会获得一个唯一的 <code>tui_id</code>（<code>tui_</code> + 8 个随机十六进制字符）。该注册表是一个 <code>HashMap&lt;tui_id → TuiEntry&gt;</code>，各个条目之间完全独立：</p>
 <pre><code>TuiRegistry
 ├── "tui_a1b2c3d4"  →  { env: { PATH: "/home/alice/…", VIRTUAL_ENV: "…" } }
 ├── "tui_beef0042"  →  { env: { PATH: "/home/bob/…"  } }
@@ -331,15 +332,15 @@ echo $SSH_AUTH_SOCK
 <tbody>
 <tr><td>从具有不同 <code>PATH</code> 的不同 shell 中打开两个客户端</td><td>每个会话都有各自的 <code>PATH</code>，互不影响</td></tr>
 <tr><td>客户端 A 设置了 <code>VIRTUAL_ENV</code>；客户端 B 没有</td><td>只有来自 Client A 的会话才能看到 <code>VIRTUAL_ENV</code></td></tr>
-<tr><td>客户端 A 在客户端 B 的会话运行时断开连接</td><td>Client B is unaffected; env was <strong>cloned at session creation</strong></td></tr>
+<tr><td>客户端 A 在客户端 B 的会话运行时断开连接</td><td>客户端 B 不受影响；env 在<strong>会话创建时已克隆</strong></td></tr>
 <tr><td>客户端 A 使用相同的 <code>tui_id</code> 重新连接</td><td>旧条目被移除，注册了带有新环境的新条目；已经运行的会话保留其原始克隆</td></tr>
 </tbody>
 </table>
 </div>
 <p>最后一点很重要：<code>get_env</code> 返回的是一个<strong>克隆</strong>，而非引用。会话一旦创建，就拥有了自己的环境快照。源客户端的重新连接或断开连接对正在运行的会话没有任何影响。</p>
 <h2 id="风险配置直通显式允许列表"><a class="header" href="#风险配置直通显式允许列表">风险配置直通（显式允许列表）</a></h2>
-<p><code>shell_env_passthrough</code> on a risk profile controls which variables from the <em>daemon’s own process environment</em> are passed to shell subprocesses. This is useful when you want specific vars available regardless of whether zerocode is connected, for example on a headless server where the daemon itself has the vars set.</p>
-<p>Subagents cannot expand this list beyond what the parent policy allows: adding a var not present on the parent’s list is rejected as a policy escalation.</p>
+<p>风险配置文件中的 <code>shell_env_passthrough</code> 用于控制将 <em>守护进程自身的进程环境</em> 中的哪些变量传递给 shell 子进程。当你希望无论 zerocode 是否已连接都能使用特定变量时，这非常有用，例如在守护进程自身已设置这些变量的无头服务器上。</p>
+<p>子代理无法将此列表扩展到超出父级策略所允许的范围：添加父级列表中不存在的变量会被作为策略提权而拒绝。</p>
 
                     </main>
 
@@ -385,6 +386,114 @@ echo $SSH_AUTH_SOCK
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

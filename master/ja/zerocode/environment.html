@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Environment pass-through - ZeroClaw Docs</title>
+        <title>環境変数のパススルー - ZeroClaw Docs</title>
 
 
         <!-- Custom HTML head -->
@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11602f8d.js";
+            window.path_to_searchindex_js = "../searchindex-44ad045e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5c63d324.js"></script>
+        <script src="../toc-8e2df50e.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -300,7 +301,7 @@
   → Layer 1: SAFE_ENV_VARS + shell_env_passthrough (from daemon process)
   → Layer 2: zerocode's env snapshot (wins on conflict)
 </code></pre>
-<p>zerocode vars win on conflict: your <code>PATH</code>, <code>HOME</code>, and credential sockets take precedence over whatever the daemon inherited. No configuration required.</p>
+<p>zerocode の変数は競合時に優先されます。つまり、お使いの <code>PATH</code>、<code>HOME</code>、および認証ソケットは、デーモンが継承したものよりも優先されます。設定は不要です。</p>
 <p>これが、エージェントなしでサービスとしてデーモンが起動された場合でも、ssh-agent が実行されているターミナルから zerocode を実行したときに <code>SSH_AUTH_SOCK</code> が機能する理由です:</p>
 <div class="os-tabs-src">
 <h4 id="sh"><a class="header" href="#sh">sh</a></h4>
@@ -308,15 +309,15 @@
 echo $SSH_AUTH_SOCK
 # /run/user/1000/gnupg/S.gpg-agent.ssh
 
-# Daemon was started as a systemd service, with no SSH_AUTH_SOCK in its env.
+# Daemon は systemd サービスとして起動されており、その環境に SSH_AUTH_SOCK が存在しません。
 # zerocode forwards its env at connect time, so any shell command the agent
 # 実行(git push、ssh、gpg-sign)は、ターミナルから SSH_AUTH_SOCK を取得します。
 </code></pre>
 </div>
 
 <p>zerocode は環境全体を送信します。共有またはリモートのデーモンでこれが懸念される場合は、専用のユーザーアカウントで WSS を使用してください。</p>
-<h2 id="multiple-connected-clients-no-cross-session-clobbering"><a class="header" href="#multiple-connected-clients-no-cross-session-clobbering">Multiple connected clients: no cross-session clobbering</a></h2>
-<p>Each zerocode instance gets a unique <code>tui_id</code> (<code>tui_</code> + 8 random hex chars). The registry is a <code>HashMap&lt;tui_id → TuiEntry&gt;</code>, and entries are completely independent:</p>
+<h2 id="複数の接続クライアント-セッション間での競合上書きなし"><a class="header" href="#複数の接続クライアント-セッション間での競合上書きなし">複数の接続クライアント: セッション間での競合上書きなし</a></h2>
+<p>各 zerocode インスタンスには一意の <code>tui_id</code>（<code>tui_</code> + ランダムな 16 進数 8 文字）が割り当てられます。レジストリは <code>HashMap&lt;tui_id → TuiEntry&gt;</code> であり、各エントリは完全に独立しています。</p>
 <pre><code>TuiRegistry
 ├── "tui_a1b2c3d4"  →  { env: { PATH: "/home/alice/…", VIRTUAL_ENV: "…" } }
 ├── "tui_beef0042"  →  { env: { PATH: "/home/bob/…"  } }
@@ -331,15 +332,15 @@ echo $SSH_AUTH_SOCK
 <tbody>
 <tr><td>異なる<code>PATH</code>を持つ別々のシェルから2つのクライアントが開いている</td><td>セッションごとに独自の <code>PATH</code> が割り当てられ、互いに影響を与えません</td></tr>
 <tr><td>クライアント A には <code>VIRTUAL_ENV</code> が設定されており、クライアント B には設定されていません</td><td>クライアント A のセッションのみが <code>VIRTUAL_ENV</code> を参照できます</td></tr>
-<tr><td>クライアント B のセッション実行中にクライアント A が切断する</td><td>Client B is unaffected; env was <strong>cloned at session creation</strong></td></tr>
+<tr><td>クライアント B のセッション実行中にクライアント A が切断する</td><td>クライアント B は影響を受けません。env は<strong>セッション作成時にクローンされています</strong></td></tr>
 <tr><td>クライアント A が同じ <code>tui_id</code> で再接続します</td><td>古いエントリは削除され、新しい環境を持つ新しいエントリが登録されます。既に実行中のセッションは元のクローンを保持します。</td></tr>
 </tbody>
 </table>
 </div>
 <p>最後の点が重要です。<code>get_env</code> は参照ではなく<strong>クローン</strong>を返します。セッションが作成されると、それは自身の環境スナップショットを所有します。元のクライアントの再接続や切断は、実行中のセッションには影響しません。</p>
 <h2 id="リスクプロファイルのパススルー明示的な許可リスト"><a class="header" href="#リスクプロファイルのパススルー明示的な許可リスト">リスクプロファイルのパススルー（明示的な許可リスト）</a></h2>
-<p><code>shell_env_passthrough</code> on a risk profile controls which variables from the <em>daemon’s own process environment</em> are passed to shell subprocesses. This is useful when you want specific vars available regardless of whether zerocode is connected, for example on a headless server where the daemon itself has the vars set.</p>
-<p>Subagents cannot expand this list beyond what the parent policy allows: adding a var not present on the parent’s list is rejected as a policy escalation.</p>
+<p>リスクプロファイルの <code>shell_env_passthrough</code> は、<em>デーモン自身のプロセス環境</em> のどの変数をシェルサブプロセスに渡すかを制御します。これは、zerocode が接続されているかどうかに関わらず特定の変数を利用可能にしたい場合に便利です。例えば、デーモン自体に変数が設定されているヘッドレスサーバーなどです。</p>
+<p>サブエージェントは、親ポリシーが許可する範囲を超えてこのリストを拡張することはできません。親のリストに存在しない変数を追加すると、ポリシーの権限昇格として拒否されます。</p>
 
                     </main>
 
@@ -385,6 +386,114 @@ echo $SSH_AUTH_SOCK
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

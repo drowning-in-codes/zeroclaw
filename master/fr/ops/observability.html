@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-fdd74dbd.js";
+            window.path_to_searchindex_js = "../searchindex-85e3e40f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-141ed634.js"></script>
+        <script src="../toc-98474cc2.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -296,10 +297,10 @@
 <p>Chaque événement émis par ZeroClaw passe par une seule crate : <code>zeroclaw-log</code>. La crate possède le schéma JSONL sur disque, le flux de diffusion en cours de processus que le tableau de bord lit, le pont vers l’<code>Observer</code> typé (Prometheus / OTel) et les macros (<code>record!</code>, <code>scope!</code>, <code>spawn!</code>) que les sous-systèmes appellent.</p>
 <p>Cette page couvre ce dont un opérateur a besoin : la configuration, l’emplacement du journal, la structure des événements et la manière de les interroger.</p>
 <h2 id="configuration-observability"><a class="header" href="#configuration-observability">Configuration (<code>[observability]</code>)</a></h2>
-<p>Defaults: <code>log_persistence = "rolling"</code>, <code>log_persistence_max_entries = 200</code>, <code>log_tool_io = "redacted"</code>, <code>log_tool_io_truncate_bytes = 40960</code>. A fresh install produces a 200-event rolling JSONL at <code>~/.zeroclaw/data/state/runtime-trace.jsonl</code>, and the dashboard’s Logs page works without further configuration.</p>
+<p>Valeurs par défaut : <code>log_persistence = "rolling"</code>, <code>log_persistence_max_entries = 200</code>, <code>log_tool_io = "redacted"</code>, <code>log_tool_io_truncate_bytes = 40960</code>. Une installation neuve produit un fichier JSONL glissant de 200 événements dans <code>~/.zeroclaw/data/state/runtime-trace.jsonl</code>, et la page Logs du tableau de bord fonctionne sans configuration supplémentaire.</p>
 <p><code>log_persistence = "none"</code> désactive entièrement la persistance. Le flux de diffusion (SSE du tableau de bord) et le pont <code>Observer</code> typé continuent de recevoir les événements ; seul l’écrivain JSONL est restreint.</p>
 <h2 id="format-sur-disque"><a class="header" href="#format-sur-disque">Format sur disque</a></h2>
-<p>JSONL: one event per line, UTF-8, <code>0o600</code> permissions on Unix. Every line is <code>sync_data</code>’d after write, the line is durable before the emitting code returns.</p>
+<p>JSONL : un événement par ligne, UTF-8, permissions <code>0o600</code> sous Unix. Chaque ligne fait l’objet d’un <code>sync_data</code> après écriture ; la ligne est durable avant que le code émetteur ne retourne.</p>
 <p>La forme de la ligne reflète <code>zeroclaw_log::event::LogEvent</code>. Clés de premier niveau :</p>
 <div class="table-wrapper">
 <table>
@@ -328,13 +329,13 @@
 <h3 id="attribution-zeroclaw"><a class="header" href="#attribution-zeroclaw">Attribution <code>zeroclaw.*</code></a></h3>
 <p>La source de vérité Rust est <code>ATTRIBUTION_FIELDS</code> + <code>COMPOSITE_PREFIXES</code> dans <code>crates/zeroclaw-log/src/event.rs</code>. La réponse <code>/api/logs</code> transporte la liste canonique en tant que <code>attribution_keys</code> ; récupérez-la au lieu de la coder en dur.</p>
 <p>Les champs simples (<code>ATTRIBUTION_FIELDS</code>) contiennent chacun une seule chaîne. Les préfixes composites obtiennent trois clés : <code>&lt;prefix&gt;</code>, <code>&lt;prefix&gt;_type</code>, <code>&lt;prefix&gt;_alias</code> (par ex. <code>channel = "discord.glados"</code>, <code>channel_type = "discord"</code>, <code>channel_alias = "glados"</code>). Les filtres peuvent correspondre de manière approximative ou précise.</p>
-<p>When a tracing call sets a composite-prefix field to a bare type (no <code>.</code>), only the <code>_type</code> slot is populated, that way a <code>tracing::*!(model_provider = name, …)</code> call inside a span that already carries the full <code>&lt;type&gt;.&lt;alias&gt;</code> composite doesn’t clobber it on the leaf→root merge.</p>
+<p>Lorsqu’un appel de traçage définit un champ à préfixe composite avec un type seul (sans <code>.</code>), seul l’emplacement <code>_type</code> est renseigné, de sorte qu’un appel <code>tracing::*!(model_provider = name, …)</code> à l’intérieur d’un span qui porte déjà le composite complet <code>&lt;type&gt;.&lt;alias&gt;</code> ne l’écrase pas lors de la fusion feuille→racine.</p>
 <h2 id="interrogation"><a class="header" href="#interrogation">Interrogation</a></h2>
 <p>La page Logs du tableau de bord est la surface principale. En dessous :</p>
 <pre><code>GET /api/logs
 </code></pre>
 <p>Filtres de premier niveau (paramètres de requête) : <code>since_ts</code>, <code>until_ts</code>, <code>until_id</code>, <code>action</code>, <code>category</code>, <code>outcome</code>, <code>severity_min</code>, <code>trace_id</code>, <code>q</code> (sous-chaîne dans <code>message</code> + <code>attributes</code>), <code>hide_internal</code> (supprime <code>event.category = "internal"</code>), <code>limit</code>.</p>
-<p>Every other <code>?&lt;key&gt;=&lt;value&gt;</code> is treated as a per-attribution equality filter, the gateway validates the key against <code>is_attribution_field</code> and rejects unknowns with <code>400</code>. The response includes <code>attribution_keys: string[]</code>, so callers don’t have to guess.</p>
+<p>Chaque autre <code>?&lt;key&gt;=&lt;value&gt;</code> est traité comme un filtre d’égalité par attribution, la passerelle valide la clé avec <code>is_attribution_field</code> et rejette les clés inconnues avec une erreur <code>400</code>. La réponse inclut <code>attribution_keys: string[]</code>, afin que les appelants n’aient pas à deviner.</p>
 <p>Exemples :</p>
 <div class="os-tabs-src">
 <h4 id="sh"><a class="header" href="#sh">sh</a></h4>
@@ -405,22 +406,22 @@ curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 </ul>
 <p>La chaîne de spans suit : <code>channel_listener{channel=discord.glados}: …</code>. Les champs de span sont visibles en ligne.</p>
 <h2 id="migration-de-schéma"><a class="header" href="#migration-de-schéma">Migration de schéma</a></h2>
-<p>On startup, if <code>log_persistence</code> is enabled and the file exists, the writer streams any schema-1 rows through an in-place migration to schema-2 before the first append. Pure streaming, bounded by a single line’s allocation regardless of file size. The migrated file is atomically renamed into place. Files already at v2 are left untouched.</p>
+<p>Au démarrage, si <code>log_persistence</code> est activé et que le fichier existe, le writer fait transiter les lignes au schéma 1 par une migration sur place vers le schéma 2 avant le premier ajout. Streaming pur, avec une allocation limitée à une seule ligne quelle que soit la taille du fichier. Le fichier migré est renommé de manière atomique à son emplacement final. Les fichiers déjà en v2 restent intacts.</p>
 <p>Si la migration échoue, le démon journalise un <code>warn</code> et continue d’écrire les ajouts v2 ; les anciennes lignes v1 restent lisibles par les outils qui comprennent encore v1 mais ne passeront pas le désérialiseur du lecteur v2.</p>
 <h2 id="quest-ce-que-internal-"><a class="header" href="#quest-ce-que-internal-">Qu’est-ce que <code>internal</code> ?</a></h2>
 <p><code>event.category = "internal"</code> est la catégorie destinée au bruit opérationnel dont un opérateur n’a pas besoin sur le tableau de bord par défaut : signaux de pulsation (heartbeat), diffusions en attente, nouvelles tentatives de synchronisation avec perte, et autres. Le commutateur « Hide internal » du tableau de bord (activé par défaut) filtre ces éléments.</p>
 <p>Utilisez-le lorsque vous avez un événement à haute fréquence dont la présence importe pour l’analyse forensique mais dont l’absence est l’état normal. Ne l’utilisez pas comme régulateur de volume pour de véritables erreurs.</p>
 <h2 id="fichiers-dintérêt"><a class="header" href="#fichiers-dintérêt">Fichiers d’intérêt</a></h2>
 <ul>
-<li><code>crates/zeroclaw-log/src/event.rs</code>: the canonical <code>LogEvent</code> shape.</li>
-<li><code>crates/zeroclaw-log/src/layer.rs</code>: the <code>tracing-subscriber</code> Layer that captures every <code>tracing::*</code> call and feeds the pipeline.</li>
+<li><code>crates/zeroclaw-log/src/event.rs</code> : la structure canonique de <code>LogEvent</code>.</li>
+<li><code>crates/zeroclaw-log/src/layer.rs</code> : le Layer <code>tracing-subscriber</code> qui capture chaque appel <code>tracing::*</code> et alimente le pipeline.</li>
 <li><code>crates/zeroclaw-log/src/macro.rs</code>: <code>record!</code>, <code>scope!</code>, <code>spawn!</code>.</li>
-<li><code>crates/zeroclaw-log/src/writer.rs</code>: append + rolling trim.</li>
-<li><code>crates/zeroclaw-log/src/reader.rs</code>: <code>/api/logs</code> reader.</li>
+<li><code>crates/zeroclaw-log/src/writer.rs</code> : ajout + troncature glissante.</li>
+<li><code>crates/zeroclaw-log/src/reader.rs</code> : lecteur de <code>/api/logs</code>.</li>
 <li><code>crates/zeroclaw-log/src/config.rs</code>: <code>StoragePolicy</code>, <code>ToolIoPolicy</code>, <code>ResolvedPolicy</code>.</li>
-<li><code>crates/zeroclaw-log/src/migrate.rs</code>: schema-1 → schema-2 streaming migration.</li>
-<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code>: typed <code>Observer</code> projection for Prometheus / OTel consumers.</li>
-<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code>: the HTTP adapter.</li>
+<li><code>crates/zeroclaw-log/src/migrate.rs</code> : migration en streaming de schema-1 → schema-2.</li>
+<li><code>crates/zeroclaw-log/src/observer_bridge.rs</code> : projection <code>Observer</code> typée pour les consommateurs Prometheus / OTel.</li>
+<li><code>crates/zeroclaw-gateway/src/api_logs.rs</code> : l’adaptateur HTTP.</li>
 </ul>
 <p>Vérifiez la source avant de vous fier au texte de cette page.</p>
 
@@ -468,6 +469,114 @@ curl "$ZEROCLAW_GATEWAY/api/logs?trace_id=&lt;value-from-a-prior-event&gt;"
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

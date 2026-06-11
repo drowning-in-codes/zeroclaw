@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-0ea996cb.js";
+            window.path_to_searchindex_js = "../searchindex-098b429f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a9c1be94.js"></script>
+        <script src="../toc-f27dd488.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -307,7 +308,7 @@
 <li><code>OPTIONS /api/config</code> devuelve el JSON Schema para el tipo de configuración completa y un encabezado <code>Allow</code> que lista los métodos admitidos en el recurso. Estático por compilación; los clientes deben almacenar en caché según el encabezado <code>ETag</code>.</li>
 <li><code>OPTIONS /api/config/prop?path=&lt;dotted&gt;</code> devuelve el fragmento de esquema para una ruta específica con <code>Allow: GET, PUT, DELETE, OPTIONS</code>. Devuelve 404 si la ruta no existe en el esquema.</li>
 </ul>
-<p><code>OPTIONS</code> returns capabilities. <code>GET /api/config/prop</code> and <code>GET /api/config/list</code> return the user’s current values. Forms in the dashboard issue <code>OPTIONS</code> once at load time to learn types and constraints, then <code>GET</code> to populate fields, then <code>PUT</code>/<code>PATCH</code> to write. There is no whole-file <code>GET /api/config</code>, deliberately. Walk the per-property surface; the schema is the source of truth for what fields exist.</p>
+<p><code>OPTIONS</code> devuelve las capacidades. <code>GET /api/config/prop</code> y <code>GET /api/config/list</code> devuelven los valores actuales del usuario. Los formularios del panel de control emiten <code>OPTIONS</code> una vez al cargarse para conocer los tipos y restricciones, luego <code>GET</code> para rellenar los campos, y después <code>PUT</code>/<code>PATCH</code> para escribir. No existe un <code>GET /api/config</code> para el archivo completo, de forma deliberada. Recorra la superficie por propiedad; el esquema es la fuente de verdad sobre qué campos existen.</p>
 <p>Las solicitudes preflight de CORS (aquellas que incluyen <code>Access-Control-Request-Method</code>) reciben la respuesta preflight estándar y se interrumpen antes de que se devuelva el cuerpo del esquema.</p>
 <h2 id="crud-por-propiedad"><a class="header" href="#crud-por-propiedad">CRUD por propiedad</a></h2>
 <div class="table-wrapper">
@@ -328,13 +329,13 @@
 </tbody>
 </table>
 </div>
-<h2 id="atomic-batch-writes-json-patch"><a class="header" href="#atomic-batch-writes-json-patch">Atomic batch writes: JSON Patch</a></h2>
+<h2 id="escrituras-atómicas-por-lotes-json-patch"><a class="header" href="#escrituras-atómicas-por-lotes-json-patch">Escrituras atómicas por lotes: JSON Patch</a></h2>
 <p><code>PATCH /api/config</code> acepta un documento JSON Patch (RFC 6902). El subconjunto de operaciones admitidas es <code>add</code>, <code>replace</code>, <code>remove</code>, <code>test</code>. Cada operación se ejecuta sobre una copia en memoria de la configuración; una vez aplicadas todas las operaciones, <code>Config::validate()</code> se ejecuta una vez sobre el resultado. Si la validación es correcta, el nuevo estado se persiste y se intercambia. Si alguna operación o la validación final falla, el estado en disco y en memoria permanecen sin cambios.</p>
-<p><code>move</code> and <code>copy</code> return <code>400 op_not_supported</code> because safe reference-graph rewriting is not part of this surface. <code>test</code> against a <code>#[secret]</code> path is rejected with <code>secret_test_forbidden</code>: a differential outcome would be the only signal a client could read, and that would leak the value.</p>
+<p><code>move</code> y <code>copy</code> devuelven <code>400 op_not_supported</code> porque la reescritura segura del grafo de referencias no forma parte de esta superficie. <code>test</code> contra una ruta <code>#[secret]</code> se rechaza con <code>secret_test_forbidden</code>: un resultado diferencial sería la única señal que un cliente podría leer, y eso filtraría el valor.</p>
 <p>Sintaxis de ruta: JSON Pointer (<code>/agents/researcher/model_provider</code>) o la forma con puntos (<code>agents.researcher.model_provider</code>). Ambas se aceptan; el servidor las normaliza.</p>
 <p>El equivalente en la CLI es <code>zeroclaw config patch &lt;file-or-stdin&gt;</code>, que aplica el mismo conjunto de operaciones sobre el Config local y devuelve la misma estructura de respuesta estructurada (<code>--json</code> para scripts).</p>
-<h2 id="secrets-write-only-over-http"><a class="header" href="#secrets-write-only-over-http">Secrets: write-only over HTTP</a></h2>
-<p>Secret fields (those marked <code>#[secret]</code> or <code>#[derived_from_secret]</code> in the schema) are <strong>never</strong> readable over HTTP in any form. Responses for secrets carry <code>{populated: bool}</code> only, no value, no length, no masked stand-in, no hash. This is enforced at the response layer regardless of which endpoint is called.</p>
+<h2 id="secretos-solo-escritura-a-través-de-http"><a class="header" href="#secretos-solo-escritura-a-través-de-http">Secretos: solo escritura a través de HTTP</a></h2>
+<p>Los campos secretos (aquellos marcados con <code>#[secret]</code> o <code>#[derived_from_secret]</code> en el esquema) <strong>nunca</strong> son legibles a través de HTTP de ninguna forma. Las respuestas para secretos contienen únicamente <code>{populated: bool}</code>, sin valor, sin longitud, sin sustituto enmascarado, sin hash. Esto se aplica en la capa de respuesta independientemente del endpoint que se llame.</p>
 <p><code>PUT</code> y <code>PATCH</code> escriben el nuevo valor del secreto y responden con <code>{populated: true}</code>; <code>DELETE</code> lo borra y responde con <code>{populated: false}</code>. No existe ninguna ruta HTTP para recuperar un secreto por ningún medio.</p>
 <h2 id="códigos-de-error-estables"><a class="header" href="#códigos-de-error-estables">Códigos de error estables</a></h2>
 <p>Los errores devuelven JSON con un campo <code>code</code> estable más un <code>message</code> legible para humanos. Los frontends y scripts coinciden con el código; la UI coincide con la ruta.</p>
@@ -358,7 +359,7 @@
 </div>
 <h2 id="exploración-en-vivo"><a class="header" href="#exploración-en-vivo">Exploración en vivo</a></h2>
 <p>Una vez que un gateway esté en ejecución, navega a <code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> para acceder al explorador de API de Scalar. Las definiciones de esquema y los formularios de “Try it out” provienen de las mismas anotaciones de <code>schemars</code> que utiliza el daemon, por lo que la documentación no puede mentir sobre la superficie en tiempo de ejecución.</p>
-<p>The explorer’s authentication panel binds to the <code>bearerAuth</code> scheme declared in the spec, paste your pairing-derived bearer token there before issuing live calls. The CLI shortcut for the URL is <code>zeroclaw config docs</code>.</p>
+<p>El panel de autenticación del explorador se vincula al esquema <code>bearerAuth</code> declarado en la especificación; pega allí tu token bearer derivado del emparejamiento antes de realizar llamadas en vivo. El atajo de la CLI para la URL es <code>zeroclaw config docs</code>.</p>
 <p>Si el bundle de Scalar no puede cargarse desde la CDN (instalación offline / air-gapped), la página se degrada correctamente y te dirige al spec sin procesar en <code>/api/openapi.json</code> para que puedas usar cualquier visor compatible (Insomnia, Postman, Swagger UI, etc.).</p>
 
                     </main>
@@ -405,6 +406,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>

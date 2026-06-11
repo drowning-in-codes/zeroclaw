@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-11602f8d.js";
+            window.path_to_searchindex_js = "../searchindex-44ad045e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5c63d324.js"></script>
+        <script src="../toc-8e2df50e.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -211,6 +211,7 @@
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-cobalt2"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#193549;--s1:#ffc600;--s2:#ff9d00;--s3:#80ffbb"></span><span class="pc-theme-name">Cobalt2</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-code-red"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#160a0a;--s1:#ff3b3b;--s2:#ff8a5c;--s3:#ffb454"></span><span class="pc-theme-name">Code Red</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-default-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#1e1e24;--s1:#22d3ee;--s2:#a78bfa;--s3:#f59e0b"></span><span class="pc-theme-name">Default Dark</span></button></li>
+                            <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-icy-blue"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#080e18;--s1:#64c8ff;--s2:#b48cff;--s3:#ffdc50"></span><span class="pc-theme-name">Icy Blue</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-dracula"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#282a36;--s1:#bd93f9;--s2:#ff79c6;--s3:#50fa7b"></span><span class="pc-theme-name">Dracula</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-everforest-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#2d353b;--s1:#a7c080;--s2:#83c092;--s3:#dbbc7f"></span><span class="pc-theme-name">Everforest Dark</span></button></li>
                             <li role="none" class="pc-theme-item"><button role="menuitem" class="theme" id="mdbook-theme-flexoki-dark"><span class="pc-theme-swatch" aria-hidden="true" style="--s0:#100f0f;--s1:#ce5d97;--s2:#879a39;--s3:#da702c"></span><span class="pc-theme-name">Flexoki Dark</span></button></li>
@@ -293,9 +294,9 @@
                     <aside id="pc-page-toc" class="pc-page-toc" aria-label="On this page"></aside>
                     <main>
                         <h1 id="nixos"><a class="header" href="#nixos">NixOS</a></h1>
-<p>ZeroClaw ships a multi-instance NixOS module at <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/nix/module.nix"><code>nix/module.nix</code></a>. It runs one or more agents under systemd with hardening defaults appropriate for an internet-facing process, modelled on <code>services.restic.backups</code>.</p>
-<h2 id="the-package"><a class="header" href="#the-package">The package</a></h2>
-<p>The module invokes <code>${pkgs.zeroclaw}/bin/zeroclaw daemon</code>. <code>pkgs.zeroclaw</code> is not yet in nixpkgs; it is tracked in <a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5987">#5987</a>. Until it lands, build the binary yourself and point the module at it with the <code>package</code> option:</p>
+<p>ZeroClaw は <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/nix/module.nix"><code>nix/module.nix</code></a> でマルチインスタンス対応の NixOS モジュールを提供しています。これは <code>services.restic.backups</code> をモデルにしており、インターネットに公開されるプロセスに適したハードニングのデフォルト設定とともに、systemd 配下で 1 つ以上のエージェントを実行します。</p>
+<h2 id="パッケージ"><a class="header" href="#パッケージ">パッケージ</a></h2>
+<p>このモジュールは <code>${pkgs.zeroclaw}/bin/zeroclaw daemon</code> を呼び出します。<code>pkgs.zeroclaw</code> はまだ nixpkgs に含まれておらず、<a href="https://github.com/zeroclaw-labs/zeroclaw/issues/5987">#5987</a> で追跡されています。これがマージされるまでは、バイナリを自分でビルドし、<code>package</code> オプションでモジュールにそのバイナリを指定してください。</p>
 <div class="os-tabs-src">
 <h4 id="nix"><a class="header" href="#nix">nix</a></h4>
 <pre><code class="language-nix">services.zeroclaw.instances.me.package =
@@ -303,9 +304,9 @@
 </code></pre>
 </div>
 
-<p>For the same reason, <code>nix run github:zeroclaw-labs/zeroclaw</code> does not launch the agent. <code>nix run</code> resolves <code>apps.&lt;system&gt;.default</code> then <code>packages.&lt;system&gt;.default</code>; this flake defines no <code>apps</code>, and its <code>packages.default</code> is the Rust toolchain (for the dev shell), so the command would run the toolchain derivation, not ZeroClaw. On any other platform, <a href="./linux.html"><code>install.sh</code></a> is the supported path.</p>
-<h2 id="single-instance"><a class="header" href="#single-instance">Single instance</a></h2>
-<p>Membership in <code>services.zeroclaw.instances.&lt;name&gt;</code> is the activation signal; there is no top-level <code>enable</code>. Each instance gets its own systemd unit, state directory, and system user.</p>
+<p>同じ理由で、<code>nix run github:zeroclaw-labs/zeroclaw</code> はエージェントを起動しません。<code>nix run</code> は <code>apps.&lt;system&gt;.default</code> を解決し、次に <code>packages.&lt;system&gt;.default</code> を解決しますが、この flake は <code>apps</code> を定義しておらず、その <code>packages.default</code> は（開発シェル用の）Rust ツールチェインであるため、このコマンドは ZeroClaw ではなくツールチェインの derivation を実行することになります。その他のプラットフォームでは、<a href="./linux.html"><code>install.sh</code></a> がサポートされている方法です。</p>
+<h2 id="単一インスタンス"><a class="header" href="#単一インスタンス">単一インスタンス</a></h2>
+<p><code>services.zeroclaw.instances.&lt;name&gt;</code> への登録が有効化のシグナルとなります。トップレベルの <code>enable</code> はありません。各インスタンスには、それぞれ専用の systemd ユニット、状態ディレクトリ、システムユーザーが割り当てられます。</p>
 <div class="os-tabs-src">
 <h4 id="nix-1"><a class="header" href="#nix-1">nix</a></h4>
 <pre><code class="language-nix">{ config, pkgs, ... }: {
@@ -325,7 +326,7 @@
       risk_profiles.assistant = { };
       channels.telegram.home = {
         enabled = true;
-        bot_token = "$BOT_TOKEN";   # systemd $VAR, substituted from environmentFile at start
+        bot_token = "$BOT_TOKEN";   # systemd $VAR、起動時に environmentFile から置換される
         allowed_users = [ "12345" ];
       };
     };
@@ -334,9 +335,9 @@
 </code></pre>
 </div>
 
-<p><code>settings</code> mirrors <code>~/.zeroclaw/config.toml</code> as a Nix attrset, rendered to <code>${dataDir}/config.toml</code> (mode <code>0600</code>). Secrets travel through <code>environmentFile</code>, never <code>settings</code>: the unit’s <code>ExecStartPre</code> runs <code>envsubst</code> so <code>$VAR</code> references resolve at start, keeping the <code>/nix/store</code> copy free of plaintext. The <a href="../providers/configuration.html">config schema</a> (section headers, type/alias convention) is identical to every other platform.</p>
-<h2 id="multiple-instances"><a class="header" href="#multiple-instances">Multiple instances</a></h2>
-<p>The module is <code>attrsOf submodule</code>-shaped, so N tenants on one host read the same as one. Instances may share a user when exactly one creates it and the rest set <code>createUser = false</code>.</p>
+<p><code>settings</code> は <code>~/.zeroclaw/config.toml</code> を Nix の attrset としてミラーリングし、<code>${dataDir}/config.toml</code>（モード <code>0600</code>）にレンダリングされます。シークレットは <code>environmentFile</code> 経由で渡され、<code>settings</code> を通ることはありません。ユニットの <code>ExecStartPre</code> が <code>envsubst</code> を実行することで <code>$VAR</code> の参照が起動時に解決され、<code>/nix/store</code> のコピーには平文が含まれないようになっています。<a href="../providers/configuration.html">設定スキーマ</a>（セクションヘッダー、型/エイリアスの規約）は、他のすべてのプラットフォームと同一です。</p>
+<h2 id="複数のインスタンス"><a class="header" href="#複数のインスタンス">複数のインスタンス</a></h2>
+<p>モジュールは <code>attrsOf submodule</code> 形式なので、1台のホスト上のN個のテナントは1個のテナントと同じように読めます。インスタンスは、正確に1個のインスタンスがユーザーを作成し、残りが <code>createUser = false</code> を設定する場合に、ユーザーを共有できます。</p>
 <div class="os-tabs-src">
 <h4 id="nix-2"><a class="header" href="#nix-2">nix</a></h4>
 <pre><code class="language-nix">services.zeroclaw.instances = {
@@ -346,8 +347,8 @@
 </code></pre>
 </div>
 
-<h2 id="options"><a class="header" href="#options">Options</a></h2>
-<p>The full option surface (<code>package</code>, <code>user</code>, <code>group</code>, <code>createUser</code>, <code>dataDir</code>, <code>settings</code>, <code>environmentFile</code>, <code>extraConfig</code>, <code>bindReadOnlyPaths</code>) and the secrets pattern are documented in <a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/nix/README.md"><code>nix/README.md</code></a>. To override a <code>serviceConfig</code> field, use the standard NixOS escape hatch rather than a module option:</p>
+<h2 id="オプション"><a class="header" href="#オプション">オプション</a></h2>
+<p>すべてのオプション項目（<code>package</code>、<code>user</code>、<code>group</code>、<code>createUser</code>、<code>dataDir</code>、<code>settings</code>、<code>environmentFile</code>、<code>extraConfig</code>、<code>bindReadOnlyPaths</code>）とシークレットのパターンについては、<a href="https://github.com/zeroclaw-labs/zeroclaw/blob/master/nix/README.md"><code>nix/README.md</code></a> に記載されています。<code>serviceConfig</code> フィールドを上書きするには、モジュールオプションではなく、標準的な NixOS のエスケープハッチを使用してください。</p>
 <div class="os-tabs-src">
 <h4 id="nix-3"><a class="header" href="#nix-3">nix</a></h4>
 <pre><code class="language-nix">systemd.services."zeroclaw-me".serviceConfig.MemoryMax = "512M";
@@ -356,8 +357,8 @@
 
 <h2 id="次へ"><a class="header" href="#次へ">次へ</a></h2>
 <ul>
-<li><a href="./service.html">Service management</a>: the systemd unit ZeroClaw generates on non-Nix hosts</li>
-<li><a href="../providers/configuration.html">Providers → Configuration</a>: the config schema <code>settings</code> mirrors</li>
+<li><a href="./service.html">サービス管理</a>: ZeroClaw が非 Nix ホスト上で生成する systemd ユニット</li>
+<li><a href="../providers/configuration.html">プロバイダー → 設定</a>: 設定スキーマの <code>settings</code> は次を反映します</li>
 </ul>
 
                     </main>
@@ -404,6 +405,114 @@
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
+        <script>
+        (function () {
+            var root = typeof window !== 'undefined' ? window : this;
+            var elasticlunr = root.elasticlunr ||
+                (typeof globalThis !== 'undefined' && globalThis.elasticlunr);
+
+            if (!elasticlunr || !elasticlunr.Index) {
+                return;
+            }
+
+            var CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+            var originalLoad = elasticlunr.Index.load;
+
+            function lower(value) {
+                return String(value || '').toLowerCase();
+            }
+
+            function queryTerms(query) {
+                return lower(query).split(/\s+/).filter(Boolean);
+            }
+
+            function fieldScore(text, terms, weight, requireAll) {
+                var haystack = lower(text);
+                var matched = 0;
+                var score = 0;
+
+                if (!haystack) {
+                    return 0;
+                }
+
+                terms.forEach(function (term) {
+                    var index = haystack.indexOf(term);
+                    if (index !== -1) {
+                        matched += 1;
+                        score += weight;
+                        if (index === 0) {
+                            score += weight / 2;
+                        }
+                    }
+                });
+
+                if (requireAll && matched !== terms.length) {
+                    return 0;
+                }
+
+                return score;
+            }
+
+            function fallbackResults(docs, query, options, existingRefs) {
+                var terms = queryTerms(query);
+                var requireAll = !options || options.bool !== 'OR';
+                var results = [];
+
+                if (!CJK_RE.test(query) || terms.length === 0) {
+                    return results;
+                }
+
+                Object.keys(docs).forEach(function (ref) {
+                    var doc = docs[ref];
+                    var score = 0;
+
+                    if (existingRefs[ref]) {
+                        return;
+                    }
+
+                    score += fieldScore(doc.title, terms, 12, requireAll);
+                    score += fieldScore(doc.breadcrumbs, terms, 6, requireAll);
+                    score += fieldScore(doc.body, terms, 2, requireAll);
+
+                    if (score > 0) {
+                        results.push({ ref: ref, doc: doc, score: score });
+                    }
+                });
+
+                results.sort(function (a, b) {
+                    if (b.score !== a.score) {
+                        return b.score - a.score;
+                    }
+
+                    return Number(a.ref) - Number(b.ref);
+                });
+
+                return results;
+            }
+
+            elasticlunr.Index.load = function (serialized) {
+                var index = originalLoad.call(this, serialized);
+                var originalSearch = index.search.bind(index);
+                var docs = serialized &&
+                    serialized.documentStore &&
+                    serialized.documentStore.docs ||
+                    {};
+
+                index.search = function (query, options) {
+                    var results = originalSearch(query, options);
+                    var existingRefs = {};
+
+                    results.forEach(function (result) {
+                        existingRefs[String(result.ref)] = true;
+                    });
+
+                    return results.concat(fallbackResults(docs, query, options, existingRefs));
+                };
+
+                return index;
+            };
+        }());
+        </script>
         <script src="../searcher-c2a407aa.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
