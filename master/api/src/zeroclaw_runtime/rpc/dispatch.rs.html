@@ -4264,473 +4264,590 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../../" d
 <a href=#4262 id=4262 data-nosnippet>4262</a>        <span class="macro">assert_eq!</span>(stored.as_deref(), <span class="prelude-val">Some</span>(<span class="string">"claude-sonnet-4-5"</span>));
 <a href=#4263 id=4263 data-nosnippet>4263</a>    }
 <a href=#4264 id=4264 data-nosnippet>4264</a>
-<a href=#4265 id=4265 data-nosnippet>4265</a>    <span class="kw">fn </span>make_model_refresh_test_config(tmp: <span class="kw-2">&amp;</span>tempfile::TempDir) -&gt; zeroclaw_config::schema::Config {
-<a href=#4266 id=4266 data-nosnippet>4266</a>        <span class="kw">use </span>std::collections::HashMap;
-<a href=#4267 id=4267 data-nosnippet>4267</a>        <span class="kw">use </span>zeroclaw_config::schema::{AliasedAgentConfig, Config, RiskProfileConfig};
-<a href=#4268 id=4268 data-nosnippet>4268</a>
-<a href=#4269 id=4269 data-nosnippet>4269</a>        <span class="kw">let </span>workspace_dir = tmp.path().join(<span class="string">"workspace"</span>);
-<a href=#4270 id=4270 data-nosnippet>4270</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>workspace_dir).unwrap();
-<a href=#4271 id=4271 data-nosnippet>4271</a>
-<a href=#4272 id=4272 data-nosnippet>4272</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = Config {
-<a href=#4273 id=4273 data-nosnippet>4273</a>            config_path: tmp.path().join(<span class="string">"config.toml"</span>),
-<a href=#4274 id=4274 data-nosnippet>4274</a>            data_dir: tmp.path().join(<span class="string">"data"</span>),
-<a href=#4275 id=4275 data-nosnippet>4275</a>            ..Default::default()
-<a href=#4276 id=4276 data-nosnippet>4276</a>        };
-<a href=#4277 id=4277 data-nosnippet>4277</a>        <span class="kw">let </span>provider = config
-<a href=#4278 id=4278 data-nosnippet>4278</a>            .providers
-<a href=#4279 id=4279 data-nosnippet>4279</a>            .models
-<a href=#4280 id=4280 data-nosnippet>4280</a>            .ensure(<span class="string">"openai"</span>, <span class="string">"test-provider"</span>)
-<a href=#4281 id=4281 data-nosnippet>4281</a>            .expect(<span class="string">"openai provider slot exists"</span>);
-<a href=#4282 id=4282 data-nosnippet>4282</a>        provider.api_key = <span class="prelude-val">Some</span>(<span class="string">"test-key"</span>.into());
-<a href=#4283 id=4283 data-nosnippet>4283</a>        provider.uri = <span class="prelude-val">Some</span>(<span class="string">"http://127.0.0.1:1"</span>.into());
-<a href=#4284 id=4284 data-nosnippet>4284</a>        provider.model = <span class="prelude-val">Some</span>(<span class="string">"old-model"</span>.into());
-<a href=#4285 id=4285 data-nosnippet>4285</a>        provider.temperature = <span class="prelude-val">Some</span>(<span class="number">0.2</span>);
-<a href=#4286 id=4286 data-nosnippet>4286</a>
-<a href=#4287 id=4287 data-nosnippet>4287</a>        config.agents = HashMap::from([(
-<a href=#4288 id=4288 data-nosnippet>4288</a>            <span class="string">"test-agent"</span>.to_string(),
-<a href=#4289 id=4289 data-nosnippet>4289</a>            AliasedAgentConfig {
-<a href=#4290 id=4290 data-nosnippet>4290</a>                enabled: <span class="bool-val">true</span>,
-<a href=#4291 id=4291 data-nosnippet>4291</a>                model_provider: <span class="string">"openai.test-provider"</span>.into(),
-<a href=#4292 id=4292 data-nosnippet>4292</a>                risk_profile: <span class="string">"test-profile"</span>.into(),
-<a href=#4293 id=4293 data-nosnippet>4293</a>                ..Default::default()
-<a href=#4294 id=4294 data-nosnippet>4294</a>            },
-<a href=#4295 id=4295 data-nosnippet>4295</a>        )]);
-<a href=#4296 id=4296 data-nosnippet>4296</a>        config
-<a href=#4297 id=4297 data-nosnippet>4297</a>            .risk_profiles
-<a href=#4298 id=4298 data-nosnippet>4298</a>            .insert(<span class="string">"test-profile"</span>.into(), RiskProfileConfig::default());
-<a href=#4299 id=4299 data-nosnippet>4299</a>        config
-<a href=#4300 id=4300 data-nosnippet>4300</a>            .runtime_profiles
-<a href=#4301 id=4301 data-nosnippet>4301</a>            .insert(<span class="string">"default"</span>.into(), Default::default());
-<a href=#4302 id=4302 data-nosnippet>4302</a>        config
-<a href=#4303 id=4303 data-nosnippet>4303</a>    }
-<a href=#4304 id=4304 data-nosnippet>4304</a>
-<a href=#4305 id=4305 data-nosnippet>4305</a>    <span class="kw">async fn </span>create_model_refresh_test_session(
-<a href=#4306 id=4306 data-nosnippet>4306</a>        dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher,
-<a href=#4307 id=4307 data-nosnippet>4307</a>        tmp: <span class="kw-2">&amp;</span>tempfile::TempDir,
-<a href=#4308 id=4308 data-nosnippet>4308</a>    ) -&gt; String {
-<a href=#4309 id=4309 data-nosnippet>4309</a>        <span class="kw">let </span>session_res = dispatcher
-<a href=#4310 id=4310 data-nosnippet>4310</a>            .handle_session_new_for_test(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4311 id=4311 data-nosnippet>4311</a>                <span class="string">"agent_alias"</span>: <span class="string">"test-agent"</span>,
-<a href=#4312 id=4312 data-nosnippet>4312</a>                <span class="string">"cwd"</span>: tmp.path().join(<span class="string">"workspace"</span>),
-<a href=#4313 id=4313 data-nosnippet>4313</a>            }))
-<a href=#4314 id=4314 data-nosnippet>4314</a>            .<span class="kw">await
-<a href=#4315 id=4315 data-nosnippet>4315</a>            </span>.expect(<span class="string">"session/new should create the agent"</span>);
-<a href=#4316 id=4316 data-nosnippet>4316</a>        session_res
-<a href=#4317 id=4317 data-nosnippet>4317</a>            .get(<span class="string">"session_id"</span>)
-<a href=#4318 id=4318 data-nosnippet>4318</a>            .and_then(|v| v.as_str())
-<a href=#4319 id=4319 data-nosnippet>4319</a>            .expect(<span class="string">"session/new result includes session_id"</span>)
-<a href=#4320 id=4320 data-nosnippet>4320</a>            .to_string()
-<a href=#4321 id=4321 data-nosnippet>4321</a>    }
-<a href=#4322 id=4322 data-nosnippet>4322</a>
-<a href=#4323 id=4323 data-nosnippet>4323</a>    <span class="kw">async fn </span>model_name_for_session(dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher, session_id: <span class="kw-2">&amp;</span>str) -&gt; String {
-<a href=#4324 id=4324 data-nosnippet>4324</a>        <span class="kw">let </span>agent = dispatcher
-<a href=#4325 id=4325 data-nosnippet>4325</a>            .ctx
-<a href=#4326 id=4326 data-nosnippet>4326</a>            .sessions
-<a href=#4327 id=4327 data-nosnippet>4327</a>            .get_agent(session_id)
-<a href=#4328 id=4328 data-nosnippet>4328</a>            .<span class="kw">await
-<a href=#4329 id=4329 data-nosnippet>4329</a>            </span>.expect(<span class="string">"session agent exists"</span>);
-<a href=#4330 id=4330 data-nosnippet>4330</a>        agent.lock().<span class="kw">await</span>.attribution_fields().<span class="number">2
-<a href=#4331 id=4331 data-nosnippet>4331</a>    </span>}
-<a href=#4332 id=4332 data-nosnippet>4332</a>
-<a href=#4333 id=4333 data-nosnippet>4333</a>    <span class="kw">async fn </span>temperature_for_session(dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher, session_id: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
-<a href=#4334 id=4334 data-nosnippet>4334</a>        <span class="kw">let </span>agent = dispatcher
+<a href=#4265 id=4265 data-nosnippet>4265</a>    <span class="doccomment">/// End-to-end disk-roundtrip regression for the
+<a href=#4266 id=4266 data-nosnippet>4266</a>    /// `[[mcp.servers]]` per-field editor (see commit `d06ed25` and the
+<a href=#4267 id=4267 data-nosnippet>4267</a>    /// in-config-crate regression test
+<a href=#4268 id=4268 data-nosnippet>4268</a>    /// `save_dirty_persists_mcp_server_field_via_natural_key`).
+<a href=#4269 id=4269 data-nosnippet>4269</a>    ///
+<a href=#4270 id=4270 data-nosnippet>4270</a>    /// The shipped natural-key arm successfully mutates the in-memory
+<a href=#4271 id=4271 data-nosnippet>4271</a>    /// `Config` — so the dashboard / TUI showed the new value — but
+<a href=#4272 id=4272 data-nosnippet>4272</a>    /// the incremental `save_dirty` writer walked array-of-tables
+<a href=#4273 id=4273 data-nosnippet>4273</a>    /// nodes as if they were plain tables and silently dropped every
+<a href=#4274 id=4274 data-nosnippet>4274</a>    /// dirty path that targeted a `mcp.servers.&lt;alias&gt;.&lt;field&gt;` shape.
+<a href=#4275 id=4275 data-nosnippet>4275</a>    /// Net effect: `handle_config_set` returned `Ok({set: true})`, the
+<a href=#4276 id=4276 data-nosnippet>4276</a>    /// UI updated, and the on-disk `config.toml` kept its stale value
+<a href=#4277 id=4277 data-nosnippet>4277</a>    /// until the next process restart wiped the in-memory change.
+<a href=#4278 id=4278 data-nosnippet>4278</a>    ///
+<a href=#4279 id=4279 data-nosnippet>4279</a>    /// This test reproduces the full RPC surface — `handle_config_set`
+<a href=#4280 id=4280 data-nosnippet>4280</a>    /// → `set_prop_persistent` → `flush_config` → `save_dirty` — and
+<a href=#4281 id=4281 data-nosnippet>4281</a>    /// asserts that the on-disk file actually contains the new value
+<a href=#4282 id=4282 data-nosnippet>4282</a>    /// once the await returns. The original test surface
+<a href=#4283 id=4283 data-nosnippet>4283</a>    /// (`config_set_non_secret_field_still_uses_set_prop` above) only
+<a href=#4284 id=4284 data-nosnippet>4284</a>    /// asserts on in-memory state, which is exactly what let this bug
+<a href=#4285 id=4285 data-nosnippet>4285</a>    /// ship.
+<a href=#4286 id=4286 data-nosnippet>4286</a>    </span><span class="attr">#[tokio::test]
+<a href=#4287 id=4287 data-nosnippet>4287</a>    </span><span class="kw">async fn </span>config_set_persists_mcp_server_field_to_disk() {
+<a href=#4288 id=4288 data-nosnippet>4288</a>        <span class="kw">use </span>zeroclaw_config::schema::{McpServerConfig, McpTransport};
+<a href=#4289 id=4289 data-nosnippet>4289</a>
+<a href=#4290 id=4290 data-nosnippet>4290</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4291 id=4291 data-nosnippet>4291</a>        <span class="kw">let </span>config_path = tmp.path().join(<span class="string">"config.toml"</span>);
+<a href=#4292 id=4292 data-nosnippet>4292</a>
+<a href=#4293 id=4293 data-nosnippet>4293</a>        <span class="comment">// Seed an on-disk file with an existing `[[mcp.servers]]`
+<a href=#4294 id=4294 data-nosnippet>4294</a>        // entry so `save_dirty` exercises its incremental path
+<a href=#4295 id=4295 data-nosnippet>4295</a>        // (the new-file fallback to full `save` would mask the
+<a href=#4296 id=4296 data-nosnippet>4296</a>        // dirty-path bug because it serializes the whole struct).
+<a href=#4297 id=4297 data-nosnippet>4297</a>        </span><span class="kw">let </span>seed = <span class="macro">format!</span>(
+<a href=#4298 id=4298 data-nosnippet>4298</a>            <span class="string">"schema_version = {}\n\n\
+<a href=#4299 id=4299 data-nosnippet>4299</a>             [[mcp.servers]]\n\
+<a href=#4300 id=4300 data-nosnippet>4300</a>             name = \"fs\"\n\
+<a href=#4301 id=4301 data-nosnippet>4301</a>             transport = \"stdio\"\n\
+<a href=#4302 id=4302 data-nosnippet>4302</a>             command = \"/usr/bin/mcp-fs\"\n"</span>,
+<a href=#4303 id=4303 data-nosnippet>4303</a>            zeroclaw_config::migration::CURRENT_SCHEMA_VERSION
+<a href=#4304 id=4304 data-nosnippet>4304</a>        );
+<a href=#4305 id=4305 data-nosnippet>4305</a>        std::fs::write(<span class="kw-2">&amp;</span>config_path, <span class="kw-2">&amp;</span>seed).unwrap();
+<a href=#4306 id=4306 data-nosnippet>4306</a>
+<a href=#4307 id=4307 data-nosnippet>4307</a>        <span class="kw">let </span><span class="kw-2">mut </span>cfg = zeroclaw_config::schema::Config {
+<a href=#4308 id=4308 data-nosnippet>4308</a>            config_path: config_path.clone(),
+<a href=#4309 id=4309 data-nosnippet>4309</a>            data_dir: tmp.path().join(<span class="string">"data"</span>),
+<a href=#4310 id=4310 data-nosnippet>4310</a>            ..Default::default()
+<a href=#4311 id=4311 data-nosnippet>4311</a>        };
+<a href=#4312 id=4312 data-nosnippet>4312</a>        cfg.mcp.servers.push(McpServerConfig {
+<a href=#4313 id=4313 data-nosnippet>4313</a>            name: <span class="string">"fs"</span>.into(),
+<a href=#4314 id=4314 data-nosnippet>4314</a>            transport: McpTransport::Stdio,
+<a href=#4315 id=4315 data-nosnippet>4315</a>            command: <span class="string">"/usr/bin/mcp-fs"</span>.into(),
+<a href=#4316 id=4316 data-nosnippet>4316</a>            ..Default::default()
+<a href=#4317 id=4317 data-nosnippet>4317</a>        });
+<a href=#4318 id=4318 data-nosnippet>4318</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(cfg);
+<a href=#4319 id=4319 data-nosnippet>4319</a>
+<a href=#4320 id=4320 data-nosnippet>4320</a>        <span class="comment">// The exact wire shape the dashboard / TUI send for a
+<a href=#4321 id=4321 data-nosnippet>4321</a>        // per-field edit on an `[[mcp.servers]]` entry.
+<a href=#4322 id=4322 data-nosnippet>4322</a>        </span><span class="kw">let </span>params = <span class="macro">json!</span>({
+<a href=#4323 id=4323 data-nosnippet>4323</a>            <span class="string">"prop"</span>: <span class="string">"mcp.servers.fs.command"</span>,
+<a href=#4324 id=4324 data-nosnippet>4324</a>            <span class="string">"value"</span>: <span class="string">"/usr/local/bin/mcp-fs"
+<a href=#4325 id=4325 data-nosnippet>4325</a>        </span>});
+<a href=#4326 id=4326 data-nosnippet>4326</a>        <span class="kw">let </span>res = dispatcher.handle_config_set(<span class="kw-2">&amp;</span>params).<span class="kw">await</span>;
+<a href=#4327 id=4327 data-nosnippet>4327</a>        <span class="macro">assert!</span>(
+<a href=#4328 id=4328 data-nosnippet>4328</a>            res.is_ok(),
+<a href=#4329 id=4329 data-nosnippet>4329</a>            <span class="string">"config/set on a per-field mcp.servers path must succeed: {res:?}"
+<a href=#4330 id=4330 data-nosnippet>4330</a>        </span>);
+<a href=#4331 id=4331 data-nosnippet>4331</a>
+<a href=#4332 id=4332 data-nosnippet>4332</a>        <span class="comment">// In-memory landed (this is what the UI sees — and what was
+<a href=#4333 id=4333 data-nosnippet>4333</a>        // working before; the bug was strictly on the save side).
+<a href=#4334 id=4334 data-nosnippet>4334</a>        </span><span class="kw">let </span>in_memory = dispatcher
 <a href=#4335 id=4335 data-nosnippet>4335</a>            .ctx
-<a href=#4336 id=4336 data-nosnippet>4336</a>            .sessions
-<a href=#4337 id=4337 data-nosnippet>4337</a>            .get_agent(session_id)
-<a href=#4338 id=4338 data-nosnippet>4338</a>            .<span class="kw">await
-<a href=#4339 id=4339 data-nosnippet>4339</a>            </span>.expect(<span class="string">"session agent exists"</span>);
-<a href=#4340 id=4340 data-nosnippet>4340</a>        agent.lock().<span class="kw">await</span>.temperature_for_test()
-<a href=#4341 id=4341 data-nosnippet>4341</a>    }
-<a href=#4342 id=4342 data-nosnippet>4342</a>
-<a href=#4343 id=4343 data-nosnippet>4343</a>    <span class="kw">async fn </span>wait_for_model_name(dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher, session_id: <span class="kw-2">&amp;</span>str, expected: <span class="kw-2">&amp;</span>str) {
-<a href=#4344 id=4344 data-nosnippet>4344</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">50 </span>{
-<a href=#4345 id=4345 data-nosnippet>4345</a>            <span class="kw">if </span>model_name_for_session(dispatcher, session_id).<span class="kw">await </span>== expected {
-<a href=#4346 id=4346 data-nosnippet>4346</a>                <span class="kw">return</span>;
-<a href=#4347 id=4347 data-nosnippet>4347</a>            }
-<a href=#4348 id=4348 data-nosnippet>4348</a>            tokio::time::sleep(std::time::Duration::from_millis(<span class="number">10</span>)).<span class="kw">await</span>;
-<a href=#4349 id=4349 data-nosnippet>4349</a>        }
-<a href=#4350 id=4350 data-nosnippet>4350</a>        <span class="macro">assert_eq!</span>(
-<a href=#4351 id=4351 data-nosnippet>4351</a>            model_name_for_session(dispatcher, session_id).<span class="kw">await</span>,
-<a href=#4352 id=4352 data-nosnippet>4352</a>            expected
-<a href=#4353 id=4353 data-nosnippet>4353</a>        );
-<a href=#4354 id=4354 data-nosnippet>4354</a>    }
-<a href=#4355 id=4355 data-nosnippet>4355</a>
-<a href=#4356 id=4356 data-nosnippet>4356</a>    <span class="kw">async fn </span>wait_for_temperature(
-<a href=#4357 id=4357 data-nosnippet>4357</a>        dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher,
-<a href=#4358 id=4358 data-nosnippet>4358</a>        session_id: <span class="kw-2">&amp;</span>str,
-<a href=#4359 id=4359 data-nosnippet>4359</a>        expected: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-<a href=#4360 id=4360 data-nosnippet>4360</a>    ) {
-<a href=#4361 id=4361 data-nosnippet>4361</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">50 </span>{
-<a href=#4362 id=4362 data-nosnippet>4362</a>            <span class="kw">if </span>temperature_for_session(dispatcher, session_id).<span class="kw">await </span>== expected {
-<a href=#4363 id=4363 data-nosnippet>4363</a>                <span class="kw">return</span>;
-<a href=#4364 id=4364 data-nosnippet>4364</a>            }
-<a href=#4365 id=4365 data-nosnippet>4365</a>            tokio::time::sleep(std::time::Duration::from_millis(<span class="number">10</span>)).<span class="kw">await</span>;
-<a href=#4366 id=4366 data-nosnippet>4366</a>        }
-<a href=#4367 id=4367 data-nosnippet>4367</a>        <span class="macro">assert_eq!</span>(
-<a href=#4368 id=4368 data-nosnippet>4368</a>            temperature_for_session(dispatcher, session_id).<span class="kw">await</span>,
-<a href=#4369 id=4369 data-nosnippet>4369</a>            expected
-<a href=#4370 id=4370 data-nosnippet>4370</a>        );
-<a href=#4371 id=4371 data-nosnippet>4371</a>    }
-<a href=#4372 id=4372 data-nosnippet>4372</a>
-<a href=#4373 id=4373 data-nosnippet>4373</a>    <span class="attr">#[tokio::test]
-<a href=#4374 id=4374 data-nosnippet>4374</a>    </span><span class="kw">async fn </span>config_set_provider_model_refreshes_matching_live_session() {
-<a href=#4375 id=4375 data-nosnippet>4375</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4376 id=4376 data-nosnippet>4376</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
-<a href=#4377 id=4377 data-nosnippet>4377</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#4378 id=4378 data-nosnippet>4378</a>        <span class="macro">assert_eq!</span>(
-<a href=#4379 id=4379 data-nosnippet>4379</a>            model_name_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
-<a href=#4380 id=4380 data-nosnippet>4380</a>            <span class="string">"old-model"
-<a href=#4381 id=4381 data-nosnippet>4381</a>        </span>);
-<a href=#4382 id=4382 data-nosnippet>4382</a>
-<a href=#4383 id=4383 data-nosnippet>4383</a>        <span class="kw">let </span>res = dispatcher
-<a href=#4384 id=4384 data-nosnippet>4384</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4385 id=4385 data-nosnippet>4385</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.model"</span>,
-<a href=#4386 id=4386 data-nosnippet>4386</a>                <span class="string">"value"</span>: <span class="string">"new-model"
-<a href=#4387 id=4387 data-nosnippet>4387</a>            </span>}))
-<a href=#4388 id=4388 data-nosnippet>4388</a>            .<span class="kw">await</span>;
-<a href=#4389 id=4389 data-nosnippet>4389</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/set must succeed: {res:?}"</span>);
-<a href=#4390 id=4390 data-nosnippet>4390</a>
-<a href=#4391 id=4391 data-nosnippet>4391</a>        wait_for_model_name(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="string">"new-model"</span>).<span class="kw">await</span>;
-<a href=#4392 id=4392 data-nosnippet>4392</a>    }
-<a href=#4393 id=4393 data-nosnippet>4393</a>
-<a href=#4394 id=4394 data-nosnippet>4394</a>    <span class="attr">#[tokio::test]
-<a href=#4395 id=4395 data-nosnippet>4395</a>    </span><span class="kw">async fn </span>config_set_provider_refresh_failure_does_not_fail_saved_write() {
-<a href=#4396 id=4396 data-nosnippet>4396</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4397 id=4397 data-nosnippet>4397</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
-<a href=#4398 id=4398 data-nosnippet>4398</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#4399 id=4399 data-nosnippet>4399</a>        <span class="macro">assert_eq!</span>(
-<a href=#4400 id=4400 data-nosnippet>4400</a>            model_name_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
-<a href=#4401 id=4401 data-nosnippet>4401</a>            <span class="string">"old-model"
-<a href=#4402 id=4402 data-nosnippet>4402</a>        </span>);
+<a href=#4336 id=4336 data-nosnippet>4336</a>            .config
+<a href=#4337 id=4337 data-nosnippet>4337</a>            .read()
+<a href=#4338 id=4338 data-nosnippet>4338</a>            .mcp
+<a href=#4339 id=4339 data-nosnippet>4339</a>            .servers
+<a href=#4340 id=4340 data-nosnippet>4340</a>            .iter()
+<a href=#4341 id=4341 data-nosnippet>4341</a>            .find(|s| s.name == <span class="string">"fs"</span>)
+<a href=#4342 id=4342 data-nosnippet>4342</a>            .map(|s| s.command.clone());
+<a href=#4343 id=4343 data-nosnippet>4343</a>        <span class="macro">assert_eq!</span>(
+<a href=#4344 id=4344 data-nosnippet>4344</a>            in_memory.as_deref(),
+<a href=#4345 id=4345 data-nosnippet>4345</a>            <span class="prelude-val">Some</span>(<span class="string">"/usr/local/bin/mcp-fs"</span>),
+<a href=#4346 id=4346 data-nosnippet>4346</a>            <span class="string">"in-memory mutation must land — this part already worked"
+<a href=#4347 id=4347 data-nosnippet>4347</a>        </span>);
+<a href=#4348 id=4348 data-nosnippet>4348</a>
+<a href=#4349 id=4349 data-nosnippet>4349</a>        <span class="comment">// The regression: the same value must reach disk.
+<a href=#4350 id=4350 data-nosnippet>4350</a>        </span><span class="kw">let </span>written = std::fs::read_to_string(<span class="kw-2">&amp;</span>config_path).unwrap();
+<a href=#4351 id=4351 data-nosnippet>4351</a>        <span class="macro">assert!</span>(
+<a href=#4352 id=4352 data-nosnippet>4352</a>            written.contains(<span class="string">"/usr/local/bin/mcp-fs"</span>),
+<a href=#4353 id=4353 data-nosnippet>4353</a>            <span class="string">"config/set on `mcp.servers.fs.command` must persist to disk; \
+<a href=#4354 id=4354 data-nosnippet>4354</a>             on-disk file still reads:\n{written}"
+<a href=#4355 id=4355 data-nosnippet>4355</a>        </span>);
+<a href=#4356 id=4356 data-nosnippet>4356</a>        <span class="macro">assert!</span>(
+<a href=#4357 id=4357 data-nosnippet>4357</a>            !written.contains(<span class="string">"/usr/bin/mcp-fs"</span>),
+<a href=#4358 id=4358 data-nosnippet>4358</a>            <span class="string">"stale command must be overwritten on disk; got:\n{written}"
+<a href=#4359 id=4359 data-nosnippet>4359</a>        </span>);
+<a href=#4360 id=4360 data-nosnippet>4360</a>        <span class="comment">// The natural-key field itself must stay on disk so the entry
+<a href=#4361 id=4361 data-nosnippet>4361</a>        // remains addressable on the next load.
+<a href=#4362 id=4362 data-nosnippet>4362</a>        </span><span class="macro">assert!</span>(
+<a href=#4363 id=4363 data-nosnippet>4363</a>            written.contains(<span class="string">"name = \"fs\""</span>),
+<a href=#4364 id=4364 data-nosnippet>4364</a>            <span class="string">"natural-key `name` must survive the incremental save; got:\n{written}"
+<a href=#4365 id=4365 data-nosnippet>4365</a>        </span>);
+<a href=#4366 id=4366 data-nosnippet>4366</a>
+<a href=#4367 id=4367 data-nosnippet>4367</a>        <span class="comment">// Final paranoia: reparse the on-disk file from scratch and
+<a href=#4368 id=4368 data-nosnippet>4368</a>        // confirm `Config` loads with the new command. If the writer
+<a href=#4369 id=4369 data-nosnippet>4369</a>        // produces a syntactically-valid but semantically-wrong shape
+<a href=#4370 id=4370 data-nosnippet>4370</a>        // (e.g. an inline `mcp.servers.fs = { ... }` instead of a
+<a href=#4371 id=4371 data-nosnippet>4371</a>        // `[[mcp.servers]]` table), this catches it.
+<a href=#4372 id=4372 data-nosnippet>4372</a>        </span><span class="kw">let </span>reparsed: zeroclaw_config::schema::Config = toml::from_str(<span class="kw-2">&amp;</span>written).unwrap();
+<a href=#4373 id=4373 data-nosnippet>4373</a>        <span class="kw">let </span>entry = reparsed
+<a href=#4374 id=4374 data-nosnippet>4374</a>            .mcp
+<a href=#4375 id=4375 data-nosnippet>4375</a>            .servers
+<a href=#4376 id=4376 data-nosnippet>4376</a>            .iter()
+<a href=#4377 id=4377 data-nosnippet>4377</a>            .find(|s| s.name == <span class="string">"fs"</span>)
+<a href=#4378 id=4378 data-nosnippet>4378</a>            .expect(<span class="string">"reparse must surface the entry by natural key"</span>);
+<a href=#4379 id=4379 data-nosnippet>4379</a>        <span class="macro">assert_eq!</span>(entry.command, <span class="string">"/usr/local/bin/mcp-fs"</span>);
+<a href=#4380 id=4380 data-nosnippet>4380</a>    }
+<a href=#4381 id=4381 data-nosnippet>4381</a>
+<a href=#4382 id=4382 data-nosnippet>4382</a>    <span class="kw">fn </span>make_model_refresh_test_config(tmp: <span class="kw-2">&amp;</span>tempfile::TempDir) -&gt; zeroclaw_config::schema::Config {
+<a href=#4383 id=4383 data-nosnippet>4383</a>        <span class="kw">use </span>std::collections::HashMap;
+<a href=#4384 id=4384 data-nosnippet>4384</a>        <span class="kw">use </span>zeroclaw_config::schema::{AliasedAgentConfig, Config, RiskProfileConfig};
+<a href=#4385 id=4385 data-nosnippet>4385</a>
+<a href=#4386 id=4386 data-nosnippet>4386</a>        <span class="kw">let </span>workspace_dir = tmp.path().join(<span class="string">"workspace"</span>);
+<a href=#4387 id=4387 data-nosnippet>4387</a>        std::fs::create_dir_all(<span class="kw-2">&amp;</span>workspace_dir).unwrap();
+<a href=#4388 id=4388 data-nosnippet>4388</a>
+<a href=#4389 id=4389 data-nosnippet>4389</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = Config {
+<a href=#4390 id=4390 data-nosnippet>4390</a>            config_path: tmp.path().join(<span class="string">"config.toml"</span>),
+<a href=#4391 id=4391 data-nosnippet>4391</a>            data_dir: tmp.path().join(<span class="string">"data"</span>),
+<a href=#4392 id=4392 data-nosnippet>4392</a>            ..Default::default()
+<a href=#4393 id=4393 data-nosnippet>4393</a>        };
+<a href=#4394 id=4394 data-nosnippet>4394</a>        <span class="kw">let </span>provider = config
+<a href=#4395 id=4395 data-nosnippet>4395</a>            .providers
+<a href=#4396 id=4396 data-nosnippet>4396</a>            .models
+<a href=#4397 id=4397 data-nosnippet>4397</a>            .ensure(<span class="string">"openai"</span>, <span class="string">"test-provider"</span>)
+<a href=#4398 id=4398 data-nosnippet>4398</a>            .expect(<span class="string">"openai provider slot exists"</span>);
+<a href=#4399 id=4399 data-nosnippet>4399</a>        provider.api_key = <span class="prelude-val">Some</span>(<span class="string">"test-key"</span>.into());
+<a href=#4400 id=4400 data-nosnippet>4400</a>        provider.uri = <span class="prelude-val">Some</span>(<span class="string">"http://127.0.0.1:1"</span>.into());
+<a href=#4401 id=4401 data-nosnippet>4401</a>        provider.model = <span class="prelude-val">Some</span>(<span class="string">"old-model"</span>.into());
+<a href=#4402 id=4402 data-nosnippet>4402</a>        provider.temperature = <span class="prelude-val">Some</span>(<span class="number">0.2</span>);
 <a href=#4403 id=4403 data-nosnippet>4403</a>
-<a href=#4404 id=4404 data-nosnippet>4404</a>        <span class="kw">let </span>res = dispatcher
-<a href=#4405 id=4405 data-nosnippet>4405</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4406 id=4406 data-nosnippet>4406</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.model"</span>,
-<a href=#4407 id=4407 data-nosnippet>4407</a>                <span class="string">"value"</span>: <span class="string">""
-<a href=#4408 id=4408 data-nosnippet>4408</a>            </span>}))
-<a href=#4409 id=4409 data-nosnippet>4409</a>            .<span class="kw">await</span>;
-<a href=#4410 id=4410 data-nosnippet>4410</a>        <span class="macro">assert!</span>(
-<a href=#4411 id=4411 data-nosnippet>4411</a>            res.is_ok(),
-<a href=#4412 id=4412 data-nosnippet>4412</a>            <span class="string">"config/set must report the saved write even if live refresh cannot rebuild: {res:?}"
-<a href=#4413 id=4413 data-nosnippet>4413</a>        </span>);
-<a href=#4414 id=4414 data-nosnippet>4414</a>        <span class="kw">let </span>cfg = dispatcher.ctx.config.read().clone();
-<a href=#4415 id=4415 data-nosnippet>4415</a>        <span class="kw">let </span>stored = cfg
-<a href=#4416 id=4416 data-nosnippet>4416</a>            .providers
-<a href=#4417 id=4417 data-nosnippet>4417</a>            .models
-<a href=#4418 id=4418 data-nosnippet>4418</a>            .openai
-<a href=#4419 id=4419 data-nosnippet>4419</a>            .get(<span class="string">"test-provider"</span>)
-<a href=#4420 id=4420 data-nosnippet>4420</a>            .and_then(|e| e.base.model.clone());
-<a href=#4421 id=4421 data-nosnippet>4421</a>        <span class="macro">assert_eq!</span>(
-<a href=#4422 id=4422 data-nosnippet>4422</a>            stored, <span class="prelude-val">None</span>,
-<a href=#4423 id=4423 data-nosnippet>4423</a>            <span class="string">"config/set must still persist the requested provider-profile clear"
-<a href=#4424 id=4424 data-nosnippet>4424</a>        </span>);
-<a href=#4425 id=4425 data-nosnippet>4425</a>        <span class="macro">assert_eq!</span>(
-<a href=#4426 id=4426 data-nosnippet>4426</a>            model_name_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
-<a href=#4427 id=4427 data-nosnippet>4427</a>            <span class="string">"old-model"</span>,
-<a href=#4428 id=4428 data-nosnippet>4428</a>            <span class="string">"failed live refresh must leave the existing session provider intact"
-<a href=#4429 id=4429 data-nosnippet>4429</a>        </span>);
-<a href=#4430 id=4430 data-nosnippet>4430</a>    }
-<a href=#4431 id=4431 data-nosnippet>4431</a>
-<a href=#4432 id=4432 data-nosnippet>4432</a>    <span class="attr">#[tokio::test]
-<a href=#4433 id=4433 data-nosnippet>4433</a>    </span><span class="kw">async fn </span>config_set_provider_temperature_refreshes_matching_live_session() {
-<a href=#4434 id=4434 data-nosnippet>4434</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4435 id=4435 data-nosnippet>4435</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
-<a href=#4436 id=4436 data-nosnippet>4436</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#4437 id=4437 data-nosnippet>4437</a>        <span class="macro">assert_eq!</span>(
-<a href=#4438 id=4438 data-nosnippet>4438</a>            temperature_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
-<a href=#4439 id=4439 data-nosnippet>4439</a>            <span class="prelude-val">Some</span>(<span class="number">0.2</span>)
-<a href=#4440 id=4440 data-nosnippet>4440</a>        );
-<a href=#4441 id=4441 data-nosnippet>4441</a>
-<a href=#4442 id=4442 data-nosnippet>4442</a>        <span class="kw">let </span>res = dispatcher
-<a href=#4443 id=4443 data-nosnippet>4443</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4444 id=4444 data-nosnippet>4444</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.temperature"</span>,
-<a href=#4445 id=4445 data-nosnippet>4445</a>                <span class="string">"value"</span>: <span class="number">0.4
-<a href=#4446 id=4446 data-nosnippet>4446</a>            </span>}))
-<a href=#4447 id=4447 data-nosnippet>4447</a>            .<span class="kw">await</span>;
-<a href=#4448 id=4448 data-nosnippet>4448</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/set must succeed: {res:?}"</span>);
+<a href=#4404 id=4404 data-nosnippet>4404</a>        config.agents = HashMap::from([(
+<a href=#4405 id=4405 data-nosnippet>4405</a>            <span class="string">"test-agent"</span>.to_string(),
+<a href=#4406 id=4406 data-nosnippet>4406</a>            AliasedAgentConfig {
+<a href=#4407 id=4407 data-nosnippet>4407</a>                enabled: <span class="bool-val">true</span>,
+<a href=#4408 id=4408 data-nosnippet>4408</a>                model_provider: <span class="string">"openai.test-provider"</span>.into(),
+<a href=#4409 id=4409 data-nosnippet>4409</a>                risk_profile: <span class="string">"test-profile"</span>.into(),
+<a href=#4410 id=4410 data-nosnippet>4410</a>                ..Default::default()
+<a href=#4411 id=4411 data-nosnippet>4411</a>            },
+<a href=#4412 id=4412 data-nosnippet>4412</a>        )]);
+<a href=#4413 id=4413 data-nosnippet>4413</a>        config
+<a href=#4414 id=4414 data-nosnippet>4414</a>            .risk_profiles
+<a href=#4415 id=4415 data-nosnippet>4415</a>            .insert(<span class="string">"test-profile"</span>.into(), RiskProfileConfig::default());
+<a href=#4416 id=4416 data-nosnippet>4416</a>        config
+<a href=#4417 id=4417 data-nosnippet>4417</a>            .runtime_profiles
+<a href=#4418 id=4418 data-nosnippet>4418</a>            .insert(<span class="string">"default"</span>.into(), Default::default());
+<a href=#4419 id=4419 data-nosnippet>4419</a>        config
+<a href=#4420 id=4420 data-nosnippet>4420</a>    }
+<a href=#4421 id=4421 data-nosnippet>4421</a>
+<a href=#4422 id=4422 data-nosnippet>4422</a>    <span class="kw">async fn </span>create_model_refresh_test_session(
+<a href=#4423 id=4423 data-nosnippet>4423</a>        dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher,
+<a href=#4424 id=4424 data-nosnippet>4424</a>        tmp: <span class="kw-2">&amp;</span>tempfile::TempDir,
+<a href=#4425 id=4425 data-nosnippet>4425</a>    ) -&gt; String {
+<a href=#4426 id=4426 data-nosnippet>4426</a>        <span class="kw">let </span>session_res = dispatcher
+<a href=#4427 id=4427 data-nosnippet>4427</a>            .handle_session_new_for_test(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4428 id=4428 data-nosnippet>4428</a>                <span class="string">"agent_alias"</span>: <span class="string">"test-agent"</span>,
+<a href=#4429 id=4429 data-nosnippet>4429</a>                <span class="string">"cwd"</span>: tmp.path().join(<span class="string">"workspace"</span>),
+<a href=#4430 id=4430 data-nosnippet>4430</a>            }))
+<a href=#4431 id=4431 data-nosnippet>4431</a>            .<span class="kw">await
+<a href=#4432 id=4432 data-nosnippet>4432</a>            </span>.expect(<span class="string">"session/new should create the agent"</span>);
+<a href=#4433 id=4433 data-nosnippet>4433</a>        session_res
+<a href=#4434 id=4434 data-nosnippet>4434</a>            .get(<span class="string">"session_id"</span>)
+<a href=#4435 id=4435 data-nosnippet>4435</a>            .and_then(|v| v.as_str())
+<a href=#4436 id=4436 data-nosnippet>4436</a>            .expect(<span class="string">"session/new result includes session_id"</span>)
+<a href=#4437 id=4437 data-nosnippet>4437</a>            .to_string()
+<a href=#4438 id=4438 data-nosnippet>4438</a>    }
+<a href=#4439 id=4439 data-nosnippet>4439</a>
+<a href=#4440 id=4440 data-nosnippet>4440</a>    <span class="kw">async fn </span>model_name_for_session(dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher, session_id: <span class="kw-2">&amp;</span>str) -&gt; String {
+<a href=#4441 id=4441 data-nosnippet>4441</a>        <span class="kw">let </span>agent = dispatcher
+<a href=#4442 id=4442 data-nosnippet>4442</a>            .ctx
+<a href=#4443 id=4443 data-nosnippet>4443</a>            .sessions
+<a href=#4444 id=4444 data-nosnippet>4444</a>            .get_agent(session_id)
+<a href=#4445 id=4445 data-nosnippet>4445</a>            .<span class="kw">await
+<a href=#4446 id=4446 data-nosnippet>4446</a>            </span>.expect(<span class="string">"session agent exists"</span>);
+<a href=#4447 id=4447 data-nosnippet>4447</a>        agent.lock().<span class="kw">await</span>.attribution_fields().<span class="number">2
+<a href=#4448 id=4448 data-nosnippet>4448</a>    </span>}
 <a href=#4449 id=4449 data-nosnippet>4449</a>
-<a href=#4450 id=4450 data-nosnippet>4450</a>        wait_for_temperature(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="prelude-val">Some</span>(<span class="number">0.4</span>)).<span class="kw">await</span>;
-<a href=#4451 id=4451 data-nosnippet>4451</a>    }
-<a href=#4452 id=4452 data-nosnippet>4452</a>
-<a href=#4453 id=4453 data-nosnippet>4453</a>    <span class="attr">#[tokio::test]
-<a href=#4454 id=4454 data-nosnippet>4454</a>    </span><span class="kw">async fn </span>config_set_provider_refresh_preserves_session_temperature_override() {
-<a href=#4455 id=4455 data-nosnippet>4455</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4456 id=4456 data-nosnippet>4456</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
-<a href=#4457 id=4457 data-nosnippet>4457</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#4458 id=4458 data-nosnippet>4458</a>        <span class="kw">let </span>merged = dispatcher
-<a href=#4459 id=4459 data-nosnippet>4459</a>            .ctx
-<a href=#4460 id=4460 data-nosnippet>4460</a>            .sessions
-<a href=#4461 id=4461 data-nosnippet>4461</a>            .set_overrides(
-<a href=#4462 id=4462 data-nosnippet>4462</a>                <span class="kw-2">&amp;</span>session_id,
-<a href=#4463 id=4463 data-nosnippet>4463</a>                <span class="kw">crate</span>::rpc::session::SessionOverrides {
-<a href=#4464 id=4464 data-nosnippet>4464</a>                    temperature: <span class="prelude-val">Some</span>(<span class="number">0.6</span>),
-<a href=#4465 id=4465 data-nosnippet>4465</a>                    ..Default::default()
-<a href=#4466 id=4466 data-nosnippet>4466</a>                },
-<a href=#4467 id=4467 data-nosnippet>4467</a>            )
-<a href=#4468 id=4468 data-nosnippet>4468</a>            .<span class="kw">await
-<a href=#4469 id=4469 data-nosnippet>4469</a>            </span>.expect(<span class="string">"session override applies"</span>);
-<a href=#4470 id=4470 data-nosnippet>4470</a>        <span class="macro">assert_eq!</span>(merged.temperature, <span class="prelude-val">Some</span>(<span class="number">0.6</span>));
-<a href=#4471 id=4471 data-nosnippet>4471</a>
-<a href=#4472 id=4472 data-nosnippet>4472</a>        <span class="kw">let </span>res = dispatcher
-<a href=#4473 id=4473 data-nosnippet>4473</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4474 id=4474 data-nosnippet>4474</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.model"</span>,
-<a href=#4475 id=4475 data-nosnippet>4475</a>                <span class="string">"value"</span>: <span class="string">"new-model"
-<a href=#4476 id=4476 data-nosnippet>4476</a>            </span>}))
-<a href=#4477 id=4477 data-nosnippet>4477</a>            .<span class="kw">await</span>;
-<a href=#4478 id=4478 data-nosnippet>4478</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/set must succeed: {res:?}"</span>);
-<a href=#4479 id=4479 data-nosnippet>4479</a>
-<a href=#4480 id=4480 data-nosnippet>4480</a>        wait_for_model_name(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="string">"new-model"</span>).<span class="kw">await</span>;
-<a href=#4481 id=4481 data-nosnippet>4481</a>        <span class="macro">assert_eq!</span>(
-<a href=#4482 id=4482 data-nosnippet>4482</a>            temperature_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
-<a href=#4483 id=4483 data-nosnippet>4483</a>            <span class="prelude-val">Some</span>(<span class="number">0.6</span>),
-<a href=#4484 id=4484 data-nosnippet>4484</a>            <span class="string">"session temperature override must win over provider profile temperature"
-<a href=#4485 id=4485 data-nosnippet>4485</a>        </span>);
-<a href=#4486 id=4486 data-nosnippet>4486</a>    }
-<a href=#4487 id=4487 data-nosnippet>4487</a>
-<a href=#4488 id=4488 data-nosnippet>4488</a>    <span class="attr">#[tokio::test]
-<a href=#4489 id=4489 data-nosnippet>4489</a>    </span><span class="kw">async fn </span>config_delete_provider_temperature_refreshes_matching_live_session() {
-<a href=#4490 id=4490 data-nosnippet>4490</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4491 id=4491 data-nosnippet>4491</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
-<a href=#4492 id=4492 data-nosnippet>4492</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
-<a href=#4493 id=4493 data-nosnippet>4493</a>        <span class="macro">assert_eq!</span>(
-<a href=#4494 id=4494 data-nosnippet>4494</a>            temperature_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
-<a href=#4495 id=4495 data-nosnippet>4495</a>            <span class="prelude-val">Some</span>(<span class="number">0.2</span>)
-<a href=#4496 id=4496 data-nosnippet>4496</a>        );
-<a href=#4497 id=4497 data-nosnippet>4497</a>
-<a href=#4498 id=4498 data-nosnippet>4498</a>        <span class="kw">let </span>res = dispatcher
-<a href=#4499 id=4499 data-nosnippet>4499</a>            .handle_config_delete(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4500 id=4500 data-nosnippet>4500</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.temperature"</span>,
-<a href=#4501 id=4501 data-nosnippet>4501</a>            }))
-<a href=#4502 id=4502 data-nosnippet>4502</a>            .<span class="kw">await</span>;
-<a href=#4503 id=4503 data-nosnippet>4503</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/delete must succeed: {res:?}"</span>);
-<a href=#4504 id=4504 data-nosnippet>4504</a>
-<a href=#4505 id=4505 data-nosnippet>4505</a>        wait_for_temperature(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="prelude-val">None</span>).<span class="kw">await</span>;
-<a href=#4506 id=4506 data-nosnippet>4506</a>    }
+<a href=#4450 id=4450 data-nosnippet>4450</a>    <span class="kw">async fn </span>temperature_for_session(dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher, session_id: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+<a href=#4451 id=4451 data-nosnippet>4451</a>        <span class="kw">let </span>agent = dispatcher
+<a href=#4452 id=4452 data-nosnippet>4452</a>            .ctx
+<a href=#4453 id=4453 data-nosnippet>4453</a>            .sessions
+<a href=#4454 id=4454 data-nosnippet>4454</a>            .get_agent(session_id)
+<a href=#4455 id=4455 data-nosnippet>4455</a>            .<span class="kw">await
+<a href=#4456 id=4456 data-nosnippet>4456</a>            </span>.expect(<span class="string">"session agent exists"</span>);
+<a href=#4457 id=4457 data-nosnippet>4457</a>        agent.lock().<span class="kw">await</span>.temperature_for_test()
+<a href=#4458 id=4458 data-nosnippet>4458</a>    }
+<a href=#4459 id=4459 data-nosnippet>4459</a>
+<a href=#4460 id=4460 data-nosnippet>4460</a>    <span class="kw">async fn </span>wait_for_model_name(dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher, session_id: <span class="kw-2">&amp;</span>str, expected: <span class="kw-2">&amp;</span>str) {
+<a href=#4461 id=4461 data-nosnippet>4461</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">50 </span>{
+<a href=#4462 id=4462 data-nosnippet>4462</a>            <span class="kw">if </span>model_name_for_session(dispatcher, session_id).<span class="kw">await </span>== expected {
+<a href=#4463 id=4463 data-nosnippet>4463</a>                <span class="kw">return</span>;
+<a href=#4464 id=4464 data-nosnippet>4464</a>            }
+<a href=#4465 id=4465 data-nosnippet>4465</a>            tokio::time::sleep(std::time::Duration::from_millis(<span class="number">10</span>)).<span class="kw">await</span>;
+<a href=#4466 id=4466 data-nosnippet>4466</a>        }
+<a href=#4467 id=4467 data-nosnippet>4467</a>        <span class="macro">assert_eq!</span>(
+<a href=#4468 id=4468 data-nosnippet>4468</a>            model_name_for_session(dispatcher, session_id).<span class="kw">await</span>,
+<a href=#4469 id=4469 data-nosnippet>4469</a>            expected
+<a href=#4470 id=4470 data-nosnippet>4470</a>        );
+<a href=#4471 id=4471 data-nosnippet>4471</a>    }
+<a href=#4472 id=4472 data-nosnippet>4472</a>
+<a href=#4473 id=4473 data-nosnippet>4473</a>    <span class="kw">async fn </span>wait_for_temperature(
+<a href=#4474 id=4474 data-nosnippet>4474</a>        dispatcher: <span class="kw-2">&amp;</span>RpcDispatcher,
+<a href=#4475 id=4475 data-nosnippet>4475</a>        session_id: <span class="kw-2">&amp;</span>str,
+<a href=#4476 id=4476 data-nosnippet>4476</a>        expected: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+<a href=#4477 id=4477 data-nosnippet>4477</a>    ) {
+<a href=#4478 id=4478 data-nosnippet>4478</a>        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">50 </span>{
+<a href=#4479 id=4479 data-nosnippet>4479</a>            <span class="kw">if </span>temperature_for_session(dispatcher, session_id).<span class="kw">await </span>== expected {
+<a href=#4480 id=4480 data-nosnippet>4480</a>                <span class="kw">return</span>;
+<a href=#4481 id=4481 data-nosnippet>4481</a>            }
+<a href=#4482 id=4482 data-nosnippet>4482</a>            tokio::time::sleep(std::time::Duration::from_millis(<span class="number">10</span>)).<span class="kw">await</span>;
+<a href=#4483 id=4483 data-nosnippet>4483</a>        }
+<a href=#4484 id=4484 data-nosnippet>4484</a>        <span class="macro">assert_eq!</span>(
+<a href=#4485 id=4485 data-nosnippet>4485</a>            temperature_for_session(dispatcher, session_id).<span class="kw">await</span>,
+<a href=#4486 id=4486 data-nosnippet>4486</a>            expected
+<a href=#4487 id=4487 data-nosnippet>4487</a>        );
+<a href=#4488 id=4488 data-nosnippet>4488</a>    }
+<a href=#4489 id=4489 data-nosnippet>4489</a>
+<a href=#4490 id=4490 data-nosnippet>4490</a>    <span class="attr">#[tokio::test]
+<a href=#4491 id=4491 data-nosnippet>4491</a>    </span><span class="kw">async fn </span>config_set_provider_model_refreshes_matching_live_session() {
+<a href=#4492 id=4492 data-nosnippet>4492</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4493 id=4493 data-nosnippet>4493</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
+<a href=#4494 id=4494 data-nosnippet>4494</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#4495 id=4495 data-nosnippet>4495</a>        <span class="macro">assert_eq!</span>(
+<a href=#4496 id=4496 data-nosnippet>4496</a>            model_name_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
+<a href=#4497 id=4497 data-nosnippet>4497</a>            <span class="string">"old-model"
+<a href=#4498 id=4498 data-nosnippet>4498</a>        </span>);
+<a href=#4499 id=4499 data-nosnippet>4499</a>
+<a href=#4500 id=4500 data-nosnippet>4500</a>        <span class="kw">let </span>res = dispatcher
+<a href=#4501 id=4501 data-nosnippet>4501</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4502 id=4502 data-nosnippet>4502</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.model"</span>,
+<a href=#4503 id=4503 data-nosnippet>4503</a>                <span class="string">"value"</span>: <span class="string">"new-model"
+<a href=#4504 id=4504 data-nosnippet>4504</a>            </span>}))
+<a href=#4505 id=4505 data-nosnippet>4505</a>            .<span class="kw">await</span>;
+<a href=#4506 id=4506 data-nosnippet>4506</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/set must succeed: {res:?}"</span>);
 <a href=#4507 id=4507 data-nosnippet>4507</a>
-<a href=#4508 id=4508 data-nosnippet>4508</a>    <span class="comment">// -----------------------------------------------------------------------
-<a href=#4509 id=4509 data-nosnippet>4509</a>    // session/cancel ownership enforcement — the spurious-cancel bug
-<a href=#4510 id=4510 data-nosnippet>4510</a>    // -----------------------------------------------------------------------
-<a href=#4511 id=4511 data-nosnippet>4511</a>
-<a href=#4512 id=4512 data-nosnippet>4512</a>    </span><span class="doccomment">/// Build two dispatchers sharing one `RpcContext`/`SessionStore`. Mirrors
-<a href=#4513 id=4513 data-nosnippet>4513</a>    /// production where each TUI connection gets its own dispatcher with its
-<a href=#4514 id=4514 data-nosnippet>4514</a>    /// own `tui_id`, all routing to the same shared session map.
-<a href=#4515 id=4515 data-nosnippet>4515</a>    </span><span class="kw">fn </span>make_two_dispatchers_sharing_context(
-<a href=#4516 id=4516 data-nosnippet>4516</a>        config: zeroclaw_config::schema::Config,
-<a href=#4517 id=4517 data-nosnippet>4517</a>    ) -&gt; (
-<a href=#4518 id=4518 data-nosnippet>4518</a>        RpcDispatcher,
-<a href=#4519 id=4519 data-nosnippet>4519</a>        RpcDispatcher,
-<a href=#4520 id=4520 data-nosnippet>4520</a>        Arc&lt;<span class="kw">crate</span>::rpc::session::SessionStore&gt;,
-<a href=#4521 id=4521 data-nosnippet>4521</a>    ) {
-<a href=#4522 id=4522 data-nosnippet>4522</a>        <span class="kw">use </span>zeroclaw_infra::session_queue::SessionActorQueue;
-<a href=#4523 id=4523 data-nosnippet>4523</a>        <span class="kw">let </span>queue = Arc::new(SessionActorQueue::new(<span class="number">4</span>, <span class="number">10</span>, <span class="number">60</span>));
-<a href=#4524 id=4524 data-nosnippet>4524</a>        <span class="kw">let </span>sessions = Arc::new(<span class="kw">crate</span>::rpc::session::SessionStore::new(<span class="number">16</span>, queue));
-<a href=#4525 id=4525 data-nosnippet>4525</a>        <span class="kw">let </span>ctx = RpcContext::minimal(config, Arc::clone(<span class="kw-2">&amp;</span>sessions));
-<a href=#4526 id=4526 data-nosnippet>4526</a>        <span class="kw">let </span>(tx_a, _rx_a) = tokio::sync::mpsc::channel(<span class="number">64</span>);
-<a href=#4527 id=4527 data-nosnippet>4527</a>        <span class="kw">let </span>(tx_b, _rx_b) = tokio::sync::mpsc::channel(<span class="number">64</span>);
-<a href=#4528 id=4528 data-nosnippet>4528</a>        <span class="kw">let </span>dispatcher_a = RpcDispatcher::new(Arc::clone(<span class="kw-2">&amp;</span>ctx), tx_a, <span class="string">"test-peer-a:pid=1"</span>.into());
-<a href=#4529 id=4529 data-nosnippet>4529</a>        <span class="kw">let </span>dispatcher_b = RpcDispatcher::new(ctx, tx_b, <span class="string">"test-peer-b:pid=2"</span>.into());
-<a href=#4530 id=4530 data-nosnippet>4530</a>        (dispatcher_a, dispatcher_b, sessions)
-<a href=#4531 id=4531 data-nosnippet>4531</a>    }
-<a href=#4532 id=4532 data-nosnippet>4532</a>
-<a href=#4533 id=4533 data-nosnippet>4533</a>    <span class="kw">async fn </span>create_session_with_owner(
-<a href=#4534 id=4534 data-nosnippet>4534</a>        dispatcher: <span class="kw-2">&amp;mut </span>RpcDispatcher,
-<a href=#4535 id=4535 data-nosnippet>4535</a>        sessions: <span class="kw-2">&amp;</span>Arc&lt;<span class="kw">crate</span>::rpc::session::SessionStore&gt;,
-<a href=#4536 id=4536 data-nosnippet>4536</a>        session_id: <span class="kw-2">&amp;</span>str,
-<a href=#4537 id=4537 data-nosnippet>4537</a>        owner_tui_id: <span class="kw-2">&amp;</span>str,
-<a href=#4538 id=4538 data-nosnippet>4538</a>    ) -&gt; tokio_util::sync::CancellationToken {
-<a href=#4539 id=4539 data-nosnippet>4539</a>        dispatcher.set_tui_id_for_test(<span class="prelude-val">Some</span>(owner_tui_id.to_string()));
-<a href=#4540 id=4540 data-nosnippet>4540</a>        <span class="kw">let </span>params = <span class="macro">json!</span>({
-<a href=#4541 id=4541 data-nosnippet>4541</a>            <span class="string">"agent_alias"</span>: <span class="string">"test-agent"</span>,
-<a href=#4542 id=4542 data-nosnippet>4542</a>            <span class="string">"session_id"</span>: session_id,
-<a href=#4543 id=4543 data-nosnippet>4543</a>        });
-<a href=#4544 id=4544 data-nosnippet>4544</a>        dispatcher
-<a href=#4545 id=4545 data-nosnippet>4545</a>            .handle_session_new_for_test(<span class="kw-2">&amp;</span>params)
-<a href=#4546 id=4546 data-nosnippet>4546</a>            .<span class="kw">await
-<a href=#4547 id=4547 data-nosnippet>4547</a>            </span>.expect(<span class="string">"session/new must succeed"</span>);
+<a href=#4508 id=4508 data-nosnippet>4508</a>        wait_for_model_name(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="string">"new-model"</span>).<span class="kw">await</span>;
+<a href=#4509 id=4509 data-nosnippet>4509</a>    }
+<a href=#4510 id=4510 data-nosnippet>4510</a>
+<a href=#4511 id=4511 data-nosnippet>4511</a>    <span class="attr">#[tokio::test]
+<a href=#4512 id=4512 data-nosnippet>4512</a>    </span><span class="kw">async fn </span>config_set_provider_refresh_failure_does_not_fail_saved_write() {
+<a href=#4513 id=4513 data-nosnippet>4513</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4514 id=4514 data-nosnippet>4514</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
+<a href=#4515 id=4515 data-nosnippet>4515</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#4516 id=4516 data-nosnippet>4516</a>        <span class="macro">assert_eq!</span>(
+<a href=#4517 id=4517 data-nosnippet>4517</a>            model_name_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
+<a href=#4518 id=4518 data-nosnippet>4518</a>            <span class="string">"old-model"
+<a href=#4519 id=4519 data-nosnippet>4519</a>        </span>);
+<a href=#4520 id=4520 data-nosnippet>4520</a>
+<a href=#4521 id=4521 data-nosnippet>4521</a>        <span class="kw">let </span>res = dispatcher
+<a href=#4522 id=4522 data-nosnippet>4522</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4523 id=4523 data-nosnippet>4523</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.model"</span>,
+<a href=#4524 id=4524 data-nosnippet>4524</a>                <span class="string">"value"</span>: <span class="string">""
+<a href=#4525 id=4525 data-nosnippet>4525</a>            </span>}))
+<a href=#4526 id=4526 data-nosnippet>4526</a>            .<span class="kw">await</span>;
+<a href=#4527 id=4527 data-nosnippet>4527</a>        <span class="macro">assert!</span>(
+<a href=#4528 id=4528 data-nosnippet>4528</a>            res.is_ok(),
+<a href=#4529 id=4529 data-nosnippet>4529</a>            <span class="string">"config/set must report the saved write even if live refresh cannot rebuild: {res:?}"
+<a href=#4530 id=4530 data-nosnippet>4530</a>        </span>);
+<a href=#4531 id=4531 data-nosnippet>4531</a>        <span class="kw">let </span>cfg = dispatcher.ctx.config.read().clone();
+<a href=#4532 id=4532 data-nosnippet>4532</a>        <span class="kw">let </span>stored = cfg
+<a href=#4533 id=4533 data-nosnippet>4533</a>            .providers
+<a href=#4534 id=4534 data-nosnippet>4534</a>            .models
+<a href=#4535 id=4535 data-nosnippet>4535</a>            .openai
+<a href=#4536 id=4536 data-nosnippet>4536</a>            .get(<span class="string">"test-provider"</span>)
+<a href=#4537 id=4537 data-nosnippet>4537</a>            .and_then(|e| e.base.model.clone());
+<a href=#4538 id=4538 data-nosnippet>4538</a>        <span class="macro">assert_eq!</span>(
+<a href=#4539 id=4539 data-nosnippet>4539</a>            stored, <span class="prelude-val">None</span>,
+<a href=#4540 id=4540 data-nosnippet>4540</a>            <span class="string">"config/set must still persist the requested provider-profile clear"
+<a href=#4541 id=4541 data-nosnippet>4541</a>        </span>);
+<a href=#4542 id=4542 data-nosnippet>4542</a>        <span class="macro">assert_eq!</span>(
+<a href=#4543 id=4543 data-nosnippet>4543</a>            model_name_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
+<a href=#4544 id=4544 data-nosnippet>4544</a>            <span class="string">"old-model"</span>,
+<a href=#4545 id=4545 data-nosnippet>4545</a>            <span class="string">"failed live refresh must leave the existing session provider intact"
+<a href=#4546 id=4546 data-nosnippet>4546</a>        </span>);
+<a href=#4547 id=4547 data-nosnippet>4547</a>    }
 <a href=#4548 id=4548 data-nosnippet>4548</a>
-<a href=#4549 id=4549 data-nosnippet>4549</a>        <span class="kw">let </span>stamped_owner = sessions
-<a href=#4550 id=4550 data-nosnippet>4550</a>            .session_owner_tui_id(session_id)
-<a href=#4551 id=4551 data-nosnippet>4551</a>            .<span class="kw">await
-<a href=#4552 id=4552 data-nosnippet>4552</a>            </span>.expect(<span class="string">"session must exist after session/new"</span>);
-<a href=#4553 id=4553 data-nosnippet>4553</a>        <span class="macro">assert_eq!</span>(
-<a href=#4554 id=4554 data-nosnippet>4554</a>            stamped_owner.as_deref(),
-<a href=#4555 id=4555 data-nosnippet>4555</a>            <span class="prelude-val">Some</span>(owner_tui_id),
-<a href=#4556 id=4556 data-nosnippet>4556</a>            <span class="string">"harness invariant: session/new must stamp owner_tui_id from the \
-<a href=#4557 id=4557 data-nosnippet>4557</a>             caller's tui_id; if this fails, the ownership tests below are \
-<a href=#4558 id=4558 data-nosnippet>4558</a>             measuring nothing"
-<a href=#4559 id=4559 data-nosnippet>4559</a>        </span>);
-<a href=#4560 id=4560 data-nosnippet>4560</a>
-<a href=#4561 id=4561 data-nosnippet>4561</a>        <span class="kw">let </span>token = tokio_util::sync::CancellationToken::new();
-<a href=#4562 id=4562 data-nosnippet>4562</a>        sessions.register_cancel_token(session_id, token.clone());
-<a href=#4563 id=4563 data-nosnippet>4563</a>        token
-<a href=#4564 id=4564 data-nosnippet>4564</a>    }
-<a href=#4565 id=4565 data-nosnippet>4565</a>
-<a href=#4566 id=4566 data-nosnippet>4566</a>    <span class="doccomment">/// Variant of `make_two_dispatchers_sharing_context` that returns the
-<a href=#4567 id=4567 data-nosnippet>4567</a>    /// writer-channel receivers so a test can assert which notifications
-<a href=#4568 id=4568 data-nosnippet>4568</a>    /// the dispatcher emitted. The notifications carry the load-bearing
-<a href=#4569 id=4569 data-nosnippet>4569</a>    /// `session/update TurnComplete` events that flip the TUI out of its
-<a href=#4570 id=4570 data-nosnippet>4570</a>    /// `working` state — silently dropping one is the production freeze.
-<a href=#4571 id=4571 data-nosnippet>4571</a>    </span><span class="kw">fn </span>make_dispatcher_with_capture(
-<a href=#4572 id=4572 data-nosnippet>4572</a>        config: zeroclaw_config::schema::Config,
-<a href=#4573 id=4573 data-nosnippet>4573</a>    ) -&gt; (
-<a href=#4574 id=4574 data-nosnippet>4574</a>        RpcDispatcher,
-<a href=#4575 id=4575 data-nosnippet>4575</a>        tokio::sync::mpsc::Receiver&lt;String&gt;,
-<a href=#4576 id=4576 data-nosnippet>4576</a>        Arc&lt;<span class="kw">crate</span>::rpc::session::SessionStore&gt;,
-<a href=#4577 id=4577 data-nosnippet>4577</a>    ) {
-<a href=#4578 id=4578 data-nosnippet>4578</a>        <span class="kw">use </span>zeroclaw_infra::session_queue::SessionActorQueue;
-<a href=#4579 id=4579 data-nosnippet>4579</a>        <span class="kw">let </span>queue = Arc::new(SessionActorQueue::new(<span class="number">4</span>, <span class="number">10</span>, <span class="number">60</span>));
-<a href=#4580 id=4580 data-nosnippet>4580</a>        <span class="kw">let </span>sessions = Arc::new(<span class="kw">crate</span>::rpc::session::SessionStore::new(<span class="number">16</span>, queue));
-<a href=#4581 id=4581 data-nosnippet>4581</a>        <span class="kw">let </span>ctx = RpcContext::minimal(config, Arc::clone(<span class="kw-2">&amp;</span>sessions));
-<a href=#4582 id=4582 data-nosnippet>4582</a>        <span class="kw">let </span>(tx, rx) = tokio::sync::mpsc::channel(<span class="number">64</span>);
-<a href=#4583 id=4583 data-nosnippet>4583</a>        <span class="kw">let </span>dispatcher = RpcDispatcher::new(ctx, tx, <span class="string">"test-peer-cap:pid=1"</span>.into());
-<a href=#4584 id=4584 data-nosnippet>4584</a>        (dispatcher, rx, sessions)
-<a href=#4585 id=4585 data-nosnippet>4585</a>    }
-<a href=#4586 id=4586 data-nosnippet>4586</a>
-<a href=#4587 id=4587 data-nosnippet>4587</a>    <span class="doccomment">/// RED guard: a `session/prompt` for a session that no longer exists
-<a href=#4588 id=4588 data-nosnippet>4588</a>    /// (e.g. evicted by the reaper while the TUI thought the session was
-<a href=#4589 id=4589 data-nosnippet>4589</a>    /// still live) MUST emit a `session/update TurnComplete::Failed`
-<a href=#4590 id=4590 data-nosnippet>4590</a>    /// notification so the TUI can exit `working` state. Silently dropping
-<a href=#4591 id=4591 data-nosnippet>4591</a>    /// the request — the production behaviour — leaves the TUI parked
-<a href=#4592 id=4592 data-nosnippet>4592</a>    /// forever with no `TurnComplete` ever arriving. This is the second
-<a href=#4593 id=4593 data-nosnippet>4593</a>    /// half of the freeze: a reaped session + a fresh prompt = hang.
-<a href=#4594 id=4594 data-nosnippet>4594</a>    </span><span class="attr">#[tokio::test]
-<a href=#4595 id=4595 data-nosnippet>4595</a>    </span><span class="kw">async fn </span>session_prompt_on_missing_session_emits_turn_complete_failed() {
-<a href=#4596 id=4596 data-nosnippet>4596</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4597 id=4597 data-nosnippet>4597</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
-<a href=#4598 id=4598 data-nosnippet>4598</a>        <span class="kw">let </span>(dispatcher, <span class="kw-2">mut </span>rx, _sessions) = make_dispatcher_with_capture(config);
-<a href=#4599 id=4599 data-nosnippet>4599</a>
-<a href=#4600 id=4600 data-nosnippet>4600</a>        <span class="kw">let </span>result = dispatcher
-<a href=#4601 id=4601 data-nosnippet>4601</a>            .handle_session_prompt(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4602 id=4602 data-nosnippet>4602</a>                <span class="string">"session_id"</span>: <span class="string">"gone-id"</span>,
-<a href=#4603 id=4603 data-nosnippet>4603</a>                <span class="string">"prompt"</span>: <span class="string">"anything"</span>,
-<a href=#4604 id=4604 data-nosnippet>4604</a>            }))
-<a href=#4605 id=4605 data-nosnippet>4605</a>            .<span class="kw">await</span>;
-<a href=#4606 id=4606 data-nosnippet>4606</a>        <span class="macro">assert!</span>(
-<a href=#4607 id=4607 data-nosnippet>4607</a>            result.is_err(),
-<a href=#4608 id=4608 data-nosnippet>4608</a>            <span class="string">"missing session must still produce an RPC error for legacy \
-<a href=#4609 id=4609 data-nosnippet>4609</a>             request-form callers; the new behaviour is the additional \
-<a href=#4610 id=4610 data-nosnippet>4610</a>             notification, not replacing the error"
-<a href=#4611 id=4611 data-nosnippet>4611</a>        </span>);
-<a href=#4612 id=4612 data-nosnippet>4612</a>
-<a href=#4613 id=4613 data-nosnippet>4613</a>        <span class="comment">// The notification must already be queued on the writer channel by
-<a href=#4614 id=4614 data-nosnippet>4614</a>        // the time `handle_session_prompt` returns. `try_recv` rules out
-<a href=#4615 id=4615 data-nosnippet>4615</a>        // any test flakiness from racing with a spawned task.
-<a href=#4616 id=4616 data-nosnippet>4616</a>        </span><span class="kw">let </span>raw = rx.try_recv().expect(
-<a href=#4617 id=4617 data-nosnippet>4617</a>            <span class="string">"handle_session_prompt must emit a session/update TurnComplete \
-<a href=#4618 id=4618 data-nosnippet>4618</a>             notification before returning on missing-session — without it \
-<a href=#4619 id=4619 data-nosnippet>4619</a>             the TUI's `working` state never clears and the next prompt is \
-<a href=#4620 id=4620 data-nosnippet>4620</a>             the production freeze"</span>,
-<a href=#4621 id=4621 data-nosnippet>4621</a>        );
-<a href=#4622 id=4622 data-nosnippet>4622</a>        <span class="kw">let </span>v: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>raw).expect(<span class="string">"notification must be JSON"</span>);
-<a href=#4623 id=4623 data-nosnippet>4623</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"method"</span>], notification::SESSION_UPDATE);
-<a href=#4624 id=4624 data-nosnippet>4624</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"params"</span>][<span class="string">"session_id"</span>], <span class="string">"gone-id"</span>);
-<a href=#4625 id=4625 data-nosnippet>4625</a>        <span class="macro">assert_eq!</span>(
-<a href=#4626 id=4626 data-nosnippet>4626</a>            v[<span class="string">"params"</span>][<span class="string">"outcome"</span>], <span class="string">"failed"</span>,
-<a href=#4627 id=4627 data-nosnippet>4627</a>            <span class="string">"missing-session is not Completed and not Cancelled — it is a \
-<a href=#4628 id=4628 data-nosnippet>4628</a>             distinct Failed verdict. Folding it into Cancelled would lie \
-<a href=#4629 id=4629 data-nosnippet>4629</a>             about whether the user pressed Esc."
-<a href=#4630 id=4630 data-nosnippet>4630</a>        </span>);
-<a href=#4631 id=4631 data-nosnippet>4631</a>    }
-<a href=#4632 id=4632 data-nosnippet>4632</a>
-<a href=#4633 id=4633 data-nosnippet>4633</a>    <span class="doccomment">/// Cross-TUI cancel from a distinct dispatcher (separate connection,
-<a href=#4634 id=4634 data-nosnippet>4634</a>    /// separate `tui_id`) targeting a session owned by another TUI. The
-<a href=#4635 id=4635 data-nosnippet>4635</a>    /// fixed daemon must refuse and leave the owner's token un-fired.
-<a href=#4636 id=4636 data-nosnippet>4636</a>    </span><span class="attr">#[tokio::test]
-<a href=#4637 id=4637 data-nosnippet>4637</a>    </span><span class="kw">async fn </span>session_cancel_from_distinct_non_owner_dispatcher_is_rejected() {
-<a href=#4638 id=4638 data-nosnippet>4638</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4639 id=4639 data-nosnippet>4639</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
-<a href=#4640 id=4640 data-nosnippet>4640</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>dispatcher_a, <span class="kw-2">mut </span>dispatcher_b, sessions) =
-<a href=#4641 id=4641 data-nosnippet>4641</a>            make_two_dispatchers_sharing_context(config);
-<a href=#4642 id=4642 data-nosnippet>4642</a>
-<a href=#4643 id=4643 data-nosnippet>4643</a>        <span class="kw">let </span>token =
-<a href=#4644 id=4644 data-nosnippet>4644</a>            create_session_with_owner(<span class="kw-2">&amp;mut </span>dispatcher_a, <span class="kw-2">&amp;</span>sessions, <span class="string">"sess-owned-by-tui-A"</span>, <span class="string">"tui-A"</span>)
-<a href=#4645 id=4645 data-nosnippet>4645</a>                .<span class="kw">await</span>;
-<a href=#4646 id=4646 data-nosnippet>4646</a>
-<a href=#4647 id=4647 data-nosnippet>4647</a>        dispatcher_b.set_tui_id_for_test(<span class="prelude-val">Some</span>(<span class="string">"tui-B"</span>.to_string()));
-<a href=#4648 id=4648 data-nosnippet>4648</a>        <span class="kw">let </span>result = dispatcher_b
-<a href=#4649 id=4649 data-nosnippet>4649</a>            .handle_session_cancel(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4650 id=4650 data-nosnippet>4650</a>                <span class="string">"session_id"</span>: <span class="string">"sess-owned-by-tui-A"</span>,
-<a href=#4651 id=4651 data-nosnippet>4651</a>            }))
-<a href=#4652 id=4652 data-nosnippet>4652</a>            .<span class="kw">await</span>;
-<a href=#4653 id=4653 data-nosnippet>4653</a>
-<a href=#4654 id=4654 data-nosnippet>4654</a>        <span class="kw">let </span>err = result.expect_err(
-<a href=#4655 id=4655 data-nosnippet>4655</a>            <span class="string">"a cancel from a dispatcher whose tui_id does not match the \
-<a href=#4656 id=4656 data-nosnippet>4656</a>             session's owner_tui_id must be refused"</span>,
-<a href=#4657 id=4657 data-nosnippet>4657</a>        );
-<a href=#4658 id=4658 data-nosnippet>4658</a>        <span class="macro">assert_ne!</span>(
-<a href=#4659 id=4659 data-nosnippet>4659</a>            err.code, SESSION_NOT_FOUND,
-<a href=#4660 id=4660 data-nosnippet>4660</a>            <span class="string">"the rejection must NOT be reported as SESSION_NOT_FOUND — the \
-<a href=#4661 id=4661 data-nosnippet>4661</a>             session DOES exist; reporting NOT_FOUND would hide the \
-<a href=#4662 id=4662 data-nosnippet>4662</a>             ownership violation behind a benign-looking error"
-<a href=#4663 id=4663 data-nosnippet>4663</a>        </span>);
-<a href=#4664 id=4664 data-nosnippet>4664</a>        <span class="macro">assert!</span>(
-<a href=#4665 id=4665 data-nosnippet>4665</a>            !token.is_cancelled(),
-<a href=#4666 id=4666 data-nosnippet>4666</a>            <span class="string">"the owner's cancel token must remain un-fired — the rightful \
-<a href=#4667 id=4667 data-nosnippet>4667</a>             owner's turn must survive a mis-targeted cancel from another TUI"
-<a href=#4668 id=4668 data-nosnippet>4668</a>        </span>);
-<a href=#4669 id=4669 data-nosnippet>4669</a>    }
-<a href=#4670 id=4670 data-nosnippet>4670</a>
-<a href=#4671 id=4671 data-nosnippet>4671</a>    <span class="doccomment">/// Cancel from a dispatcher that never completed the `initialize`
-<a href=#4672 id=4672 data-nosnippet>4672</a>    /// handshake (no `tui_id`) must be refused. An unauthenticated caller
-<a href=#4673 id=4673 data-nosnippet>4673</a>    /// has no provable ownership claim over any session.
-<a href=#4674 id=4674 data-nosnippet>4674</a>    </span><span class="attr">#[tokio::test]
-<a href=#4675 id=4675 data-nosnippet>4675</a>    </span><span class="kw">async fn </span>session_cancel_from_anonymous_dispatcher_is_rejected() {
-<a href=#4676 id=4676 data-nosnippet>4676</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4677 id=4677 data-nosnippet>4677</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
-<a href=#4678 id=4678 data-nosnippet>4678</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>dispatcher_a, <span class="kw-2">mut </span>dispatcher_b, sessions) =
-<a href=#4679 id=4679 data-nosnippet>4679</a>            make_two_dispatchers_sharing_context(config);
-<a href=#4680 id=4680 data-nosnippet>4680</a>
-<a href=#4681 id=4681 data-nosnippet>4681</a>        <span class="kw">let </span>token =
-<a href=#4682 id=4682 data-nosnippet>4682</a>            create_session_with_owner(<span class="kw-2">&amp;mut </span>dispatcher_a, <span class="kw-2">&amp;</span>sessions, <span class="string">"sess-owned-by-tui-A"</span>, <span class="string">"tui-A"</span>)
-<a href=#4683 id=4683 data-nosnippet>4683</a>                .<span class="kw">await</span>;
-<a href=#4684 id=4684 data-nosnippet>4684</a>
-<a href=#4685 id=4685 data-nosnippet>4685</a>        <span class="comment">// dispatcher_b never set its tui_id — fresh connection, no
-<a href=#4686 id=4686 data-nosnippet>4686</a>        // initialize handshake yet.
-<a href=#4687 id=4687 data-nosnippet>4687</a>        </span>dispatcher_b.set_tui_id_for_test(<span class="prelude-val">None</span>);
-<a href=#4688 id=4688 data-nosnippet>4688</a>        <span class="kw">let </span>result = dispatcher_b
-<a href=#4689 id=4689 data-nosnippet>4689</a>            .handle_session_cancel(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4690 id=4690 data-nosnippet>4690</a>                <span class="string">"session_id"</span>: <span class="string">"sess-owned-by-tui-A"</span>,
-<a href=#4691 id=4691 data-nosnippet>4691</a>            }))
-<a href=#4692 id=4692 data-nosnippet>4692</a>            .<span class="kw">await</span>;
-<a href=#4693 id=4693 data-nosnippet>4693</a>
-<a href=#4694 id=4694 data-nosnippet>4694</a>        <span class="kw">let </span>err = result.expect_err(<span class="string">"anonymous cancel must be refused"</span>);
-<a href=#4695 id=4695 data-nosnippet>4695</a>        <span class="macro">assert_ne!</span>(err.code, SESSION_NOT_FOUND);
-<a href=#4696 id=4696 data-nosnippet>4696</a>        <span class="macro">assert!</span>(
-<a href=#4697 id=4697 data-nosnippet>4697</a>            !token.is_cancelled(),
-<a href=#4698 id=4698 data-nosnippet>4698</a>            <span class="string">"anonymous cancel must not fire the token"
-<a href=#4699 id=4699 data-nosnippet>4699</a>        </span>);
-<a href=#4700 id=4700 data-nosnippet>4700</a>    }
-<a href=#4701 id=4701 data-nosnippet>4701</a>
-<a href=#4702 id=4702 data-nosnippet>4702</a>    <span class="doccomment">/// Regression guard: the legitimate owner must still be able to cancel
-<a href=#4703 id=4703 data-nosnippet>4703</a>    /// its own session via its OWN dispatcher. A fix that over-rejects and
-<a href=#4704 id=4704 data-nosnippet>4704</a>    /// breaks the user-pressed-Esc path is unacceptable.
-<a href=#4705 id=4705 data-nosnippet>4705</a>    </span><span class="attr">#[tokio::test]
-<a href=#4706 id=4706 data-nosnippet>4706</a>    </span><span class="kw">async fn </span>session_cancel_from_owner_dispatcher_still_works() {
-<a href=#4707 id=4707 data-nosnippet>4707</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
-<a href=#4708 id=4708 data-nosnippet>4708</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
-<a href=#4709 id=4709 data-nosnippet>4709</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>dispatcher_a, _dispatcher_b, sessions) =
-<a href=#4710 id=4710 data-nosnippet>4710</a>            make_two_dispatchers_sharing_context(config);
-<a href=#4711 id=4711 data-nosnippet>4711</a>
-<a href=#4712 id=4712 data-nosnippet>4712</a>        <span class="kw">let </span>token =
-<a href=#4713 id=4713 data-nosnippet>4713</a>            create_session_with_owner(<span class="kw-2">&amp;mut </span>dispatcher_a, <span class="kw-2">&amp;</span>sessions, <span class="string">"sess-owned-by-tui-A"</span>, <span class="string">"tui-A"</span>)
-<a href=#4714 id=4714 data-nosnippet>4714</a>                .<span class="kw">await</span>;
-<a href=#4715 id=4715 data-nosnippet>4715</a>
-<a href=#4716 id=4716 data-nosnippet>4716</a>        <span class="comment">// Same dispatcher, same tui_id that created the session.
-<a href=#4717 id=4717 data-nosnippet>4717</a>        </span><span class="kw">let </span>result = dispatcher_a
-<a href=#4718 id=4718 data-nosnippet>4718</a>            .handle_session_cancel(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
-<a href=#4719 id=4719 data-nosnippet>4719</a>                <span class="string">"session_id"</span>: <span class="string">"sess-owned-by-tui-A"</span>,
-<a href=#4720 id=4720 data-nosnippet>4720</a>            }))
-<a href=#4721 id=4721 data-nosnippet>4721</a>            .<span class="kw">await</span>;
-<a href=#4722 id=4722 data-nosnippet>4722</a>
+<a href=#4549 id=4549 data-nosnippet>4549</a>    <span class="attr">#[tokio::test]
+<a href=#4550 id=4550 data-nosnippet>4550</a>    </span><span class="kw">async fn </span>config_set_provider_temperature_refreshes_matching_live_session() {
+<a href=#4551 id=4551 data-nosnippet>4551</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4552 id=4552 data-nosnippet>4552</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
+<a href=#4553 id=4553 data-nosnippet>4553</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#4554 id=4554 data-nosnippet>4554</a>        <span class="macro">assert_eq!</span>(
+<a href=#4555 id=4555 data-nosnippet>4555</a>            temperature_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
+<a href=#4556 id=4556 data-nosnippet>4556</a>            <span class="prelude-val">Some</span>(<span class="number">0.2</span>)
+<a href=#4557 id=4557 data-nosnippet>4557</a>        );
+<a href=#4558 id=4558 data-nosnippet>4558</a>
+<a href=#4559 id=4559 data-nosnippet>4559</a>        <span class="kw">let </span>res = dispatcher
+<a href=#4560 id=4560 data-nosnippet>4560</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4561 id=4561 data-nosnippet>4561</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.temperature"</span>,
+<a href=#4562 id=4562 data-nosnippet>4562</a>                <span class="string">"value"</span>: <span class="number">0.4
+<a href=#4563 id=4563 data-nosnippet>4563</a>            </span>}))
+<a href=#4564 id=4564 data-nosnippet>4564</a>            .<span class="kw">await</span>;
+<a href=#4565 id=4565 data-nosnippet>4565</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/set must succeed: {res:?}"</span>);
+<a href=#4566 id=4566 data-nosnippet>4566</a>
+<a href=#4567 id=4567 data-nosnippet>4567</a>        wait_for_temperature(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="prelude-val">Some</span>(<span class="number">0.4</span>)).<span class="kw">await</span>;
+<a href=#4568 id=4568 data-nosnippet>4568</a>    }
+<a href=#4569 id=4569 data-nosnippet>4569</a>
+<a href=#4570 id=4570 data-nosnippet>4570</a>    <span class="attr">#[tokio::test]
+<a href=#4571 id=4571 data-nosnippet>4571</a>    </span><span class="kw">async fn </span>config_set_provider_refresh_preserves_session_temperature_override() {
+<a href=#4572 id=4572 data-nosnippet>4572</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4573 id=4573 data-nosnippet>4573</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
+<a href=#4574 id=4574 data-nosnippet>4574</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#4575 id=4575 data-nosnippet>4575</a>        <span class="kw">let </span>merged = dispatcher
+<a href=#4576 id=4576 data-nosnippet>4576</a>            .ctx
+<a href=#4577 id=4577 data-nosnippet>4577</a>            .sessions
+<a href=#4578 id=4578 data-nosnippet>4578</a>            .set_overrides(
+<a href=#4579 id=4579 data-nosnippet>4579</a>                <span class="kw-2">&amp;</span>session_id,
+<a href=#4580 id=4580 data-nosnippet>4580</a>                <span class="kw">crate</span>::rpc::session::SessionOverrides {
+<a href=#4581 id=4581 data-nosnippet>4581</a>                    temperature: <span class="prelude-val">Some</span>(<span class="number">0.6</span>),
+<a href=#4582 id=4582 data-nosnippet>4582</a>                    ..Default::default()
+<a href=#4583 id=4583 data-nosnippet>4583</a>                },
+<a href=#4584 id=4584 data-nosnippet>4584</a>            )
+<a href=#4585 id=4585 data-nosnippet>4585</a>            .<span class="kw">await
+<a href=#4586 id=4586 data-nosnippet>4586</a>            </span>.expect(<span class="string">"session override applies"</span>);
+<a href=#4587 id=4587 data-nosnippet>4587</a>        <span class="macro">assert_eq!</span>(merged.temperature, <span class="prelude-val">Some</span>(<span class="number">0.6</span>));
+<a href=#4588 id=4588 data-nosnippet>4588</a>
+<a href=#4589 id=4589 data-nosnippet>4589</a>        <span class="kw">let </span>res = dispatcher
+<a href=#4590 id=4590 data-nosnippet>4590</a>            .handle_config_set(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4591 id=4591 data-nosnippet>4591</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.model"</span>,
+<a href=#4592 id=4592 data-nosnippet>4592</a>                <span class="string">"value"</span>: <span class="string">"new-model"
+<a href=#4593 id=4593 data-nosnippet>4593</a>            </span>}))
+<a href=#4594 id=4594 data-nosnippet>4594</a>            .<span class="kw">await</span>;
+<a href=#4595 id=4595 data-nosnippet>4595</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/set must succeed: {res:?}"</span>);
+<a href=#4596 id=4596 data-nosnippet>4596</a>
+<a href=#4597 id=4597 data-nosnippet>4597</a>        wait_for_model_name(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="string">"new-model"</span>).<span class="kw">await</span>;
+<a href=#4598 id=4598 data-nosnippet>4598</a>        <span class="macro">assert_eq!</span>(
+<a href=#4599 id=4599 data-nosnippet>4599</a>            temperature_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
+<a href=#4600 id=4600 data-nosnippet>4600</a>            <span class="prelude-val">Some</span>(<span class="number">0.6</span>),
+<a href=#4601 id=4601 data-nosnippet>4601</a>            <span class="string">"session temperature override must win over provider profile temperature"
+<a href=#4602 id=4602 data-nosnippet>4602</a>        </span>);
+<a href=#4603 id=4603 data-nosnippet>4603</a>    }
+<a href=#4604 id=4604 data-nosnippet>4604</a>
+<a href=#4605 id=4605 data-nosnippet>4605</a>    <span class="attr">#[tokio::test]
+<a href=#4606 id=4606 data-nosnippet>4606</a>    </span><span class="kw">async fn </span>config_delete_provider_temperature_refreshes_matching_live_session() {
+<a href=#4607 id=4607 data-nosnippet>4607</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4608 id=4608 data-nosnippet>4608</a>        <span class="kw">let </span>dispatcher = make_config_set_test_dispatcher(make_model_refresh_test_config(<span class="kw-2">&amp;</span>tmp));
+<a href=#4609 id=4609 data-nosnippet>4609</a>        <span class="kw">let </span>session_id = create_model_refresh_test_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>tmp).<span class="kw">await</span>;
+<a href=#4610 id=4610 data-nosnippet>4610</a>        <span class="macro">assert_eq!</span>(
+<a href=#4611 id=4611 data-nosnippet>4611</a>            temperature_for_session(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id).<span class="kw">await</span>,
+<a href=#4612 id=4612 data-nosnippet>4612</a>            <span class="prelude-val">Some</span>(<span class="number">0.2</span>)
+<a href=#4613 id=4613 data-nosnippet>4613</a>        );
+<a href=#4614 id=4614 data-nosnippet>4614</a>
+<a href=#4615 id=4615 data-nosnippet>4615</a>        <span class="kw">let </span>res = dispatcher
+<a href=#4616 id=4616 data-nosnippet>4616</a>            .handle_config_delete(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4617 id=4617 data-nosnippet>4617</a>                <span class="string">"prop"</span>: <span class="string">"providers.models.openai.test-provider.temperature"</span>,
+<a href=#4618 id=4618 data-nosnippet>4618</a>            }))
+<a href=#4619 id=4619 data-nosnippet>4619</a>            .<span class="kw">await</span>;
+<a href=#4620 id=4620 data-nosnippet>4620</a>        <span class="macro">assert!</span>(res.is_ok(), <span class="string">"config/delete must succeed: {res:?}"</span>);
+<a href=#4621 id=4621 data-nosnippet>4621</a>
+<a href=#4622 id=4622 data-nosnippet>4622</a>        wait_for_temperature(<span class="kw-2">&amp;</span>dispatcher, <span class="kw-2">&amp;</span>session_id, <span class="prelude-val">None</span>).<span class="kw">await</span>;
+<a href=#4623 id=4623 data-nosnippet>4623</a>    }
+<a href=#4624 id=4624 data-nosnippet>4624</a>
+<a href=#4625 id=4625 data-nosnippet>4625</a>    <span class="comment">// -----------------------------------------------------------------------
+<a href=#4626 id=4626 data-nosnippet>4626</a>    // session/cancel ownership enforcement — the spurious-cancel bug
+<a href=#4627 id=4627 data-nosnippet>4627</a>    // -----------------------------------------------------------------------
+<a href=#4628 id=4628 data-nosnippet>4628</a>
+<a href=#4629 id=4629 data-nosnippet>4629</a>    </span><span class="doccomment">/// Build two dispatchers sharing one `RpcContext`/`SessionStore`. Mirrors
+<a href=#4630 id=4630 data-nosnippet>4630</a>    /// production where each TUI connection gets its own dispatcher with its
+<a href=#4631 id=4631 data-nosnippet>4631</a>    /// own `tui_id`, all routing to the same shared session map.
+<a href=#4632 id=4632 data-nosnippet>4632</a>    </span><span class="kw">fn </span>make_two_dispatchers_sharing_context(
+<a href=#4633 id=4633 data-nosnippet>4633</a>        config: zeroclaw_config::schema::Config,
+<a href=#4634 id=4634 data-nosnippet>4634</a>    ) -&gt; (
+<a href=#4635 id=4635 data-nosnippet>4635</a>        RpcDispatcher,
+<a href=#4636 id=4636 data-nosnippet>4636</a>        RpcDispatcher,
+<a href=#4637 id=4637 data-nosnippet>4637</a>        Arc&lt;<span class="kw">crate</span>::rpc::session::SessionStore&gt;,
+<a href=#4638 id=4638 data-nosnippet>4638</a>    ) {
+<a href=#4639 id=4639 data-nosnippet>4639</a>        <span class="kw">use </span>zeroclaw_infra::session_queue::SessionActorQueue;
+<a href=#4640 id=4640 data-nosnippet>4640</a>        <span class="kw">let </span>queue = Arc::new(SessionActorQueue::new(<span class="number">4</span>, <span class="number">10</span>, <span class="number">60</span>));
+<a href=#4641 id=4641 data-nosnippet>4641</a>        <span class="kw">let </span>sessions = Arc::new(<span class="kw">crate</span>::rpc::session::SessionStore::new(<span class="number">16</span>, queue));
+<a href=#4642 id=4642 data-nosnippet>4642</a>        <span class="kw">let </span>ctx = RpcContext::minimal(config, Arc::clone(<span class="kw-2">&amp;</span>sessions));
+<a href=#4643 id=4643 data-nosnippet>4643</a>        <span class="kw">let </span>(tx_a, _rx_a) = tokio::sync::mpsc::channel(<span class="number">64</span>);
+<a href=#4644 id=4644 data-nosnippet>4644</a>        <span class="kw">let </span>(tx_b, _rx_b) = tokio::sync::mpsc::channel(<span class="number">64</span>);
+<a href=#4645 id=4645 data-nosnippet>4645</a>        <span class="kw">let </span>dispatcher_a = RpcDispatcher::new(Arc::clone(<span class="kw-2">&amp;</span>ctx), tx_a, <span class="string">"test-peer-a:pid=1"</span>.into());
+<a href=#4646 id=4646 data-nosnippet>4646</a>        <span class="kw">let </span>dispatcher_b = RpcDispatcher::new(ctx, tx_b, <span class="string">"test-peer-b:pid=2"</span>.into());
+<a href=#4647 id=4647 data-nosnippet>4647</a>        (dispatcher_a, dispatcher_b, sessions)
+<a href=#4648 id=4648 data-nosnippet>4648</a>    }
+<a href=#4649 id=4649 data-nosnippet>4649</a>
+<a href=#4650 id=4650 data-nosnippet>4650</a>    <span class="kw">async fn </span>create_session_with_owner(
+<a href=#4651 id=4651 data-nosnippet>4651</a>        dispatcher: <span class="kw-2">&amp;mut </span>RpcDispatcher,
+<a href=#4652 id=4652 data-nosnippet>4652</a>        sessions: <span class="kw-2">&amp;</span>Arc&lt;<span class="kw">crate</span>::rpc::session::SessionStore&gt;,
+<a href=#4653 id=4653 data-nosnippet>4653</a>        session_id: <span class="kw-2">&amp;</span>str,
+<a href=#4654 id=4654 data-nosnippet>4654</a>        owner_tui_id: <span class="kw-2">&amp;</span>str,
+<a href=#4655 id=4655 data-nosnippet>4655</a>    ) -&gt; tokio_util::sync::CancellationToken {
+<a href=#4656 id=4656 data-nosnippet>4656</a>        dispatcher.set_tui_id_for_test(<span class="prelude-val">Some</span>(owner_tui_id.to_string()));
+<a href=#4657 id=4657 data-nosnippet>4657</a>        <span class="kw">let </span>params = <span class="macro">json!</span>({
+<a href=#4658 id=4658 data-nosnippet>4658</a>            <span class="string">"agent_alias"</span>: <span class="string">"test-agent"</span>,
+<a href=#4659 id=4659 data-nosnippet>4659</a>            <span class="string">"session_id"</span>: session_id,
+<a href=#4660 id=4660 data-nosnippet>4660</a>        });
+<a href=#4661 id=4661 data-nosnippet>4661</a>        dispatcher
+<a href=#4662 id=4662 data-nosnippet>4662</a>            .handle_session_new_for_test(<span class="kw-2">&amp;</span>params)
+<a href=#4663 id=4663 data-nosnippet>4663</a>            .<span class="kw">await
+<a href=#4664 id=4664 data-nosnippet>4664</a>            </span>.expect(<span class="string">"session/new must succeed"</span>);
+<a href=#4665 id=4665 data-nosnippet>4665</a>
+<a href=#4666 id=4666 data-nosnippet>4666</a>        <span class="kw">let </span>stamped_owner = sessions
+<a href=#4667 id=4667 data-nosnippet>4667</a>            .session_owner_tui_id(session_id)
+<a href=#4668 id=4668 data-nosnippet>4668</a>            .<span class="kw">await
+<a href=#4669 id=4669 data-nosnippet>4669</a>            </span>.expect(<span class="string">"session must exist after session/new"</span>);
+<a href=#4670 id=4670 data-nosnippet>4670</a>        <span class="macro">assert_eq!</span>(
+<a href=#4671 id=4671 data-nosnippet>4671</a>            stamped_owner.as_deref(),
+<a href=#4672 id=4672 data-nosnippet>4672</a>            <span class="prelude-val">Some</span>(owner_tui_id),
+<a href=#4673 id=4673 data-nosnippet>4673</a>            <span class="string">"harness invariant: session/new must stamp owner_tui_id from the \
+<a href=#4674 id=4674 data-nosnippet>4674</a>             caller's tui_id; if this fails, the ownership tests below are \
+<a href=#4675 id=4675 data-nosnippet>4675</a>             measuring nothing"
+<a href=#4676 id=4676 data-nosnippet>4676</a>        </span>);
+<a href=#4677 id=4677 data-nosnippet>4677</a>
+<a href=#4678 id=4678 data-nosnippet>4678</a>        <span class="kw">let </span>token = tokio_util::sync::CancellationToken::new();
+<a href=#4679 id=4679 data-nosnippet>4679</a>        sessions.register_cancel_token(session_id, token.clone());
+<a href=#4680 id=4680 data-nosnippet>4680</a>        token
+<a href=#4681 id=4681 data-nosnippet>4681</a>    }
+<a href=#4682 id=4682 data-nosnippet>4682</a>
+<a href=#4683 id=4683 data-nosnippet>4683</a>    <span class="doccomment">/// Variant of `make_two_dispatchers_sharing_context` that returns the
+<a href=#4684 id=4684 data-nosnippet>4684</a>    /// writer-channel receivers so a test can assert which notifications
+<a href=#4685 id=4685 data-nosnippet>4685</a>    /// the dispatcher emitted. The notifications carry the load-bearing
+<a href=#4686 id=4686 data-nosnippet>4686</a>    /// `session/update TurnComplete` events that flip the TUI out of its
+<a href=#4687 id=4687 data-nosnippet>4687</a>    /// `working` state — silently dropping one is the production freeze.
+<a href=#4688 id=4688 data-nosnippet>4688</a>    </span><span class="kw">fn </span>make_dispatcher_with_capture(
+<a href=#4689 id=4689 data-nosnippet>4689</a>        config: zeroclaw_config::schema::Config,
+<a href=#4690 id=4690 data-nosnippet>4690</a>    ) -&gt; (
+<a href=#4691 id=4691 data-nosnippet>4691</a>        RpcDispatcher,
+<a href=#4692 id=4692 data-nosnippet>4692</a>        tokio::sync::mpsc::Receiver&lt;String&gt;,
+<a href=#4693 id=4693 data-nosnippet>4693</a>        Arc&lt;<span class="kw">crate</span>::rpc::session::SessionStore&gt;,
+<a href=#4694 id=4694 data-nosnippet>4694</a>    ) {
+<a href=#4695 id=4695 data-nosnippet>4695</a>        <span class="kw">use </span>zeroclaw_infra::session_queue::SessionActorQueue;
+<a href=#4696 id=4696 data-nosnippet>4696</a>        <span class="kw">let </span>queue = Arc::new(SessionActorQueue::new(<span class="number">4</span>, <span class="number">10</span>, <span class="number">60</span>));
+<a href=#4697 id=4697 data-nosnippet>4697</a>        <span class="kw">let </span>sessions = Arc::new(<span class="kw">crate</span>::rpc::session::SessionStore::new(<span class="number">16</span>, queue));
+<a href=#4698 id=4698 data-nosnippet>4698</a>        <span class="kw">let </span>ctx = RpcContext::minimal(config, Arc::clone(<span class="kw-2">&amp;</span>sessions));
+<a href=#4699 id=4699 data-nosnippet>4699</a>        <span class="kw">let </span>(tx, rx) = tokio::sync::mpsc::channel(<span class="number">64</span>);
+<a href=#4700 id=4700 data-nosnippet>4700</a>        <span class="kw">let </span>dispatcher = RpcDispatcher::new(ctx, tx, <span class="string">"test-peer-cap:pid=1"</span>.into());
+<a href=#4701 id=4701 data-nosnippet>4701</a>        (dispatcher, rx, sessions)
+<a href=#4702 id=4702 data-nosnippet>4702</a>    }
+<a href=#4703 id=4703 data-nosnippet>4703</a>
+<a href=#4704 id=4704 data-nosnippet>4704</a>    <span class="doccomment">/// RED guard: a `session/prompt` for a session that no longer exists
+<a href=#4705 id=4705 data-nosnippet>4705</a>    /// (e.g. evicted by the reaper while the TUI thought the session was
+<a href=#4706 id=4706 data-nosnippet>4706</a>    /// still live) MUST emit a `session/update TurnComplete::Failed`
+<a href=#4707 id=4707 data-nosnippet>4707</a>    /// notification so the TUI can exit `working` state. Silently dropping
+<a href=#4708 id=4708 data-nosnippet>4708</a>    /// the request — the production behaviour — leaves the TUI parked
+<a href=#4709 id=4709 data-nosnippet>4709</a>    /// forever with no `TurnComplete` ever arriving. This is the second
+<a href=#4710 id=4710 data-nosnippet>4710</a>    /// half of the freeze: a reaped session + a fresh prompt = hang.
+<a href=#4711 id=4711 data-nosnippet>4711</a>    </span><span class="attr">#[tokio::test]
+<a href=#4712 id=4712 data-nosnippet>4712</a>    </span><span class="kw">async fn </span>session_prompt_on_missing_session_emits_turn_complete_failed() {
+<a href=#4713 id=4713 data-nosnippet>4713</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4714 id=4714 data-nosnippet>4714</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
+<a href=#4715 id=4715 data-nosnippet>4715</a>        <span class="kw">let </span>(dispatcher, <span class="kw-2">mut </span>rx, _sessions) = make_dispatcher_with_capture(config);
+<a href=#4716 id=4716 data-nosnippet>4716</a>
+<a href=#4717 id=4717 data-nosnippet>4717</a>        <span class="kw">let </span>result = dispatcher
+<a href=#4718 id=4718 data-nosnippet>4718</a>            .handle_session_prompt(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4719 id=4719 data-nosnippet>4719</a>                <span class="string">"session_id"</span>: <span class="string">"gone-id"</span>,
+<a href=#4720 id=4720 data-nosnippet>4720</a>                <span class="string">"prompt"</span>: <span class="string">"anything"</span>,
+<a href=#4721 id=4721 data-nosnippet>4721</a>            }))
+<a href=#4722 id=4722 data-nosnippet>4722</a>            .<span class="kw">await</span>;
 <a href=#4723 id=4723 data-nosnippet>4723</a>        <span class="macro">assert!</span>(
-<a href=#4724 id=4724 data-nosnippet>4724</a>            result.is_ok(),
-<a href=#4725 id=4725 data-nosnippet>4725</a>            <span class="string">"owner cancel must succeed; got: {:?}"</span>,
-<a href=#4726 id=4726 data-nosnippet>4726</a>            result.err()
-<a href=#4727 id=4727 data-nosnippet>4727</a>        );
-<a href=#4728 id=4728 data-nosnippet>4728</a>        <span class="macro">assert!</span>(
-<a href=#4729 id=4729 data-nosnippet>4729</a>            token.is_cancelled(),
-<a href=#4730 id=4730 data-nosnippet>4730</a>            <span class="string">"owner cancel must fire the session's cancel token"
-<a href=#4731 id=4731 data-nosnippet>4731</a>        </span>);
-<a href=#4732 id=4732 data-nosnippet>4732</a>    }
-<a href=#4733 id=4733 data-nosnippet>4733</a>}
+<a href=#4724 id=4724 data-nosnippet>4724</a>            result.is_err(),
+<a href=#4725 id=4725 data-nosnippet>4725</a>            <span class="string">"missing session must still produce an RPC error for legacy \
+<a href=#4726 id=4726 data-nosnippet>4726</a>             request-form callers; the new behaviour is the additional \
+<a href=#4727 id=4727 data-nosnippet>4727</a>             notification, not replacing the error"
+<a href=#4728 id=4728 data-nosnippet>4728</a>        </span>);
+<a href=#4729 id=4729 data-nosnippet>4729</a>
+<a href=#4730 id=4730 data-nosnippet>4730</a>        <span class="comment">// The notification must already be queued on the writer channel by
+<a href=#4731 id=4731 data-nosnippet>4731</a>        // the time `handle_session_prompt` returns. `try_recv` rules out
+<a href=#4732 id=4732 data-nosnippet>4732</a>        // any test flakiness from racing with a spawned task.
+<a href=#4733 id=4733 data-nosnippet>4733</a>        </span><span class="kw">let </span>raw = rx.try_recv().expect(
+<a href=#4734 id=4734 data-nosnippet>4734</a>            <span class="string">"handle_session_prompt must emit a session/update TurnComplete \
+<a href=#4735 id=4735 data-nosnippet>4735</a>             notification before returning on missing-session — without it \
+<a href=#4736 id=4736 data-nosnippet>4736</a>             the TUI's `working` state never clears and the next prompt is \
+<a href=#4737 id=4737 data-nosnippet>4737</a>             the production freeze"</span>,
+<a href=#4738 id=4738 data-nosnippet>4738</a>        );
+<a href=#4739 id=4739 data-nosnippet>4739</a>        <span class="kw">let </span>v: serde_json::Value = serde_json::from_str(<span class="kw-2">&amp;</span>raw).expect(<span class="string">"notification must be JSON"</span>);
+<a href=#4740 id=4740 data-nosnippet>4740</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"method"</span>], notification::SESSION_UPDATE);
+<a href=#4741 id=4741 data-nosnippet>4741</a>        <span class="macro">assert_eq!</span>(v[<span class="string">"params"</span>][<span class="string">"session_id"</span>], <span class="string">"gone-id"</span>);
+<a href=#4742 id=4742 data-nosnippet>4742</a>        <span class="macro">assert_eq!</span>(
+<a href=#4743 id=4743 data-nosnippet>4743</a>            v[<span class="string">"params"</span>][<span class="string">"outcome"</span>], <span class="string">"failed"</span>,
+<a href=#4744 id=4744 data-nosnippet>4744</a>            <span class="string">"missing-session is not Completed and not Cancelled — it is a \
+<a href=#4745 id=4745 data-nosnippet>4745</a>             distinct Failed verdict. Folding it into Cancelled would lie \
+<a href=#4746 id=4746 data-nosnippet>4746</a>             about whether the user pressed Esc."
+<a href=#4747 id=4747 data-nosnippet>4747</a>        </span>);
+<a href=#4748 id=4748 data-nosnippet>4748</a>    }
+<a href=#4749 id=4749 data-nosnippet>4749</a>
+<a href=#4750 id=4750 data-nosnippet>4750</a>    <span class="doccomment">/// Cross-TUI cancel from a distinct dispatcher (separate connection,
+<a href=#4751 id=4751 data-nosnippet>4751</a>    /// separate `tui_id`) targeting a session owned by another TUI. The
+<a href=#4752 id=4752 data-nosnippet>4752</a>    /// fixed daemon must refuse and leave the owner's token un-fired.
+<a href=#4753 id=4753 data-nosnippet>4753</a>    </span><span class="attr">#[tokio::test]
+<a href=#4754 id=4754 data-nosnippet>4754</a>    </span><span class="kw">async fn </span>session_cancel_from_distinct_non_owner_dispatcher_is_rejected() {
+<a href=#4755 id=4755 data-nosnippet>4755</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4756 id=4756 data-nosnippet>4756</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
+<a href=#4757 id=4757 data-nosnippet>4757</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>dispatcher_a, <span class="kw-2">mut </span>dispatcher_b, sessions) =
+<a href=#4758 id=4758 data-nosnippet>4758</a>            make_two_dispatchers_sharing_context(config);
+<a href=#4759 id=4759 data-nosnippet>4759</a>
+<a href=#4760 id=4760 data-nosnippet>4760</a>        <span class="kw">let </span>token =
+<a href=#4761 id=4761 data-nosnippet>4761</a>            create_session_with_owner(<span class="kw-2">&amp;mut </span>dispatcher_a, <span class="kw-2">&amp;</span>sessions, <span class="string">"sess-owned-by-tui-A"</span>, <span class="string">"tui-A"</span>)
+<a href=#4762 id=4762 data-nosnippet>4762</a>                .<span class="kw">await</span>;
+<a href=#4763 id=4763 data-nosnippet>4763</a>
+<a href=#4764 id=4764 data-nosnippet>4764</a>        dispatcher_b.set_tui_id_for_test(<span class="prelude-val">Some</span>(<span class="string">"tui-B"</span>.to_string()));
+<a href=#4765 id=4765 data-nosnippet>4765</a>        <span class="kw">let </span>result = dispatcher_b
+<a href=#4766 id=4766 data-nosnippet>4766</a>            .handle_session_cancel(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4767 id=4767 data-nosnippet>4767</a>                <span class="string">"session_id"</span>: <span class="string">"sess-owned-by-tui-A"</span>,
+<a href=#4768 id=4768 data-nosnippet>4768</a>            }))
+<a href=#4769 id=4769 data-nosnippet>4769</a>            .<span class="kw">await</span>;
+<a href=#4770 id=4770 data-nosnippet>4770</a>
+<a href=#4771 id=4771 data-nosnippet>4771</a>        <span class="kw">let </span>err = result.expect_err(
+<a href=#4772 id=4772 data-nosnippet>4772</a>            <span class="string">"a cancel from a dispatcher whose tui_id does not match the \
+<a href=#4773 id=4773 data-nosnippet>4773</a>             session's owner_tui_id must be refused"</span>,
+<a href=#4774 id=4774 data-nosnippet>4774</a>        );
+<a href=#4775 id=4775 data-nosnippet>4775</a>        <span class="macro">assert_ne!</span>(
+<a href=#4776 id=4776 data-nosnippet>4776</a>            err.code, SESSION_NOT_FOUND,
+<a href=#4777 id=4777 data-nosnippet>4777</a>            <span class="string">"the rejection must NOT be reported as SESSION_NOT_FOUND — the \
+<a href=#4778 id=4778 data-nosnippet>4778</a>             session DOES exist; reporting NOT_FOUND would hide the \
+<a href=#4779 id=4779 data-nosnippet>4779</a>             ownership violation behind a benign-looking error"
+<a href=#4780 id=4780 data-nosnippet>4780</a>        </span>);
+<a href=#4781 id=4781 data-nosnippet>4781</a>        <span class="macro">assert!</span>(
+<a href=#4782 id=4782 data-nosnippet>4782</a>            !token.is_cancelled(),
+<a href=#4783 id=4783 data-nosnippet>4783</a>            <span class="string">"the owner's cancel token must remain un-fired — the rightful \
+<a href=#4784 id=4784 data-nosnippet>4784</a>             owner's turn must survive a mis-targeted cancel from another TUI"
+<a href=#4785 id=4785 data-nosnippet>4785</a>        </span>);
+<a href=#4786 id=4786 data-nosnippet>4786</a>    }
+<a href=#4787 id=4787 data-nosnippet>4787</a>
+<a href=#4788 id=4788 data-nosnippet>4788</a>    <span class="doccomment">/// Cancel from a dispatcher that never completed the `initialize`
+<a href=#4789 id=4789 data-nosnippet>4789</a>    /// handshake (no `tui_id`) must be refused. An unauthenticated caller
+<a href=#4790 id=4790 data-nosnippet>4790</a>    /// has no provable ownership claim over any session.
+<a href=#4791 id=4791 data-nosnippet>4791</a>    </span><span class="attr">#[tokio::test]
+<a href=#4792 id=4792 data-nosnippet>4792</a>    </span><span class="kw">async fn </span>session_cancel_from_anonymous_dispatcher_is_rejected() {
+<a href=#4793 id=4793 data-nosnippet>4793</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4794 id=4794 data-nosnippet>4794</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
+<a href=#4795 id=4795 data-nosnippet>4795</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>dispatcher_a, <span class="kw-2">mut </span>dispatcher_b, sessions) =
+<a href=#4796 id=4796 data-nosnippet>4796</a>            make_two_dispatchers_sharing_context(config);
+<a href=#4797 id=4797 data-nosnippet>4797</a>
+<a href=#4798 id=4798 data-nosnippet>4798</a>        <span class="kw">let </span>token =
+<a href=#4799 id=4799 data-nosnippet>4799</a>            create_session_with_owner(<span class="kw-2">&amp;mut </span>dispatcher_a, <span class="kw-2">&amp;</span>sessions, <span class="string">"sess-owned-by-tui-A"</span>, <span class="string">"tui-A"</span>)
+<a href=#4800 id=4800 data-nosnippet>4800</a>                .<span class="kw">await</span>;
+<a href=#4801 id=4801 data-nosnippet>4801</a>
+<a href=#4802 id=4802 data-nosnippet>4802</a>        <span class="comment">// dispatcher_b never set its tui_id — fresh connection, no
+<a href=#4803 id=4803 data-nosnippet>4803</a>        // initialize handshake yet.
+<a href=#4804 id=4804 data-nosnippet>4804</a>        </span>dispatcher_b.set_tui_id_for_test(<span class="prelude-val">None</span>);
+<a href=#4805 id=4805 data-nosnippet>4805</a>        <span class="kw">let </span>result = dispatcher_b
+<a href=#4806 id=4806 data-nosnippet>4806</a>            .handle_session_cancel(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4807 id=4807 data-nosnippet>4807</a>                <span class="string">"session_id"</span>: <span class="string">"sess-owned-by-tui-A"</span>,
+<a href=#4808 id=4808 data-nosnippet>4808</a>            }))
+<a href=#4809 id=4809 data-nosnippet>4809</a>            .<span class="kw">await</span>;
+<a href=#4810 id=4810 data-nosnippet>4810</a>
+<a href=#4811 id=4811 data-nosnippet>4811</a>        <span class="kw">let </span>err = result.expect_err(<span class="string">"anonymous cancel must be refused"</span>);
+<a href=#4812 id=4812 data-nosnippet>4812</a>        <span class="macro">assert_ne!</span>(err.code, SESSION_NOT_FOUND);
+<a href=#4813 id=4813 data-nosnippet>4813</a>        <span class="macro">assert!</span>(
+<a href=#4814 id=4814 data-nosnippet>4814</a>            !token.is_cancelled(),
+<a href=#4815 id=4815 data-nosnippet>4815</a>            <span class="string">"anonymous cancel must not fire the token"
+<a href=#4816 id=4816 data-nosnippet>4816</a>        </span>);
+<a href=#4817 id=4817 data-nosnippet>4817</a>    }
+<a href=#4818 id=4818 data-nosnippet>4818</a>
+<a href=#4819 id=4819 data-nosnippet>4819</a>    <span class="doccomment">/// Regression guard: the legitimate owner must still be able to cancel
+<a href=#4820 id=4820 data-nosnippet>4820</a>    /// its own session via its OWN dispatcher. A fix that over-rejects and
+<a href=#4821 id=4821 data-nosnippet>4821</a>    /// breaks the user-pressed-Esc path is unacceptable.
+<a href=#4822 id=4822 data-nosnippet>4822</a>    </span><span class="attr">#[tokio::test]
+<a href=#4823 id=4823 data-nosnippet>4823</a>    </span><span class="kw">async fn </span>session_cancel_from_owner_dispatcher_still_works() {
+<a href=#4824 id=4824 data-nosnippet>4824</a>        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+<a href=#4825 id=4825 data-nosnippet>4825</a>        <span class="kw">let </span>config = make_acp_test_config(<span class="kw-2">&amp;</span>tmp);
+<a href=#4826 id=4826 data-nosnippet>4826</a>        <span class="kw">let </span>(<span class="kw-2">mut </span>dispatcher_a, _dispatcher_b, sessions) =
+<a href=#4827 id=4827 data-nosnippet>4827</a>            make_two_dispatchers_sharing_context(config);
+<a href=#4828 id=4828 data-nosnippet>4828</a>
+<a href=#4829 id=4829 data-nosnippet>4829</a>        <span class="kw">let </span>token =
+<a href=#4830 id=4830 data-nosnippet>4830</a>            create_session_with_owner(<span class="kw-2">&amp;mut </span>dispatcher_a, <span class="kw-2">&amp;</span>sessions, <span class="string">"sess-owned-by-tui-A"</span>, <span class="string">"tui-A"</span>)
+<a href=#4831 id=4831 data-nosnippet>4831</a>                .<span class="kw">await</span>;
+<a href=#4832 id=4832 data-nosnippet>4832</a>
+<a href=#4833 id=4833 data-nosnippet>4833</a>        <span class="comment">// Same dispatcher, same tui_id that created the session.
+<a href=#4834 id=4834 data-nosnippet>4834</a>        </span><span class="kw">let </span>result = dispatcher_a
+<a href=#4835 id=4835 data-nosnippet>4835</a>            .handle_session_cancel(<span class="kw-2">&amp;</span><span class="macro">json!</span>({
+<a href=#4836 id=4836 data-nosnippet>4836</a>                <span class="string">"session_id"</span>: <span class="string">"sess-owned-by-tui-A"</span>,
+<a href=#4837 id=4837 data-nosnippet>4837</a>            }))
+<a href=#4838 id=4838 data-nosnippet>4838</a>            .<span class="kw">await</span>;
+<a href=#4839 id=4839 data-nosnippet>4839</a>
+<a href=#4840 id=4840 data-nosnippet>4840</a>        <span class="macro">assert!</span>(
+<a href=#4841 id=4841 data-nosnippet>4841</a>            result.is_ok(),
+<a href=#4842 id=4842 data-nosnippet>4842</a>            <span class="string">"owner cancel must succeed; got: {:?}"</span>,
+<a href=#4843 id=4843 data-nosnippet>4843</a>            result.err()
+<a href=#4844 id=4844 data-nosnippet>4844</a>        );
+<a href=#4845 id=4845 data-nosnippet>4845</a>        <span class="macro">assert!</span>(
+<a href=#4846 id=4846 data-nosnippet>4846</a>            token.is_cancelled(),
+<a href=#4847 id=4847 data-nosnippet>4847</a>            <span class="string">"owner cancel must fire the session's cancel token"
+<a href=#4848 id=4848 data-nosnippet>4848</a>        </span>);
+<a href=#4849 id=4849 data-nosnippet>4849</a>    }
+<a href=#4850 id=4850 data-nosnippet>4850</a>}
 </code></pre></div></section></main></body></html>
