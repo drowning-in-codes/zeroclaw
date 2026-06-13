@@ -15,7 +15,7 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../../" d
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span><span class="kw">crate</span>::tools::Tool;
 <a href=#14 id=14 data-nosnippet>14</a>
 <a href=#15 id=15 data-nosnippet>15</a><span class="comment">// Items that still live in `loop_` — import via the parent module.
-<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">use </span><span class="kw">super</span>::loop_::{ParsedToolCall, ToolLoopCancelled, scrub_credentials};
+<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">use </span><span class="kw">super</span>::loop_::{ParsedToolCall, ToolLoopCancelled, is_tool_loop_cancelled, scrub_credentials};
 <a href=#17 id=17 data-nosnippet>17</a>
 <a href=#18 id=18 data-nosnippet>18</a><span class="comment">// ── Helpers ──────────────────────────────────────────────────────────────
 <a href=#19 id=19 data-nosnippet>19</a>
@@ -320,32 +320,45 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../../" d
 <a href=#318 id=318 data-nosnippet>318</a>
 <a href=#319 id=319 data-nosnippet>319</a><span class="comment">// ── Sequential execution ─────────────────────────────────────────────────
 <a href=#320 id=320 data-nosnippet>320</a>
-<a href=#321 id=321 data-nosnippet>321</a></span><span class="kw">pub async fn </span>execute_tools_sequential(
-<a href=#322 id=322 data-nosnippet>322</a>    tool_calls: <span class="kw-2">&amp;</span>[ParsedToolCall],
-<a href=#323 id=323 data-nosnippet>323</a>    tools_registry: <span class="kw-2">&amp;</span>[Box&lt;<span class="kw">dyn </span>Tool&gt;],
-<a href=#324 id=324 data-nosnippet>324</a>    activated_tools: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>std::sync::Arc&lt;std::sync::Mutex&lt;<span class="kw">crate</span>::tools::ActivatedToolSet&gt;&gt;&gt;,
-<a href=#325 id=325 data-nosnippet>325</a>    observer: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Observer,
-<a href=#326 id=326 data-nosnippet>326</a>    cancellation_token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>CancellationToken&gt;,
-<a href=#327 id=327 data-nosnippet>327</a>    receipt_generator: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="kw">super</span>::tool_receipts::ReceiptGenerator&gt;,
-<a href=#328 id=328 data-nosnippet>328</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;ToolExecutionOutcome&gt;&gt; {
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="kw">let </span><span class="kw-2">mut </span>outcomes = Vec::with_capacity(tool_calls.len());
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">for </span>call <span class="kw">in </span>tool_calls {
-<a href=#332 id=332 data-nosnippet>332</a>        outcomes.push(
-<a href=#333 id=333 data-nosnippet>333</a>            execute_one_tool(
-<a href=#334 id=334 data-nosnippet>334</a>                <span class="kw-2">&amp;</span>call.name,
-<a href=#335 id=335 data-nosnippet>335</a>                call.arguments.clone(),
-<a href=#336 id=336 data-nosnippet>336</a>                call.tool_call_id.as_deref(),
-<a href=#337 id=337 data-nosnippet>337</a>                tools_registry,
-<a href=#338 id=338 data-nosnippet>338</a>                activated_tools,
-<a href=#339 id=339 data-nosnippet>339</a>                observer,
-<a href=#340 id=340 data-nosnippet>340</a>                cancellation_token,
-<a href=#341 id=341 data-nosnippet>341</a>                receipt_generator,
-<a href=#342 id=342 data-nosnippet>342</a>            )
-<a href=#343 id=343 data-nosnippet>343</a>            .<span class="kw">await</span><span class="question-mark">?</span>,
-<a href=#344 id=344 data-nosnippet>344</a>        );
-<a href=#345 id=345 data-nosnippet>345</a>    }
-<a href=#346 id=346 data-nosnippet>346</a>
-<a href=#347 id=347 data-nosnippet>347</a>    <span class="prelude-val">Ok</span>(outcomes)
-<a href=#348 id=348 data-nosnippet>348</a>}
+<a href=#321 id=321 data-nosnippet>321</a></span><span class="doccomment">/// Cancellation contract: a cancel mid-batch stops dispatch and returns
+<a href=#322 id=322 data-nosnippet>322</a>/// `Ok` with the outcomes of the calls that completed (a strict prefix of
+<a href=#323 id=323 data-nosnippet>323</a>/// `tool_calls`) — never an error. The token is checked before each call so
+<a href=#324 id=324 data-nosnippet>324</a>/// a tool that fires the token never lets a later call start, and a cancel
+<a href=#325 id=325 data-nosnippet>325</a>/// that interrupts a running tool drops that call's outcome. Callers detect
+<a href=#326 id=326 data-nosnippet>326</a>/// the cut-short batch by comparing lengths.
+<a href=#327 id=327 data-nosnippet>327</a></span><span class="kw">pub async fn </span>execute_tools_sequential(
+<a href=#328 id=328 data-nosnippet>328</a>    tool_calls: <span class="kw-2">&amp;</span>[ParsedToolCall],
+<a href=#329 id=329 data-nosnippet>329</a>    tools_registry: <span class="kw-2">&amp;</span>[Box&lt;<span class="kw">dyn </span>Tool&gt;],
+<a href=#330 id=330 data-nosnippet>330</a>    activated_tools: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>std::sync::Arc&lt;std::sync::Mutex&lt;<span class="kw">crate</span>::tools::ActivatedToolSet&gt;&gt;&gt;,
+<a href=#331 id=331 data-nosnippet>331</a>    observer: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Observer,
+<a href=#332 id=332 data-nosnippet>332</a>    cancellation_token: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>CancellationToken&gt;,
+<a href=#333 id=333 data-nosnippet>333</a>    receipt_generator: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="kw">super</span>::tool_receipts::ReceiptGenerator&gt;,
+<a href=#334 id=334 data-nosnippet>334</a>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;ToolExecutionOutcome&gt;&gt; {
+<a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">let </span><span class="kw-2">mut </span>outcomes = Vec::with_capacity(tool_calls.len());
+<a href=#336 id=336 data-nosnippet>336</a>
+<a href=#337 id=337 data-nosnippet>337</a>    <span class="kw">for </span>call <span class="kw">in </span>tool_calls {
+<a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">if </span>cancellation_token.is_some_and(CancellationToken::is_cancelled) {
+<a href=#339 id=339 data-nosnippet>339</a>            <span class="kw">break</span>;
+<a href=#340 id=340 data-nosnippet>340</a>        }
+<a href=#341 id=341 data-nosnippet>341</a>        <span class="kw">let </span>outcome = <span class="kw">match </span>execute_one_tool(
+<a href=#342 id=342 data-nosnippet>342</a>            <span class="kw-2">&amp;</span>call.name,
+<a href=#343 id=343 data-nosnippet>343</a>            call.arguments.clone(),
+<a href=#344 id=344 data-nosnippet>344</a>            call.tool_call_id.as_deref(),
+<a href=#345 id=345 data-nosnippet>345</a>            tools_registry,
+<a href=#346 id=346 data-nosnippet>346</a>            activated_tools,
+<a href=#347 id=347 data-nosnippet>347</a>            observer,
+<a href=#348 id=348 data-nosnippet>348</a>            cancellation_token,
+<a href=#349 id=349 data-nosnippet>349</a>            receipt_generator,
+<a href=#350 id=350 data-nosnippet>350</a>        )
+<a href=#351 id=351 data-nosnippet>351</a>        .<span class="kw">await
+<a href=#352 id=352 data-nosnippet>352</a>        </span>{
+<a href=#353 id=353 data-nosnippet>353</a>            <span class="prelude-val">Ok</span>(outcome) =&gt; outcome,
+<a href=#354 id=354 data-nosnippet>354</a>            <span class="prelude-val">Err</span>(e) <span class="kw">if </span>is_tool_loop_cancelled(<span class="kw-2">&amp;</span>e) =&gt; <span class="kw">break</span>,
+<a href=#355 id=355 data-nosnippet>355</a>            <span class="prelude-val">Err</span>(e) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(e),
+<a href=#356 id=356 data-nosnippet>356</a>        };
+<a href=#357 id=357 data-nosnippet>357</a>        outcomes.push(outcome);
+<a href=#358 id=358 data-nosnippet>358</a>    }
+<a href=#359 id=359 data-nosnippet>359</a>
+<a href=#360 id=360 data-nosnippet>360</a>    <span class="prelude-val">Ok</span>(outcomes)
+<a href=#361 id=361 data-nosnippet>361</a>}
 </code></pre></div></section></main></body></html>

@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-2221d51e.js";
+            window.path_to_searchindex_js = "../searchindex-821aac85.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-98474cc2.js"></script>
@@ -359,11 +359,28 @@
 <p>Les messages sortants repassent par le même adaptateur de canal. Les adaptateurs prenant en charge les messages multiples (Discord, Slack) peuvent diffuser de longues réponses sous forme d’une séquence de messages ; les autres (email, SMS) sont vidés à la fin du flux.</p>
 <h2 id="où-il-se-trouve-dans-le-code"><a class="header" href="#où-il-se-trouve-dans-le-code">Où il se trouve dans le code</a></h2>
 <ul>
-<li>Boucle d’agent : <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/turn/</code> (<code>run_tool_call_loop</code>), with entry points in <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>, <code>run</code>)</li>
 <li>Vérifications d’accès aux appels d’outils : <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>Orchestration des canaux : <code>crates/zeroclaw-channels/src/orchestrator/</code></li>
 <li>Streaming du fournisseur : <code>crates/zeroclaw-api/src/model_provider.rs</code> (énumération <code>StreamEvent</code>, réexportée depuis <code>zeroclaw-providers</code>), <code>compatible.rs</code> (analyseur SSE)</li>
 </ul>
+<p>Since #7415, every transport (channels, CLI, cron, gateway WebSocket, RPC/zerocode, ACP, and the embedded <code>Agent</code> API) runs the same turn engine: <code>run_tool_call_loop</code> in <code>crates/zeroclaw-runtime/src/agent/turn/</code>. The streaming and embedded entry points are thin wrappers in <code>agent.rs</code> that set per-caller knobs (dedup, iteration-cap behavior, event emission) around the shared loop. The <code>turn/</code> module is one file per step:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File(s)</th><th>Étape</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mod.rs</code></td><td>orchestrator: iteration control, knobs, steering drain</td></tr>
+<tr><td><code>history_window.rs</code> · <code>tool_specs.rs</code> · <code>vision_route.rs</code></td><td>pre-call: history maintenance, tool specs, vision routing</td></tr>
+<tr><td><code>provider_call.rs</code> · <code>stream_consume.rs</code> · <code>stream_guard.rs</code></td><td>the LLM call, stream consumption, mid-stream protocol guarding</td></tr>
+<tr><td><code>parse_response.rs</code> · <code>protocol_detect.rs</code> · <code>context_recovery.rs</code></td><td>response interpretation, parse-issue detection, overflow recovery</td></tr>
+<tr><td><code>approval_gate.rs</code> · <code>call_prep.rs</code></td><td>tool-call approval and preparation (dedup, hooks, delivery defaults)</td></tr>
+<tr><td><code>post_exec.rs</code> · <code>results_collect.rs</code> · <code>history_append.rs</code> · <code>max_iter.rs</code></td><td>result recording, loop detection, history append, iteration cap</td></tr>
+<tr><td><code>context.rs</code> · <code>events.rs</code> · <code>knobs.rs</code> · <code>steering.rs</code> · <code>outcome.rs</code> · <code>redact.rs</code> · <code>delivery_defaults.rs</code></td><td>shared types: turn context, events, per-caller knobs, steering, outcomes, credential scrubbing</td></tr>
+</tbody>
+</table>
+</div>
 
                     </main>
 

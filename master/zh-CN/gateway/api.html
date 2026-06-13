@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-0ee61a64.js";
+            window.path_to_searchindex_js = "../searchindex-e73f5ace.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-9364d956.js"></script>
@@ -361,6 +361,10 @@
 <p>网关运行后，访问 <code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> 即可打开 Scalar API 浏览器。Schema 定义和“试用“表单均来自守护进程所使用的相同 <code>schemars</code> 注解，因此文档不会与运行时接口产生偏差。</p>
 <p>浏览器的身份验证面板会绑定到规范中声明的 <code>bearerAuth</code> 方案，请在发起实时调用之前，将通过配对生成的 bearer 令牌粘贴到此处。该 URL 的 CLI 快捷命令是 <code>zeroclaw config docs</code>。</p>
 <p>如果 Scalar 包无法从 CDN 加载（离线/隔离网络环境安装），页面会优雅降级，并将你指向位于 <code>/api/openapi.json</code> 的原始规范，以便你可以使用任何兼容的查看器（Insomnia、Postman、Swagger UI 等）。</p>
+<h2 id="event-stream-contract"><a class="header" href="#event-stream-contract">Event stream contract</a></h2>
+<p><code>GET /api/events</code> is a raw Server-Sent Events stream of observable runtime events. It is not a deduplicated one-row-per-turn lifecycle timeline.</p>
+<p>Gateway handlers, webhook handling, cron/heartbeat work, and agent-loop observers can all publish lifecycle-shaped events into the same broadcast path. Clients should treat the stream as an append-only observation log. If a dashboard wants a compact turn timeline, it should group or deduplicate by the identifiers present on the event payload rather than assuming each <code>agent_start</code>, <code>llm_request</code>, or <code>agent_end</code> frame appears only once.</p>
+<p><code>GET /api/events/history</code> replays the retained recent events from the same buffer, oldest first. It is a reconnect window for subscribers, not a separate canonical lifecycle store.</p>
 
                     </main>
 

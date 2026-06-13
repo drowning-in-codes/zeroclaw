@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-97807c4a.js";
+            window.path_to_searchindex_js = "../searchindex-d15e6eb2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e2df50e.js"></script>
@@ -532,6 +532,30 @@
 <li>それ以外の場合、MCPツールの呼び出しは、その<strong>プレフィックス付き</strong>の名前（<code>&lt;server&gt;__&lt;tool&gt;</code>）がプロファイルの<code>auto_approve</code>リストに含まれていない限り、承認を求めます。<code>auto_approve = ["*"]</code>はすべてを承認します。<code>auto_approve = ["filesystem__read_file"]</code>のような完全一致のエントリは、そのツールだけを承認します。</li>
 <li><code>always_ask</code> はその逆で、ここに名前（または <code>"*"</code>）を指定すると常に確認を求め、<code>auto_approve</code> より優先されます。</li>
 </ul>
+<p>Keep the exposure and approval controls separate:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Control</th><th>スコープ</th><th>Use it for</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tool_filter_groups</code></td><td>Prompt/context exposure</td><td>Decide which MCP tool schemas are visible to the model for a turn.</td></tr>
+<tr><td><code>auto_approve</code> / <code>always_ask</code></td><td>Approval policy</td><td>Decide whether a selected MCP tool call requires operator approval.</td></tr>
+<tr><td><code>allowed_tools</code> / <code>excluded_tools</code></td><td>Capability policy</td><td>Decide which prefixed tool names the risk profile may use at all.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For a hard allowlist, include the MCP tool’s prefixed name in <code>allowed_tools</code> as well as any approval rule:</p>
+<pre><code class="language-toml">[risk_profiles.assistant]
+allowed_tools = [
+  "file_read",
+  "filesystem__read_file",
+]
+auto_approve = [
+  "filesystem__read_file",
+]
+</code></pre>
+<p><code>auto_approve</code> alone does not hide a tool from the model; it only answers the approval question after the model selects that tool. Use <code>tool_filter_groups</code> to reduce prompt noise and <code>allowed_tools</code> / <code>excluded_tools</code> to enforce a capability boundary.</p>
 <p>プロファイルごとのフィールド全体については <a href="../security/autonomy.html">自律性レベル</a> を、すべての MCP フィールドとデフォルト値については <a href="../reference/config.html#mcp">設定リファレンス</a> を参照してください。</p>
 
                     </main>

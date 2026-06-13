@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-0ee61a64.js";
+            window.path_to_searchindex_js = "searchindex-e73f5ace.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-9364d956.js"></script>
@@ -2435,11 +2435,28 @@ schtasks /Query /TN ZeroClaw Daemon /FO LIST
 <p>出站消息会通过相同的通道适配器返回。支持多消息的适配器（如 Discord、Slack）可以将长回复作为一系列消息进行流式传输；其他适配器（如电子邮件、短信）则在流完成时刷新。</p>
 <h2 id="在代码中的位置"><a class="header" href="#在代码中的位置">在代码中的位置</a></h2>
 <ul>
-<li>智能体循环：<code>crates/zeroclaw-runtime/src/agent/loop_.rs</code>（<code>process_message</code>）</li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/turn/</code> (<code>run_tool_call_loop</code>), with entry points in <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>, <code>run</code>)</li>
 <li>工具调用访问检查：<code>crates/zeroclaw-runtime/src/security/</code>（<code>iam_policy.rs</code> <code>evaluate_tool_access</code>）</li>
 <li>通道编排：<code>crates/zeroclaw-channels/src/orchestrator/</code></li>
 <li>提供方流式传输：<code>crates/zeroclaw-api/src/model_provider.rs</code>（<code>StreamEvent</code> 枚举，从 <code>zeroclaw-providers</code> 重新导出）、<code>compatible.rs</code>（SSE 解析器）</li>
 </ul>
+<p>Since #7415, every transport (channels, CLI, cron, gateway WebSocket, RPC/zerocode, ACP, and the embedded <code>Agent</code> API) runs the same turn engine: <code>run_tool_call_loop</code> in <code>crates/zeroclaw-runtime/src/agent/turn/</code>. The streaming and embedded entry points are thin wrappers in <code>agent.rs</code> that set per-caller knobs (dedup, iteration-cap behavior, event emission) around the shared loop. The <code>turn/</code> module is one file per step:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File(s)</th><th>步骤</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mod.rs</code></td><td>orchestrator: iteration control, knobs, steering drain</td></tr>
+<tr><td><code>history_window.rs</code> · <code>tool_specs.rs</code> · <code>vision_route.rs</code></td><td>pre-call: history maintenance, tool specs, vision routing</td></tr>
+<tr><td><code>provider_call.rs</code> · <code>stream_consume.rs</code> · <code>stream_guard.rs</code></td><td>the LLM call, stream consumption, mid-stream protocol guarding</td></tr>
+<tr><td><code>parse_response.rs</code> · <code>protocol_detect.rs</code> · <code>context_recovery.rs</code></td><td>response interpretation, parse-issue detection, overflow recovery</td></tr>
+<tr><td><code>approval_gate.rs</code> · <code>call_prep.rs</code></td><td>tool-call approval and preparation (dedup, hooks, delivery defaults)</td></tr>
+<tr><td><code>post_exec.rs</code> · <code>results_collect.rs</code> · <code>history_append.rs</code> · <code>max_iter.rs</code></td><td>result recording, loop detection, history append, iteration cap</td></tr>
+<tr><td><code>context.rs</code> · <code>events.rs</code> · <code>knobs.rs</code> · <code>steering.rs</code> · <code>outcome.rs</code> · <code>redact.rs</code> · <code>delivery_defaults.rs</code></td><td>shared types: turn context, events, per-caller knobs, steering, outcomes, credential scrubbing</td></tr>
+</tbody>
+</table>
+</div>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="crates"><a class="header" href="#crates">Crates</a></h1>
 <p>工作区被划分为多个层级。边缘 crate 负责与外部世界交互；核心 crate 负责协调；支持 crate 提供工具函数。每个 crate 都有自己的 rustdoc，参见 <a href="#api-参考">API (rustdoc)</a>。</p>
@@ -6434,6 +6451,10 @@ cargo mdbook build    # 重建包含 rustdoc 桥接的完整书籍
 <p>网关运行后，访问 <code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> 即可打开 Scalar API 浏览器。Schema 定义和“试用“表单均来自守护进程所使用的相同 <code>schemars</code> 注解，因此文档不会与运行时接口产生偏差。</p>
 <p>浏览器的身份验证面板会绑定到规范中声明的 <code>bearerAuth</code> 方案，请在发起实时调用之前，将通过配对生成的 bearer 令牌粘贴到此处。该 URL 的 CLI 快捷命令是 <code>zeroclaw config docs</code>。</p>
 <p>如果 Scalar 包无法从 CDN 加载（离线/隔离网络环境安装），页面会优雅降级，并将你指向位于 <code>/api/openapi.json</code> 的原始规范，以便你可以使用任何兼容的查看器（Insomnia、Postman、Swagger UI 等）。</p>
+<h2 id="event-stream-contract"><a class="header" href="#event-stream-contract">Event stream contract</a></h2>
+<p><code>GET /api/events</code> is a raw Server-Sent Events stream of observable runtime events. It is not a deduplicated one-row-per-turn lifecycle timeline.</p>
+<p>Gateway handlers, webhook handling, cron/heartbeat work, and agent-loop observers can all publish lifecycle-shaped events into the same broadcast path. Clients should treat the stream as an append-only observation log. If a dashboard wants a compact turn timeline, it should group or deduplicate by the identifiers present on the event payload rather than assuming each <code>agent_start</code>, <code>llm_request</code>, or <code>agent_end</code> frame appears only once.</p>
+<p><code>GET /api/events/history</code> replays the retained recent events from the same buffer, oldest first. It is a reconnect window for subscribers, not a separate canonical lifecycle store.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="web-仪表盘gatewayweb_dist_dir"><a class="header" href="#web-仪表盘gatewayweb_dist_dir">Web 仪表盘（<code>gateway.web_dist_dir</code>）</a></h1>
 <p>网关守护进程将其 HTTP API 内置于二进制文件中，但 Web 仪表板的 HTML/JS/CSS 则以磁盘文件形式存放于由 Vite 生成的 <code>web/dist/</code> 目录中。<code>gateway.web_dist_dir</code> 设置（及其 schema 镜像环境变量覆盖项 <code>ZEROCLAW_gateway__web_dist_dir</code>）用于告知守护进程该目录的位置。当该设置和已知的回退位置均不包含已构建的 <code>index.html</code> 时，网关将以 <strong>API-only mode</strong> 启动，仪表板 URL 会返回“不可用“消息。</p>
@@ -14728,6 +14749,30 @@ pub trait Tool: Send + Sync + Attributable {
 <li>否则，MCP 工具调用会提示确认，除非其<strong>带前缀</strong>的名称（<code>&lt;server&gt;__&lt;tool&gt;</code>）在配置文件的 <code>auto_approve</code> 列表中。<code>auto_approve = ["*"]</code> 会批准所有内容；像 <code>auto_approve = ["filesystem__read_file"]</code> 这样的精确条目则只批准该工具。</li>
 <li><code>always_ask</code> 则相反：在其中列出的名称（或 <code>"*"</code>）将始终提示确认，覆盖 <code>auto_approve</code>。</li>
 </ul>
+<p>Keep the exposure and approval controls separate:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Control</th><th>范围</th><th>Use it for</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tool_filter_groups</code></td><td>Prompt/context exposure</td><td>Decide which MCP tool schemas are visible to the model for a turn.</td></tr>
+<tr><td><code>auto_approve</code> / <code>always_ask</code></td><td>Approval policy</td><td>Decide whether a selected MCP tool call requires operator approval.</td></tr>
+<tr><td><code>allowed_tools</code> / <code>excluded_tools</code></td><td>Capability policy</td><td>Decide which prefixed tool names the risk profile may use at all.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For a hard allowlist, include the MCP tool’s prefixed name in <code>allowed_tools</code> as well as any approval rule:</p>
+<pre><code class="language-toml">[risk_profiles.assistant]
+allowed_tools = [
+  "file_read",
+  "filesystem__read_file",
+]
+auto_approve = [
+  "filesystem__read_file",
+]
+</code></pre>
+<p><code>auto_approve</code> alone does not hide a tool from the model; it only answers the approval question after the model selects that tool. Use <code>tool_filter_groups</code> to reduce prompt noise and <code>allowed_tools</code> / <code>excluded_tools</code> to enforce a capability boundary.</p>
 <p>有关每个配置文件的完整字段范围，请参阅 <a href="#自主性级别">Autonomy levels</a>；有关每个 MCP 字段及其默认值，请参阅 <a href="#mcp">Config reference</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="浏览器自动化"><a class="header" href="#浏览器自动化">浏览器自动化</a></h1>

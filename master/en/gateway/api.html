@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-c0b8ba70.js";
+            window.path_to_searchindex_js = "../searchindex-c63ed1ce.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8b3eb20a.js"></script>
@@ -411,6 +411,18 @@ live calls. The CLI shortcut for the URL is <code>zeroclaw config docs</code>.</
 the page degrades gracefully and points you at the raw spec at
 <code>/api/openapi.json</code> so you can use any compatible viewer
 (Insomnia, Postman, Swagger UI, etc.).</p>
+<h2 id="event-stream-contract"><a class="header" href="#event-stream-contract">Event stream contract</a></h2>
+<p><code>GET /api/events</code> is a raw Server-Sent Events stream of observable runtime
+events. It is not a deduplicated one-row-per-turn lifecycle timeline.</p>
+<p>Gateway handlers, webhook handling, cron/heartbeat work, and agent-loop
+observers can all publish lifecycle-shaped events into the same broadcast path.
+Clients should treat the stream as an append-only observation log. If a
+dashboard wants a compact turn timeline, it should group or deduplicate by the
+identifiers present on the event payload rather than assuming each
+<code>agent_start</code>, <code>llm_request</code>, or <code>agent_end</code> frame appears only once.</p>
+<p><code>GET /api/events/history</code> replays the retained recent events from the same
+buffer, oldest first. It is a reconnect window for subscribers, not a separate
+canonical lifecycle store.</p>
 
                     </main>
 

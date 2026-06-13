@@ -37,7 +37,7 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-0ee61a64.js";
+            window.path_to_searchindex_js = "../searchindex-e73f5ace.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-9364d956.js"></script>
@@ -532,6 +532,30 @@
 <li>否则，MCP 工具调用会提示确认，除非其<strong>带前缀</strong>的名称（<code>&lt;server&gt;__&lt;tool&gt;</code>）在配置文件的 <code>auto_approve</code> 列表中。<code>auto_approve = ["*"]</code> 会批准所有内容；像 <code>auto_approve = ["filesystem__read_file"]</code> 这样的精确条目则只批准该工具。</li>
 <li><code>always_ask</code> 则相反：在其中列出的名称（或 <code>"*"</code>）将始终提示确认，覆盖 <code>auto_approve</code>。</li>
 </ul>
+<p>Keep the exposure and approval controls separate:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Control</th><th>范围</th><th>Use it for</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tool_filter_groups</code></td><td>Prompt/context exposure</td><td>Decide which MCP tool schemas are visible to the model for a turn.</td></tr>
+<tr><td><code>auto_approve</code> / <code>always_ask</code></td><td>Approval policy</td><td>Decide whether a selected MCP tool call requires operator approval.</td></tr>
+<tr><td><code>allowed_tools</code> / <code>excluded_tools</code></td><td>Capability policy</td><td>Decide which prefixed tool names the risk profile may use at all.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For a hard allowlist, include the MCP tool’s prefixed name in <code>allowed_tools</code> as well as any approval rule:</p>
+<pre><code class="language-toml">[risk_profiles.assistant]
+allowed_tools = [
+  "file_read",
+  "filesystem__read_file",
+]
+auto_approve = [
+  "filesystem__read_file",
+]
+</code></pre>
+<p><code>auto_approve</code> alone does not hide a tool from the model; it only answers the approval question after the model selects that tool. Use <code>tool_filter_groups</code> to reduce prompt noise and <code>allowed_tools</code> / <code>excluded_tools</code> to enforce a capability boundary.</p>
 <p>有关每个配置文件的完整字段范围，请参阅 <a href="../security/autonomy.html">Autonomy levels</a>；有关每个 MCP 字段及其默认值，请参阅 <a href="../reference/config.html#mcp">Config reference</a>。</p>
 
                     </main>

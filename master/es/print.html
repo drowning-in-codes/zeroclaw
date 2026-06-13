@@ -38,7 +38,7 @@
             const path_to_root = "";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "searchindex-f88ce7ce.js";
+            window.path_to_searchindex_js = "searchindex-7b1f626f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f27dd488.js"></script>
@@ -2433,11 +2433,28 @@ schtasks /Query /TN Daemon de ZeroClaw /FO LIST
 <p>Los mensajes salientes vuelven a pasar por el mismo adaptador de canal. Los adaptadores con soporte para múltiples mensajes (Discord, Slack) pueden transmitir respuestas largas como una secuencia de mensajes; otros (correo electrónico, SMS) vacían el contenido al completar el flujo.</p>
 <h2 id="dónde-se-encuentra-en-el-código"><a class="header" href="#dónde-se-encuentra-en-el-código">Dónde se encuentra en el código</a></h2>
 <ul>
-<li>Bucle del agente: <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>)</li>
+<li>Agent loop: <code>crates/zeroclaw-runtime/src/agent/turn/</code> (<code>run_tool_call_loop</code>), with entry points in <code>crates/zeroclaw-runtime/src/agent/loop_.rs</code> (<code>process_message</code>, <code>run</code>)</li>
 <li>Verificaciones de acceso a llamadas de herramientas: <code>crates/zeroclaw-runtime/src/security/</code> (<code>iam_policy.rs</code> <code>evaluate_tool_access</code>)</li>
 <li>Orquestación de canales: <code>crates/zeroclaw-channels/src/orchestrator/</code></li>
 <li>Streaming del proveedor: <code>crates/zeroclaw-api/src/model_provider.rs</code> (enum <code>StreamEvent</code>, reexportado desde <code>zeroclaw-providers</code>), <code>compatible.rs</code> (analizador SSE)</li>
 </ul>
+<p>Since #7415, every transport (channels, CLI, cron, gateway WebSocket, RPC/zerocode, ACP, and the embedded <code>Agent</code> API) runs the same turn engine: <code>run_tool_call_loop</code> in <code>crates/zeroclaw-runtime/src/agent/turn/</code>. The streaming and embedded entry points are thin wrappers in <code>agent.rs</code> that set per-caller knobs (dedup, iteration-cap behavior, event emission) around the shared loop. The <code>turn/</code> module is one file per step:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File(s)</th><th>Paso</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mod.rs</code></td><td>orchestrator: iteration control, knobs, steering drain</td></tr>
+<tr><td><code>history_window.rs</code> · <code>tool_specs.rs</code> · <code>vision_route.rs</code></td><td>pre-call: history maintenance, tool specs, vision routing</td></tr>
+<tr><td><code>provider_call.rs</code> · <code>stream_consume.rs</code> · <code>stream_guard.rs</code></td><td>the LLM call, stream consumption, mid-stream protocol guarding</td></tr>
+<tr><td><code>parse_response.rs</code> · <code>protocol_detect.rs</code> · <code>context_recovery.rs</code></td><td>response interpretation, parse-issue detection, overflow recovery</td></tr>
+<tr><td><code>approval_gate.rs</code> · <code>call_prep.rs</code></td><td>tool-call approval and preparation (dedup, hooks, delivery defaults)</td></tr>
+<tr><td><code>post_exec.rs</code> · <code>results_collect.rs</code> · <code>history_append.rs</code> · <code>max_iter.rs</code></td><td>result recording, loop detection, history append, iteration cap</td></tr>
+<tr><td><code>context.rs</code> · <code>events.rs</code> · <code>knobs.rs</code> · <code>steering.rs</code> · <code>outcome.rs</code> · <code>redact.rs</code> · <code>delivery_defaults.rs</code></td><td>shared types: turn context, events, per-caller knobs, steering, outcomes, credential scrubbing</td></tr>
+</tbody>
+</table>
+</div>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="cajas"><a class="header" href="#cajas">Cajas</a></h1>
 <p>El workspace está dividido en capas. Los crates edge se comunican con el mundo exterior; los crates core orquestan; los crates de soporte proporcionan utilidades. Cada crate tiene su propio rustdoc, consulta <a href="#referencia-de-la-api">API (rustdoc)</a>.</p>
@@ -6432,6 +6449,10 @@ cargo mdbook build    # reconstruye el libro completo, incluyendo el puente de r
 <p>Una vez que un gateway esté en ejecución, navega a <code>http://&lt;gateway-host&gt;:&lt;port&gt;/api/docs</code> para acceder al explorador de API de Scalar. Las definiciones de esquema y los formularios de “Try it out” provienen de las mismas anotaciones de <code>schemars</code> que utiliza el daemon, por lo que la documentación no puede mentir sobre la superficie en tiempo de ejecución.</p>
 <p>El panel de autenticación del explorador se vincula al esquema <code>bearerAuth</code> declarado en la especificación; pega allí tu token bearer derivado del emparejamiento antes de realizar llamadas en vivo. El atajo de la CLI para la URL es <code>zeroclaw config docs</code>.</p>
 <p>Si el bundle de Scalar no puede cargarse desde la CDN (instalación offline / air-gapped), la página se degrada correctamente y te dirige al spec sin procesar en <code>/api/openapi.json</code> para que puedas usar cualquier visor compatible (Insomnia, Postman, Swagger UI, etc.).</p>
+<h2 id="event-stream-contract"><a class="header" href="#event-stream-contract">Event stream contract</a></h2>
+<p><code>GET /api/events</code> is a raw Server-Sent Events stream of observable runtime events. It is not a deduplicated one-row-per-turn lifecycle timeline.</p>
+<p>Gateway handlers, webhook handling, cron/heartbeat work, and agent-loop observers can all publish lifecycle-shaped events into the same broadcast path. Clients should treat the stream as an append-only observation log. If a dashboard wants a compact turn timeline, it should group or deduplicate by the identifiers present on the event payload rather than assuming each <code>agent_start</code>, <code>llm_request</code>, or <code>agent_end</code> frame appears only once.</p>
+<p><code>GET /api/events/history</code> replays the retained recent events from the same buffer, oldest first. It is a reconnect window for subscribers, not a separate canonical lifecycle store.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="panel-web-gatewayweb_dist_dir"><a class="header" href="#panel-web-gatewayweb_dist_dir">Panel web (<code>gateway.web_dist_dir</code>)</a></h1>
 <p>El daemon del gateway incluye su API HTTP en el binario, pero el HTML/JS/CSS del panel web reside en disco en un directorio <code>web/dist/</code> generado por Vite. El ajuste <code>gateway.web_dist_dir</code> (y su anulación mediante la variable de entorno reflejada en el esquema <code>ZEROCLAW_gateway__web_dist_dir</code>) le indica al daemon dónde está ese directorio. Cuando ni el ajuste ni una ubicación de respaldo conocida contienen un <code>index.html</code> compilado, el gateway arranca en <strong>modo solo-API</strong> y la URL del panel devuelve un mensaje de “no disponible”.</p>
@@ -14717,6 +14738,30 @@ pub trait Tool: Send + Sync + Attributable {
 <li>De lo contrario, una llamada a una herramienta MCP solicita aprobación a menos que su nombre con <strong>prefijo</strong> (<code>&lt;server&gt;__&lt;tool&gt;</code>) esté en la lista <code>auto_approve</code> del perfil. <code>auto_approve = ["*"]</code> aprueba todo; una entrada exacta como <code>auto_approve = ["filesystem__read_file"]</code> aprueba solo esa herramienta.</li>
 <li><code>always_ask</code> es lo inverso: un nombre (o <code>"*"</code>) allí siempre solicita confirmación, anulando <code>auto_approve</code>.</li>
 </ul>
+<p>Keep the exposure and approval controls separate:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Control</th><th>Ámbito</th><th>Use it for</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tool_filter_groups</code></td><td>Prompt/context exposure</td><td>Decide which MCP tool schemas are visible to the model for a turn.</td></tr>
+<tr><td><code>auto_approve</code> / <code>always_ask</code></td><td>Approval policy</td><td>Decide whether a selected MCP tool call requires operator approval.</td></tr>
+<tr><td><code>allowed_tools</code> / <code>excluded_tools</code></td><td>Capability policy</td><td>Decide which prefixed tool names the risk profile may use at all.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For a hard allowlist, include the MCP tool’s prefixed name in <code>allowed_tools</code> as well as any approval rule:</p>
+<pre><code class="language-toml">[risk_profiles.assistant]
+allowed_tools = [
+  "file_read",
+  "filesystem__read_file",
+]
+auto_approve = [
+  "filesystem__read_file",
+]
+</code></pre>
+<p><code>auto_approve</code> alone does not hide a tool from the model; it only answers the approval question after the model selects that tool. Use <code>tool_filter_groups</code> to reduce prompt noise and <code>allowed_tools</code> / <code>excluded_tools</code> to enforce a capability boundary.</p>
 <p>Consulta <a href="#niveles-de-autonomía">Niveles de autonomía</a> para conocer la superficie completa de campos por perfil, y la <a href="#mcp">Referencia de configuración</a> para ver todos los campos MCP y sus valores predeterminados.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="automatización-del-navegador"><a class="header" href="#automatización-del-navegador">Automatización del navegador</a></h1>
