@@ -131,46 +131,71 @@ data-theme="ayu"></script><meta name="rustdoc-vars" data-root-path="../../" data
 <a href=#129 id=129 data-nosnippet>129</a>
 <a href=#130 id=130 data-nosnippet>130</a>        <span class="kw">let </span>ext_set = resolved.external_peers.entry(channel.clone()).or_default();
 <a href=#131 id=131 data-nosnippet>131</a>        <span class="kw">for </span>ext <span class="kw">in </span><span class="kw-2">&amp;</span>group.external_peers {
-<a href=#132 id=132 data-nosnippet>132</a>            <span class="comment">// PeerUsername is already case-folded and `@`-stripped at
-<a href=#133 id=133 data-nosnippet>133</a>            // deserialization (multi_agent.rs).
-<a href=#134 id=134 data-nosnippet>134</a>            </span>ext_set.insert(ext.as_str().to_ascii_lowercase());
-<a href=#135 id=135 data-nosnippet>135</a>        }
-<a href=#136 id=136 data-nosnippet>136</a>
-<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">for </span>ignored <span class="kw">in </span><span class="kw-2">&amp;</span>group.ignore {
-<a href=#138 id=138 data-nosnippet>138</a>            <span class="kw">let </span>needle = ignored
-<a href=#139 id=139 data-nosnippet>139</a>                .as_str()
-<a href=#140 id=140 data-nosnippet>140</a>                .trim_start_matches(<span class="string">'@'</span>)
-<a href=#141 id=141 data-nosnippet>141</a>                .to_ascii_lowercase();
-<a href=#142 id=142 data-nosnippet>142</a>            ext_set.remove(<span class="kw-2">&amp;</span>needle);
-<a href=#143 id=143 data-nosnippet>143</a>            agent_set.remove(<span class="kw-2">&amp;</span>needle);
-<a href=#144 id=144 data-nosnippet>144</a>        }
-<a href=#145 id=145 data-nosnippet>145</a>    }
-<a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a>    resolved
-<a href=#148 id=148 data-nosnippet>148</a>}
-<a href=#149 id=149 data-nosnippet>149</a>
-<a href=#150 id=150 data-nosnippet>150</a><span class="attr">#[cfg(test)]
-<a href=#151 id=151 data-nosnippet>151</a></span><span class="kw">mod </span>tests {
-<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
-<a href=#153 id=153 data-nosnippet>153</a>
-<a href=#154 id=154 data-nosnippet>154</a>    <span class="attr">#[test]
-<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">fn </span>should_drop_self_loop_returns_false_when_handle_unknown() {
-<a href=#156 id=156 data-nosnippet>156</a>        <span class="macro">assert!</span>(!should_drop_self_loop(<span class="string">"@anyone"</span>, <span class="prelude-val">None</span>));
-<a href=#157 id=157 data-nosnippet>157</a>    }
-<a href=#158 id=158 data-nosnippet>158</a>
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="attr">#[test]
-<a href=#160 id=160 data-nosnippet>160</a>    </span><span class="kw">fn </span>should_drop_self_loop_matches_normalized_handle() {
-<a href=#161 id=161 data-nosnippet>161</a>        <span class="macro">assert!</span>(should_drop_self_loop(<span class="string">"@my_bot"</span>, <span class="prelude-val">Some</span>(<span class="string">"@my_bot"</span>)));
-<a href=#162 id=162 data-nosnippet>162</a>        <span class="macro">assert!</span>(should_drop_self_loop(<span class="string">"@MY_BOT"</span>, <span class="prelude-val">Some</span>(<span class="string">"my_bot"</span>)));
-<a href=#163 id=163 data-nosnippet>163</a>        <span class="macro">assert!</span>(should_drop_self_loop(<span class="string">"my_bot"</span>, <span class="prelude-val">Some</span>(<span class="string">"@My_Bot"</span>)));
-<a href=#164 id=164 data-nosnippet>164</a>        <span class="macro">assert!</span>(!should_drop_self_loop(<span class="string">"@other_bot"</span>, <span class="prelude-val">Some</span>(<span class="string">"@my_bot"</span>)));
-<a href=#165 id=165 data-nosnippet>165</a>    }
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="attr">#[test]
-<a href=#168 id=168 data-nosnippet>168</a>    </span><span class="kw">fn </span>should_drop_self_loop_ignores_empty_handle_after_normalization() {
-<a href=#169 id=169 data-nosnippet>169</a>        <span class="comment">// A handle of "@" (empty after stripping the @) must not match
-<a href=#170 id=170 data-nosnippet>170</a>        // every inbound; the guard only fires on a real handle.
-<a href=#171 id=171 data-nosnippet>171</a>        </span><span class="macro">assert!</span>(!should_drop_self_loop(<span class="string">"@anyone"</span>, <span class="prelude-val">Some</span>(<span class="string">"@"</span>)));
-<a href=#172 id=172 data-nosnippet>172</a>    }
-<a href=#173 id=173 data-nosnippet>173</a>}
+<a href=#132 id=132 data-nosnippet>132</a>            <span class="comment">// Match the lookup side (`is_known_peer` / `allows_inbound`):
+<a href=#133 id=133 data-nosnippet>133</a>            // channel-native usernames may be configured with or without a
+<a href=#134 id=134 data-nosnippet>134</a>            // leading `@`, and callers may pass either form.
+<a href=#135 id=135 data-nosnippet>135</a>            </span>ext_set.insert(ext.as_str().trim_start_matches(<span class="string">'@'</span>).to_ascii_lowercase());
+<a href=#136 id=136 data-nosnippet>136</a>        }
+<a href=#137 id=137 data-nosnippet>137</a>
+<a href=#138 id=138 data-nosnippet>138</a>        <span class="kw">for </span>ignored <span class="kw">in </span><span class="kw-2">&amp;</span>group.ignore {
+<a href=#139 id=139 data-nosnippet>139</a>            <span class="kw">let </span>needle = ignored
+<a href=#140 id=140 data-nosnippet>140</a>                .as_str()
+<a href=#141 id=141 data-nosnippet>141</a>                .trim_start_matches(<span class="string">'@'</span>)
+<a href=#142 id=142 data-nosnippet>142</a>                .to_ascii_lowercase();
+<a href=#143 id=143 data-nosnippet>143</a>            ext_set.remove(<span class="kw-2">&amp;</span>needle);
+<a href=#144 id=144 data-nosnippet>144</a>            agent_set.remove(<span class="kw-2">&amp;</span>needle);
+<a href=#145 id=145 data-nosnippet>145</a>        }
+<a href=#146 id=146 data-nosnippet>146</a>    }
+<a href=#147 id=147 data-nosnippet>147</a>
+<a href=#148 id=148 data-nosnippet>148</a>    resolved
+<a href=#149 id=149 data-nosnippet>149</a>}
+<a href=#150 id=150 data-nosnippet>150</a>
+<a href=#151 id=151 data-nosnippet>151</a><span class="attr">#[cfg(test)]
+<a href=#152 id=152 data-nosnippet>152</a></span><span class="kw">mod </span>tests {
+<a href=#153 id=153 data-nosnippet>153</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="attr">#[test]
+<a href=#156 id=156 data-nosnippet>156</a>    </span><span class="kw">fn </span>should_drop_self_loop_returns_false_when_handle_unknown() {
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="macro">assert!</span>(!should_drop_self_loop(<span class="string">"@anyone"</span>, <span class="prelude-val">None</span>));
+<a href=#158 id=158 data-nosnippet>158</a>    }
+<a href=#159 id=159 data-nosnippet>159</a>
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="attr">#[test]
+<a href=#161 id=161 data-nosnippet>161</a>    </span><span class="kw">fn </span>should_drop_self_loop_matches_normalized_handle() {
+<a href=#162 id=162 data-nosnippet>162</a>        <span class="macro">assert!</span>(should_drop_self_loop(<span class="string">"@my_bot"</span>, <span class="prelude-val">Some</span>(<span class="string">"@my_bot"</span>)));
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="macro">assert!</span>(should_drop_self_loop(<span class="string">"@MY_BOT"</span>, <span class="prelude-val">Some</span>(<span class="string">"my_bot"</span>)));
+<a href=#164 id=164 data-nosnippet>164</a>        <span class="macro">assert!</span>(should_drop_self_loop(<span class="string">"my_bot"</span>, <span class="prelude-val">Some</span>(<span class="string">"@My_Bot"</span>)));
+<a href=#165 id=165 data-nosnippet>165</a>        <span class="macro">assert!</span>(!should_drop_self_loop(<span class="string">"@other_bot"</span>, <span class="prelude-val">Some</span>(<span class="string">"@my_bot"</span>)));
+<a href=#166 id=166 data-nosnippet>166</a>    }
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="attr">#[test]
+<a href=#169 id=169 data-nosnippet>169</a>    </span><span class="kw">fn </span>should_drop_self_loop_ignores_empty_handle_after_normalization() {
+<a href=#170 id=170 data-nosnippet>170</a>        <span class="comment">// A handle of "@" (empty after stripping the @) must not match
+<a href=#171 id=171 data-nosnippet>171</a>        // every inbound; the guard only fires on a real handle.
+<a href=#172 id=172 data-nosnippet>172</a>        </span><span class="macro">assert!</span>(!should_drop_self_loop(<span class="string">"@anyone"</span>, <span class="prelude-val">Some</span>(<span class="string">"@"</span>)));
+<a href=#173 id=173 data-nosnippet>173</a>    }
+<a href=#174 id=174 data-nosnippet>174</a>
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="attr">#[test]
+<a href=#176 id=176 data-nosnippet>176</a>    </span><span class="kw">fn </span>resolve_peer_set_normalizes_external_peer_handles_for_lookup() {
+<a href=#177 id=177 data-nosnippet>177</a>        <span class="kw">use </span>zeroclaw_config::multi_agent::{AgentAlias, PeerGroupConfig, PeerUsername};
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">use </span>zeroclaw_config::schema::Config;
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">let </span><span class="kw-2">mut </span>config = Config::default();
+<a href=#181 id=181 data-nosnippet>181</a>        config.peer_groups.insert(
+<a href=#182 id=182 data-nosnippet>182</a>            <span class="string">"ops"</span>.to_string(),
+<a href=#183 id=183 data-nosnippet>183</a>            PeerGroupConfig {
+<a href=#184 id=184 data-nosnippet>184</a>                channel: <span class="string">"telegram"</span>.to_string(),
+<a href=#185 id=185 data-nosnippet>185</a>                agents: <span class="macro">vec!</span>[AgentAlias::new(<span class="string">"aa"</span>)],
+<a href=#186 id=186 data-nosnippet>186</a>                external_peers: <span class="macro">vec!</span>[PeerUsername::new(<span class="string">"@Operator"</span>)],
+<a href=#187 id=187 data-nosnippet>187</a>                ..PeerGroupConfig::default()
+<a href=#188 id=188 data-nosnippet>188</a>            },
+<a href=#189 id=189 data-nosnippet>189</a>        );
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>resolved = resolve_peer_set(<span class="kw-2">&amp;</span>config, <span class="string">"aa"</span>);
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="macro">assert!</span>(resolved.is_known_peer(<span class="string">"telegram"</span>, <span class="string">"operator"</span>));
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="macro">assert!</span>(resolved.is_known_peer(<span class="string">"telegram"</span>, <span class="string">"@operator"</span>));
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="macro">assert!</span>(resolved.allows_inbound(<span class="string">"telegram"</span>, <span class="string">"operator"</span>));
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="macro">assert!</span>(resolved.allows_inbound(<span class="string">"telegram"</span>, <span class="string">"@operator"</span>));
+<a href=#197 id=197 data-nosnippet>197</a>    }
+<a href=#198 id=198 data-nosnippet>198</a>}
 </code></pre></div></section></main></body></html>

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["SendMessageToPeerTool"]};
+window.SIDEBAR_ITEMS = {"fn":["render_sender_peer_map_for_channel"],"struct":["SendMessageToPeerTool"]};
