@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["cmd","util"]};
+window.SIDEBAR_ITEMS = {"mod":["cmd","generate","util"]};

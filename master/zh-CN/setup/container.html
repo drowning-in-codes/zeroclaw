@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-6ce3900a.js";
+            window.path_to_searchindex_js = "../searchindex-e04aebe8.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-9364d956.js"></script>
+        <script src="../toc-e415489f.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -363,6 +363,25 @@
 </div>
 
 <p>使用官方镜像时，你可以完全省略 <code>ZEROCLAW_gateway__allow_public_bind</code> 覆盖项；它已在内置配置中启用。</p>
+<h3 id="rootless-compose-with-the-debian-image"><a class="header" href="#rootless-compose-with-the-debian-image">Rootless Compose with the Debian image</a></h3>
+<p>For rootless Docker or Podman Compose deployments that need shell tools inside the container, use the current Debian image and bind a host data directory:</p>
+<pre><code class="language-yaml">服务:
+  zeroclaw:
+    图像: ghcr.io/zeroclaw-labs/zeroclaw:debian
+    container_name: zeroclaw
+    重启: 除非停止
+    端口:
+      - "42617:42617"
+    volumes:
+      - ./data:/zeroclaw-data
+    healthcheck:
+      test: ["CMD", zeroclaw, 状态, "--format=exit-code"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+</code></pre>
+<p>The current Debian image carries the packaged dashboard outside <code>/zeroclaw-data</code>, so the bind mount does not hide it and no <code>gateway.web_dist_dir</code> override is needed. The official image also carries the container-friendly gateway bind defaults. Only add an <code>environment:</code> block if you bind-mount your own localhost-default config; use the schema-mirror env-var spelling shown by <code>ZEROCLAW_gateway__allow_public_bind</code> rather than the legacy all-uppercase aliases.</p>
 <h2 id="macosorbstack-与-colima"><a class="header" href="#macosorbstack-与-colima">macOS：OrbStack 与 Colima</a></h2>
 <p>macOS 没有原生的 Linux 内核，因此每个选项（Docker Desktop、Podman、OrbStack、Colima）都在轻量级 Linux VM 中运行容器。对于 Mac 开发机而言，值得比较的两个 Mac 原生 VM 是 OrbStack 和 Colima，二者都使用上述相同的 <code>docker run</code>/Compose 命令运行容器。</p>
 <div class="table-wrapper">

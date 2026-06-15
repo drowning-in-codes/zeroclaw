@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-6ce3900a.js";
+            window.path_to_searchindex_js = "../searchindex-e04aebe8.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-9364d956.js"></script>
+        <script src="../toc-e415489f.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -402,11 +402,22 @@
 <p>此项可在网关仪表盘和 zerocode 中通过 <strong>Config → Risk profiles → <code>&lt;profile&gt;</code> → <code>delegation_policy.mode</code></strong> 编辑（一个 forbidden/allow 选择项）。</p>
 </li>
 <li>
-<p><strong>共享风险配置</strong>：目标代理必须使用与调用方<strong>相同</strong>的风险配置。委托不能跨越信任层级：<code>hardened</code> 上的代理不能委托给 <code>permissive</code> 上的代理。当两者不同时，将拒绝执行：</p>
-<p>委托目标“<target>”使用风险配置文件“&lt;target_profile&gt;”，但委托要求与调用方使用相同的风险配置文件（“&lt;caller_profile&gt;”）</target></p>
+<p><strong>Reachability</strong>: the target agent must be in the caller’s reachable set, resolved by <code>Config::reachable_delegate_targets</code>. The reachable set is the union of two per-agent sources on <code>[agents.&lt;caller&gt;]</code>, minus the caller itself:</p>
+<ul>
+<li><strong>same-profile peers</strong>: every other agent sharing the caller’s risk profile, included while <code>delegate_same_risk_profile = true</code> (the default). Set it <code>false</code> to opt the caller out of auto-allowing peers.</li>
+<li><strong>explicit roster</strong>: <code>delegates</code>, a possibly-empty list of agent aliases the caller may delegate to even across risk profiles.
+When the target is outside that set the refusal is:</li>
+</ul>
+<pre><code class="language-text">delegate target "&lt;target&gt;" is not reachable from "&lt;caller&gt;"; add it to [agents.&lt;caller&gt;].delegates or share a risk profile with delegate_same_risk_profile enabled
+</code></pre>
+<p>A same-profile target inherits the caller’s session workspace boundary and shares its action/cost tracker. An explicit <strong>cross-profile</strong> target runs under its own resolved policy and must pass <code>ensure_no_escalation_beyond</code> the caller: a listed delegate that would widen privilege (broader autonomy, extra roots, higher budgets, etc.) is refused with:</p>
+<pre><code class="language-text">delegate target "&lt;target&gt;" (risk profile "&lt;target_profile&gt;") would escalate beyond the caller (risk profile "&lt;caller_profile&gt;"): &lt;violation&gt;
+</code></pre>
 </li>
 </ol>
-<p>由于可达性受共享风险配置文件的约束，所公布的名单（工具 schema 中 <code>agent</code> 参数的枚举值）仅列出与调用方共享风险配置文件的已配置 agent，并排除调用方自身，且仅当 <code>delegation_policy.mode = "allow"</code> 时才会列出。不存在单独的按 agent 配置的允许列表：共享配置文件_即_是允许列表。</p>
+<p>The advertised roster (the <code>agent</code> parameter’s enum in the tool schema) lists exactly this reachable set, and only when <code>delegation_policy.mode = "allow"</code>. Disabled agents (<code>enabled = false</code>) are never reachable, whether as same-profile peers or explicit <code>delegates</code> entries.</p>
+<p>In agentic delegation the sub-agent’s tools are drawn from the caller’s already-policy-filtered registry, intersected with the target’s own <code>allowed_tools</code>. An <strong>empty</strong> <code>allowed_tools</code> on the target means “inherit”: the sub-agent runs with the caller’s full delegatable registry rather than being rejected. A non-empty list intersects with that registry. Either way the caller’s registry is the ceiling: a cross-profile target whose risk profile names a tool the caller was never granted does not receive it. This is the invariant that keeps <code>ensure_no_escalation_beyond</code> (which does not itself diff tool allowlists) sufficient, since the target can never exceed the caller’s tool surface.</p>
+<p>Depth is capped per the parent’s <code>runtime_profile.max_delegation_depth</code>. Set it to <code>1</code> to allow the top agent a single delegation hop with no further sub-delegation.</p>
 <h3 id="delegate模型看到的输出字符串"><a class="header" href="#delegate模型看到的输出字符串"><code>delegate</code>：模型看到的输出字符串</a></h3>
 <p>精确，来源于 <code>crates/zeroclaw-runtime/src/tools/delegate.rs</code>。</p>
 <ol>
@@ -458,14 +469,14 @@ Use action='check_result' with task_id='&lt;uuid&gt;' to retrieve the result.
 <tr><th></th><th><code>spawn_subagent</code></th><th><code>delegate</code></th></tr>
 </thead>
 <tbody>
-<tr><td><strong>身份</strong></td><td>与父级相同（相同 UUID，相同风险概况）</td><td>目标代理的身份（不同的别名，<strong>相同</strong>的风险等级，委派操作需要它）</td></tr>
-<tr><td><strong>权限模型</strong></td><td>父级策略的逐字内容（或缩小后的子集）</td><td>目标智能体自身的策略（在共享风险配置文件范围内）</td></tr>
+<tr><td><strong>身份</strong></td><td>与父级相同（相同 UUID，相同风险概况）</td><td>Target agent’s identity (different alias; same-profile peer or an explicit cross-profile delegate)</td></tr>
+<tr><td><strong>权限模型</strong></td><td>父级策略的逐字内容（或缩小后的子集）</td><td>Target agent’s own policy (same-profile, or a cross-profile delegate validated non-escalating)</td></tr>
 <tr><td><strong>模型提供商</strong></td><td>父级</td><td>目标智能体配置的提供商</td></tr>
 <tr><td><strong>生成深度</strong></td><td>硬性上限为 1</td><td>最多 <code>runtime_profile.max_delegation_depth</code>（默认值为 3）</td></tr>
 <tr><td><strong>后台模式</strong></td><td>不支持</td><td><code>background: true</code> 返回一个 <code>task_id</code></td></tr>
 <tr><td><strong>并行分发</strong></td><td>无内置参数；当 <code>parallel_tools = true</code> 时，单轮中的多次调用会并发执行</td><td><code>parallel: [...]</code> 并发运行多个目标</td></tr>
-<tr><td><strong>门控</strong></td><td><code>risk_profile.allowed_tools</code> 必须列出 <code>spawn_subagent</code></td><td><code>allowed_tools</code> 必须列出 <code>delegate</code>，调用方的 <code>delegation_policy mode = "allow"</code>，且目标共享调用方的风险配置</td></tr>
-<tr><td><strong>使用场景</strong></td><td>应保持在同一身份内的内部子任务</td><td>想让<strong>同一信任层级</strong>中不同的专家（不同模型、不同别名）来处理该任务</td></tr>
+<tr><td><strong>门控</strong></td><td><code>risk_profile.allowed_tools</code> 必须列出 <code>spawn_subagent</code></td><td><code>allowed_tools</code> must list <code>delegate</code>, caller’s <code>delegation_policy mode = "allow"</code>, and the target is in the caller’s reachable set (same-profile peer or explicit <code>delegates</code> entry)</td></tr>
+<tr><td><strong>使用场景</strong></td><td>应保持在同一身份内的内部子任务</td><td>Want a different specialist (different model, different alias) to handle the task, on the same trust tier or an explicitly-allowed stricter/cross-profile one</td></tr>
 </tbody>
 </table>
 </div>

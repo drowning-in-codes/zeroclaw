@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-f586d1b2.js";
+            window.path_to_searchindex_js = "../searchindex-189fd2cb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e2df50e.js"></script>
+        <script src="../toc-35fdbf2d.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -402,12 +402,22 @@
 <p>これはゲートウェイダッシュボードおよびzerocodeの <strong>Config → Risk profiles → <code>&lt;profile&gt;</code> → <code>delegation_policy.mode</code></strong>（forbidden/allowの選択）で編集できます。</p>
 </li>
 <li>
-<p><strong>共有リスクプロファイル</strong>: 対象エージェントは呼び出し元と<strong>同じ</strong>リスクプロファイルを使用しなければなりません。委任は信頼層をまたぎません。<code>hardened</code> 上のエージェントは <code>permissive</code> 上のエージェントに委任できません。これらが異なる場合、拒否は次のようになります。</p>
-<pre><code class="language-text">委譲先のターゲット "&lt;target&gt;" はリスクプロファイル "&lt;target_profile&gt;" を使用していますが、委譲には呼び出し元と同じリスクプロファイル ("&lt;caller_profile&gt;") が必要です
+<p><strong>Reachability</strong>: the target agent must be in the caller’s reachable set, resolved by <code>Config::reachable_delegate_targets</code>. The reachable set is the union of two per-agent sources on <code>[agents.&lt;caller&gt;]</code>, minus the caller itself:</p>
+<ul>
+<li><strong>same-profile peers</strong>: every other agent sharing the caller’s risk profile, included while <code>delegate_same_risk_profile = true</code> (the default). Set it <code>false</code> to opt the caller out of auto-allowing peers.</li>
+<li><strong>explicit roster</strong>: <code>delegates</code>, a possibly-empty list of agent aliases the caller may delegate to even across risk profiles.
+When the target is outside that set the refusal is:</li>
+</ul>
+<pre><code class="language-text">delegate target "&lt;target&gt;" is not reachable from "&lt;caller&gt;"; add it to [agents.&lt;caller&gt;].delegates or share a risk profile with delegate_same_risk_profile enabled
+</code></pre>
+<p>A same-profile target inherits the caller’s session workspace boundary and shares its action/cost tracker. An explicit <strong>cross-profile</strong> target runs under its own resolved policy and must pass <code>ensure_no_escalation_beyond</code> the caller: a listed delegate that would widen privilege (broader autonomy, extra roots, higher budgets, etc.) is refused with:</p>
+<pre><code class="language-text">delegate target "&lt;target&gt;" (risk profile "&lt;target_profile&gt;") would escalate beyond the caller (risk profile "&lt;caller_profile&gt;"): &lt;violation&gt;
 </code></pre>
 </li>
 </ol>
-<p>到達可能性は共有リスクプロファイルによって制御されるため、公開される名簿（ツールスキーマ内の <code>agent</code> パラメータの enum）には、呼び出し元のリスクプロファイルを共有する設定済みエージェントのうち、呼び出し元自身を除いたもののみが、かつ <code>delegation_policy.mode = "allow"</code> の場合にのみ列挙されます。エージェントごとの個別の許可リストは存在しません。共有プロファイル_こそが_許可リストなのです。</p>
+<p>The advertised roster (the <code>agent</code> parameter’s enum in the tool schema) lists exactly this reachable set, and only when <code>delegation_policy.mode = "allow"</code>. Disabled agents (<code>enabled = false</code>) are never reachable, whether as same-profile peers or explicit <code>delegates</code> entries.</p>
+<p>In agentic delegation the sub-agent’s tools are drawn from the caller’s already-policy-filtered registry, intersected with the target’s own <code>allowed_tools</code>. An <strong>empty</strong> <code>allowed_tools</code> on the target means “inherit”: the sub-agent runs with the caller’s full delegatable registry rather than being rejected. A non-empty list intersects with that registry. Either way the caller’s registry is the ceiling: a cross-profile target whose risk profile names a tool the caller was never granted does not receive it. This is the invariant that keeps <code>ensure_no_escalation_beyond</code> (which does not itself diff tool allowlists) sufficient, since the target can never exceed the caller’s tool surface.</p>
+<p>Depth is capped per the parent’s <code>runtime_profile.max_delegation_depth</code>. Set it to <code>1</code> to allow the top agent a single delegation hop with no further sub-delegation.</p>
 <h3 id="delegate-モデルが参照する出力文字列"><a class="header" href="#delegate-モデルが参照する出力文字列"><code>delegate</code>: モデルが参照する出力文字列</a></h3>
 <p>正確、ソースは <code>crates/zeroclaw-runtime/src/tools/delegate.rs</code> です。</p>
 <ol>
@@ -459,14 +469,14 @@ Use action='check_result' with task_id='&lt;uuid&gt;' to retrieve the result.
 <tr><th></th><th><code>spawn_subagent</code></th><th><code>delegate</code></th></tr>
 </thead>
 <tbody>
-<tr><td><strong>識別情報</strong></td><td>親と同じ（同じUUID、同じリスクプロファイル）</td><td>対象エージェントのアイデンティティ（別のエイリアス、<strong>同一</strong>のリスクプロファイル、委任に必要）</td></tr>
-<tr><td><strong>権限モデル</strong></td><td>親のポリシーをそのまま使用（または絞り込んだサブセット）</td><td>共有リスクプロファイル内における対象エージェント自身のポリシー</td></tr>
+<tr><td><strong>識別情報</strong></td><td>親と同じ（同じUUID、同じリスクプロファイル）</td><td>Target agent’s identity (different alias; same-profile peer or an explicit cross-profile delegate)</td></tr>
+<tr><td><strong>権限モデル</strong></td><td>親のポリシーをそのまま使用（または絞り込んだサブセット）</td><td>Target agent’s own policy (same-profile, or a cross-profile delegate validated non-escalating)</td></tr>
 <tr><td><strong>モデルプロバイダー</strong></td><td>親要素の</td><td>ターゲットエージェントに設定されたプロバイダー</td></tr>
 <tr><td><strong>スポーン深度</strong></td><td>1での上限制限</td><td>最大 <code>runtime_profile.max_delegation_depth</code>（デフォルト 3）</td></tr>
 <tr><td><strong>バックグラウンドモード</strong></td><td>非対応</td><td><code>background: true</code> は <code>task_id</code> を返します</td></tr>
 <tr><td><strong>並列ファンアウト</strong></td><td>組み込み引数なし。<code>parallel_tools = true</code> の場合、1ターン内の複数呼び出しは並行して実行されます</td><td><code>parallel: [...]</code> は複数のターゲットを並行して実行します</td></tr>
-<tr><td><strong>ゲーティング</strong></td><td><code>risk_profile.allowed_tools</code> には <code>spawn_subagent</code> を列挙する必要があります</td><td><code>allowed_tools</code> には <code>delegate</code> を列挙する必要があり、呼び出し元の <code>delegation_policy mode = "allow"</code> であり、ターゲットが呼び出し元のリスクプロファイルを共有していること</td></tr>
-<tr><td><strong>使用する場面</strong></td><td>同一のアイデンティティ内に留まるべき内部サブタスク</td><td><strong>同じ信頼ティア</strong>で異なるスペシャリスト（異なるモデル、異なるエイリアス）にタスクを処理させたい場合</td></tr>
+<tr><td><strong>ゲーティング</strong></td><td><code>risk_profile.allowed_tools</code> には <code>spawn_subagent</code> を列挙する必要があります</td><td><code>allowed_tools</code> must list <code>delegate</code>, caller’s <code>delegation_policy mode = "allow"</code>, and the target is in the caller’s reachable set (same-profile peer or explicit <code>delegates</code> entry)</td></tr>
+<tr><td><strong>使用する場面</strong></td><td>同一のアイデンティティ内に留まるべき内部サブタスク</td><td>Want a different specialist (different model, different alias) to handle the task, on the same trust tier or an explicitly-allowed stricter/cross-profile one</td></tr>
 </tbody>
 </table>
 </div>

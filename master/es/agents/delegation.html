@@ -37,10 +37,10 @@
             const path_to_root = "../";
             const default_light_theme = "default-dark";
             const default_dark_theme = "default-dark";
-            window.path_to_searchindex_js = "../searchindex-55ee3eeb.js";
+            window.path_to_searchindex_js = "../searchindex-1a17e275.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f27dd488.js"></script>
+        <script src="../toc-a6bafbbc.js"></script>
         <script>
             // Persist sidebar fold state across navigations. mdBook's toc.js
             // expands only the active page's ancestor chain on every load,
@@ -402,12 +402,22 @@
 <p>Esto se puede editar en el panel del gateway y en zerocode en <strong>Config → Risk profiles → <code>&lt;profile&gt;</code> → <code>delegation_policy.mode</code></strong> (un selector forbidden/allow).</p>
 </li>
 <li>
-<p><strong>Perfil de riesgo compartido</strong>: el agente de destino debe usar el <strong>mismo</strong> perfil de riesgo que el llamador. La delegación no cruza niveles de confianza: un agente en <code>hardened</code> no puede delegar a un agente en <code>permissive</code>. Cuando difieren, el rechazo es:</p>
-<pre><code class="language-text">el objetivo de delegación "&lt;target&gt;" usa el perfil de riesgo "&lt;target_profile&gt;", pero la delegación requiere el mismo perfil de riesgo que el llamador ("&lt;caller_profile&gt;")
+<p><strong>Reachability</strong>: the target agent must be in the caller’s reachable set, resolved by <code>Config::reachable_delegate_targets</code>. The reachable set is the union of two per-agent sources on <code>[agents.&lt;caller&gt;]</code>, minus the caller itself:</p>
+<ul>
+<li><strong>same-profile peers</strong>: every other agent sharing the caller’s risk profile, included while <code>delegate_same_risk_profile = true</code> (the default). Set it <code>false</code> to opt the caller out of auto-allowing peers.</li>
+<li><strong>explicit roster</strong>: <code>delegates</code>, a possibly-empty list of agent aliases the caller may delegate to even across risk profiles.
+When the target is outside that set the refusal is:</li>
+</ul>
+<pre><code class="language-text">delegate target "&lt;target&gt;" is not reachable from "&lt;caller&gt;"; add it to [agents.&lt;caller&gt;].delegates or share a risk profile with delegate_same_risk_profile enabled
+</code></pre>
+<p>A same-profile target inherits the caller’s session workspace boundary and shares its action/cost tracker. An explicit <strong>cross-profile</strong> target runs under its own resolved policy and must pass <code>ensure_no_escalation_beyond</code> the caller: a listed delegate that would widen privilege (broader autonomy, extra roots, higher budgets, etc.) is refused with:</p>
+<pre><code class="language-text">delegate target "&lt;target&gt;" (risk profile "&lt;target_profile&gt;") would escalate beyond the caller (risk profile "&lt;caller_profile&gt;"): &lt;violation&gt;
 </code></pre>
 </li>
 </ol>
-<p>Debido a que la accesibilidad está condicionada por el perfil de riesgo compartido, la lista anunciada (el enum del parámetro <code>agent</code> en el esquema de la herramienta) incluye solo los agentes configurados que comparten el perfil de riesgo del llamador, excluyendo al propio llamador, y solo cuando <code>delegation_policy.mode = "allow"</code>. No existe una lista de permitidos separada por agente: el perfil compartido <em>es</em> la lista de permitidos.</p>
+<p>The advertised roster (the <code>agent</code> parameter’s enum in the tool schema) lists exactly this reachable set, and only when <code>delegation_policy.mode = "allow"</code>. Disabled agents (<code>enabled = false</code>) are never reachable, whether as same-profile peers or explicit <code>delegates</code> entries.</p>
+<p>In agentic delegation the sub-agent’s tools are drawn from the caller’s already-policy-filtered registry, intersected with the target’s own <code>allowed_tools</code>. An <strong>empty</strong> <code>allowed_tools</code> on the target means “inherit”: the sub-agent runs with the caller’s full delegatable registry rather than being rejected. A non-empty list intersects with that registry. Either way the caller’s registry is the ceiling: a cross-profile target whose risk profile names a tool the caller was never granted does not receive it. This is the invariant that keeps <code>ensure_no_escalation_beyond</code> (which does not itself diff tool allowlists) sufficient, since the target can never exceed the caller’s tool surface.</p>
+<p>Depth is capped per the parent’s <code>runtime_profile.max_delegation_depth</code>. Set it to <code>1</code> to allow the top agent a single delegation hop with no further sub-delegation.</p>
 <h3 id="delegate-cadenas-de-salida-que-el-modelo-ve"><a class="header" href="#delegate-cadenas-de-salida-que-el-modelo-ve"><code>delegate</code>: cadenas de salida que el modelo ve</a></h3>
 <p>Exacto, obtenido de <code>crates/zeroclaw-runtime/src/tools/delegate.rs</code>.</p>
 <ol>
@@ -459,14 +469,14 @@ Use action='check_result' with task_id='&lt;uuid&gt;' to retrieve the result.
 <tr><th></th><th><code>spawn_subagent</code></th><th><code>delegate</code></th></tr>
 </thead>
 <tbody>
-<tr><td><strong>Identidad</strong></td><td>Igual que el elemento padre (mismo UUID, mismo perfil de riesgo)</td><td>Identidad del agente de destino (alias diferente, <strong>mismo</strong> mismo perfil de riesgo, la delegación lo requiere)</td></tr>
-<tr><td><strong>Modelo de permisos</strong></td><td>La política del padre textualmente (o un subconjunto restringido)</td><td>Política propia del agente de destino (dentro del perfil de riesgo compartido)</td></tr>
+<tr><td><strong>Identidad</strong></td><td>Igual que el elemento padre (mismo UUID, mismo perfil de riesgo)</td><td>Target agent’s identity (different alias; same-profile peer or an explicit cross-profile delegate)</td></tr>
+<tr><td><strong>Modelo de permisos</strong></td><td>La política del padre textualmente (o un subconjunto restringido)</td><td>Target agent’s own policy (same-profile, or a cross-profile delegate validated non-escalating)</td></tr>
 <tr><td><strong>Proveedor de modelos</strong></td><td>Del padre</td><td>Proveedor configurado del agente de destino</td></tr>
 <tr><td><strong>Profundidad de generación</strong></td><td>Límite máximo en 1</td><td>Hasta <code>runtime_profile.max_delegation_depth</code> (predeterminado 3)</td></tr>
 <tr><td><strong>Modo en segundo plano</strong></td><td>No compatible</td><td><code>background: true</code> devuelve un <code>task_id</code></td></tr>
 <tr><td><strong>Distribución en paralelo</strong></td><td>Sin argumento integrado; las llamadas múltiples en un mismo turno se ejecutan de forma concurrente cuando <code>parallel_tools = true</code></td><td><code>parallel: [...]</code> ejecuta múltiples objetivos de forma concurrente</td></tr>
-<tr><td><strong>Restricción de acceso</strong></td><td><code>risk_profile.allowed_tools</code> debe incluir <code>spawn_subagent</code></td><td><code>allowed_tools</code> debe listar <code>delegate</code>, el <code>delegation_policy mode = "allow"</code> del llamador, y el destino comparte el perfil de riesgo del llamador</td></tr>
-<tr><td><strong>Usar cuando</strong></td><td>Subtarea interna que debe permanecer dentro de la misma identidad</td><td>¿Quieres que un especialista diferente (modelo distinto, alias distinto) en el <strong>mismo nivel de confianza</strong> se encargue de la tarea?</td></tr>
+<tr><td><strong>Restricción de acceso</strong></td><td><code>risk_profile.allowed_tools</code> debe incluir <code>spawn_subagent</code></td><td><code>allowed_tools</code> must list <code>delegate</code>, caller’s <code>delegation_policy mode = "allow"</code>, and the target is in the caller’s reachable set (same-profile peer or explicit <code>delegates</code> entry)</td></tr>
+<tr><td><strong>Usar cuando</strong></td><td>Subtarea interna que debe permanecer dentro de la misma identidad</td><td>Want a different specialist (different model, different alias) to handle the task, on the same trust tier or an explicitly-allowed stricter/cross-profile one</td></tr>
 </tbody>
 </table>
 </div>

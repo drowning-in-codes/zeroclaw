@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"derive":["Configurable"]};
+window.SIDEBAR_ITEMS = {"derive":["ConfigEnum","Configurable"]};
