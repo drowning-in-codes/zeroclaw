@@ -7438,7 +7438,8 @@ fn build_channel_by_id(
                     mm.mention_only.unwrap_or(false),
                 )
                 .with_team_ids(mm.team_ids.clone())
-                .with_discover_dms(mm.discover_dms.unwrap_or(true)),
+                .with_discover_dms(mm.discover_dms.unwrap_or(true))
+                .with_listen_mode(mm.listen_mode),
             ))
         }
         #[cfg(not(feature = "channel-mattermost"))]
@@ -8675,7 +8676,8 @@ fn collect_configured_channels(
                     .with_team_ids(mm.team_ids.clone())
                     .with_discover_dms(mm.discover_dms.unwrap_or(true))
                     .with_proxy_url(mm.proxy_url.clone())
-                    .with_transcription(config.transcription.clone()),
+                    .with_transcription(config.transcription.clone())
+                    .with_listen_mode(mm.listen_mode),
                 ),
                 mm,
             ),
@@ -23415,6 +23417,7 @@ This is an example JSON object for profile settings."#;
                 mention_only: Some(false),
                 interrupt_on_new_message: false,
                 proxy_url: None,
+                listen_mode: zeroclaw_config::schema::MattermostListenMode::default(),
                 excluded_tools: vec![],
                 reply_min_interval_secs: 0,
                 reply_queue_depth_max: 0,
@@ -23463,6 +23466,7 @@ This is an example JSON object for profile settings."#;
                 mention_only: Some(false),
                 interrupt_on_new_message: false,
                 proxy_url: None,
+                listen_mode: zeroclaw_config::schema::MattermostListenMode::default(),
                 excluded_tools: vec![],
                 reply_min_interval_secs: 0,
                 reply_queue_depth_max: 0,
