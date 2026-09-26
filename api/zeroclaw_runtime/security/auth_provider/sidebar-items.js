@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Credential"],"mod":["native","oidc","peercred"],"struct":["ProviderRegistry"],"trait":["AuthProvider"]};
